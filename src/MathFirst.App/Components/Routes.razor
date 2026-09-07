@@ -1,0 +1,44 @@
+@using MathFirst.App.Services
+@using MathFirst.Application
+@implements IDisposable
+@inject IThemeService ThemeService
+@inject IPreferenceStore PreferenceStore
+@inject NavigationManager Navigation
+
+<div class="app-theme-root" data-theme="@ThemeService.EffectiveThemeCssName">
+    @if (!PreferenceStore.GetOnboardingCompleted())
+    {
+        <MathFirst.App.Components.Onboarding.OnboardingHost OnCompleted="HandleOnboardingCompleted" />
+    }
+    else
+    {
+        <Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+            <Found Context="routeData">
+                <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            </Found>
+        </Router>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ThemeService.ThemeChanged += OnThemeChanged;
+    }
+
+    public void Dispose()
+    {
+        ThemeService.ThemeChanged -= OnThemeChanged;
+    }
+
+    private void HandleOnboardingCompleted()
+    {
+        Navigation.NavigateTo("/", replace: true);
+        StateHasChanged();
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

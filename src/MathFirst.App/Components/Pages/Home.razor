@@ -1,0 +1,453 @@
+@page "/"
+@implements IDisposable
+@using MathFirst.Application
+@using MathFirst.Domain
+@inject ILocalizationService Localizer
+@inject TrainingSession Session
+
+<div class="training-host" @onkeydown="HandleGlobalKeyDown" tabindex="0">
+    <div class="mathfirst-container">
+        <header class="mathfirst-header">
+            <div class="mathfirst-title-group">
+                <h1 class="mathfirst-title">@Localizer["App_Title"]</h1>
+                @if (Session.IsInitialized && Session.CurrentFact is not null)
+                {
+                    <span class="mathfirst-op-badge">@Localizer[$"Operation_{Session.CurrentFact.Operation}"]</span>
+                }
+            </div>
+            <a href="settings" class="button button-secondary settings-nav-btn" title='@Localizer["Settings_Title"]'>
+                @Localizer["Settings_Title"]
+            </a>
+        </header>
+
+        @if (!Session.IsInitialized || Session.CurrentFact is null)
+        {
+            <main class="training-card">
+                <div class="score-display">Loading...</div>
+            </main>
+        }
+        else
+        {
+            <main class="training-card">
+                <div class="training-meta-row">
+                    @if (Session.Progression.IsInCheckpoint)
+                    {
+                        <span class="checkpoint-badge">@Localizer["Training_CheckpointBadge", Math.Min(Session.Progression.CheckpointAttemptCount + 1, LearningPolicy.DefaultCheckpointAttemptCount), LearningPolicy.DefaultCheckpointAttemptCount]</span>
+                    }
+                    else
+                    {
+                        <span class="range-display">0..@Session.Progression.GetMaxOperand(Session.CurrentFact.Operation)</span>
+                    }
+                    <span class="score-display">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
+                </div>
+
+                <div class="timer-container" aria-hidden="@(_isAwaitingNext || _isAwaitingAcknowledgement)">
+                    @if (!_isAwaitingNext && !_isAwaitingAcknowledgement)
+                    {
+                        <div class="timer-bar-track"
+                             role="progressbar"
+                             aria-valuemin="0"
+                             aria-valuemax="@Session.CurrentFactDeadlineSeconds"
+                             aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
+                             aria-label="@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]">
+                            <div class="timer-bar-fill"
+                                 style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
+                            </div>
+                            <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="problem-container">
+                    <div class="expression-row">
+                        <span class="operand">@Session.CurrentFact.LeftOperand</span>
+                        <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
+                        <span class="operand">@Session.CurrentFact.RightOperand</span>
+                        <span class="equals">=</span>
+                        <input @ref="_inputElement"
+                               type="text"
+                               inputmode="numeric"
+                               pattern="[0-9]*"
+                               autocomplete="off"
+                               class="answer-input @GetInputClass()"
+                               @bind-value="_answerInput"
+                               @bind-value:event="oninput"
+                               @onkeydown="HandleInputKeyDown"
+                               disabled="@(_isAwaitingNext || _isAwaitingAcknowledgement)"
+                               aria-label="Answer input" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_validationError))
+                    {
+                        <div class="validation-message" role="alert">
+                            @_validationError
+                        </div>
+                    }
+
+                    <div class="feedback-container">
+                        @if (Session.LastEvaluation is not null)
+                        {
+                            @if (Session.LastEvaluation.Outcome == AttemptOutcome.Correct)
+                            {
+                                <div class="feedback-banner feedback-correct" role="status">
+                                    <span class="feedback-text">@Localizer["Training_Correct"]</span>
+                                </div>
+                            }
+                            else if (Session.LastEvaluation.Outcome == AttemptOutcome.Incorrect)
+                            {
+                                <div class="feedback-banner feedback-incorrect" role="alert">
+                                    <div class="feedback-incorrect-title">@Localizer["Training_IncorrectTitle"]</div>
+                                    <div class="feedback-detail-row">
+                                        <span class="feedback-user-answer">@Localizer["Training_YourAnswer", Session.LastEvaluation.SubmittedAnswer ?? 0]</span>
+                                        <span class="feedback-correct-answer">@Localizer["Training_CorrectAnswer", Session.LastEvaluation.CorrectAnswer]</span>
+                                    </div>
+                                </div>
+                            }
+                            else if (Session.LastEvaluation.Outcome == AttemptOutcome.Timeout)
+                            {
+                                <div class="feedback-banner feedback-incorrect feedback-timeout" role="alert">
+                                    <div class="feedback-incorrect-title">@Localizer["Training_TimeExpired"]</div>
+                                    <div class="feedback-detail-row">
+                                        <span class="feedback-correct-answer">@Localizer["Training_CorrectAnswer", Session.LastEvaluation.CorrectAnswer]</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <div class="actions">
+                        @if (_isAwaitingAcknowledgement)
+                        {
+                            <button type="button"
+                                    @ref="_nextButton"
+                                    class="button button-danger action-btn"
+                                    @onclick="Advance">
+                                @Localizer["Common_Continue"] (Enter)
+                            </button>
+                        }
+                        else if (_isAwaitingNext)
+                        {
+                            <button type="button"
+                                    @ref="_nextButton"
+                                    class="button button-primary action-btn"
+                                    @onclick="Advance">
+                                @Localizer["Training_NextAction"] (Enter)
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button"
+                                    class="button button-primary action-btn"
+                                    @onclick="Submit">
+                                @Localizer["Training_SubmitAction"] (Enter)
+                            </button>
+                        }
+                    </div>
+                </div>
+            </main>
+        }
+    </div>
+</div>
+
+@code {
+    private string _answerInput = string.Empty;
+    private string? _validationError;
+    private bool _isAwaitingNext;
+    private bool _isAwaitingAcknowledgement;
+    private bool _isSubmitting;
+    private ElementReference _inputElement;
+    private ElementReference _nextButton;
+    private bool _shouldFocusInput = true;
+    private bool _shouldFocusNext;
+
+    private CancellationTokenSource? _timerCts;
+    private double _timerFraction = 1.0;
+    private double _remainingSecondsDouble = 30.0;
+    private string _timerDisplayText = "30.000 s";
+    private string _timerColor = "hsl(135, 72%, 42%)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localizer.UiLanguageChanged += OnLanguageChanged;
+
+        if (!Session.IsInitialized)
+        {
+            await Session.InitializeAsync();
+        }
+
+        SyncStateWithSession();
+    }
+
+    private void SyncStateWithSession()
+    {
+        if (Session.InteractionState == SessionInteractionState.AwaitingAnswer)
+        {
+            _isAwaitingNext = false;
+            _isAwaitingAcknowledgement = false;
+            _shouldFocusInput = true;
+            _shouldFocusNext = false;
+            Session.ResumeItemTiming();
+            StartTimer();
+        }
+        else if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
+        {
+            _isAwaitingNext = true;
+            _isAwaitingAcknowledgement = false;
+            _shouldFocusInput = false;
+            _shouldFocusNext = true;
+            if (Session.LastEvaluation?.SubmittedAnswer.HasValue == true)
+            {
+                _answerInput = Session.LastEvaluation.SubmittedAnswer.Value.ToString();
+            }
+            StopTimer();
+        }
+        else if (Session.InteractionState is SessionInteractionState.IncorrectFeedback or SessionInteractionState.TimeoutFeedback)
+        {
+            _isAwaitingNext = false;
+            _isAwaitingAcknowledgement = true;
+            _shouldFocusInput = false;
+            _shouldFocusNext = true;
+            if (Session.LastEvaluation?.SubmittedAnswer.HasValue == true)
+            {
+                _answerInput = Session.LastEvaluation.SubmittedAnswer.Value.ToString();
+            }
+            StopTimer();
+        }
+    }
+
+    public void Dispose()
+    {
+        Localizer.UiLanguageChanged -= OnLanguageChanged;
+        StopTimer();
+        Session.PauseItemTiming();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldFocusInput)
+        {
+            _shouldFocusInput = false;
+            try
+            {
+                await _inputElement.FocusAsync();
+            }
+            catch
+            {
+            }
+        }
+        else if (_shouldFocusNext)
+        {
+            _shouldFocusNext = false;
+            try
+            {
+                await _nextButton.FocusAsync();
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private async Task HandleInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter")
+        {
+            if (_isAwaitingNext || _isAwaitingAcknowledgement)
+            {
+                Advance();
+            }
+            else
+            {
+                await Submit();
+            }
+        }
+    }
+
+    private void HandleGlobalKeyDown(KeyboardEventArgs e)
+    {
+        if ((_isAwaitingNext || _isAwaitingAcknowledgement) && e.Key is "Enter" or "NumpadEnter")
+        {
+            Advance();
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
+        _timerCts = new CancellationTokenSource();
+        var token = _timerCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            using var periodicTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    if (!await periodicTimer.WaitForNextTickAsync(token))
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (token.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                var elapsed = Session.GetCurrentItemElapsed();
+                var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
+                if (elapsed.TotalSeconds >= deadlineSeconds)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!token.IsCancellationRequested && Session.InteractionState == SessionInteractionState.AwaitingAnswer)
+                        {
+                            UpdateTimerVisuals(deadlineSeconds);
+                            await HandleTimeoutAsync();
+                        }
+                    });
+                    break;
+                }
+
+                UpdateTimerVisuals(elapsed.TotalSeconds);
+                await InvokeAsync(StateHasChanged);
+            }
+        }, token);
+    }
+
+    private void StopTimer()
+    {
+        if (_timerCts is not null)
+        {
+            try
+            {
+                _timerCts.Cancel();
+                _timerCts.Dispose();
+            }
+            catch
+            {
+            }
+            _timerCts = null;
+        }
+    }
+
+    private void UpdateTimerVisuals(double elapsedSeconds)
+    {
+        var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
+        var remainingSeconds = Math.Max(0.0, deadlineSeconds - elapsedSeconds);
+        _remainingSecondsDouble = remainingSeconds;
+        _timerFraction = deadlineSeconds > 0 ? Math.Clamp(remainingSeconds / deadlineSeconds, 0.0, 1.0) : 0.0;
+        _timerDisplayText = LearningPolicy.FormatTimerDisplay(remainingSeconds, deadlineSeconds);
+        var hue = (int)(_timerFraction * 135);
+        _timerColor = $"hsl({hue}, 72%, 42%)";
+    }
+
+    private async Task Submit()
+    {
+        if (_isSubmitting || _isAwaitingNext || _isAwaitingAcknowledgement)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_answerInput))
+        {
+            _validationError = Localizer["Training_EnterNumber"];
+            _shouldFocusInput = true;
+            return;
+        }
+
+        if (int.TryParse(_answerInput.Trim(), out var parsedAnswer))
+        {
+            _isSubmitting = true;
+            StopTimer();
+            try
+            {
+                _validationError = null;
+                var eval = Session.SubmitAnswer(parsedAnswer);
+                if (eval.IsCorrect)
+                {
+                    _isAwaitingNext = true;
+                }
+                else
+                {
+                    _isAwaitingAcknowledgement = true;
+                }
+                _shouldFocusNext = true;
+
+                // Commit to persistent store asynchronously
+                await Session.CommitCurrentEvaluationAsync();
+            }
+            finally
+            {
+                _isSubmitting = false;
+            }
+        }
+        else
+        {
+            _validationError = Localizer["Training_EnterValidNumber"];
+            _shouldFocusInput = true;
+        }
+    }
+
+    private async Task HandleTimeoutAsync()
+    {
+        if (_isSubmitting || _isAwaitingNext || _isAwaitingAcknowledgement)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        StopTimer();
+        try
+        {
+            _validationError = null;
+            Session.RecordTimeout();
+            _isAwaitingAcknowledgement = true;
+            _shouldFocusNext = true;
+
+            await Session.CommitCurrentEvaluationAsync();
+        }
+        finally
+        {
+            _isSubmitting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void Advance()
+    {
+        if (!_isAwaitingNext && !_isAwaitingAcknowledgement)
+        {
+            return;
+        }
+
+        _isAwaitingNext = false;
+        _isAwaitingAcknowledgement = false;
+        Session.AdvanceToNextFact();
+        _answerInput = string.Empty;
+        _validationError = null;
+        _shouldFocusInput = true;
+        StartTimer();
+    }
+
+    private string GetInputClass()
+    {
+        if (Session.LastEvaluation is null)
+        {
+            return string.Empty;
+        }
+
+        return Session.LastEvaluation.IsCorrect ? "input-correct" : "input-incorrect";
+    }
+}

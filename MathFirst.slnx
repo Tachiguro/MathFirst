@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MathFirst.App/MathFirst.App.csproj" />
+    <Project Path="src/MathFirst.Application/MathFirst.Application.csproj" />
+    <Project Path="src/MathFirst.Domain/MathFirst.Domain.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MathFirst.Core.Tests/MathFirst.Core.Tests.csproj" />
+  </Folder>
+</Solution>
