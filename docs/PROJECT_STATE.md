@@ -22,8 +22,8 @@ This document records the stable, verified factual baseline of the MathFirst pro
   - Windows
   *(Note: This is a durable product requirement. No platform implementations or binaries exist yet.)*
 - **Cross-Platform Design Objective**: MathFirst should maximize shared domain/application logic across Android, Web, and Windows where technically sensible, while allowing platform-specific UI or integration code where justified.
-- **Application Technology Stack**: Not selected. Evaluation and selection of language, runtime, and UI frameworks will occur during planned roadmap phases.
-- **Product Architecture**: Not selected. Architecture decisions will be formulated in accordance with approved product requirements.
+- **Application Technology Stack**: Accepted baseline of C# / .NET 10, standalone Blazor WebAssembly PWA for Web, and .NET MAUI Blazor Hybrid for Android and Windows. See [ADR-0001](decisions/ADR-0001-cross-platform-application-topology-and-stack-baseline.md).
+- **Product Architecture**: Accepted shared, platform-independent Domain/Application core with platform-specific hosts and adapters. Concrete persistence technology and other deferred architecture details are not selected.
 
 ---
 
