@@ -38,3 +38,4 @@ Every ADR must contain the following sections:
 | ADR ID | Title | Status | Date |
 |---|---|---|---|
 | [ADR-0001](ADR-0001-cross-platform-application-topology-and-stack-baseline.md) | Cross-Platform Application Topology and Stack Baseline | Accepted | 2026-09-07 |
+| [ADR-0002](ADR-0002-offline-execution-and-local-persistence-boundary.md) | Offline Execution and Local Persistence Boundary | Accepted | 2026-09-07 |

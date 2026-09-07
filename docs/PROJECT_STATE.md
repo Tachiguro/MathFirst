@@ -23,7 +23,9 @@ This document records the stable, verified factual baseline of the MathFirst pro
   *(Note: This is a durable product requirement. No platform implementations or binaries exist yet.)*
 - **Cross-Platform Design Objective**: MathFirst should maximize shared domain/application logic across Android, Web, and Windows where technically sensible, while allowing platform-specific UI or integration code where justified.
 - **Application Technology Stack**: Accepted baseline of C# / .NET 10, standalone Blazor WebAssembly PWA for Web, and .NET MAUI Blazor Hybrid for Android and Windows. See [ADR-0001](decisions/ADR-0001-cross-platform-application-topology-and-stack-baseline.md).
-- **Product Architecture**: Accepted shared, platform-independent Domain/Application core with platform-specific hosts and adapters. Concrete persistence technology and other deferred architecture details are not selected.
+- **Product Architecture**: Accepted shared, platform-independent Domain/Application core with platform-specific hosts and adapters. See [ADR-0001](decisions/ADR-0001-cross-platform-application-topology-and-stack-baseline.md).
+- **Persistence Architecture**: Accepted capability-oriented Application persistence boundary with persistence-unaware Domain, atomic semantic-submission commits (attempt evidence, item state, and progression), optimistic revision concurrency, explicit format versioning, and platform-specific adapters. IndexedDB (Web) and SQLite (Native) are primary evidence candidates, not final accepted technologies; final selection requires later runtime/spike evidence. See [ADR-0002](decisions/ADR-0002-offline-execution-and-local-persistence-boundary.md).
+  *(Note: No concrete persistence engine, schema, or migrations have been implemented yet.)*
 
 ---
 
