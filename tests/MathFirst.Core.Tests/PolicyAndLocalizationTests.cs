@@ -171,4 +171,3 @@ public sealed class PolicyAndLocalizationTests
         }
     }
 }
-

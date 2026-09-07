@@ -436,4 +436,3 @@ public sealed class LocalizationService : ILocalizationService
         ["Reset_FullLocal_Success"] = "Полный сброс выполнен. Приложение возвращено в исходное состояние."
     };
 }
-
