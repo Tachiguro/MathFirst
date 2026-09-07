@@ -1,0 +1,23 @@
+@using System.Globalization
+@using MathFirst.Application
+@implements IDisposable
+@inject ILocalizationService LocalizationService
+
+<Routes />
+
+@code {
+    protected override void OnInitialized()
+    {
+        LocalizationService.UiLanguageChanged += OnUiLanguageChanged;
+    }
+
+    public void Dispose()
+    {
+        LocalizationService.UiLanguageChanged -= OnUiLanguageChanged;
+    }
+
+    private void OnUiLanguageChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

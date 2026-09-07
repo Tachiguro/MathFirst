@@ -1,0 +1,1067 @@
+namespace MathFirst.Application.Persistence;
+
+using System.Data;
+using System.Text.Json;
+using MathFirst.Application.Scheduling;
+using MathFirst.Domain;
+using Microsoft.Data.Sqlite;
+
+public sealed class SqliteLearnerStore : ILearnerStore
+{
+    private readonly string _connectionString;
+    private readonly string _storagePath;
+    private SqliteConnection? _connection;
+    private bool _isInitialized;
+    private readonly object _lock = new();
+
+    public SqliteLearnerStore(string storagePath)
+    {
+        _storagePath = storagePath ?? throw new ArgumentNullException(nameof(storagePath));
+        var dir = Path.GetDirectoryName(storagePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = storagePath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Default,
+            ForeignKeys = true
+        };
+        _connectionString = builder.ToString();
+    }
+
+    public string StoragePath => _storagePath;
+
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_lock)
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+        }
+
+        _connection = new SqliteConnection(_connectionString);
+        await _connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+
+            CREATE TABLE IF NOT EXISTS schema_info (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS learner_progression (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                current_operation TEXT NOT NULL,
+                current_max_operand INTEGER NOT NULL,
+                operation_max_operands_json TEXT NOT NULL,
+                practice_position INTEGER NOT NULL DEFAULT 0,
+                completed_checkpoint_level INTEGER NOT NULL DEFAULT 0,
+                active_checkpoint_level INTEGER,
+                checkpoint_attempt_count INTEGER NOT NULL DEFAULT 0,
+                checkpoint_correct_count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS item_learning_state (
+                fact_id TEXT PRIMARY KEY,
+                operation TEXT NOT NULL,
+                left_operand INTEGER NOT NULL,
+                right_operand INTEGER NOT NULL,
+                total_attempts INTEGER NOT NULL,
+                correct_attempts INTEGER NOT NULL,
+                incorrect_attempts INTEGER NOT NULL,
+                consecutive_correct INTEGER NOT NULL,
+                last_latency_ms INTEGER NOT NULL,
+                rolling_latency_ms INTEGER NOT NULL,
+                fluent_streak INTEGER NOT NULL,
+                is_mastered INTEGER NOT NULL,
+                needs_remediation INTEGER NOT NULL,
+                remediation_due_order INTEGER NOT NULL,
+                last_practiced_order INTEGER NOT NULL,
+                last_practiced_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS attempt_history (
+                submission_id TEXT PRIMARY KEY,
+                fact_id TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                left_operand INTEGER NOT NULL,
+                right_operand INTEGER NOT NULL,
+                submitted_answer INTEGER,
+                correct_answer INTEGER NOT NULL,
+                is_correct INTEGER NOT NULL,
+                outcome TEXT NOT NULL DEFAULT 'Incorrect',
+                response_latency_ms INTEGER NOT NULL,
+                timestamp TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS fsrs_card_state (
+                fact_id TEXT PRIMARY KEY,
+                card_id TEXT NOT NULL,
+                state INTEGER NOT NULL,
+                step INTEGER,
+                stability REAL,
+                difficulty REAL,
+                due_practice_position INTEGER NOT NULL,
+                last_review_practice_position INTEGER,
+                last_rating INTEGER
+            );
+        ";
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        // Check or initialize schema version and revision
+        var (version, revision) = await ReadSchemaInfoAsync(cancellationToken).ConfigureAwait(false);
+        if (version == 0)
+        {
+            // Fresh DB
+            using var initCmd = _connection.CreateCommand();
+            initCmd.CommandText = $@"
+                INSERT OR REPLACE INTO schema_info (key, value) VALUES ('schema_version', '{LearnerProgression.DefaultSchemaVersion}');
+                INSERT OR REPLACE INTO schema_info (key, value) VALUES ('store_revision', '1');
+            ";
+            await initCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            var defaultProgression = LearnerProgression.CreateFresh();
+            await SaveProgressionAsync(defaultProgression, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 1)
+        {
+            await MigrateV1ToV2Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV2ToV3Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 2)
+        {
+            await MigrateV2ToV3Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 3)
+        {
+            await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version > LearnerProgression.DefaultSchemaVersion)
+        {
+            throw new InvalidOperationException($"Unsupported database schema version {version}. Maximum supported version is {LearnerProgression.DefaultSchemaVersion}.");
+        }
+
+        lock (_lock)
+        {
+            _isInitialized = true;
+        }
+    }
+
+    public async Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        var (version, revision) = await ReadSchemaInfoAsync(cancellationToken).ConfigureAwait(false);
+        if (version > LearnerProgression.DefaultSchemaVersion)
+        {
+            throw new InvalidOperationException($"Unsupported database schema version {version}.");
+        }
+
+        var progression = await ReadProgressionAsync(cancellationToken).ConfigureAwait(false);
+        progression.StoreRevision = revision;
+        progression.SchemaVersion = version;
+
+        var itemStates = await ReadAllItemStatesAsync(cancellationToken).ConfigureAwait(false);
+        var fsrsStates = await ReadAllFsrsStatesAsync(cancellationToken).ConfigureAwait(false);
+        var recentAttempts = await ReadRecentAttemptsAsync(50, cancellationToken).ConfigureAwait(false);
+
+        return new LearnerSnapshot(progression, itemStates, fsrsStates, recentAttempts, revision, version);
+    }
+
+    public async Task<PersistenceResult> CommitSubmissionAsync(
+        SubmissionChangeSet changeSet,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(changeSet);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_connection is null)
+        {
+            return PersistenceResult.Unavailable("Database connection is not open.");
+        }
+
+        using var transaction = _connection.BeginTransaction();
+        try
+        {
+            var (version, revision) = await ReadSchemaInfoInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
+            if (version > LearnerProgression.DefaultSchemaVersion)
+            {
+                transaction.Rollback();
+                return PersistenceResult.UnsupportedVersion($"Unsupported schema version {version}.");
+            }
+
+            if (revision != changeSet.ExpectedRevision)
+            {
+                // Check if this submission was already committed (idempotency)
+                var alreadyCommitted = await IsSubmissionCommittedInTxAsync(transaction, changeSet.SubmissionId, cancellationToken).ConfigureAwait(false);
+                if (alreadyCommitted)
+                {
+                    transaction.Commit();
+                    return PersistenceResult.Success(revision);
+                }
+
+                transaction.Rollback();
+                return PersistenceResult.Conflict($"Revision conflict: expected {changeSet.ExpectedRevision} but database is at revision {revision}.");
+            }
+
+            // 1. Record Attempt
+            using (var attCmd = _connection.CreateCommand())
+            {
+                attCmd.Transaction = transaction;
+                attCmd.CommandText = @"
+                    INSERT INTO attempt_history (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, outcome, response_latency_ms, timestamp
+                    ) VALUES (
+                        @submission_id, @fact_id, @operation, @left_operand, @right_operand,
+                        @submitted_answer, @correct_answer, @is_correct, @outcome, @response_latency_ms, @timestamp
+                    );
+                ";
+                attCmd.Parameters.AddWithValue("@submission_id", changeSet.Attempt.SubmissionId);
+                attCmd.Parameters.AddWithValue("@fact_id", changeSet.Attempt.FactId);
+                attCmd.Parameters.AddWithValue("@operation", changeSet.Attempt.Operation.ToString());
+                attCmd.Parameters.AddWithValue("@left_operand", changeSet.Attempt.LeftOperand);
+                attCmd.Parameters.AddWithValue("@right_operand", changeSet.Attempt.RightOperand);
+                attCmd.Parameters.AddWithValue("@submitted_answer", (object?)changeSet.Attempt.SubmittedAnswer ?? DBNull.Value);
+                attCmd.Parameters.AddWithValue("@correct_answer", changeSet.Attempt.CorrectAnswer);
+                attCmd.Parameters.AddWithValue("@is_correct", changeSet.Attempt.IsCorrect ? 1 : 0);
+                attCmd.Parameters.AddWithValue("@outcome", changeSet.Attempt.Outcome.ToString());
+                attCmd.Parameters.AddWithValue("@response_latency_ms", changeSet.Attempt.ResponseLatencyMs);
+                attCmd.Parameters.AddWithValue("@timestamp", changeSet.Attempt.Timestamp.ToString("O"));
+                await attCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 2. Upsert Item Learning State
+            using (var itemCmd = _connection.CreateCommand())
+            {
+                itemCmd.Transaction = transaction;
+                itemCmd.CommandText = @"
+                    INSERT INTO item_learning_state (
+                        fact_id, operation, left_operand, right_operand,
+                        total_attempts, correct_attempts, incorrect_attempts,
+                        consecutive_correct, last_latency_ms, rolling_latency_ms,
+                        fluent_streak, is_mastered, needs_remediation,
+                        remediation_due_order, last_practiced_order, last_practiced_at
+                    ) VALUES (
+                        @fact_id, @operation, @left_operand, @right_operand,
+                        @total_attempts, @correct_attempts, @incorrect_attempts,
+                        @consecutive_correct, @last_latency_ms, @rolling_latency_ms,
+                        @fluent_streak, @is_mastered, @needs_remediation,
+                        @remediation_due_order, @last_practiced_order, @last_practiced_at
+                    )
+                    ON CONFLICT(fact_id) DO UPDATE SET
+                        total_attempts = excluded.total_attempts,
+                        correct_attempts = excluded.correct_attempts,
+                        incorrect_attempts = excluded.incorrect_attempts,
+                        consecutive_correct = excluded.consecutive_correct,
+                        last_latency_ms = excluded.last_latency_ms,
+                        rolling_latency_ms = excluded.rolling_latency_ms,
+                        fluent_streak = excluded.fluent_streak,
+                        is_mastered = excluded.is_mastered,
+                        needs_remediation = excluded.needs_remediation,
+                        remediation_due_order = excluded.remediation_due_order,
+                        last_practiced_order = excluded.last_practiced_order,
+                        last_practiced_at = excluded.last_practiced_at;
+                ";
+                var st = changeSet.UpdatedItemState;
+                itemCmd.Parameters.AddWithValue("@fact_id", st.FactId);
+                itemCmd.Parameters.AddWithValue("@operation", st.Operation.ToString());
+                itemCmd.Parameters.AddWithValue("@left_operand", st.LeftOperand);
+                itemCmd.Parameters.AddWithValue("@right_operand", st.RightOperand);
+                itemCmd.Parameters.AddWithValue("@total_attempts", st.TotalAttempts);
+                itemCmd.Parameters.AddWithValue("@correct_attempts", st.CorrectAttempts);
+                itemCmd.Parameters.AddWithValue("@incorrect_attempts", st.IncorrectAttempts);
+                itemCmd.Parameters.AddWithValue("@consecutive_correct", st.ConsecutiveCorrectStreak);
+                itemCmd.Parameters.AddWithValue("@last_latency_ms", st.LastLatencyMs);
+                itemCmd.Parameters.AddWithValue("@rolling_latency_ms", st.RollingLatencyMs);
+                itemCmd.Parameters.AddWithValue("@fluent_streak", st.FluentStreak);
+                itemCmd.Parameters.AddWithValue("@is_mastered", st.IsProvisionallyMastered ? 1 : 0);
+                itemCmd.Parameters.AddWithValue("@needs_remediation", st.NeedsRemediation ? 1 : 0);
+                itemCmd.Parameters.AddWithValue("@remediation_due_order", st.RemediationDueOrder);
+                itemCmd.Parameters.AddWithValue("@last_practiced_order", st.LastPracticedOrder);
+                itemCmd.Parameters.AddWithValue("@last_practiced_at", st.LastPracticedAt?.ToString("O") ?? (object)DBNull.Value);
+                await itemCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 3. Upsert Progression (including Schema V4 checkpoint fields)
+            using (var progCmd = _connection.CreateCommand())
+            {
+                progCmd.Transaction = transaction;
+                progCmd.CommandText = @"
+                    INSERT INTO learner_progression (
+                        id, current_operation, current_max_operand, operation_max_operands_json,
+                        practice_position, completed_checkpoint_level, active_checkpoint_level,
+                        checkpoint_attempt_count, checkpoint_correct_count, updated_at
+                    ) VALUES (
+                        1, @current_operation, @current_max_operand, @operation_max_operands_json,
+                        @practice_position, @completed_checkpoint_level, @active_checkpoint_level,
+                        @checkpoint_attempt_count, @checkpoint_correct_count, @updated_at
+                    )
+                    ON CONFLICT(id) DO UPDATE SET
+                        current_operation = excluded.current_operation,
+                        current_max_operand = excluded.current_max_operand,
+                        operation_max_operands_json = excluded.operation_max_operands_json,
+                        practice_position = excluded.practice_position,
+                        completed_checkpoint_level = excluded.completed_checkpoint_level,
+                        active_checkpoint_level = excluded.active_checkpoint_level,
+                        checkpoint_attempt_count = excluded.checkpoint_attempt_count,
+                        checkpoint_correct_count = excluded.checkpoint_correct_count,
+                        updated_at = excluded.updated_at;
+                ";
+                var p = changeSet.UpdatedProgression;
+                progCmd.Parameters.AddWithValue("@current_operation", p.CurrentOperation.ToString());
+                progCmd.Parameters.AddWithValue("@current_max_operand", p.CurrentMaxOperand);
+                progCmd.Parameters.AddWithValue("@operation_max_operands_json", JsonSerializer.Serialize(p.OperationMaxOperands));
+                progCmd.Parameters.AddWithValue("@practice_position", p.PracticePosition);
+                progCmd.Parameters.AddWithValue("@completed_checkpoint_level", p.CompletedCheckpointLevel);
+                progCmd.Parameters.AddWithValue("@active_checkpoint_level", (object?)p.ActiveCheckpointLevel ?? DBNull.Value);
+                progCmd.Parameters.AddWithValue("@checkpoint_attempt_count", p.CheckpointAttemptCount);
+                progCmd.Parameters.AddWithValue("@checkpoint_correct_count", p.CheckpointCorrectCount);
+                progCmd.Parameters.AddWithValue("@updated_at", DateTimeOffset.UtcNow.ToString("O"));
+                await progCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 4. Upsert FSRS Card State (if present)
+            if (changeSet.UpdatedFsrsState is not null)
+            {
+                using var fsrsCmd = _connection.CreateCommand();
+                fsrsCmd.Transaction = transaction;
+                fsrsCmd.CommandText = @"
+                    INSERT INTO fsrs_card_state (
+                        fact_id, card_id, state, step, stability, difficulty,
+                        due_practice_position, last_review_practice_position, last_rating
+                    ) VALUES (
+                        @fact_id, @card_id, @state, @step, @stability, @difficulty,
+                        @due_practice_position, @last_review_practice_position, @last_rating
+                    )
+                    ON CONFLICT(fact_id) DO UPDATE SET
+                        card_id = excluded.card_id,
+                        state = excluded.state,
+                        step = excluded.step,
+                        stability = excluded.stability,
+                        difficulty = excluded.difficulty,
+                        due_practice_position = excluded.due_practice_position,
+                        last_review_practice_position = excluded.last_review_practice_position,
+                        last_rating = excluded.last_rating;
+                ";
+                var fsrs = changeSet.UpdatedFsrsState;
+                fsrsCmd.Parameters.AddWithValue("@fact_id", fsrs.FactId);
+                fsrsCmd.Parameters.AddWithValue("@card_id", fsrs.CardId.ToString());
+                fsrsCmd.Parameters.AddWithValue("@state", fsrs.State);
+                fsrsCmd.Parameters.AddWithValue("@step", (object?)fsrs.Step ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@stability", (object?)fsrs.Stability ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@difficulty", (object?)fsrs.Difficulty ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@due_practice_position", fsrs.DuePracticePosition);
+                fsrsCmd.Parameters.AddWithValue("@last_review_practice_position", (object?)fsrs.LastReviewPracticePosition ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@last_rating", (object?)(int?)fsrs.LastRating ?? DBNull.Value);
+                await fsrsCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 5. Increment Revision
+            var newRevision = revision + 1;
+            using (var revCmd = _connection.CreateCommand())
+            {
+                revCmd.Transaction = transaction;
+                revCmd.CommandText = "UPDATE schema_info SET value = @value WHERE key = 'store_revision';";
+                revCmd.Parameters.AddWithValue("@value", newRevision.ToString());
+                await revCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+            return PersistenceResult.Success(newRevision);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                transaction.Rollback();
+            }
+            catch
+            {
+                // ignored
+            }
+
+            if (ex is SqliteException sqlEx && sqlEx.SqliteErrorCode == 11) // SQLITE_CORRUPT
+            {
+                return PersistenceResult.Corrupt("Database file is corrupted.");
+            }
+
+            throw;
+        }
+    }
+
+    public async Task ResetLearningProgressAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_connection is null)
+        {
+            return;
+        }
+
+        using var transaction = _connection.BeginTransaction();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = @"
+                DELETE FROM attempt_history;
+                DELETE FROM item_learning_state;
+                DELETE FROM fsrs_card_state;
+                DELETE FROM learner_progression;
+                UPDATE schema_info SET value = '1' WHERE key = 'store_revision';
+            ";
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            var fresh = LearnerProgression.CreateFresh();
+            using var progCmd = _connection.CreateCommand();
+            progCmd.Transaction = transaction;
+            progCmd.CommandText = @"
+                INSERT INTO learner_progression (
+                    id, current_operation, current_max_operand, operation_max_operands_json,
+                    practice_position, completed_checkpoint_level, active_checkpoint_level,
+                    checkpoint_attempt_count, checkpoint_correct_count, updated_at
+                ) VALUES (
+                    1, @current_operation, @current_max_operand, @operation_max_operands_json,
+                    @practice_position, @completed_checkpoint_level, @active_checkpoint_level,
+                    @checkpoint_attempt_count, @checkpoint_correct_count, @updated_at
+                );
+            ";
+            progCmd.Parameters.AddWithValue("@current_operation", fresh.CurrentOperation.ToString());
+            progCmd.Parameters.AddWithValue("@current_max_operand", fresh.CurrentMaxOperand);
+            progCmd.Parameters.AddWithValue("@operation_max_operands_json", JsonSerializer.Serialize(fresh.OperationMaxOperands));
+            progCmd.Parameters.AddWithValue("@practice_position", fresh.PracticePosition);
+            progCmd.Parameters.AddWithValue("@completed_checkpoint_level", fresh.CompletedCheckpointLevel);
+            progCmd.Parameters.AddWithValue("@active_checkpoint_level", (object?)fresh.ActiveCheckpointLevel ?? DBNull.Value);
+            progCmd.Parameters.AddWithValue("@checkpoint_attempt_count", fresh.CheckpointAttemptCount);
+            progCmd.Parameters.AddWithValue("@checkpoint_correct_count", fresh.CheckpointCorrectCount);
+            progCmd.Parameters.AddWithValue("@updated_at", DateTimeOffset.UtcNow.ToString("O"));
+            await progCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    public Task CloseAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_lock)
+        {
+            if (_connection is not null)
+            {
+                _connection.Close();
+                _connection.Dispose();
+                _connection = null;
+                SqliteConnection.ClearAllPools();
+            }
+            _isInitialized = false;
+        }
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        CloseAsync().GetAwaiter().GetResult();
+    }
+
+    private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
+    {
+        if (!_isInitialized || _connection is null)
+        {
+            await InitializeAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<(int version, long revision)> ReadSchemaInfoAsync(CancellationToken cancellationToken)
+    {
+        if (_connection is null)
+        {
+            return (0, 0);
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT key, value FROM schema_info;";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        var version = 0;
+        long revision = 0;
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var key = reader.GetString(0);
+            var val = reader.GetString(1);
+            if (key == "schema_version" && int.TryParse(val, out var v))
+            {
+                version = v;
+            }
+            else if (key == "store_revision" && long.TryParse(val, out var r))
+            {
+                revision = r;
+            }
+        }
+
+        return (version, revision);
+    }
+
+    private static async Task<(int version, long revision)> ReadSchemaInfoInTxAsync(
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var cmd = transaction.Connection!.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = "SELECT key, value FROM schema_info;";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        var version = 0;
+        long revision = 0;
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var key = reader.GetString(0);
+            var val = reader.GetString(1);
+            if (key == "schema_version" && int.TryParse(val, out var v))
+            {
+                version = v;
+            }
+            else if (key == "store_revision" && long.TryParse(val, out var r))
+            {
+                revision = r;
+            }
+        }
+
+        return (version, revision);
+    }
+
+    private static async Task<bool> IsSubmissionCommittedInTxAsync(
+        SqliteTransaction transaction,
+        string submissionId,
+        CancellationToken cancellationToken)
+    {
+        var cmd = transaction.Connection!.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = "SELECT 1 FROM attempt_history WHERE submission_id = @id LIMIT 1;";
+        cmd.Parameters.AddWithValue("@id", submissionId);
+        var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return result != null;
+    }
+
+    private async Task<LearnerProgression> ReadProgressionAsync(CancellationToken cancellationToken)
+    {
+        if (_connection is null)
+        {
+            return LearnerProgression.CreateFresh();
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT current_operation, current_max_operand, operation_max_operands_json, practice_position,
+                   completed_checkpoint_level, active_checkpoint_level, checkpoint_attempt_count, checkpoint_correct_count, updated_at
+            FROM learner_progression WHERE id = 1;
+        ";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var opStr = reader.GetString(0);
+            var maxOp = reader.GetInt32(1);
+            var mapJson = reader.GetString(2);
+            var practicePosition = reader.GetInt64(3);
+            var completedCheckpointLevel = reader.GetInt32(4);
+            int? activeCheckpointLevel = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+            var checkpointAttemptCount = reader.GetInt32(6);
+            var checkpointCorrectCount = reader.GetInt32(7);
+            var updatedStr = reader.GetString(8);
+
+            var op = Enum.TryParse<ArithmeticOperation>(opStr, out var parsedOp) ? parsedOp : ArithmeticOperation.Addition;
+            var map = JsonSerializer.Deserialize<Dictionary<ArithmeticOperation, int>>(mapJson) ?? new();
+            var updated = DateTimeOffset.TryParse(updatedStr, out var dto) ? dto : DateTimeOffset.UtcNow;
+
+            return new LearnerProgression
+            {
+                CurrentOperation = op,
+                CurrentMaxOperand = maxOp,
+                OperationMaxOperands = map,
+                PracticePosition = practicePosition,
+                CompletedCheckpointLevel = completedCheckpointLevel,
+                ActiveCheckpointLevel = activeCheckpointLevel,
+                CheckpointAttemptCount = checkpointAttemptCount,
+                CheckpointCorrectCount = checkpointCorrectCount,
+                UpdatedAt = updated
+            };
+        }
+
+        return LearnerProgression.CreateFresh();
+    }
+
+    private async Task SaveProgressionAsync(LearnerProgression progression, CancellationToken cancellationToken)
+    {
+        if (_connection is null)
+        {
+            return;
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO learner_progression (
+                id, current_operation, current_max_operand, operation_max_operands_json,
+                practice_position, completed_checkpoint_level, active_checkpoint_level,
+                checkpoint_attempt_count, checkpoint_correct_count, updated_at
+            ) VALUES (
+                1, @current_operation, @current_max_operand, @operation_max_operands_json,
+                @practice_position, @completed_checkpoint_level, @active_checkpoint_level,
+                @checkpoint_attempt_count, @checkpoint_correct_count, @updated_at
+            )
+            ON CONFLICT(id) DO UPDATE SET
+                current_operation = excluded.current_operation,
+                current_max_operand = excluded.current_max_operand,
+                operation_max_operands_json = excluded.operation_max_operands_json,
+                practice_position = excluded.practice_position,
+                completed_checkpoint_level = excluded.completed_checkpoint_level,
+                active_checkpoint_level = excluded.active_checkpoint_level,
+                checkpoint_attempt_count = excluded.checkpoint_attempt_count,
+                checkpoint_correct_count = excluded.checkpoint_correct_count,
+                updated_at = excluded.updated_at;
+        ";
+        cmd.Parameters.AddWithValue("@current_operation", progression.CurrentOperation.ToString());
+        cmd.Parameters.AddWithValue("@current_max_operand", progression.CurrentMaxOperand);
+        cmd.Parameters.AddWithValue("@operation_max_operands_json", JsonSerializer.Serialize(progression.OperationMaxOperands));
+        cmd.Parameters.AddWithValue("@practice_position", progression.PracticePosition);
+        cmd.Parameters.AddWithValue("@completed_checkpoint_level", progression.CompletedCheckpointLevel);
+        cmd.Parameters.AddWithValue("@active_checkpoint_level", (object?)progression.ActiveCheckpointLevel ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@checkpoint_attempt_count", progression.CheckpointAttemptCount);
+        cmd.Parameters.AddWithValue("@checkpoint_correct_count", progression.CheckpointCorrectCount);
+        cmd.Parameters.AddWithValue("@updated_at", progression.UpdatedAt.ToString("O"));
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyDictionary<string, ItemLearningState>> ReadAllItemStatesAsync(CancellationToken cancellationToken)
+    {
+        var dict = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+        if (_connection is null)
+        {
+            return dict;
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT fact_id, operation, left_operand, right_operand,
+                   total_attempts, correct_attempts, incorrect_attempts,
+                   consecutive_correct, last_latency_ms, rolling_latency_ms,
+                   fluent_streak, is_mastered, needs_remediation,
+                   remediation_due_order, last_practiced_order, last_practiced_at
+            FROM item_learning_state;
+        ";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var factId = reader.GetString(0);
+            var opStr = reader.GetString(1);
+            var left = reader.GetInt32(2);
+            var right = reader.GetInt32(3);
+            var total = reader.GetInt32(4);
+            var correct = reader.GetInt32(5);
+            var incorrect = reader.GetInt32(6);
+            var streak = reader.GetInt32(7);
+            var lastLat = reader.GetInt64(8);
+            var rollingLat = reader.GetInt64(9);
+            var fluent = reader.GetInt32(10);
+            var mastered = reader.GetInt32(11) == 1;
+            var remed = reader.GetInt32(12) == 1;
+            var remedOrder = reader.GetInt32(13);
+            var lastOrder = reader.GetInt32(14);
+            var lastPracticedAt = reader.IsDBNull(15) ? null : (DateTimeOffset?)DateTimeOffset.Parse(reader.GetString(15));
+
+            var op = Enum.TryParse<ArithmeticOperation>(opStr, out var parsedOp) ? parsedOp : ArithmeticOperation.Addition;
+
+            dict[factId] = new ItemLearningState
+            {
+                FactId = factId,
+                Operation = op,
+                LeftOperand = left,
+                RightOperand = right,
+                TotalAttempts = total,
+                CorrectAttempts = correct,
+                IncorrectAttempts = incorrect,
+                ConsecutiveCorrectStreak = streak,
+                LastLatencyMs = lastLat,
+                RollingLatencyMs = rollingLat,
+                FluentStreak = fluent,
+                IsProvisionallyMastered = mastered,
+                NeedsRemediation = remed,
+                RemediationDueOrder = remedOrder,
+                LastPracticedOrder = lastOrder,
+                LastPracticedAt = lastPracticedAt
+            };
+        }
+
+        return dict;
+    }
+
+    private async Task<IReadOnlyDictionary<string, FsrsCardState>> ReadAllFsrsStatesAsync(CancellationToken cancellationToken)
+    {
+        var dict = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
+        if (_connection is null)
+        {
+            return dict;
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT fact_id, card_id, state, step, stability, difficulty,
+                   due_practice_position, last_review_practice_position, last_rating
+            FROM fsrs_card_state;
+        ";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var factId = reader.GetString(0);
+            var cardId = Guid.Parse(reader.GetString(1));
+            var state = reader.GetInt32(2);
+            int? step = reader.IsDBNull(3) ? null : reader.GetInt32(3);
+            double? stability = reader.IsDBNull(4) ? null : reader.GetDouble(4);
+            double? difficulty = reader.IsDBNull(5) ? null : reader.GetDouble(5);
+            var duePracticePosition = reader.GetInt64(6);
+            long? lastReviewPracticePosition = reader.IsDBNull(7) ? null : reader.GetInt64(7);
+            FsrsRating? lastRating = reader.IsDBNull(8) ? null : (FsrsRating)reader.GetInt32(8);
+
+            dict[factId] = new FsrsCardState(
+                factId,
+                cardId,
+                state,
+                step,
+                stability,
+                difficulty,
+                duePracticePosition,
+                lastReviewPracticePosition,
+                lastRating);
+        }
+
+        return dict;
+    }
+
+    private async Task<IReadOnlyList<AttemptRecord>> ReadRecentAttemptsAsync(int limit, CancellationToken cancellationToken)
+    {
+        var list = new List<AttemptRecord>();
+        if (_connection is null)
+        {
+            return list;
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT submission_id, fact_id, operation, left_operand, right_operand,
+                   submitted_answer, correct_answer, is_correct, outcome, response_latency_ms, timestamp
+            FROM attempt_history
+            ORDER BY timestamp DESC
+            LIMIT @limit;
+        ";
+        cmd.Parameters.AddWithValue("@limit", limit);
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var subId = reader.GetString(0);
+            var factId = reader.GetString(1);
+            var opStr = reader.GetString(2);
+            var left = reader.GetInt32(3);
+            var right = reader.GetInt32(4);
+            int? subAns = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+            var corrAns = reader.GetInt32(6);
+            var isCorr = reader.GetInt32(7) == 1;
+            var outcomeStr = reader.IsDBNull(8) ? null : reader.GetString(8);
+            var latency = reader.GetInt64(9);
+            var ts = DateTimeOffset.Parse(reader.GetString(10));
+
+            var op = Enum.TryParse<ArithmeticOperation>(opStr, out var parsedOp) ? parsedOp : ArithmeticOperation.Addition;
+            var outcome = (!string.IsNullOrEmpty(outcomeStr) && Enum.TryParse<AttemptOutcome>(outcomeStr, out var parsedOutcome))
+                ? parsedOutcome
+                : (isCorr ? AttemptOutcome.Correct : (subAns is null ? AttemptOutcome.Timeout : AttemptOutcome.Incorrect));
+
+            list.Add(new AttemptRecord(subId, factId, op, left, right, subAns, corrAns, isCorr, latency, ts, outcome));
+        }
+
+        return list;
+    }
+
+    private static async Task MigrateV1ToV2Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var tx = connection.BeginTransaction();
+        try
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+                CREATE TABLE attempt_history_v2 (
+                    submission_id TEXT PRIMARY KEY,
+                    fact_id TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    left_operand INTEGER NOT NULL,
+                    right_operand INTEGER NOT NULL,
+                    submitted_answer INTEGER,
+                    correct_answer INTEGER NOT NULL,
+                    is_correct INTEGER NOT NULL,
+                    outcome TEXT NOT NULL,
+                    response_latency_ms INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL
+                );
+
+                INSERT INTO attempt_history_v2 (
+                    submission_id, fact_id, operation, left_operand, right_operand,
+                    submitted_answer, correct_answer, is_correct, outcome,
+                    response_latency_ms, timestamp
+                )
+                SELECT
+                    submission_id, fact_id, operation, left_operand, right_operand,
+                    submitted_answer, correct_answer, is_correct,
+                    CASE WHEN is_correct = 1 THEN 'Correct' ELSE 'Incorrect' END,
+                    response_latency_ms, timestamp
+                FROM attempt_history;
+
+                DROP TABLE attempt_history;
+                ALTER TABLE attempt_history_v2 RENAME TO attempt_history;
+
+                UPDATE schema_info SET value = '2' WHERE key = 'schema_version';
+            ";
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV2ToV3Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var tx = connection.BeginTransaction();
+        try
+        {
+            // 1. Ensure practice_position column exists on learner_progression
+            using (var alterCmd = connection.CreateCommand())
+            {
+                alterCmd.Transaction = tx;
+                alterCmd.CommandText = @"
+                    CREATE TABLE learner_progression_v3 (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        current_operation TEXT NOT NULL,
+                        current_max_operand INTEGER NOT NULL,
+                        operation_max_operands_json TEXT NOT NULL,
+                        practice_position INTEGER NOT NULL DEFAULT 0,
+                        updated_at TEXT NOT NULL
+                    );
+
+                    INSERT INTO learner_progression_v3 (
+                        id, current_operation, current_max_operand, operation_max_operands_json, practice_position, updated_at
+                    )
+                    SELECT
+                        id, current_operation, current_max_operand, operation_max_operands_json, 0, updated_at
+                    FROM learner_progression;
+
+                    DROP TABLE learner_progression;
+                    ALTER TABLE learner_progression_v3 RENAME TO learner_progression;
+                ";
+                await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 2. Create fsrs_card_state table
+            using (var createFsrsCmd = connection.CreateCommand())
+            {
+                createFsrsCmd.Transaction = tx;
+                createFsrsCmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS fsrs_card_state (
+                        fact_id TEXT PRIMARY KEY,
+                        card_id TEXT NOT NULL,
+                        state INTEGER NOT NULL,
+                        step INTEGER,
+                        stability REAL,
+                        difficulty REAL,
+                        due_practice_position INTEGER NOT NULL,
+                        last_review_practice_position INTEGER,
+                        last_rating INTEGER
+                    );
+                ";
+                await createFsrsCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 3. Chronological attempt replay for FSRS state reconstruction
+            var scheduler = new FsrsSchedulerAdapter();
+            var fsrsStates = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
+            long practicePosition = 0;
+
+            using (var readAttemptsCmd = connection.CreateCommand())
+            {
+                readAttemptsCmd.Transaction = tx;
+                readAttemptsCmd.CommandText = @"
+                    SELECT fact_id, is_correct, outcome, response_latency_ms, submitted_answer
+                    FROM attempt_history
+                    ORDER BY timestamp ASC, rowid ASC;
+                ";
+                using var reader = await readAttemptsCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    practicePosition++;
+                    var factId = reader.GetString(0);
+                    var isCorr = reader.GetInt32(1) == 1;
+                    var outcomeStr = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    var latency = reader.GetInt64(3);
+                    int? subAns = reader.IsDBNull(4) ? null : reader.GetInt32(4);
+
+                    var outcome = (!string.IsNullOrEmpty(outcomeStr) && Enum.TryParse<AttemptOutcome>(outcomeStr, out var parsedOutcome))
+                        ? parsedOutcome
+                        : (isCorr ? AttemptOutcome.Correct : (subAns is null ? AttemptOutcome.Timeout : AttemptOutcome.Incorrect));
+
+                    var rating = FsrsRatingMapper.MapRating(outcome, latency);
+                    fsrsStates.TryGetValue(factId, out var existingCard);
+                    var updatedCard = scheduler.ReviewCard(existingCard, factId, rating, practicePosition, latency);
+                    fsrsStates[factId] = updatedCard;
+                }
+            }
+
+            // 4. Save replayed FSRS states
+            foreach (var fsrs in fsrsStates.Values)
+            {
+                using var insertFsrsCmd = connection.CreateCommand();
+                insertFsrsCmd.Transaction = tx;
+                insertFsrsCmd.CommandText = @"
+                    INSERT OR REPLACE INTO fsrs_card_state (
+                        fact_id, card_id, state, step, stability, difficulty,
+                        due_practice_position, last_review_practice_position, last_rating
+                    ) VALUES (
+                        @fact_id, @card_id, @state, @step, @stability, @difficulty,
+                        @due_practice_position, @last_review_practice_position, @last_rating
+                    );
+                ";
+                insertFsrsCmd.Parameters.AddWithValue("@fact_id", fsrs.FactId);
+                insertFsrsCmd.Parameters.AddWithValue("@card_id", fsrs.CardId.ToString());
+                insertFsrsCmd.Parameters.AddWithValue("@state", fsrs.State);
+                insertFsrsCmd.Parameters.AddWithValue("@step", (object?)fsrs.Step ?? DBNull.Value);
+                insertFsrsCmd.Parameters.AddWithValue("@stability", (object?)fsrs.Stability ?? DBNull.Value);
+                insertFsrsCmd.Parameters.AddWithValue("@difficulty", (object?)fsrs.Difficulty ?? DBNull.Value);
+                insertFsrsCmd.Parameters.AddWithValue("@due_practice_position", fsrs.DuePracticePosition);
+                insertFsrsCmd.Parameters.AddWithValue("@last_review_practice_position", (object?)fsrs.LastReviewPracticePosition ?? DBNull.Value);
+                insertFsrsCmd.Parameters.AddWithValue("@last_rating", (object?)(int?)fsrs.LastRating ?? DBNull.Value);
+                await insertFsrsCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 5. Update learner_progression practice_position
+            using (var updateProgCmd = connection.CreateCommand())
+            {
+                updateProgCmd.Transaction = tx;
+                updateProgCmd.CommandText = "UPDATE learner_progression SET practice_position = @practice_position WHERE id = 1;";
+                updateProgCmd.Parameters.AddWithValue("@practice_position", practicePosition);
+                await updateProgCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 6. Update schema_version to 3
+            using (var updateSchemaCmd = connection.CreateCommand())
+            {
+                updateSchemaCmd.Transaction = tx;
+                updateSchemaCmd.CommandText = "UPDATE schema_info SET value = '3' WHERE key = 'schema_version';";
+                await updateSchemaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV3ToV4Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var tx = connection.BeginTransaction();
+        try
+        {
+            using (var alterCmd = connection.CreateCommand())
+            {
+                alterCmd.Transaction = tx;
+                alterCmd.CommandText = @"
+                    CREATE TABLE learner_progression_v4 (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        current_operation TEXT NOT NULL,
+                        current_max_operand INTEGER NOT NULL,
+                        operation_max_operands_json TEXT NOT NULL,
+                        practice_position INTEGER NOT NULL DEFAULT 0,
+                        completed_checkpoint_level INTEGER NOT NULL DEFAULT 0,
+                        active_checkpoint_level INTEGER,
+                        checkpoint_attempt_count INTEGER NOT NULL DEFAULT 0,
+                        checkpoint_correct_count INTEGER NOT NULL DEFAULT 0,
+                        updated_at TEXT NOT NULL
+                    );
+
+                    INSERT INTO learner_progression_v4 (
+                        id, current_operation, current_max_operand, operation_max_operands_json,
+                        practice_position, completed_checkpoint_level, active_checkpoint_level,
+                        checkpoint_attempt_count, checkpoint_correct_count, updated_at
+                    )
+                    SELECT
+                        id, current_operation, current_max_operand, operation_max_operands_json,
+                        practice_position, 0, NULL, 0, 0, updated_at
+                    FROM learner_progression;
+
+                    DROP TABLE learner_progression;
+                    ALTER TABLE learner_progression_v4 RENAME TO learner_progression;
+                ";
+                await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // Derive sensible completed_checkpoint_level from existing progression
+            using (var readProgCmd = connection.CreateCommand())
+            {
+                readProgCmd.Transaction = tx;
+                readProgCmd.CommandText = "SELECT operation_max_operands_json FROM learner_progression WHERE id = 1;";
+                var json = (string?)await readProgCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrEmpty(json))
+                {
+                    var map = JsonSerializer.Deserialize<Dictionary<ArithmeticOperation, int>>(json);
+                    if (map is not null)
+                    {
+                        var minOp = map.Values.DefaultIfEmpty(1).Min();
+                        var completedLevel = Math.Max(0, minOp - 1);
+                        if (completedLevel > 0)
+                        {
+                            using var updateLevelCmd = connection.CreateCommand();
+                            updateLevelCmd.Transaction = tx;
+                            updateLevelCmd.CommandText = "UPDATE learner_progression SET completed_checkpoint_level = @level WHERE id = 1;";
+                            updateLevelCmd.Parameters.AddWithValue("@level", completedLevel);
+                            await updateLevelCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+                }
+            }
+
+            using (var updateSchemaCmd = connection.CreateCommand())
+            {
+                updateSchemaCmd.Transaction = tx;
+                updateSchemaCmd.CommandText = "UPDATE schema_info SET value = '4' WHERE key = 'schema_version';";
+                await updateSchemaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+}

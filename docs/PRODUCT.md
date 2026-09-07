@@ -51,67 +51,84 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 
 ## 5. Arithmetic Progression
 
-### Number-Range Progression
+### Independent Per-Operation Range Progression
 MathFirst does not expose the full arithmetic problem space immediately. Learners begin with a very small working number range and expand progressively:
 
-- **Starting Range**: Practice begins in an initial working range approximately around `0..1`.
-- **Progression Cycle**:
+- **Starting Range**: All four operations begin at initial working range `0..1` (`Addition: 0..1`, `Subtraction: 0..1`, `Multiplication: 0..1`, `Division: 0..1`).
+- **Independent Ranges**: Each arithmetic operation maintains its own independent maximum operand (`M_add`, `M_sub`, `M_mul`, `M_div`).
+- **Turn Sequence Cycle & Checkpoints**:
   ```
-  Small Number Range ──► Demonstrated Mastery ──► Incremental Range Expansion ──► Continued Adaptive Practice
+  Addition (0..N) ──► Subtraction (0..N) ──► Multiplication (0..N) ──► Division (0..N) ──► Mixed Checkpoint (0..N, 12 attempts) ──► Addition (0..N+1) ──► ...
   ```
-- Active number ranges expand incrementally as the learner proves sufficient mastery over current facts.
-
-### Arithmetic Operations
-The intended broad progression sequence across operations is:
-```
-Addition ──► Subtraction ──► Multiplication ──► Division
-```
-- Progression across operations normally follows increasing foundational mastery.
-- Operations build logically upon preceding capabilities.
-- Not all four operations are required to be active or present in the initial MVP.
+- **Exposure-Based Turn Advancement**:
+  - In each introduction turn, all newly unlocked facts for the active operation at its current max operand are introduced.
+  - When all newly unlocked facts for the 4 operations have been presented at least once (`TotalAttempts >= 1`), a **Bounded Mixed Checkpoint** (12 accepted attempts across all introduced facts up to level $N$) begins.
+  - The checkpoint is **not mastery-gated** (poor performance generates `Again`/`Hard` FSRS ratings and same-session remediation without blocking level advance).
+  - Upon completing attempt 12, the checkpoint completes and advances the next level's Addition introduction.
+  - Wrong or slow answers do **NOT** block range growth or turn advancement; missed facts immediately enter in-session adaptive remediation while range progression continues.
+- **Full Catalog Mixed Practice**: After the level 10 checkpoint completes, all introductions are finished and the system enters open-ended adaptive mixed practice across all 418 facts without level 11 expansion.
 
 ### Initial MVP Arithmetic Boundary
-The initial MVP does not require negative subtraction results or division with remainders. Exact later scope for these arithmetic cases remains outside the current MVP definition.
+The initial MVP does not require negative subtraction results or division with remainders (division by zero is strictly excluded). Exact later scope for these arithmetic cases remains outside the current MVP definition.
 
 ---
 
-## 6. Adaptive Training Loop
+## 6. Adaptive Training Loop & Spaced Repetition (FSRS-6)
 
-The practice selection engine automatically composes training queues based on the learner's live learning needs:
+The practice selection engine automatically composes training queues based on a 4-tier selection hierarchy powered by an FSRS-6 spaced repetition scheduler operating over discrete practice task distance, hardened with repetition density and diversity rules:
 
-1. **New / Unknown Facts**: Gradually introduced into the active practice pool as working ranges expand.
-2. **Weak / Insecure Facts**: Items with inconsistent accuracy or borderline recall speed receive frequent exposure.
-3. **Previously Incorrect Facts**: Items answered incorrectly are prioritized for rapid reinforcement.
-4. **Slow Facts**: Correctly answered items that required conscious calculation remain active until recall becomes automated.
-5. **Mastered Maintenance Facts**: Strong, automated facts appear at gradually lengthening intervals to maintain long-term retention.
+1. **Tier 1 — Same-Session Remediation**: Items answered incorrectly or timed out are scheduled for short-term recurrence within the same session (`SessionOrder + 2`).
+2. **Tier 2 — Introduction Turn Scaffolding**: Newly unlocked facts for the active operation turn are prioritized for first-exposure.
+3. **Tier 3 — Bounded Mixed Checkpoint**: During checkpoint phases, facts up to level $N$ are sampled with overdue FSRS cards prioritized.
+4. **Tier 4 — Due FSRS Spaced Reviews**: Facts tracked by FSRS whose `DuePracticePosition <= currentPracticePosition` are prioritized by largest overdue distance (`currentPracticePosition - DuePracticePosition` descending).
+5. **Fallback — Open-Ended Mixed Practice**: Surfacing earliest upcoming due cards or unpracticed active facts.
+
+### Repetition Density & Diversity Constraints
+- **Exact Fact Cooldown**: The selector avoids repeating the same `FactId` within the last 3 presented facts when alternative candidates exist (`ExactFactCooldownDistance = 3`).
+- **Commutative Mirror Cooldown**: For Addition and Multiplication, adjacent and near-adjacent mirror pairs (e.g., `6 × 0` and `0 × 6`, `3 + 4` and `4 + 3`) are avoided within 3 positions (`MirrorFactCooldownDistance = 3`), while maintaining distinct item entities and separate FSRS states. Non-commutative Subtraction and Division are strictly exempt.
+- **Operation Streak Diversity**: Limits consecutive questions of the same arithmetic operation to a maximum of 2 when alternative candidates exist (`MaxPreferredOperationStreak = 2`).
+- **Soft Constraint Relaxation**: Candidate pools are determined by tier priority (Remediation, Introduction, Checkpoint, Due FSRS); diversity rules filter and tiebreak within the tier using soft penalties so progress never deadlocks.
+
+### Task Distance Virtual Time Model
+MathFirst schedules arithmetic reviews not by real-world calendar days, but by **Practice Position** (the monotonic count of accepted arithmetic attempts). One practice position corresponds to one virtual day from epoch `2000-01-01T00:00:00Z`, making review intervals completely immune to wall-clock manipulation, timezone shifts, or gaps between study days. Responses are automatically rated (`Again`, `Hard`, `Good`, `Easy`) via deterministic latency mapping without requiring manual learner self-rating buttons.
 
 ---
 
-## 7. Response Evaluation and Fluency
+## 7. Response Evaluation, Timing, and Fluency
 
-True arithmetic fluency requires evaluating two distinct dimensions:
+True arithmetic fluency requires evaluating both correctness and speed against distinct timing boundaries:
 
 1. **Correctness**: Whether the submitted numeric answer is mathematically correct.
-2. **Response Latency**: The elapsed time between item presentation and answer submission.
+2. **Response Latency**: The elapsed monotonic time between item presentation (`ITEM_READY`) and answer submission.
+3. **Answer Deadline & Visible Countdown**:
+   - The answer deadline adapts dynamically based on the item's consecutive correct streak (tuneable V1 policy ladder: streak 0 $\rightarrow$ **30 s**, streak 1 $\rightarrow$ **20 s**, streak 2 $\rightarrow$ **15 s**, streak $\ge 3$ $\rightarrow$ **10 s**).
+   - A visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
+   - Timer text features a direct black glyph contour/outline (`-webkit-text-stroke: 2px #000`) for crystal-clear readability directly over all dynamic fill colors without needing an enclosing dark badge.
+   - Navigating away from the training view (e.g. to Settings) cleanly pauses the active item's countdown and resumes the remaining deadline upon return, excluding navigation time from response latency and timeout evaluation. Completed feedback states (`TimeoutFeedback`, `IncorrectFeedback`, `CorrectFeedback`) survive view navigation without restarting the timer or generating duplicate attempt records.
+   - Visual UI refresh (~50 ms cadence) is presentation-only; monotonic time is authoritative and immune to UI rendering drift.
+   - Any incorrect answer or timeout immediately resets the consecutive correct streak to 0, safely restoring the full 30-second deadline for that item's next presentation.
+   - Response latency and FSRS scheduling remain strictly separate: the adaptive deadline only determines when a timeout occurs, while actual response latency is measured independently and rated deterministically (`Easy` $\le 1000\text{ ms}$, `Good` $1001..2500\text{ ms}$, `Hard` $> 2500\text{ ms}$, `Again` on Incorrect/Timeout).
 
 ### Behavioral Requirement
 - The system must distinguish between:
   - **Automated Recall**: Fast, accurate responses indicating memorized mastery.
   - **Conscious Calculation**: Correct responses that required noticeable calculation time.
+  - **Incorrect Answer**: Submitted wrong numeric integer.
+  - **Timeout**: Elapsed adaptive answer-deadline window without valid submission.
 - A slowly calculated correct answer must not be treated as equivalent to an automated recall; it must remain active in practice until retrieval is fluid.
 
 ---
 
-## 8. Session Behavior
+## 8. Session Behavior and Error Feedback
 
 ### Queue Composition
 Training sessions are automatically generated by blending items across learning categories (new items, weak items, due reviews, and items requiring remediation).
 
-### In-Session Mistake Remediation
-When a learner provides an incorrect answer during a session:
-1. The correct result must be clearly shown and reinforced.
-2. The missed fact must be presented again later within the **same training session** to solidify short-term memory before the session concludes.
-3. The learner must not be subjected to immediate, repetitive lock-step retries on the same screen before moving forward.
+### Explicit Error Feedback and In-Session Remediation
+When a learner provides an incorrect answer or times out during a session:
+1. **Explicit Error Feedback**: The outcome must clearly indicate the mistake with prominent error styling, display the learner's submitted answer (for incorrect attempts) or a time-expired notice (for timeouts), and show the mathematically correct result.
+2. **Explicit Acknowledgement**: The interface requires deliberate learner acknowledgement (via Enter key or Continue action) before advancing to the next fact. Incorrect or timed-out items never automatically skip forward.
+3. **Same-Session Remediation**: The missed fact is scheduled for recurrence later within the **same training session** to solidify memory before session conclusion, avoiding immediate lock-step retries on the exact same screen.
 
 ---
 
@@ -216,10 +233,10 @@ The following decisions remain intentionally open and must not be treated as fin
 | **Scheduler Mathematics** | Exact mathematical scheduling formulation, interval growth curves, and penalty weights. | `UNRESOLVED` |
 | **Fact Catalog Strategy** | Finite pre-populated catalog of canonical items versus deterministic procedural generation with stable identities. | `UNRESOLVED` |
 | **Telemetry, Analytics, and Crash Diagnostics** | Whether and how telemetry, analytics, and crash diagnostics should operate. | `UNRESOLVED` |
-| **Exact Fluency Thresholds** | Specific millisecond or second boundaries defining automated recall versus calculated responses. | `UNRESOLVED` |
-| **Exact Range Expansion Increments** | Specific numerical step increments and mastery percentages required to unlock range expansions. | `UNRESOLVED` |
+| **Exact Fluency Thresholds** | Specific millisecond or second boundaries defining automated recall versus calculated responses (V1 uses 2500ms default). | `UNRESOLVED` |
+| **Exact Range Expansion Increments** | Specific numerical step increments and mastery percentages required to unlock range expansions (V1 uses 90% multi-operation mastery). | `UNRESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
-| **Operation Unlock Criteria** | Exact mastery thresholds required before subsequent operations are unlocked. | `UNRESOLVED` |
+| **Multi-Operation Range Sequencing** | Exposure-based introduction sequence (Addition -> Subtraction -> Multiplication -> Division) followed by adaptive mixed practice per range. | `RESOLVED` |
 | **Manual Operation Control** | Whether users should be able to manually enable, disable, or override operation progression. | `UNRESOLVED` |
 | **Session Length & Bounding** | Exact rules determining when a training session concludes (e.g. dynamic item count, queue exhaustion, or time limits). | `UNRESOLVED` |
 | **Answer Submission Trigger** | Immediate auto-submit upon length match versus explicit confirmation (e.g. Enter key / submit button). | `UNRESOLVED` |

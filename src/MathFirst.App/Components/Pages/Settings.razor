@@ -1,0 +1,568 @@
+@page "/settings"
+@implements IDisposable
+@using MathFirst.App.Services
+@using MathFirst.Application
+@using MathFirst.Application.Persistence
+@using MathFirst.Domain
+@inject ILocalizationService Localizer
+@inject IThemeService ThemeService
+@inject IPreferenceStore PreferenceStore
+@inject ILearnerStore LearnerStore
+@inject TrainingSession Session
+@inject NavigationManager Navigation
+
+<div class="settings-page">
+    <header class="settings-header">
+        <h1 class="settings-title">@Localizer["Settings_Title"]</h1>
+        <a class="button button-secondary" href="">
+            @Localizer["Common_Back"]
+        </a>
+    </header>
+
+    <div class="settings-container">
+        <!-- 1. UI LANGUAGE -->
+        <section class="settings-card">
+            <h2 class="settings-section-title">@Localizer["Settings_UILanguage"]</h2>
+            <div class="choice-grid choice-grid-two">
+                <button type="button"
+                        class="choice-button @(IsLanguageSelected("system") ? "active" : null)"
+                        @onclick='() => SelectLanguage("system")'>
+                    @Localizer["Settings_UILanguageSystem"]
+                </button>
+                <button type="button"
+                        class="choice-button @(IsLanguageSelected("en") ? "active" : null)"
+                        @onclick='() => SelectLanguage("en")'>
+                    @Localizer["Settings_English"]
+                </button>
+                <button type="button"
+                        class="choice-button @(IsLanguageSelected("de") ? "active" : null)"
+                        @onclick='() => SelectLanguage("de")'>
+                    @Localizer["Settings_German"]
+                </button>
+                <button type="button"
+                        class="choice-button @(IsLanguageSelected("ru") ? "active" : null)"
+                        @onclick='() => SelectLanguage("ru")'>
+                    @Localizer["Settings_Russian"]
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_languageMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">
+                    @_languageMessage
+                </p>
+            }
+        </section>
+
+        <!-- 2. APPEARANCE -->
+        <section class="settings-card">
+            <h2 class="settings-section-title">@Localizer["Settings_Appearance"]</h2>
+            <div class="choice-grid choice-grid-three">
+                <button type="button"
+                        class="choice-button @(ThemeService.Preference == ThemePreference.System ? "active" : null)"
+                        @onclick="() => SelectTheme(ThemePreference.System)">
+                    @Localizer["Settings_AppearanceSystem"]
+                </button>
+                <button type="button"
+                        class="choice-button @(ThemeService.Preference == ThemePreference.Light ? "active" : null)"
+                        @onclick="() => SelectTheme(ThemePreference.Light)">
+                    @Localizer["Settings_AppearanceLight"]
+                </button>
+                <button type="button"
+                        class="choice-button @(ThemeService.Preference == ThemePreference.Dark ? "active" : null)"
+                        @onclick="() => SelectTheme(ThemePreference.Dark)">
+                    @Localizer["Settings_AppearanceDark"]
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_appearanceMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">
+                    @_appearanceMessage
+                </p>
+            }
+        </section>
+
+        <!-- 3. DEVELOPER / TESTING DIAGNOSTICS -->
+        <section class="settings-card diagnostics-card">
+            <h2 class="settings-section-title">@Localizer["Diagnostics_Title"]</h2>
+            <p class="setting-help">Read-only diagnostic telemetry from the live learner database and session engine.</p>
+
+            <div class="diagnostics-sections">
+                <!-- Group 1: Learning Progression -->
+                <div class="diagnostics-group">
+                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Learning"]</h3>
+                    <div class="diagnostics-grid">
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_CurrentPhase"]</span>
+                            <span class="diag-value">@GetPhaseDisplay()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_Turn"]</span>
+                            <span class="diag-value">@Localizer[$"Operation_{GetProgressionInfo().Turn}"]</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_ActiveFacts"]</span>
+                            <span class="diag-value">@GetActiveFactsCount()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_NewFactsRemaining"]</span>
+                            <span class="diag-value">@GetProgressionInfo().UnexposedCount</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_MasteredFacts"]</span>
+                            <span class="diag-value">@GetMasteredFactsDisplay()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_LearningFacts"]</span>
+                            <span class="diag-value">@GetLearningFactsCount()</span>
+                        </div>
+                        <div class="diag-item diag-item-wide">
+                            <span class="diag-label">@Localizer["Diagnostics_Ranges"]</span>
+                            <span class="diag-value">@GetRangesDisplay()</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Checkpoint Status -->
+                <div class="diagnostics-group">
+                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Checkpoint"]</h3>
+                    <div class="diagnostics-grid">
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_CheckpointStatus"]</span>
+                            <span class="diag-value">@GetCheckpointStatusDisplay()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_CheckpointProgress"]</span>
+                            <span class="diag-value">@GetCheckpointProgressDisplay()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_Remediation"]</span>
+                            <span class="diag-value">@GetPendingRemediationCount()</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 3: FSRS-6 Task Scheduler -->
+                <div class="diagnostics-group">
+                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Scheduler"]</h3>
+                    <div class="diagnostics-grid">
+                        <div class="diag-item diag-item-wide">
+                            <span class="diag-label">@Localizer["Diagnostics_FsrsScheduler"]</span>
+                            <span class="diag-value">@Localizer["Diagnostics_FsrsModel"]</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_PracticePosition"]</span>
+                            <span class="diag-value">#@(Session.Progression.PracticePosition)</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_FsrsCardsTracked"]</span>
+                            <span class="diag-value">@Session.FsrsStates.Count</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_FsrsDueCards"]</span>
+                            <span class="diag-value">@GetDueFsrsCardsCount()</span>
+                        </div>
+                        <div class="diag-item diag-item-wide">
+                            <span class="diag-label">@Localizer["Diagnostics_CurrentFactFsrs"]</span>
+                            <span class="diag-value">@GetCurrentFactFsrsDisplay()</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 4: Timing & Storage -->
+                <div class="diagnostics-group">
+                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Storage"]</h3>
+                    <div class="diagnostics-grid">
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_AnswerDeadline"]</span>
+                            <span class="diag-value">@GetCurrentDeadlineDisplay()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_TotalAttempts"]</span>
+                            <span class="diag-value">@GetTotalAttempts()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_Accuracy"]</span>
+                            <span class="diag-value">@GetAccuracyPercentage()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_LastLatency"]</span>
+                            <span class="diag-value">@GetLastLatencyDisplay()</span>
+                        </div>
+                        <div class="diag-item">
+                            <span class="diag-label">@Localizer["Diagnostics_SchemaVersion"]</span>
+                            <span class="diag-value">v@(Session.Progression.SchemaVersion) (rev @(Session.Progression.StoreRevision))</span>
+                        </div>
+                        <div class="diag-item diag-item-wide">
+                            <span class="diag-label">@Localizer["Diagnostics_DatabasePath"]</span>
+                            <span class="diag-value diag-value-wrap">@GetSafeDbFileName()</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. DANGER ZONE -->
+        <section class="settings-card danger-card">
+            <h2 class="settings-section-title danger-title">@Localizer["DangerZone_Title"]</h2>
+            <p class="setting-help">@Localizer["DangerZone_Desc"]</p>
+
+            <div class="danger-list">
+                <!-- Action A: Reset Learning Progress -->
+                <div class="danger-item">
+                    <div class="danger-action-header">
+                        <h3 class="danger-action-title">@Localizer["Reset_LearningProgress_Title"]</h3>
+                        @if (_activeConfirmAction != ConfirmAction.ResetLearning)
+                        {
+                            <button type="button" class="button button-danger" @onclick="() => PromptConfirm(ConfirmAction.ResetLearning)">
+                                @Localizer["Reset_LearningProgress_Title"]
+                            </button>
+                        }
+                    </div>
+                    <p class="setting-help">@Localizer["Reset_LearningProgress_Desc"]</p>
+
+                    @if (_activeConfirmAction == ConfirmAction.ResetLearning)
+                    {
+                        <div class="danger-confirm-panel">
+                            <p class="danger-confirm-prompt">@Localizer["Reset_LearningProgress_Confirm"]</p>
+                            <div class="danger-confirm-buttons">
+                                <button type="button" class="button button-secondary" @onclick="CancelConfirm">
+                                    @Localizer["Common_Cancel"]
+                                </button>
+                                <button type="button" class="button button-danger" @onclick="ExecuteResetLearning">
+                                    @Localizer["Common_Confirm"]
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Action B: Reset Onboarding & UI Preferences -->
+                <div class="danger-item">
+                    <div class="danger-action-header">
+                        <h3 class="danger-action-title">@Localizer["Reset_UiPreferences_Title"]</h3>
+                        @if (_activeConfirmAction != ConfirmAction.ResetUi)
+                        {
+                            <button type="button" class="button button-secondary" @onclick="() => PromptConfirm(ConfirmAction.ResetUi)">
+                                @Localizer["Reset_UiPreferences_Title"]
+                            </button>
+                        }
+                    </div>
+                    <p class="setting-help">@Localizer["Reset_UiPreferences_Desc"]</p>
+
+                    @if (_activeConfirmAction == ConfirmAction.ResetUi)
+                    {
+                        <div class="danger-confirm-panel">
+                            <p class="danger-confirm-prompt">@Localizer["Reset_UiPreferences_Confirm"]</p>
+                            <div class="danger-confirm-buttons">
+                                <button type="button" class="button button-secondary" @onclick="CancelConfirm">
+                                    @Localizer["Common_Cancel"]
+                                </button>
+                                <button type="button" class="button button-secondary" @onclick="ExecuteResetUiPreferences">
+                                    @Localizer["Common_Confirm"]
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Action C: Full Local Reset -->
+                <div class="danger-item">
+                    <div class="danger-action-header">
+                        <h3 class="danger-action-title">@Localizer["Reset_FullLocal_Title"]</h3>
+                        @if (_activeConfirmAction != ConfirmAction.ResetFull)
+                        {
+                            <button type="button" class="button button-danger" @onclick="() => PromptConfirm(ConfirmAction.ResetFull)">
+                                @Localizer["Reset_FullLocal_Title"]
+                            </button>
+                        }
+                    </div>
+                    <p class="setting-help">@Localizer["Reset_FullLocal_Desc"]</p>
+
+                    @if (_activeConfirmAction == ConfirmAction.ResetFull)
+                    {
+                        <div class="danger-confirm-panel">
+                            <p class="danger-confirm-prompt">@Localizer["Reset_FullLocal_Confirm"]</p>
+                            <div class="danger-confirm-buttons">
+                                <button type="button" class="button button-secondary" @onclick="CancelConfirm">
+                                    @Localizer["Common_Cancel"]
+                                </button>
+                                <button type="button" class="button button-danger" @onclick="ExecuteFullLocalReset">
+                                    @Localizer["Common_Confirm"]
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_resetFeedbackMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">
+                    @_resetFeedbackMessage
+                </p>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private enum ConfirmAction { None, ResetLearning, ResetUi, ResetFull }
+
+    private string? _languageMessage;
+    private string? _appearanceMessage;
+    private string? _resetFeedbackMessage;
+    private ConfirmAction _activeConfirmAction = ConfirmAction.None;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localizer.UiLanguageChanged += OnLanguageChanged;
+        ThemeService.ThemeChanged += OnThemeChanged;
+
+        if (!Session.IsInitialized)
+        {
+            await Session.InitializeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        Localizer.UiLanguageChanged -= OnLanguageChanged;
+        ThemeService.ThemeChanged -= OnThemeChanged;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsLanguageSelected(string code) =>
+        string.Equals(Localizer.SelectedLanguagePreference, code, StringComparison.OrdinalIgnoreCase);
+
+    private void SelectLanguage(string code)
+    {
+        Localizer.ApplyLanguagePreference(code);
+        var displayName = code switch
+        {
+            "en" => Localizer["Settings_English"],
+            "de" => Localizer["Settings_German"],
+            "ru" => Localizer["Settings_Russian"],
+            _ => Localizer["Settings_UILanguageSystem"]
+        };
+        _languageMessage = Localizer["Settings_LanguageChangedTo", displayName];
+        _appearanceMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    private void SelectTheme(ThemePreference theme)
+    {
+        ThemeService.SetPreference(theme);
+        var displayName = theme switch
+        {
+            ThemePreference.Light => Localizer["Settings_AppearanceLight"],
+            ThemePreference.Dark => Localizer["Settings_AppearanceDark"],
+            _ => Localizer["Settings_AppearanceSystem"]
+        };
+        _appearanceMessage = Localizer["Settings_AppearanceChangedTo", displayName];
+        _languageMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    private void PromptConfirm(ConfirmAction action)
+    {
+        _activeConfirmAction = action;
+        _resetFeedbackMessage = null;
+    }
+
+    private void CancelConfirm()
+    {
+        _activeConfirmAction = ConfirmAction.None;
+    }
+
+    private async Task ExecuteResetLearning()
+    {
+        await Session.ResetLearningProgressAsync();
+        _activeConfirmAction = ConfirmAction.None;
+        _resetFeedbackMessage = Localizer["Reset_LearningProgress_Success"];
+        _languageMessage = null;
+        _appearanceMessage = null;
+    }
+
+    private void ExecuteResetUiPreferences()
+    {
+        PreferenceStore.SetOnboardingCompleted(false);
+        PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
+        PreferenceStore.SetThemePreference(ThemePreference.System);
+
+        ThemeService.ResetPreference();
+        Localizer.ApplyLanguagePreference("system");
+
+        _activeConfirmAction = ConfirmAction.None;
+        _resetFeedbackMessage = Localizer["Reset_UiPreferences_Success"];
+        _languageMessage = null;
+        _appearanceMessage = null;
+
+        Navigation.NavigateTo("/", replace: true);
+    }
+
+    private async Task ExecuteFullLocalReset()
+    {
+        await Session.ResetLearningProgressAsync();
+
+        PreferenceStore.SetOnboardingCompleted(false);
+        PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
+        PreferenceStore.SetThemePreference(ThemePreference.System);
+
+        ThemeService.ResetPreference();
+        Localizer.ApplyLanguagePreference("system");
+
+        _activeConfirmAction = ConfirmAction.None;
+        Navigation.NavigateTo("/", replace: true);
+    }
+
+    private (ProgressionPhase Phase, ArithmeticOperation Turn, int TurnMaxOperand, int UnexposedCount) GetProgressionInfo()
+    {
+        var (phase, turn, maxOp, unexposed) = LearningPolicy.DetermineProgressionPhase(Session.Progression, Session.ItemStates);
+        return (phase, turn, maxOp, unexposed.Count);
+    }
+
+    private string GetPhaseDisplay()
+    {
+        var (phase, _, maxOp, _) = GetProgressionInfo();
+        if (phase == ProgressionPhase.MixedPractice)
+        {
+            return $"{Localizer["Phase_MixedPractice"]} (0..{LearningPolicy.MaxV1Operand})";
+        }
+        if (phase == ProgressionPhase.Checkpoint)
+        {
+            return Localizer["Phase_Checkpoint", Session.Progression.ActiveCheckpointLevel ?? 1];
+        }
+        return $"{Localizer[$"Phase_{phase}"]} (0..{maxOp})";
+    }
+
+    private string GetCheckpointStatusDisplay()
+    {
+        var p = Session.Progression;
+        if (p.IsInCheckpoint)
+        {
+            return $"{Localizer["Phase_Checkpoint", p.ActiveCheckpointLevel ?? 1]} (#{p.ActiveCheckpointLevel})";
+        }
+        if (p.IsAllIntroductionsComplete)
+        {
+            return Localizer["Diagnostics_AllIntroductionsComplete"];
+        }
+        return $"{Localizer["Diagnostics_CheckpointInactive"]} (L{p.CompletedCheckpointLevel} done)";
+    }
+
+    private string GetCheckpointProgressDisplay()
+    {
+        var p = Session.Progression;
+        if (p.IsInCheckpoint)
+        {
+            return $"{p.CheckpointAttemptCount} / {LearningPolicy.DefaultCheckpointAttemptCount} ({p.CheckpointCorrectCount} correct)";
+        }
+        return Localizer["Diagnostics_CheckpointInactive"];
+    }
+
+    private string GetRangesDisplay()
+    {
+        var p = Session.Progression;
+        var add = p.GetMaxOperand(ArithmeticOperation.Addition);
+        var sub = p.GetMaxOperand(ArithmeticOperation.Subtraction);
+        var mul = p.GetMaxOperand(ArithmeticOperation.Multiplication);
+        var div = p.GetMaxOperand(ArithmeticOperation.Division);
+        return $"+ 0..{add} | - 0..{sub} | × 0..{mul} | ÷ 0..{div}";
+    }
+
+    private int GetActiveFactsCount()
+    {
+        return ArithmeticCatalog.GetActiveFacts(Session.Progression).Count;
+    }
+
+    private string GetMasteredFactsDisplay()
+    {
+        var allActive = ArithmeticCatalog.GetActiveFacts(Session.Progression);
+        if (allActive.Count == 0) return "0 / 0 (0%)";
+        var mastered = allActive.Count(f => Session.ItemStates.TryGetValue(f.Id, out var s) && s.IsProvisionallyMastered);
+        var pct = (int)Math.Round((double)mastered / allActive.Count * 100);
+        return $"{mastered} / {allActive.Count} ({pct}%)";
+    }
+
+    private int GetLearningFactsCount()
+    {
+        var allActive = ArithmeticCatalog.GetActiveFacts(Session.Progression);
+        var mastered = allActive.Count(f => Session.ItemStates.TryGetValue(f.Id, out var s) && s.IsProvisionallyMastered);
+        return allActive.Count - mastered;
+    }
+
+    private int GetTotalAttempts()
+    {
+        return Session.ItemStates.Values.Sum(s => s.TotalAttempts);
+    }
+
+    private string GetAccuracyPercentage()
+    {
+        var total = GetTotalAttempts();
+        if (total == 0) return "0 / 0 (100%)";
+        var correct = Session.ItemStates.Values.Sum(s => s.CorrectAttempts);
+        var pct = (int)Math.Round((double)correct / total * 100);
+        return $"{correct} / {total} ({pct}%)";
+    }
+
+    private int GetPendingRemediationCount()
+    {
+        return Session.ItemStates.Values.Count(s => s.NeedsRemediation);
+    }
+
+    private string GetCurrentDeadlineDisplay()
+    {
+        return LearningPolicy.FormatTimerDisplay(Session.CurrentFactDeadlineMs, Session.CurrentFactDeadlineMs);
+    }
+
+    private string GetLastLatencyDisplay()
+    {
+        if (Session.LastResponseLatencyMs <= 0)
+        {
+            return "-";
+        }
+
+        var isFluent = Session.LastResponseLatencyMs <= LearningPolicy.DefaultFluentResponseThresholdMs;
+        var classification = isFluent ? Localizer["Diagnostics_LatencyFluent"] : Localizer["Diagnostics_LatencySlow"];
+
+        if (Session.LastResponseLatencyMs < 1000)
+        {
+            return $"{Session.LastResponseLatencyMs} ms ({classification})";
+        }
+
+        var seconds = Session.LastResponseLatencyMs / 1000.0;
+        return $"{seconds:F2} s ({classification})";
+    }
+
+    private string GetSafeDbFileName()
+    {
+        var path = LearnerStore.StoragePath;
+        return string.IsNullOrEmpty(path) ? "mathfirst_learner.db" : path;
+    }
+
+    private int GetDueFsrsCardsCount()
+    {
+        var currentPos = Session.Progression.PracticePosition;
+        return Session.FsrsStates.Values.Count(c => c.DuePracticePosition <= currentPos);
+    }
+
+    private string GetCurrentFactFsrsDisplay()
+    {
+        if (Session.CurrentFact is null || !Session.FsrsStates.TryGetValue(Session.CurrentFact.Id, out var card))
+        {
+            return "-";
+        }
+
+        var stab = card.Stability.HasValue ? $"{card.Stability.Value:F1}" : "-";
+        var diff = card.Difficulty.HasValue ? $"{card.Difficulty.Value:F1}" : "-";
+        return $"S:{stab} | D:{diff} | Due:#{card.DuePracticePosition}";
+    }
+}

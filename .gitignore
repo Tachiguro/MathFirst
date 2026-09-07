@@ -1,4 +1,4 @@
-﻿# Operating System Files
+# Operating System Files
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -22,3 +22,17 @@ dist/
 out/
 tmp/
 temp/
+[Bb]in/
+[Oo]bj/
+TestResults/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# SQLite Local Databases & Journals
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
