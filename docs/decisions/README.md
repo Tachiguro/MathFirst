@@ -37,4 +37,4 @@ Every ADR must contain the following sections:
 
 | ADR ID | Title | Status | Date |
 |---|---|---|---|
-| *(None)* | *No architecture decisions recorded yet. Decisions will be authored during Phase 3 of the roadmap.* | - | - |
+| [ADR-0001](ADR-0001-cross-platform-application-topology-and-stack-baseline.md) | Cross-Platform Application Topology and Stack Baseline | Accepted | 2026-09-07 |

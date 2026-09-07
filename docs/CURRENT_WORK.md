@@ -9,14 +9,14 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-PROD-001`
-- **Title**: MathFirst Product Definition
-- **Active Task Branch**: `docs/mf-prod-001-product-definition`
+- **Active Package ID**: `MF-ARCH-001`
+- **Title**: Cross-Platform Application Stack Baseline
+- **Active Task Branch**: `docs/mf-arch-001-cross-platform-stack`
 - **Base Branch**: `main`
-- **Base Commit**: `a3e0bec9da7352421931e30cc2130fee2217871f`
+- **Base Commit**: `5a1bda2259a55b60d6693dac0296a564681dc2be`
 - **Current Lifecycle Mode**: `DOCUMENT_ONLY`
 - **Next Lifecycle Mode**: `REVIEW_ONLY`
-- **Known Open Decisions**: Confirmed product definition requirements established in `docs/PRODUCT.md`; technical architecture and implementation details deferred to Phase 3.
+- **Known Open Decisions**: Architecture baseline accepted for topology and concrete stack. Persistence technology, learning-engine boundaries, scheduler details, and later architecture decisions remain unresolved.
 
 ---
 
