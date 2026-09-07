@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Authoritative MathFirst product definition establishing the core learning loop, arithmetic progression model, session behaviors, platform requirements, and MVP boundary ([docs/PRODUCT.md](docs/PRODUCT.md)) (`MF-PROD-001`).
 - Initial repository bootstrap including Apache 2.0 license, `.gitignore`, and minimal `README.md`.
 - Comprehensive repository governance and multi-mode development lifecycle documentation (`MF-GOV-001`).
 - Agent governance rules and repository invariants ([AGENTS.md](AGENTS.md)).
