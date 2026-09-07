@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Accepted offline execution and local persistence boundary architecture baseline, documented in [ADR-0002](docs/decisions/ADR-0002-offline-execution-and-local-persistence-boundary.md) (`MF-ARCH-002`).
 - Accepted initial cross-platform application topology and stack baseline for Android, Web, and Windows, documented in [ADR-0001](docs/decisions/ADR-0001-cross-platform-application-topology-and-stack-baseline.md) (`MF-ARCH-001`).
 - Authoritative MathFirst product definition establishing the core learning loop, arithmetic progression model, session behaviors, platform requirements, and MVP boundary ([docs/PRODUCT.md](docs/PRODUCT.md)) (`MF-PROD-001`).
 - Initial repository bootstrap including Apache 2.0 license, `.gitignore`, and minimal `README.md`.

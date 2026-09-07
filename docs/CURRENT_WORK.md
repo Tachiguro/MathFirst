@@ -9,14 +9,21 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-ARCH-001`
-- **Title**: Cross-Platform Application Stack Baseline
-- **Active Task Branch**: `docs/mf-arch-001-cross-platform-stack`
+- **Active Package ID**: `MF-ARCH-002`
+- **Title**: Offline Execution and Local Persistence Boundary
+- **Active Task Branch**: `docs/mf-arch-002-persistence-boundary`
 - **Base Branch**: `main`
-- **Base Commit**: `5a1bda2259a55b60d6693dac0296a564681dc2be`
+- **Base Commit**: `dfd7492927780c1dd9f4644d3925448b88c8113e`
 - **Current Lifecycle Mode**: `DOCUMENT_ONLY`
 - **Next Lifecycle Mode**: `REVIEW_ONLY`
-- **Known Open Decisions**: Architecture baseline accepted for topology and concrete stack. Persistence technology, learning-engine boundaries, scheduler details, and later architecture decisions remain unresolved.
+- **Accepted Package Architecture**:
+  - Capability-oriented Application persistence boundary;
+  - Atomic semantic-submission change sets (attempt evidence, item state, progression);
+  - Optimistic revision checking to prevent stale overwrites;
+  - Platform-specific persistence adapters;
+  - Explicit persisted-format versioning;
+  - Evidence-gated IndexedDB and SQLite primary candidates.
+- **Known Open Decisions**: Final concrete persistence technology, response-time architecture, learning-engine and scheduler boundaries, physical database schema, and later Thin Vertical Slice implementation details.
 
 ---
 
