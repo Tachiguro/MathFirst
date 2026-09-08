@@ -39,3 +39,4 @@ Every ADR must contain the following sections:
 |---|---|---|---|
 | [ADR-0001](ADR-0001-cross-platform-application-topology-and-stack-baseline.md) | Cross-Platform Application Topology and Stack Baseline | Accepted | 2026-09-07 |
 | [ADR-0002](ADR-0002-offline-execution-and-local-persistence-boundary.md) | Offline Execution and Local Persistence Boundary | Accepted | 2026-09-07 |
+| [ADR-0003](ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) | Independent Operation Progression and Open-Ended Fact Space | Accepted | 2026-09-08 |

@@ -14,7 +14,20 @@ This document defines the high-level development sequence and milestone phases f
 
 ---
 
-## 2. Sequence of Development Phases
+## 2. Current Platform Priority
+
+- Windows and Android are the active native product priorities.
+- Core product and learning-engine work is completed for the native applications first.
+- Windows remains a primary target.
+- Android is increasingly prioritized toward eventual Google Play publication; packaging, signing, and publication still require separately authorized lifecycle work.
+- Web remains part of the supported architecture established by [ADR-0001](decisions/ADR-0001-cross-platform-application-topology-and-stack-baseline.md), but runtime implementation is explicitly deferred until native Windows/Android V1 work and release readiness are complete.
+- iOS and Mac Catalyst are not active targets.
+
+MF-LEARN-001 defines shared product and architecture contracts only. It does not begin Web implementation or any release activity.
+
+---
+
+## 3. Sequence of Development Phases
 
 ### Phase 1: Governance & Repository Foundation
 - Establish repository governance, invariant rules, safety protocols, and multi-mode agent lifecycle (`MF-GOV-001`).
@@ -41,3 +54,4 @@ This document defines the high-level development sequence and milestone phases f
 
 ### Phase 5: Iterative Packages
 - Deliver modular features and capabilities through bounded, TDD-driven `MF-*` packages under the governed lifecycle.
+- Complete accepted shared learning architecture in the native Windows and Android applications before beginning the deferred Web runtime.
