@@ -1,6 +1,9 @@
 # MathFirst Product Definition
 
-This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures all confirmed product requirements, the core learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries required prior to Phase 3 Architecture Decisions.
+This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
+
+> [!IMPORTANT]
+> The independent-operation progression and hybrid curriculum in Sections 4–8 are the accepted target product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md). The current native applications still implement learner Schema V4, the finite 418-fact catalog, global introduction lockstep, and the 12-attempt Mixed Checkpoint until MF-LEARN-001 implementation is completed.
 
 ---
 
@@ -44,54 +47,110 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 
 ### Learning Items
 - Individual arithmetic expressions/problems represent distinct **learnable items** (e.g. `3 + 4` and `4 + 3`).
-- **Commutative Expressions**: Expressions with reversed operands (e.g. `3 + 4` versus `4 + 3`) may be tracked as distinct items, reflecting the reality that human cognitive recall speed and confidence often differ by presentation direction.
-- The learning engine maintains state and history at the individual item level to ensure granular tracking of recall strength.
+- **Canonical Identity**: Facts use stable, presentation-direction-sensitive IDs: `add:{left}+{right}`, `sub:{left}-{right}`, `mul:{left}*{right}`, and `div:{dividend}/{divisor}`. Reversed commutative presentations remain distinct because recall speed and confidence may differ by direction.
+- **Lazy Materialization**: A procedurally generated fact remains conceptual until its first accepted attempt. Presentation alone creates no durable learner row. Accepted submission atomically records attempt evidence and creates or updates item, FSRS, and progression state.
+- **Unique Acquisition Ownership**: Every exact fact has one acquisition-owner band per operation: the earliest band in canonical curriculum order that generates its `FactId`. Later mathematical-family overlap may inform diagnostics but never grants duplicate acquisition or coverage credit.
+- The learning engine maintains state and history per materialized exact fact for granular recall tracking and review.
+
+### Fact-Space Semantics
+
+- **Legacy/materialized learned facts** have persisted item or FSRS state and remain reviewable regardless of the current band.
+- **Curriculum-eligible facts** belong to completed bands or the current band; eligibility does not mean mastery.
+- **Current acquisition-frontier facts** are owned by the operation's current band. Dense bands require exhaustive frontier acquisition; structured bands require a deterministic representative sample of 16 distinct owned-frontier facts.
+- **Due review facts** are materialized facts whose FSRS due Practice Position has arrived. Advancement never removes their eligibility.
+
+Unseen, non-sampled structured candidates from completed bands are not permanent acquisition debt. Exact-fact FSRS review and operation-level advancement are separate mechanisms.
 
 ---
 
 ## 5. Arithmetic Progression
 
-### Independent Per-Operation Range Progression
-MathFirst does not expose the full arithmetic problem space immediately. Learners begin with a very small working number range and expand progressively:
+### Independent Per-Operation Band Progression
 
-- **Starting Range**: All four operations begin at initial working range `0..1` (`Addition: 0..1`, `Subtraction: 0..1`, `Multiplication: 0..1`, `Division: 0..1`).
-- **Independent Ranges**: Each arithmetic operation maintains its own independent maximum operand (`M_add`, `M_sub`, `M_mul`, `M_div`).
-- **Turn Sequence Cycle & Mixed Rounds**:
-  ```
-  Addition (0..N) ──► Subtraction (0..N) ──► Multiplication (0..N) ──► Division (0..N) ──► Mixed round (0..N, 12 accepted attempts) ──► Addition (0..N+1) ──► ...
-  ```
-- **Exposure-Based Turn Advancement**:
-  - In each introduction turn, all newly unlocked facts for the active operation at its current max operand are introduced.
-  - When all newly unlocked facts for the 4 operations have been presented at least once (`TotalAttempts >= 1`), a **bounded mixed round** begins. The internal progression phase remains named `Checkpoint`, while the user-facing label is `Mixed round` / `Mischrunde` / the localized Russian equivalent.
-  - A mixed round contains exactly 12 accepted attempts across already introduced facts up to level $N$. Correct, Incorrect, and Timeout outcomes count; invalid input does not.
-  - The mixed round is **not a pass/fail or mastery gate**. Poor performance generates `Again`/`Hard` FSRS ratings and same-session remediation without blocking forward progression.
-  - Upon completing accepted attempt 12, the mixed round completes and advances the next level's Addition introduction.
-  - Wrong or slow answers do **NOT** block range growth or turn advancement; missed facts immediately enter in-session adaptive remediation while range progression continues.
-- **Full Catalog Mixed Practice**: After the level 10 checkpoint completes, all introductions are finished and the system enters open-ended adaptive mixed practice across all 418 facts without level 11 expansion.
+All four operations start in their first dense band and advance independently. A stronger operation never waits for a weaker one, and there is no global Mixed Checkpoint or shared "all introductions complete" state. Operations are interleaved deterministically for presentation, but interleaving does not create progression lockstep.
+
+### Hybrid Curriculum
+
+MathFirst uses two acquisition modes:
+
+1. **Dense exhaustive acquisition** requires exposure to every exact fact owned by the band. The dense foundations are:
+   - Addition: all ordered `a + b` for `a,b` in `0..10` — 121 facts.
+   - Subtraction: the complete non-negative inverse family of that Addition region — 121 facts, including the `SUB-I11` through `SUB-I20` extension after the existing triangular `SUB-D01` through `SUB-D10` bands.
+   - Multiplication: all ordered `a * b` for `a,b` in `0..12` — 169 facts.
+   - Division: all `(d * q) / d = q` for `d` in `1..12` and `q` in `0..12` — 156 facts.
+   - The dense total is 567 exact facts; presentation-direction mirrors remain distinct.
+2. **Structured representative acquisition** follows the dense foundation. Bounded deterministic families teach decimal anchors, transfer, rounding, decomposition, two-digit multiplication, decimal shifts, and scaled multiplication, with Subtraction and Division defined through exact inverse families. Each structured band normally introduces exactly 16 distinct owned-frontier facts. Mathematical candidates outside that acquisition sample remain available conceptually without becoming permanent mastery debt.
+
+The detailed canonical band order, pure generation formulas, candidate counts, and ownership counts are normative in [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md).
+
+### Advancement Meaning and Gate
+
+Dense advancement means complete lifetime exposure to the band's owned frontier plus recent operation-specific evidence of readiness. Structured advancement means representative fluency sufficient to begin the next arithmetic family; it does not claim exhaustive mastery of every candidate or arbitrary arithmetic at that magnitude.
+
+An operation advances only on the atomic accepted submission that completes all of these requirements:
+
+1. At least 40 accepted attempts for that operation after its current band began.
+2. In its latest 40 qualifying attempts: at least 38 correct, at least 34 fluent, at least 20 from the current acquisition frontier, and at least `min(16, owned-frontier-size)` distinct current-frontier facts.
+3. Dense coverage includes a lifetime accepted attempt for every owned-frontier fact; structured coverage includes at least 16 distinct owned-frontier introductions during the band.
+
+Fluent means Correct with response latency at or below 2500 ms. Incorrect and Timeout are incorrect and non-fluent; a slower correct response is correct but non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window, while weak facts remain active through remediation and FSRS.
+
+### Open-Ended Arithmetic Scope
+
+There is no artificial fixed catalog or level-10 ceiling. Bands continue procedurally while the next complete band is safe in `Int32`; when it is not, that operation remains in maintenance. Generation must use checked arithmetic. Addition requires a checked result, Subtraction remains non-negative, Multiplication requires a checked product, and Division requires a positive divisor and exact non-negative integer result.
 
 ### Initial MVP Arithmetic Boundary
-The initial MVP does not require negative subtraction results or division with remainders (division by zero is strictly excluded). Exact later scope for these arithmetic cases remains outside the current MVP definition.
+Negative subtraction, division with remainders, decimal-result arithmetic, and division by zero remain outside the current product boundary. `long` and `BigInteger` expansion are not part of MF-LEARN-001.
 
 ---
 
 ## 6. Adaptive Training Loop & Spaced Repetition (FSRS-6)
 
-The practice selection engine automatically composes training queues based on a 4-tier selection hierarchy powered by an FSRS-6 spaced repetition scheduler operating over discrete practice task distance, hardened with repetition density and diversity rules:
+For next accepted global Practice Position `p`, the scheduled operation is `(p - 1) mod 4` in the order Addition, Subtraction, Multiplication, Division. Each operation independently follows this repeating role cycle:
 
-1. **Tier 1 — Same-Session Remediation**: Items answered incorrectly or timed out are scheduled for short-term recurrence within the same session (`SessionOrder + 2`).
-2. **Tier 2 — Introduction Turn Scaffolding**: Newly unlocked facts for the active operation turn are prioritized for first-exposure.
-3. **Tier 3 — Bounded Mixed Checkpoint**: During checkpoint phases, facts up to level $N$ are sampled with overdue FSRS cards prioritized.
-4. **Tier 4 — Due FSRS Spaced Reviews**: Facts tracked by FSRS whose `DuePracticePosition <= currentPracticePosition` are prioritized by largest overdue distance (`currentPracticePosition - DuePracticePosition` descending).
-5. **Fallback — Open-Ended Mixed Practice**: Surfacing earliest upcoming due cards or unpracticed active facts.
+```text
+New, Due, New, Maintenance, Frontier, New, Due, New, Due, Frontier
+```
+
+Normal proportions are 40% New, 30% Due FSRS, 20% explicit Frontier reinforcement, and 10% Maintenance. The semantic candidate pools are:
+
+- **New**: an unmaterialized exact fact owned by the scheduled operation's current band.
+- **Frontier**: a materialized exact fact owned by the scheduled operation's current band.
+- **Due**: a materialized exact fact for the scheduled operation that is due under FSRS.
+- **Maintenance**: a materialized exact fact for the scheduled operation eligible for non-due maintenance under the existing practice policy.
+- **AnyMaterialized**: any eligible materialized exact fact for the scheduled operation.
+
+A due same-session remediation for the scheduled operation overrides that operation's normal role. It does not override operation scheduling, so a weak operation cannot globally starve stronger operations. After that override is considered, the scheduled role uses the first non-empty pool in its exact fallback chain:
+
+```text
+New role:        New -> Frontier -> Due -> Maintenance -> AnyMaterialized
+Due role:        Due -> Frontier -> Maintenance -> AnyMaterialized
+Maintenance role: Maintenance -> Frontier -> Due -> AnyMaterialized
+Frontier role:   Frontier -> Due -> Maintenance -> AnyMaterialized
+```
+
+The selector never changes the scheduled operation because a preferred pool is empty. Only a scheduled New role may select an unmaterialized fact. Due, Maintenance, Frontier, remediation, and AnyMaterialized paths never introduce a new exact fact. Earlier-owned review facts receive no acquisition or current-band coverage credit. Normal introduction therefore remains capped at four opportunities per ten accepted attempts for an operation.
+
+In a dense band, New selects unmaterialized owned-frontier facts until the frontier is fully materialized, then falls back to Frontier. In a structured band, New falls back to Frontier after 16 distinct owned-frontier introductions. A fresh operation's first role is New and its initial acquisition frontier is non-empty; after its first accepted attempt, at least one materialized fact exists. Migrated learners retain their materialized facts and select New or Frontier according to migration state. This makes the fallback system total without a persisted candidate cursor.
+
+Within a non-empty semantic pool, normal cooldowns apply first. If every candidate is excluded, the commutative-mirror cooldown relaxes first, then the exact-fact cooldown, after which selection proceeds deterministically from that pool. Soft cooldowns cannot make selection non-total.
+
+Without remediation overrides, four New roles and two explicit Frontier roles per ten operation attempts provide at least six current-frontier opportunities. An exhausted New pool falls back to Frontier and remains a current-frontier attempt, so a normal 40-attempt operation window provides at least 24 frontier opportunities and 16 New opportunities. Due and Maintenance fallback to Frontier can only increase frontier exposure. The 20-frontier and 16-distinct structured gates are therefore mechanically reachable.
+
+Forty attempts are the minimum evidence-window size, not a guarantee of advancement exactly at attempt 40. Same-session remediation or weak-fact obligations may delay simultaneous satisfaction of all gates. A stable learner can advance once those obligations clear, and no operation is permanently blocked by an empty role pool.
+
+The selector is deterministic: identical durable learner state yields the same operation, and identical operation/band/role/state yields the same candidate. Candidate ordering cannot depend on dictionary/hash iteration or `Random.Shared`. Presentation without accepted submission changes no durable progression.
 
 ### Repetition Density & Diversity Constraints
 - **Exact Fact Cooldown**: The selector avoids repeating the same `FactId` within the last 3 presented facts when alternative candidates exist (`ExactFactCooldownDistance = 3`).
 - **Commutative Mirror Cooldown**: For Addition and Multiplication, adjacent and near-adjacent mirror pairs (e.g., `6 × 0` and `0 × 6`, `3 + 4` and `4 + 3`) are avoided within 3 positions (`MirrorFactCooldownDistance = 3`), while maintaining distinct item entities and separate FSRS states. Non-commutative Subtraction and Division are strictly exempt.
 - **Operation Streak Diversity**: Limits consecutive questions of the same arithmetic operation to a maximum of 2 when alternative candidates exist (`MaxPreferredOperationStreak = 2`).
-- **Soft Constraint Relaxation**: Candidate pools are determined by tier priority (Remediation, Introduction, Checkpoint, Due FSRS); diversity rules filter and tiebreak within the tier using soft penalties so progress never deadlocks.
+- **Soft Constraint Relaxation**: Diversity constraints relax in a fixed deterministic order so selection cannot deadlock.
 
 ### Task Distance Virtual Time Model
-MathFirst schedules arithmetic reviews not by real-world calendar days, but by **Practice Position** (the monotonic count of accepted arithmetic attempts). One practice position corresponds to one virtual day from epoch `2000-01-01T00:00:00Z`, making review intervals completely immune to wall-clock manipulation, timezone shifts, or gaps between study days. Responses are automatically rated (`Again`, `Hard`, `Good`, `Easy`) via deterministic latency mapping without requiring manual learner self-rating buttons.
+MathFirst schedules arithmetic reviews not by real-world calendar days, but by **Practice Position** (the monotonic count of accepted arithmetic attempts). One practice position corresponds to one virtual day from epoch `2000-01-01T00:00:00Z`, making review intervals independent of wall-clock manipulation, timezone shifts, or gaps between study days. Responses are automatically rated (`Again`, `Hard`, `Good`, `Easy`) via deterministic latency mapping without manual self-rating buttons.
+
+Exact-fact review preserves `FSRS.Core` 1.0.7, 95% desired retention, the existing 21 parameters, disabled fuzzing, and deterministic per-`FactId` cards. Operation advancement consumes raw correctness and latency evidence and does not depend directly on FSRS stability, difficulty, or interval values. Advancement never deletes or suspends a card.
 
 ---
 
@@ -145,7 +204,7 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
   - Empty input plus trailing-separator states such as `12.` and `12,` remain valid while editing. Submission normalizes comma or period to an invariant exact `decimal` value; equivalent representations such as `14`, `14.0`, and `14,00` compare numerically.
   - Complete integer answers auto-submit deterministically: exact equality submits immediately; a canonical digit-count match submits as correct or incorrect; and an integer prefix that cannot become the correct canonical representation may submit early as incorrect. Still-plausible shorter prefixes remain non-semantic indefinitely, with no debounce timeout. Enter remains an explicit force-submit path for any valid complete numeric value.
   - Supported browser/WebView input paths synchronously reject invalid prospective keyboard, selection-replacement, deletion, and paste edits before the DOM mutates. The C# numeric policy remains authoritative for submission, the on-screen keypad, fallback input handling, and tests.
-  - Rejected or incomplete input creates no semantic attempt and therefore cannot affect score, Practice Position, FSRS, exposure, remediation, or mixed-round progress. Input is bounded to 28 characters to protect layout while leaving ample future arithmetic range.
+  - Rejected or incomplete input creates no semantic attempt and therefore cannot affect score, Practice Position, FSRS, exposure, remediation, or progression evidence. Input is bounded to 28 characters to protect layout while leaving ample future arithmetic range.
   - The responsive answer field comfortably exposes approximately eight digits plus a decimal separator at normal Windows desktop sizes. It remains centered, never exceeds the card width, and wraps below the arithmetic expression on narrow layouts without reducing arithmetic typography.
 - **Android**:
   - Touch-first user interface.
@@ -232,7 +291,7 @@ The primary objective of the initial MVP is to prove the complete end-to-end Mat
 - Maintain a local learning state per item.
 - Prioritize weak, slow, incorrect, and new items adaptively.
 - Reinforce incorrect answers and reintroduce them later within the same session.
-- Progressively expand the active number range based on demonstrated mastery.
+- Progress each operation independently through dense and structured arithmetic bands based on demonstrated correctness, fluency, and coverage.
 - Function 100% offline without network connectivity.
 - Operate completely without user accounts or authentication.
 - Implement at least one core arithmetic operation (e.g. Addition) to validate the end-to-end learning loop.
@@ -241,10 +300,10 @@ The primary objective of the initial MVP is to prove the complete end-to-end Mat
 
 ## 13. Later Product Capabilities
 
-The following capabilities are recognized as potential future extensions beyond the initial MVP:
+The following capabilities are recognized as potential future extensions beyond the current approved native learning scope:
 
-- **Multiplication and Division Progression**: Broadening arithmetic operations as learner progression expands.
 - **Extended Arithmetic Scope**: Negative subtraction results and division with remainders.
+- **Larger Numeric Representation**: Arithmetic bands beyond the complete safe `Int32` boundary.
 - **Optional Cross-Device Cloud Synchronization**: Optional multi-device synchronization and optional cloud accounts.
 - **Data Portability**: Manual progress export and import functionality.
 - **Richer Progress Presentation**: Additional learning statistics, visualization widgets, and practice customization.
@@ -264,19 +323,19 @@ For the current product definition and MVP scope, the following boundaries apply
 
 ---
 
-## 15. Unresolved Product Decisions
+## 15. Product Decision Status
 
-The following decisions remain intentionally open and must not be treated as finalized product requirements until formally resolved:
+The following register contains both resolved and unresolved product decisions. `RESOLVED` rows are normative product requirements. `UNRESOLVED` rows remain open and must not be treated as finalized requirements until formally resolved.
 
 | Decision Area | Description | Status |
 |---|---|---|
-| **Scheduler Mathematics** | Exact mathematical scheduling formulation, interval growth curves, and penalty weights. | `UNRESOLVED` |
-| **Fact Catalog Strategy** | Finite pre-populated catalog of canonical items versus deterministic procedural generation with stable identities. | `UNRESOLVED` |
+| **Scheduler Mathematics** | FSRS-6 exact-fact scheduling with Practice Position virtual time, 95% desired retention, existing 21 parameters, and disabled fuzzing. | `RESOLVED` |
+| **Fact Catalog Strategy** | Hybrid dense/structured curriculum, deterministic procedural generation, unique acquisition ownership, stable identities, and lazy materialization. | `RESOLVED` |
 | **Telemetry, Analytics, and Crash Diagnostics** | Whether and how telemetry, analytics, and crash diagnostics should operate. | `UNRESOLVED` |
-| **Exact Fluency Thresholds** | Specific millisecond or second boundaries defining automated recall versus calculated responses (V1 uses 2500ms default). | `UNRESOLVED` |
-| **Exact Range Expansion Increments** | Specific numerical step increments and mastery percentages required to unlock range expansions (V1 uses 90% multi-operation mastery). | `UNRESOLVED` |
+| **Exact Fluency Thresholds** | Advancement fluency is Correct at `<= 2500 ms`; FSRS retains its current Easy/Good/Hard latency mapping. | `RESOLVED` |
+| **Exact Range Expansion Increments** | Independent canonical bands and the 40-attempt correctness/fluency/frontier/coverage advancement gate defined by ADR-0003. | `RESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
-| **Multi-Operation Range Sequencing** | Exposure-based introduction sequence (Addition -> Subtraction -> Multiplication -> Division) followed by adaptive mixed practice per range. | `RESOLVED` |
+| **Multi-Operation Range Sequencing** | Deterministic Addition/Subtraction/Multiplication/Division scheduling interleave with fully independent per-operation band advancement and no global checkpoint. | `RESOLVED` |
 | **Manual Operation Control** | Whether users should be able to manually enable, disable, or override operation progression. | `UNRESOLVED` |
 | **Session Length & Bounding** | Exact rules determining when a training session concludes (e.g. dynamic item count, queue exhaustion, or time limits). | `UNRESOLVED` |
 | **Answer Submission Trigger** | Deterministic smart auto-submit for complete canonical integer answers, with Enter as a valid explicit force-submit path and no permanent Submit action. | `RESOLVED` |
@@ -289,9 +348,9 @@ The following decisions remain intentionally open and must not be treated as fin
 
 ---
 
-## 16. Architecture Inputs for Phase 3
+## 16. Durable Architecture Constraints
 
-This Product Definition establishes the following functional constraints for **Phase 3 Architecture Decisions**:
+This Product Definition establishes the following functional constraints for architecture and implementation:
 
 1. **Target Platforms**: Architecture must support **Android**, **Web**, and **Windows**.
 2. **Shared Logic Objective**: Architecture should maximize reuse of core domain and application logic across supported platforms where technically sensible.
