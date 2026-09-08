@@ -126,6 +126,44 @@ public sealed class PolicyAndLocalizationTests
     }
 
     [Theory]
+    [InlineData("en", "Ready to practice?", "Start", "Paused", "Resume practice", "Pause")]
+    [InlineData("de", "Bereit zum Üben?", "Los geht's", "Pausiert", "Weiterüben", "Pausieren")]
+    [InlineData("ru", "Готовы заниматься?", "Начать", "Пауза", "Продолжить занятие", "Приостановить")]
+    public void LocalizationService_PracticeGatesHaveLanguageParity(
+        string language,
+        string expectedReady,
+        string expectedStart,
+        string expectedPaused,
+        string expectedResume,
+        string expectedPause)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expectedReady, service["Training_ReadyTitle"]);
+        Assert.Equal(expectedStart, service["Training_Start"]);
+        Assert.Equal(expectedPaused, service["Training_PausedTitle"]);
+        Assert.Equal(expectedResume, service["Training_ResumePractice"]);
+        Assert.Equal(expectedPause, service["Training_Pause"]);
+    }
+
+    [Theory]
+    [InlineData("en", "Progress could not be saved.", "Retry")]
+    [InlineData("de", "Fortschritt konnte nicht gespeichert werden.", "Erneut versuchen")]
+    [InlineData("ru", "Не удалось сохранить прогресс.", "Повторить")]
+    public void LocalizationService_PersistenceRecoveryHasLanguageParity(
+        string language,
+        string expectedTitle,
+        string expectedRetry)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expectedTitle, service["Training_PersistenceFailureTitle"]);
+        Assert.Equal(expectedRetry, service["Training_Retry"]);
+    }
+
+    [Theory]
     [InlineData("en", "Get Started")]
     [InlineData("de", "Los geht's")]
     [InlineData("ru", "Начать")]

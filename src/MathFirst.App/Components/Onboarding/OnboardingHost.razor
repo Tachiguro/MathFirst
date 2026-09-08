@@ -231,6 +231,16 @@
         Localizer.ApplyLanguagePreference(_selectedLanguage);
         ThemeService.SetPreference(_selectedTheme);
 
+        if (!Session.IsInitialized)
+        {
+            await Session.InitializeAsync(startTiming: true);
+        }
+        else
+        {
+            Session.SetPracticeSurfaceActive(true);
+            Session.StartOrResumePractice();
+        }
+
         if (OnCompleted.HasDelegate)
         {
             await OnCompleted.InvokeAsync();

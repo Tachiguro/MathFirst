@@ -17,9 +17,21 @@
                     <span class="mathfirst-op-badge">@Localizer[$"Operation_{Session.CurrentFact.Operation}"]</span>
                 }
             </div>
-            <a href="settings" class="button button-secondary settings-nav-btn" title='@Localizer["Settings_Title"]'>
-                @Localizer["Settings_Title"]
-            </a>
+            <div class="practice-header-actions">
+                @if (CanPausePractice)
+                {
+                    <button type="button"
+                            class="button button-secondary pause-practice-btn"
+                            title='@Localizer["Training_Pause"]'
+                            aria-label='@Localizer["Training_Pause"]'
+                            @onclick="PausePractice">
+                        <span aria-hidden="true">⏸</span>
+                    </button>
+                }
+                <a href="settings" class="button button-secondary settings-nav-btn" title='@Localizer["Settings_Title"]'>
+                    @Localizer["Settings_Title"]
+                </a>
+            </div>
         </header>
 
         @if (!Session.IsInitialized || Session.CurrentFact is null)
@@ -31,22 +43,90 @@
         else
         {
             <main class="training-card">
-                <div class="training-top-region">
-                    <div class="training-meta-row">
-                    @if (Session.Progression.IsInCheckpoint)
-                    {
-                        <span class="checkpoint-badge">@Localizer["Training_CheckpointBadge", Math.Min(Session.Progression.CheckpointAttemptCount + 1, LearningPolicy.DefaultCheckpointAttemptCount), LearningPolicy.DefaultCheckpointAttemptCount]</span>
-                    }
-                    else
-                    {
-                        <span class="range-display">0..@Session.Progression.GetMaxOperand(Session.CurrentFact.Operation)</span>
-                    }
-                    <span class="score-display">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
-                    </div>
+                @if (Session.PracticeGate != PracticeGateState.Running)
+                {
+                    <section class="practice-overlay practice-gate-overlay"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="practice-gate-title">
+                        <div class="practice-overlay-content">
+                            <h2 id="practice-gate-title">@PracticeGateTitle</h2>
+                            <button type="button"
+                                    @ref="_primaryOverlayButton"
+                                    class="button button-primary practice-overlay-action"
+                                    @onclick="StartOrResumePractice">
+                                @PracticeGateAction
+                            </button>
+                        </div>
+                    </section>
+                }
+                else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
+                {
+                    <section class="practice-overlay persistence-error-dialog"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="persistence-error-title">
+                        <div class="practice-overlay-content">
+                            <h2 id="persistence-error-title">@Localizer["Training_PersistenceFailureTitle"]</h2>
+                            <button type="button"
+                                    @ref="_primaryOverlayButton"
+                                    class="button button-primary practice-overlay-action"
+                                    disabled="@_isSubmitting"
+                                    @onclick="RecoverFromPersistenceFailureAsync">
+                                @Localizer["Training_Retry"]
+                            </button>
+                        </div>
+                    </section>
+                }
+                else if (IsAwaitingAcknowledgement && Session.LastEvaluation is not null)
+                {
+                    <section class="practice-overlay feedback-dialog @(Session.InteractionState == SessionInteractionState.TimeoutFeedback ? "feedback-timeout" : "feedback-incorrect")"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="feedback-dialog-title">
+                        <div class="practice-overlay-content">
+                            <p class="feedback-expression">
+                                <span>@Session.CurrentFact.LeftOperand</span>
+                                <span>@Session.CurrentFact.DisplaySymbol</span>
+                                <span>@Session.CurrentFact.RightOperand</span>
+                                <span>=</span>
+                                <span>?</span>
+                            </p>
+                            <h2 id="feedback-dialog-title">
+                                @(Session.InteractionState == SessionInteractionState.TimeoutFeedback
+                                    ? Localizer["Training_TimeExpired"]
+                                    : Localizer["Training_IncorrectTitle"])
+                            </h2>
+                            @if (Session.InteractionState == SessionInteractionState.IncorrectFeedback)
+                            {
+                                <p class="feedback-user-answer">@Localizer["Training_YourAnswer", SubmittedAnswerDisplay]</p>
+                            }
+                            <p class="feedback-correct-answer">@Localizer["Training_CorrectAnswer", Session.LastEvaluation.CorrectAnswer]</p>
+                            <button type="button"
+                                    @ref="_primaryOverlayButton"
+                                    class="button button-danger practice-overlay-action"
+                                    @onclick="Advance">
+                                @Localizer["Common_Continue"] (Enter)
+                            </button>
+                        </div>
+                    </section>
+                }
+                else
+                {
+                    <div class="training-top-region">
+                        <div class="training-meta-row">
+                            @if (Session.Progression.IsInCheckpoint)
+                            {
+                                <span class="checkpoint-badge">@Localizer["Training_CheckpointBadge", Math.Min(Session.Progression.CheckpointAttemptCount + 1, LearningPolicy.DefaultCheckpointAttemptCount), LearningPolicy.DefaultCheckpointAttemptCount]</span>
+                            }
+                            else
+                            {
+                                <span class="range-display">0..@Session.Progression.GetMaxOperand(Session.CurrentFact.Operation)</span>
+                            }
+                            <span class="score-display">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
+                        </div>
 
-                    <div class="timer-container" aria-hidden="@(_isAwaitingNext || _isAwaitingAcknowledgement)">
-                        @if (!_isAwaitingNext && !_isAwaitingAcknowledgement)
-                        {
+                        <div class="timer-container">
                             <div class="timer-bar-track"
                                  role="progressbar"
                                  aria-valuemin="0"
@@ -58,118 +138,61 @@
                                 </div>
                                 <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
                             </div>
-                        }
-                    </div>
-                </div>
-
-                <div class="practice-middle-region">
-                    <div class="expression-row">
-                        <span class="expression-problem">
-                            <span class="operand">@Session.CurrentFact.LeftOperand</span>
-                            <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
-                            <span class="operand">@Session.CurrentFact.RightOperand</span>
-                            <span class="equals">=</span>
-                        </span>
-                        <input @key="_inputRenderVersion"
-                               @ref="_inputElement"
-                               type="text"
-                               inputmode="decimal"
-                               pattern="(?:0|[1-9][0-9]*)?(?:[.,][0-9]*)?"
-                               maxlength="@NumericAnswerInputPolicy.MaximumLength"
-                               autocomplete="off"
-                               autocapitalize="off"
-                               spellcheck="false"
-                               enterkeyhint="done"
-                               class="answer-input @GetInputClass()"
-                               value="@_answerInput"
-                               @oninput="HandleAnswerInput"
-                               disabled="@(_isAwaitingNext || _isAwaitingAcknowledgement)"
-                               aria-label="@Localizer["Training_AnswerInputAriaLabel"]" />
-                    </div>
-
-                    @if (!string.IsNullOrEmpty(_validationError))
-                    {
-                        <div class="validation-message" role="alert">
-                            @_validationError
                         </div>
-                    }
-                </div>
+                    </div>
 
-                <div class="feedback-container">
-                        @if (Session.LastEvaluation is not null)
-                        {
-                            @if (Session.LastEvaluation.Outcome == AttemptOutcome.Correct)
-                            {
-                                <div class="feedback-banner feedback-correct" role="status">
-                                    <span class="feedback-text">@Localizer["Training_Correct"]</span>
+                    <div class="practice-layout">
+                        <div class="practice-interaction-column">
+                            <div class="practice-middle-region">
+                                <div class="expression-row">
+                                    <span class="expression-problem">
+                                        <span class="operand">@Session.CurrentFact.LeftOperand</span>
+                                        <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
+                                        <span class="operand">@Session.CurrentFact.RightOperand</span>
+                                        <span class="equals">=</span>
+                                    </span>
+                                    <input @key="_inputRenderVersion"
+                                           @ref="_inputElement"
+                                           type="text"
+                                           inputmode="@AnswerInputMode"
+                                           virtualkeyboardpolicy="@AnswerVirtualKeyboardPolicy"
+                                           pattern="(?:0|[1-9][0-9]*)?(?:[.,][0-9]*)?"
+                                           maxlength="@NumericAnswerInputPolicy.MaximumLength"
+                                           autocomplete="off"
+                                           autocapitalize="off"
+                                           spellcheck="false"
+                                           enterkeyhint="done"
+                                           class="answer-input"
+                                           value="@_answerInput"
+                                           @oninput="HandleAnswerInput"
+                                           disabled="@_isSubmitting"
+                                           aria-label="@Localizer["Training_AnswerInputAriaLabel"]" />
                                 </div>
-                            }
-                            else if (Session.LastEvaluation.Outcome == AttemptOutcome.Incorrect)
-                            {
-                                <div class="feedback-banner feedback-incorrect" role="alert">
-                                    <div class="feedback-incorrect-title">@Localizer["Training_IncorrectTitle"]</div>
-                                    <div class="feedback-detail-row">
-                                        <span class="feedback-user-answer">@Localizer["Training_YourAnswer", SubmittedAnswerDisplay]</span>
-                                        <span class="feedback-correct-answer">@Localizer["Training_CorrectAnswer", Session.LastEvaluation.CorrectAnswer]</span>
-                                    </div>
-                                </div>
-                            }
-                            else if (Session.LastEvaluation.Outcome == AttemptOutcome.Timeout)
-                            {
-                                <div class="feedback-banner feedback-incorrect feedback-timeout" role="alert">
-                                    <div class="feedback-incorrect-title">@Localizer["Training_TimeExpired"]</div>
-                                    <div class="feedback-detail-row">
-                                        <span class="feedback-correct-answer">@Localizer["Training_CorrectAnswer", Session.LastEvaluation.CorrectAnswer]</span>
-                                    </div>
-                                </div>
-                            }
-                        }
-                </div>
 
-                <div class="actions">
-                        @if (_isAwaitingAcknowledgement)
-                        {
-                            <button type="button"
-                                    @ref="_nextButton"
-                                    class="button button-danger action-btn"
-                                    @onclick="Advance">
-                                @Localizer["Common_Continue"] (Enter)
-                            </button>
-                        }
-                        else if (_isAwaitingNext)
-                        {
-                            <button type="button"
-                                    @ref="_nextButton"
-                                    class="button button-primary action-btn"
-                                    @onclick="Advance">
-                                @Localizer["Training_NextAction"] (Enter)
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button"
-                                    class="button button-primary action-btn"
-                                    @onclick="Submit">
-                                @Localizer["Training_SubmitAction"] (Enter)
-                            </button>
-                        }
-                </div>
+                                @if (!string.IsNullOrEmpty(_validationError))
+                                {
+                                    <div class="validation-message" role="alert">@_validationError</div>
+                                }
+                            </div>
+                        </div>
 
-                <div class="numeric-keypad"
-                     role="group"
-                     aria-label="@Localizer["Keypad_NumberKeypad"]">
-                    @foreach (var key in NumericKeypadLayoutPolicy.GetKeys(_keypadLayout, DecimalSeparator))
-                    {
-                        var isBackspace = key == "backspace";
-                        <button type="button"
-                                class="numeric-keypad-button @(isBackspace ? "numeric-keypad-backspace" : null)"
-                                disabled="@(_isAwaitingNext || _isAwaitingAcknowledgement)"
-                                aria-label="@(isBackspace ? Localizer["Keypad_Backspace"] : key)"
-                                @onclick="() => HandleKeypadKey(key)">
-                            @(isBackspace ? "⌫" : key)
-                        </button>
-                    }
-                </div>
+                        <div class="numeric-keypad"
+                             role="group"
+                             aria-label="@Localizer["Keypad_NumberKeypad"]">
+                            @foreach (var key in NumericKeypadLayoutPolicy.GetKeys(_keypadLayout, DecimalSeparator))
+                            {
+                                var isBackspace = key == "backspace";
+                                <button type="button"
+                                        class="numeric-keypad-button @(isBackspace ? "numeric-keypad-backspace" : null)"
+                                        disabled="@_isSubmitting"
+                                        aria-label="@(isBackspace ? Localizer["Keypad_Backspace"] : key)"
+                                        @onclick="() => HandleKeypadKeyAsync(key)">
+                                    @(isBackspace ? "⌫" : key)
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
             </main>
         }
     </div>
@@ -182,13 +205,11 @@
     private NumericKeypadLayout _keypadLayout = NumericKeypadLayout.Phone;
     private int _inputRenderVersion;
     private int _guardedInputRenderVersion = -1;
-    private bool _isAwaitingNext;
-    private bool _isAwaitingAcknowledgement;
     private bool _isSubmitting;
     private ElementReference _inputElement;
-    private ElementReference _nextButton;
+    private ElementReference _primaryOverlayButton;
     private bool _shouldFocusInput = true;
-    private bool _shouldFocusNext;
+    private bool _shouldFocusPrimaryOverlay;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -199,13 +220,16 @@
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
+        Session.AppForegroundStateChanged += OnAppForegroundChanged;
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
 
         if (!Session.IsInitialized)
         {
-            await Session.InitializeAsync();
+            await Session.InitializeAsync(startTiming: false);
+            Session.ShowInitialReadyGate();
         }
 
+        Session.SetPracticeSurfaceActive(true);
         SyncStateWithSession();
     }
 
@@ -213,19 +237,25 @@
     {
         if (Session.InteractionState == SessionInteractionState.AwaitingAnswer)
         {
-            _isAwaitingNext = false;
-            _isAwaitingAcknowledgement = false;
-            _shouldFocusInput = true;
-            _shouldFocusNext = false;
-            Session.ResumeItemTiming();
-            StartTimer();
+            if (Session.PracticeGate == PracticeGateState.Running)
+            {
+                _shouldFocusInput = true;
+                _shouldFocusPrimaryOverlay = false;
+                if (Session.IsTimingActive)
+                {
+                    StartTimer();
+                }
+            }
+            else
+            {
+                _shouldFocusInput = false;
+                _shouldFocusPrimaryOverlay = true;
+                StopTimer();
+            }
         }
         else if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
         {
-            _isAwaitingNext = true;
-            _isAwaitingAcknowledgement = false;
             _shouldFocusInput = false;
-            _shouldFocusNext = true;
             if (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer)
             {
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
@@ -233,12 +263,16 @@
             }
             StopTimer();
         }
+        else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
+        {
+            _shouldFocusInput = false;
+            _shouldFocusPrimaryOverlay = true;
+            StopTimer();
+        }
         else if (Session.InteractionState is SessionInteractionState.IncorrectFeedback or SessionInteractionState.TimeoutFeedback)
         {
-            _isAwaitingNext = false;
-            _isAwaitingAcknowledgement = true;
             _shouldFocusInput = false;
-            _shouldFocusNext = true;
+            _shouldFocusPrimaryOverlay = true;
             if (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer)
             {
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
@@ -251,6 +285,7 @@
     public void Dispose()
     {
         Localizer.UiLanguageChanged -= OnLanguageChanged;
+        Session.AppForegroundStateChanged -= OnAppForegroundChanged;
         StopTimer();
         Session.PauseItemTiming();
     }
@@ -260,9 +295,26 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
+    private void OnAppForegroundChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (Session.IsAppForeground)
+            {
+                SyncStateWithSession();
+            }
+            else
+            {
+                StopTimer();
+                UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
+            }
+            StateHasChanged();
+        });
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (Session.CurrentFact is not null && _guardedInputRenderVersion != _inputRenderVersion)
+        if (IsAnswerEntryVisible && _guardedInputRenderVersion != _inputRenderVersion)
         {
             try
             {
@@ -289,12 +341,12 @@
             {
             }
         }
-        else if (_shouldFocusNext)
+        else if (_shouldFocusPrimaryOverlay)
         {
-            _shouldFocusNext = false;
+            _shouldFocusPrimaryOverlay = false;
             try
             {
-                await _nextButton.FocusAsync();
+                await _primaryOverlayButton.FocusAsync();
             }
             catch
             {
@@ -302,13 +354,14 @@
         }
     }
 
-    private void HandleAnswerInput(ChangeEventArgs e)
+    private async Task HandleAnswerInput(ChangeEventArgs e)
     {
         var proposedValue = e.Value?.ToString();
         if (NumericAnswerInputPolicy.IsValidEdit(proposedValue))
         {
             _answerInput = proposedValue!;
             _validationError = null;
+            await TryAutoSubmitAsync();
             return;
         }
 
@@ -324,9 +377,17 @@
             return;
         }
 
-        if (_isAwaitingNext || _isAwaitingAcknowledgement)
+        if (IsAwaitingAcknowledgement)
         {
             Advance();
+        }
+        else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
+        {
+            await RecoverFromPersistenceFailureAsync();
+        }
+        else if (Session.PracticeGate != PracticeGateState.Running)
+        {
+            StartOrResumePractice();
         }
         else
         {
@@ -334,9 +395,9 @@
         }
     }
 
-    private void HandleKeypadKey(string key)
+    private async Task HandleKeypadKeyAsync(string key)
     {
-        if (_isAwaitingNext || _isAwaitingAcknowledgement)
+        if (!IsAnswerEntryVisible || _isSubmitting)
         {
             return;
         }
@@ -346,12 +407,29 @@
             : NumericAnswerInputPolicy.Append(_answerInput, key);
         _validationError = null;
         _shouldFocusInput = true;
+        if (key != "backspace")
+        {
+            await TryAutoSubmitAsync();
+        }
+    }
+
+    private async Task TryAutoSubmitAsync()
+    {
+        if (IsAnswerEntryVisible &&
+            AnswerAutoSubmissionPolicy.ShouldSubmit(_answerInput, Session.CurrentFact.CorrectResult))
+        {
+            await Submit();
+        }
     }
 
     private void StartTimer()
     {
         StopTimer();
         UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
+        if (!Session.IsTimingActive)
+        {
+            return;
+        }
         _timerCts = new CancellationTokenSource();
         var token = _timerCts.Token;
 
@@ -383,7 +461,7 @@
                 {
                     await InvokeAsync(async () =>
                     {
-                        if (!token.IsCancellationRequested && Session.InteractionState == SessionInteractionState.AwaitingAnswer)
+                        if (!token.IsCancellationRequested && Session.IsTimingActive)
                         {
                             UpdateTimerVisuals(deadlineSeconds);
                             await HandleTimeoutAsync();
@@ -427,7 +505,7 @@
 
     private async Task Submit()
     {
-        if (_isSubmitting || _isAwaitingNext || _isAwaitingAcknowledgement)
+        if (_isSubmitting || !IsAnswerEntryVisible)
         {
             return;
         }
@@ -448,18 +526,20 @@
                 _validationError = null;
                 _submittedAnswerDisplay = _answerInput;
                 var eval = Session.SubmitAnswer(parsedAnswer);
-                if (eval.IsCorrect)
+                var persistence = await Session.CommitCurrentEvaluationAsync();
+                var advancedAutomatically = eval.IsCorrect &&
+                    persistence.IsSuccess &&
+                    Session.AdvanceAfterCorrectAnswer(startTiming: true);
+
+                if (advancedAutomatically)
                 {
-                    _isAwaitingNext = true;
+                    PrepareNextFactUi();
                 }
                 else
                 {
-                    _isAwaitingAcknowledgement = true;
+                    _shouldFocusPrimaryOverlay =
+                        !eval.IsCorrect || Session.InteractionState == SessionInteractionState.PersistenceFailure;
                 }
-                _shouldFocusNext = true;
-
-                // Commit to persistent store asynchronously
-                await Session.CommitCurrentEvaluationAsync();
             }
             finally
             {
@@ -475,7 +555,7 @@
 
     private async Task HandleTimeoutAsync()
     {
-        if (_isSubmitting || _isAwaitingNext || _isAwaitingAcknowledgement)
+        if (_isSubmitting || !IsAnswerEntryVisible)
         {
             return;
         }
@@ -486,8 +566,7 @@
         {
             _validationError = null;
             Session.RecordTimeout();
-            _isAwaitingAcknowledgement = true;
-            _shouldFocusNext = true;
+            _shouldFocusPrimaryOverlay = true;
 
             await Session.CommitCurrentEvaluationAsync();
         }
@@ -500,32 +579,113 @@
 
     private void Advance()
     {
-        if (!_isAwaitingNext && !_isAwaitingAcknowledgement)
+        if (!IsAwaitingAcknowledgement)
         {
             return;
         }
 
-        _isAwaitingNext = false;
-        _isAwaitingAcknowledgement = false;
-        Session.AdvanceToNextFact();
+        Session.AdvanceToNextFact(startTiming: true);
+        PrepareNextFactUi();
+    }
+
+    private async Task RecoverFromPersistenceFailureAsync()
+    {
+        if (_isSubmitting || Session.InteractionState != SessionInteractionState.PersistenceFailure)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        try
+        {
+            var recovered = await Session.RecoverFromPersistenceFailureAsync();
+            if (recovered)
+            {
+                if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
+                {
+                    Session.AdvanceAfterCorrectAnswer(startTiming: true);
+                }
+
+                PrepareNextFactUi();
+            }
+            else
+            {
+                _shouldFocusPrimaryOverlay = true;
+            }
+        }
+        finally
+        {
+            _isSubmitting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void PrepareNextFactUi()
+    {
         _answerInput = string.Empty;
         _submittedAnswerDisplay = null;
         _validationError = null;
         _shouldFocusInput = true;
-        StartTimer();
-    }
-
-    private string GetInputClass()
-    {
-        if (Session.LastEvaluation is null)
+        _shouldFocusPrimaryOverlay = false;
+        if (Session.IsTimingActive)
         {
-            return string.Empty;
+            StartTimer();
         }
-
-        return Session.LastEvaluation.IsCorrect ? "input-correct" : "input-incorrect";
     }
+
+    private void PausePractice()
+    {
+        Session.PausePractice();
+        StopTimer();
+        _shouldFocusInput = false;
+        _shouldFocusPrimaryOverlay = true;
+    }
+
+    private void StartOrResumePractice()
+    {
+        Session.StartOrResumePractice();
+        _shouldFocusPrimaryOverlay = false;
+        _shouldFocusInput = true;
+        if (Session.IsTimingActive)
+        {
+            StartTimer();
+        }
+    }
+
+    private bool IsAwaitingAcknowledgement =>
+        Session.InteractionState is SessionInteractionState.IncorrectFeedback or SessionInteractionState.TimeoutFeedback;
+
+    private bool IsAnswerEntryVisible =>
+        Session.IsInitialized &&
+        Session.CurrentFact is not null &&
+        Session.PracticeGate == PracticeGateState.Running &&
+        Session.InteractionState == SessionInteractionState.AwaitingAnswer;
+
+    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
+
+    private string PracticeGateTitle => Session.PracticeGate == PracticeGateState.InitialReadyGate
+        ? Localizer["Training_ReadyTitle"]
+        : Localizer["Training_PausedTitle"];
+
+    private string PracticeGateAction => Session.PracticeGate == PracticeGateState.InitialReadyGate
+        ? Localizer["Training_Start"]
+        : Localizer["Training_ResumePractice"];
 
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
+
+    // On Android the custom keypad is the primary input mechanism.
+    // Setting inputmode="none" instructs the browser WebView not to
+    // show the native Android soft keyboard when the answer field gains
+    // focus — the custom keypad remains visible and fully operable.
+    // On all other platforms (Windows) "decimal" signals a numeric
+    // decimal entry surface to the OS / browser.
+#if ANDROID
+    private static string AnswerInputMode => "none";
+    private static string AnswerVirtualKeyboardPolicy => "manual";
+#else
+    private static string AnswerInputMode => "decimal";
+    private static string AnswerVirtualKeyboardPolicy => "auto";
+#endif
 
     private string SubmittedAnswerDisplay =>
         _submittedAnswerDisplay ??

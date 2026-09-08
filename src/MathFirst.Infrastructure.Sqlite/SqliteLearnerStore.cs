@@ -1,7 +1,8 @@
-namespace MathFirst.Application.Persistence;
+namespace MathFirst.Infrastructure.Sqlite;
 
 using System.Data;
 using System.Text.Json;
+using MathFirst.Application.Persistence;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using Microsoft.Data.Sqlite;
@@ -465,10 +466,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
         {
             if (_connection is not null)
             {
+                SqliteConnection.ClearPool(_connection);
                 _connection.Close();
                 _connection.Dispose();
                 _connection = null;
-                SqliteConnection.ClearAllPools();
             }
             _isInitialized = false;
         }

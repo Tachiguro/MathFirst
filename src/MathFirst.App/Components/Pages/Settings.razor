@@ -48,16 +48,19 @@
             <div class="choice-grid choice-grid-three">
                 <button type="button"
                         class="choice-button @(ThemeService.Preference == ThemePreference.System ? "active" : null)"
+                        aria-pressed="@(ThemeService.Preference == ThemePreference.System)"
                         @onclick="() => SelectTheme(ThemePreference.System)">
                     @Localizer["Settings_AppearanceSystem"]
                 </button>
                 <button type="button"
                         class="choice-button @(ThemeService.Preference == ThemePreference.Light ? "active" : null)"
+                        aria-pressed="@(ThemeService.Preference == ThemePreference.Light)"
                         @onclick="() => SelectTheme(ThemePreference.Light)">
                     @Localizer["Settings_AppearanceLight"]
                 </button>
                 <button type="button"
                         class="choice-button @(ThemeService.Preference == ThemePreference.Dark ? "active" : null)"
+                        aria-pressed="@(ThemeService.Preference == ThemePreference.Dark)"
                         @onclick="() => SelectTheme(ThemePreference.Dark)">
                     @Localizer["Settings_AppearanceDark"]
                 </button>
