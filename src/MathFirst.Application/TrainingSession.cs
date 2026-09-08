@@ -16,6 +16,15 @@ public sealed class TrainingSession
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
     private bool _isTimingActive;
+    private bool _isAppForeground = true;
+    private bool _isPracticeSurfaceActive = true;
+    private PracticeGateState _practiceGateState = PracticeGateState.Running;
+    private bool _requiresBackgroundResumeAfterAdvance;
+    private int _sessionCorrectCountBeforePendingEvaluation;
+    private int _sessionTotalCountBeforePendingEvaluation;
+    private long _lastResponseLatencyBeforePendingEvaluation;
+
+    public event EventHandler? AppForegroundStateChanged;
 
     public LearnerProgression Progression { get; private set; } = LearnerProgression.CreateFresh();
     public Dictionary<string, ItemLearningState> ItemStates { get; private set; } = new(StringComparer.Ordinal);
@@ -29,8 +38,12 @@ public sealed class TrainingSession
     public double CurrentFactDeadlineSeconds => CurrentFactDeadlineMs / 1000.0;
     public long LastResponseLatencyMs { get; private set; }
     public SubmissionEvaluation? LastEvaluation { get; private set; }
+    public PersistenceResult? LastPersistenceResult { get; private set; }
     public SessionInteractionState InteractionState { get; private set; } = SessionInteractionState.AwaitingAnswer;
     public bool IsTimingActive => _isTimingActive;
+    public bool IsAppForeground => _isAppForeground;
+    public bool IsPracticeSurfaceActive => _isPracticeSurfaceActive;
+    public PracticeGateState PracticeGate => _practiceGateState;
     public bool IsInitialized { get; private set; }
 
     public TrainingSession(
@@ -61,6 +74,8 @@ public sealed class TrainingSession
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         LastResponseLatencyMs = 0;
+        LastPersistenceResult = null;
+        _requiresBackgroundResumeAfterAdvance = false;
         IsInitialized = true;
 
         LearningPolicy.SynchronizeProgression(Progression, ItemStates);
@@ -72,7 +87,7 @@ public sealed class TrainingSession
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
         _accumulatedActiveElapsedMs = 0;
-        _isTimingActive = true;
+        _isTimingActive = false;
         InteractionState = SessionInteractionState.AwaitingAnswer;
 
         if (CurrentFact is not null)
@@ -80,25 +95,117 @@ public sealed class TrainingSession
             ItemStates.TryGetValue(CurrentFact.Id, out var state);
             CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
         }
+
+        ReconcileTimingState();
+    }
+
+    public void SetAppForeground(bool isForeground)
+    {
+        if (_isAppForeground == isForeground)
+        {
+            return;
+        }
+
+        if (!isForeground && IsInitialized && _practiceGateState == PracticeGateState.Running)
+        {
+            if (InteractionState == SessionInteractionState.AwaitingAnswer)
+            {
+                _practiceGateState = PracticeGateState.BackgroundResumeGate;
+            }
+            else if (LastEvaluation?.Outcome == AttemptOutcome.Correct &&
+                     InteractionState is SessionInteractionState.CorrectFeedback or SessionInteractionState.PersistenceFailure)
+            {
+                _requiresBackgroundResumeAfterAdvance = true;
+            }
+        }
+
+        _isAppForeground = isForeground;
+        ReconcileTimingState();
+
+        AppForegroundStateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void SetPracticeSurfaceActive(bool isActive)
+    {
+        if (_isPracticeSurfaceActive == isActive)
+        {
+            return;
+        }
+
+        _isPracticeSurfaceActive = isActive;
+        ReconcileTimingState();
     }
 
     public void PauseItemTiming()
     {
-        if (_isTimingActive && InteractionState == SessionInteractionState.AwaitingAnswer)
-        {
-            var segmentElapsedMs = (long)Math.Max(0, _clock.GetElapsedTime(_activeSegmentStartTimestamp).TotalMilliseconds);
-            _accumulatedActiveElapsedMs += segmentElapsedMs;
-            _isTimingActive = false;
-        }
+        SetPracticeSurfaceActive(false);
     }
 
     public void ResumeItemTiming()
     {
-        if (!_isTimingActive && InteractionState == SessionInteractionState.AwaitingAnswer)
+        SetPracticeSurfaceActive(true);
+    }
+
+    public void ShowInitialReadyGate()
+    {
+        if (InteractionState != SessionInteractionState.AwaitingAnswer)
+        {
+            return;
+        }
+
+        _practiceGateState = PracticeGateState.InitialReadyGate;
+        ReconcileTimingState();
+    }
+
+    public void PausePractice()
+    {
+        if (InteractionState != SessionInteractionState.AwaitingAnswer ||
+            _practiceGateState != PracticeGateState.Running)
+        {
+            return;
+        }
+
+        _practiceGateState = PracticeGateState.ManualPause;
+        ReconcileTimingState();
+    }
+
+    public void StartOrResumePractice()
+    {
+        if (_practiceGateState == PracticeGateState.Running)
+        {
+            return;
+        }
+
+        _practiceGateState = PracticeGateState.Running;
+        ReconcileTimingState();
+    }
+
+    private void ReconcileTimingState()
+    {
+        var shouldBeActive =
+            _isAppForeground &&
+            _isPracticeSurfaceActive &&
+            _practiceGateState == PracticeGateState.Running &&
+            InteractionState == SessionInteractionState.AwaitingAnswer;
+
+        if (_isTimingActive == shouldBeActive)
+        {
+            return;
+        }
+
+        if (_isTimingActive)
+        {
+            var segmentElapsedMs = (long)Math.Max(
+                0,
+                _clock.GetElapsedTime(_activeSegmentStartTimestamp).TotalMilliseconds);
+            _accumulatedActiveElapsedMs += segmentElapsedMs;
+        }
+        else
         {
             _activeSegmentStartTimestamp = _clock.GetTimestamp();
-            _isTimingActive = true;
         }
+
+        _isTimingActive = shouldBeActive;
     }
 
     public long GetCurrentActiveElapsedMs()
@@ -197,6 +304,10 @@ public sealed class TrainingSession
         long elapsedMs,
         decimal? submittedNumericAnswer)
     {
+        _sessionCorrectCountBeforePendingEvaluation = SessionCorrectCount;
+        _sessionTotalCountBeforePendingEvaluation = SessionTotalCount;
+        _lastResponseLatencyBeforePendingEvaluation = LastResponseLatencyMs;
+        LastPersistenceResult = null;
         LastResponseLatencyMs = elapsedMs;
         var isCorrect = (outcome == AttemptOutcome.Correct);
 
@@ -334,12 +445,59 @@ public sealed class TrainingSession
         }
 
         var result = await _store.CommitSubmissionAsync(LastEvaluation.ChangeSet, cancellationToken).ConfigureAwait(false);
+        LastPersistenceResult = result;
         if (result.IsSuccess && result.NewRevision.HasValue)
         {
             Progression.StoreRevision = result.NewRevision.Value;
+            if (InteractionState == SessionInteractionState.PersistenceFailure &&
+                LastEvaluation.Outcome == AttemptOutcome.Correct)
+            {
+                InteractionState = SessionInteractionState.CorrectFeedback;
+            }
+        }
+        else if (LastEvaluation.Outcome == AttemptOutcome.Correct)
+        {
+            InteractionState = SessionInteractionState.PersistenceFailure;
+            ReconcileTimingState();
         }
 
         return result;
+    }
+
+    public async Task<bool> RecoverFromPersistenceFailureAsync(CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.PersistenceFailure ||
+            LastEvaluation?.Outcome != AttemptOutcome.Correct ||
+            LastPersistenceResult is null)
+        {
+            return false;
+        }
+
+        if (LastPersistenceResult.Status == PersistenceStatus.RevisionConflict)
+        {
+            await ReloadAuthoritativeStateAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+
+        var result = await CommitCurrentEvaluationAsync(cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess;
+    }
+
+    private async Task ReloadAuthoritativeStateAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await _store.LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+        Progression = snapshot.Progression;
+        ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        SessionCorrectCount = _sessionCorrectCountBeforePendingEvaluation;
+        SessionTotalCount = _sessionTotalCountBeforePendingEvaluation;
+        LastResponseLatencyMs = _lastResponseLatencyBeforePendingEvaluation;
+        LastEvaluation = null;
+        LastPersistenceResult = null;
+        _selector.ResetLastSelected();
+
+        AdvanceToNextFact(startTiming: true);
     }
 
     public void AdvanceToNextFact(bool startTiming = true)
@@ -356,12 +514,33 @@ public sealed class TrainingSession
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
         _accumulatedActiveElapsedMs = 0;
-        _isTimingActive = startTiming;
+        _isPracticeSurfaceActive = startTiming;
+        _isTimingActive = false;
         InteractionState = SessionInteractionState.AwaitingAnswer;
         LastEvaluation = null;
+        LastPersistenceResult = null;
+
+        if (_requiresBackgroundResumeAfterAdvance)
+        {
+            _practiceGateState = PracticeGateState.BackgroundResumeGate;
+            _requiresBackgroundResumeAfterAdvance = false;
+        }
 
         ItemStates.TryGetValue(CurrentFact.Id, out var state);
         CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
+        ReconcileTimingState();
+    }
+
+    public bool AdvanceAfterCorrectAnswer(bool startTiming = true)
+    {
+        if (InteractionState != SessionInteractionState.CorrectFeedback ||
+            LastEvaluation?.Outcome != AttemptOutcome.Correct)
+        {
+            return false;
+        }
+
+        AdvanceToNextFact(startTiming);
+        return true;
     }
 
     public async Task ResetLearningProgressAsync(
@@ -379,6 +558,8 @@ public sealed class TrainingSession
         SessionTotalCount = 0;
         SessionOrderCounter = 0;
         LastResponseLatencyMs = 0;
+        LastPersistenceResult = null;
+        _requiresBackgroundResumeAfterAdvance = false;
         _selector.ResetLastSelected();
 
         AdvanceToNextFact(shouldStartTiming);

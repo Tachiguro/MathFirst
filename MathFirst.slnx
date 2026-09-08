@@ -3,6 +3,7 @@
     <Project Path="src/MathFirst.App/MathFirst.App.csproj" />
     <Project Path="src/MathFirst.Application/MathFirst.Application.csproj" />
     <Project Path="src/MathFirst.Domain/MathFirst.Domain.csproj" />
+    <Project Path="src/MathFirst.Infrastructure.Sqlite/MathFirst.Infrastructure.Sqlite.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MathFirst.Core.Tests/MathFirst.Core.Tests.csproj" />

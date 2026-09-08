@@ -3,6 +3,7 @@ using MathFirst.Application;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
 using MathFirst.App.Services;
+using MathFirst.Infrastructure.Sqlite;
 
 namespace MathFirst.App;
 

@@ -9,32 +9,31 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-WIN-UX-001`
-- **Title**: KnownFirst-Aligned Windows UX and Application Identity
-- **Active Task Branch**: `feat/mf-win-ux-001-knownfirst-alignment`
+- **Active Package ID**: `MF-AND-001`
+- **Title**: Android V1 Runtime and Cross-Platform Foundation
+- **Active Task Branch**: `feat/mf-and-001-android-v1`
 - **Base Branch**: `main`
-- **Base Commit**: `e7f95dfa14b767496b7bec4b5ef2d477da3fd2c6`
-- **Current Lifecycle Mode**: `IMPLEMENT_ONLY_CONTINUE`
-- **Delivery Priority**: Windows-first
+- **Base Commit**: `66f3175b05837670e884acc43f41d2db88480bec`
+- **Current Lifecycle Mode**: `FIX_ONLY`
+- **Manual Acceptance Status**: `PASSED` on a real Android device, including responsive layout, custom keypad/native IME behavior, Ready/Pause/Resume, smart auto-submit, and Incorrect/Timeout feedback context.
+- **Review Status**: `REVIEW_ONLY` completed with four focused findings (`MF-AND-R001` through `MF-AND-R004`); the package is in the resulting `FIX_ONLY` cycle and remains uncommitted and unstaged.
+- **Delivery Priority**: Android V1 while preserving Windows V1
 - **Package Scope**:
-  - Correct production identity to `com.tachiguro.mathfirst` and unpackaged Windows runtime publisher `Tachiguro`, while retaining the development signing identity and `FileSystem.AppDataDirectory`;
-  - Align Settings and onboarding visual structure with the verified KnownFirst reference at commit `e18eaaed26b5f662798d827f9199c77a18dc39fa`, adapted to MathFirst functionality and vocabulary;
-  - Combine language and appearance on the Welcome step, add a localized three-card arithmetic tutorial whose third item explains adaptive repetition and the non-pass/fail 12-task mixed round, and finish with a minimal Ready/Get Started step;
-  - Insert a dedicated localized Phone keypad / PC numpad selection step before the tutorial, persist the UI-only preference at Get Started, expose the same preview choices in Settings, and restore Phone only for UI-default/full resets;
-  - Enforce a shared canonical unsigned decimal grammar with comma/period equivalence, exact decimal parsing, rejection of redundant leading-zero forms, a 28-character safety limit, synchronous pre-DOM keyboard/paste filtering with C# fallback authority, and no semantic attempt for invalid or incomplete input;
-  - Render the selected responsive clickable/touchable numeric keypad on Windows while preserving physical keyboard, Windows numpad, Backspace, decimal-separator, focus, and single-Enter behavior;
-  - Enforce the monotonic timing lifecycle so only the active Practice/Home surface consumes answer time, including after learning resets, default restoration, full local reset, and direct Settings initialization;
-  - Center the arithmetic expression and a substantially wider answer field in the training card's flexible middle region, wrapping the two regions on narrow layouts while preserving the accepted timer design and strong arithmetic minimum size;
-  - Present the internal checkpoint phase to learners as localized `Mixed round` / `Mischrunde` / `Смешанный раунд` with concise `n/12` context, without changing the 12-accepted-attempt progression semantics;
-  - Bring all three Settings inline reset/restore confirmations into view after render with a coherent programmatic focus target and reduced-motion-aware nearest-block scrolling;
-  - Add deterministic timing, identity, numeric policy, keypad preference/order, reset, source-contract, and EN/DE/RU localization coverage;
-  - Validate the continued package with 261 automated tests passing (0 failed, 0 skipped) and a Windows Debug build with 0 warnings and 0 errors;
-  - Do not repeat native startup in the continuation run because a probe proved that overriding `LOCALAPPDATA` does not redirect the Windows special folder used for learner storage; preserving real learner data takes precedence. The earlier pre-continuation startup evidence remains historical only;
-  - Complete a native startup smoke showing a responsive `MathFirst` window and the canonical Tachiguro data root; no learner database was created before the onboarding Get Started gate. Automated screenshot-based visual acceptance was unavailable and remains a user spot-check;
-  - Keep all implementation uncommitted and unstaged for subsequent user spot-check and `REVIEW_ONLY`.
+  - Activate the native MAUI app for `net10.0-android` while retaining `net10.0-windows10.0.19041.0`; do not activate Web, iOS, or Mac Catalyst;
+  - Extract the concrete Schema V4 `SqliteLearnerStore` and `Microsoft.Data.Sqlite` ownership from `MathFirst.Application` into `MathFirst.Infrastructure.Sqlite`, retain Application persistence contracts, and register the adapter through app dependency injection;
+  - Continue using private `FileSystem.AppDataDirectory\mathfirst_learner.db` storage on Android without shared-storage permissions, absolute Android paths, database migration, or changes to persistence semantics;
+  - Use the shared custom MathFirst keypad as Android's primary answer UI and request native soft-keyboard suppression while preserving focus, Enter, and external/physical keyboard paths;
+  - Derive timer activity from application foreground state, Practice/Home surface activity, a single transient Practice gate, and `AwaitingAnswer`, excluding background/device-lock time, Settings, onboarding, pause gates, and feedback states without generating semantic attempts or resetting the deadline;
+  - Respect Android status/navigation bars and display cutouts through .NET 10 native safe-area handling; stack Appearance and keypad-selection choices on phone portrait and use a compact two-column Practice composition on short phone landscape with equation/answer left and the complete keypad right;
+  - Remove the superseded selectable correct-answer confirmation preference and permanent Submit action; deterministically auto-submit complete integer answers, immediately advance correct answers after persistence, and require blocking Continue/Enter acknowledgement for Incorrect and Timeout results;
+  - Gate every later cold Practice startup behind an opaque localized Ready overlay, treat onboarding Get Started as the first-session start gate, require explicit Resume after background return, and provide a Pause control beside Settings that freezes semantic time while completely hiding the fact and keypad;
+  - Preserve the four onboarding steps, Settings workflows, Phone and PC Numpad orders, shared numeric policy, EN/DE/RU parity, app identity, and all learning-engine constants and semantics;
+  - Add deterministic lifecycle, Ready/Pause gate, smart auto-submit, and feedback acknowledgement tests plus architecture, responsive-layout, persistence/reset, localization, and Android input/source contracts without duplicating the existing SQLite conformance suites;
+  - Record the completed real-device Android spot-check covering cold-start readiness, one- and multi-digit auto-submit, blocking Incorrect/Timeout feedback, manual/background pause, hidden problem content, compact landscape keypad reachability, runtime IME suppression, system-bar clearance, and restart persistence as `PASSED`;
+  - Complete only the four findings from the completed `REVIEW_ONLY`, keep the candidate uncommitted and unstaged, and return it to `REVIEW_ONLY` after focused and full validation.
 - **Explicitly Deferred Features**:
-  - Web and Android implementations deferred;
-  - Android native decimal IME behavior, dynamic viewport resizing, software-keyboard height/overlap, Submit visibility, and custom-keypad hide/adapt behavior require explicit Android-package validation.
+  - Web, iOS, and Mac Catalyst runtime activation;
+  - Release packaging, signing, publishing, emulator creation, and automated physical-device operations.
 
 ---
 

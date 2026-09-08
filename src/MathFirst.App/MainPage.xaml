@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:MathFirst.App"
              xmlns:components="clr-namespace:MathFirst.App.Components"
-             x:Class="MathFirst.App.MainPage">
+             x:Class="MathFirst.App.MainPage"
+             SafeAreaEdges="Container">
 
     <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>

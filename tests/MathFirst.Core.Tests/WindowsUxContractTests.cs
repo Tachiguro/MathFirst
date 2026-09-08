@@ -62,7 +62,11 @@ public sealed class WindowsUxContractTests
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var browserInterop = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "mathfirst-ui.js"));
 
-        Assert.Contains("inputmode=\"decimal\"", home, StringComparison.Ordinal);
+        // The answer field uses a platform-conditional inputmode via @AnswerInputMode:
+        //   Android  => inputmode="none"  (suppress native soft keyboard; custom keypad is primary)
+        //   Windows  => inputmode="decimal" (signal numeric decimal entry)
+        Assert.Contains("inputmode=\"@AnswerInputMode\"", home, StringComparison.Ordinal);
+        Assert.Matches("private\\s+static\\s+string\\s+AnswerInputMode\\s*=>\\s*\"decimal\";", home);
         Assert.Contains("NumericAnswerInputPolicy.MaximumLength", home, StringComparison.Ordinal);
         Assert.Contains("@oninput=\"HandleAnswerInput\"", home, StringComparison.Ordinal);
         Assert.Contains("MathFirstUi.attachNumericInputGuard", home, StringComparison.Ordinal);
@@ -121,7 +125,7 @@ public sealed class WindowsUxContractTests
     public void MauiPreferences_PersistsKeypadOutsideLearnerDatabaseWithPhoneDefault()
     {
         var preferences = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "MauiPreferenceStore.cs"));
-        var learnerStore = File.ReadAllText(GetRepositoryPath("src", "MathFirst.Application", "Persistence", "SqliteLearnerStore.cs"));
+        var learnerStore = File.ReadAllText(GetRepositoryPath("src", "MathFirst.Infrastructure.Sqlite", "SqliteLearnerStore.cs"));
 
         Assert.Contains("mathfirst.numeric_keypad_layout", preferences, StringComparison.Ordinal);
         Assert.Contains("Preferences.Default.Get(NumericKeypadLayoutKey, (int)NumericKeypadLayout.Phone)", preferences, StringComparison.Ordinal);

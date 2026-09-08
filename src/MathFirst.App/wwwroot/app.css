@@ -834,13 +834,26 @@ select:disabled {
     box-shadow: var(--shadow-card);
     padding: clamp(0.85rem, 2.5vw + 1vh, 2.25rem) clamp(0.6rem, 2vw, 1.75rem);
     display: grid;
-    grid-template-rows: auto minmax(9rem, 1fr) minmax(3rem, auto) auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
     gap: clamp(0.5rem, 1.5vh, 1rem);
 }
 
+.practice-header-actions {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.35rem, 1vw, 0.6rem);
+}
+
+.pause-practice-btn {
+    min-width: clamp(2.25rem, 4vw, 2.75rem);
+    min-height: clamp(2rem, 3.2vh, 2.4rem);
+    padding: 0.2rem 0.55rem;
+    font-size: clamp(1rem, 1.6vw, 1.25rem);
+}
+
 @media (max-height: 500px) {
-    .training-card {
+.training-card {
         min-height: 40rem;
         padding: 0.45rem 0.75rem;
         border-radius: 0.5rem;
@@ -859,6 +872,77 @@ select:disabled {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
+}
+
+.practice-overlay {
+    grid-row: 1 / -1;
+    width: 100%;
+    min-height: min(34rem, calc(100dvh - 10rem));
+    display: grid;
+    place-items: center;
+    padding: clamp(1rem, 4vw, 3rem);
+    border-radius: inherit;
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.practice-overlay-content {
+    width: min(100%, 34rem);
+    display: grid;
+    justify-items: center;
+    gap: clamp(1rem, 2.5vh, 1.75rem);
+    text-align: center;
+}
+
+.practice-overlay-content h2 {
+    margin: 0;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+}
+
+.practice-overlay-action {
+    width: min(100%, 20rem);
+    min-height: clamp(3rem, 7vh, 4rem);
+    font-size: clamp(1.05rem, 2vw, 1.35rem);
+}
+
+.feedback-dialog {
+    border: 2px solid var(--color-danger-border);
+    background: var(--color-danger-surface);
+}
+
+.feedback-dialog .feedback-expression {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.35rem, 1.8vw, 0.9rem);
+    margin: 0;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.feedback-dialog .feedback-user-answer {
+    margin: 0;
+    font-size: clamp(1rem, 2vw, 1.35rem);
+}
+
+.feedback-dialog .feedback-correct-answer {
+    margin: 0;
+    font-size: clamp(1.45rem, 4vw, 2.4rem);
+    font-weight: 800;
+}
+
+.practice-layout {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    grid-template-rows: minmax(9rem, 1fr) auto;
+    align-items: stretch;
+    gap: clamp(0.5rem, 1.5vh, 1rem);
+}
+
+.practice-interaction-column {
+    display: contents;
 }
 
 .range-display,
@@ -947,18 +1031,6 @@ select:disabled {
     box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
-.answer-input.input-correct {
-    border-color: var(--color-success);
-    background: var(--color-success-surface);
-    color: var(--color-success);
-}
-
-.answer-input.input-incorrect {
-    border-color: var(--color-danger);
-    background: var(--color-danger-surface);
-    color: var(--color-danger);
-}
-
 .validation-message {
     color: var(--color-danger);
     font-size: clamp(0.825rem, 1.2vw, 0.925rem);
@@ -1045,65 +1117,6 @@ select:disabled {
     }
 }
 
-/* STABLE FEEDBACK AREA TO PREVENT JUMPING */
-.feedback-container {
-    width: 100%;
-    min-height: clamp(3rem, 5vh, 4.25rem);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-@media (max-height: 500px) {
-    .feedback-container {
-        min-height: 2.2rem;
-    }
-}
-
-.feedback-banner {
-    width: 100%;
-    padding: clamp(0.35rem, 0.8vh, 0.65rem) clamp(0.6rem, 1.8vw, 1.1rem);
-    border-radius: clamp(0.5rem, 1.2vw, 0.75rem);
-    text-align: center;
-    font-size: clamp(0.9rem, 1.6vw + 0.4vh, 1.15rem);
-    font-weight: 700;
-    line-height: 1.35;
-}
-
-.feedback-banner.feedback-correct {
-    border: 1px solid var(--color-success-border);
-    background: var(--color-success-surface);
-    color: var(--color-success);
-}
-
-.feedback-banner.feedback-incorrect {
-    border: 1px solid var(--color-danger-border);
-    background: var(--color-danger-surface);
-    color: var(--color-danger);
-}
-
-.feedback-banner.feedback-timeout {
-    border-color: var(--color-danger-border);
-    background: var(--color-danger-surface);
-}
-
-.feedback-incorrect-title {
-    font-size: clamp(0.95rem, 1.8vw, 1.15rem);
-    font-weight: 800;
-    margin-bottom: var(--space-1);
-    color: var(--color-danger);
-}
-
-.feedback-detail-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(0.5rem, 1.8vw, 1.25rem);
-    flex-wrap: wrap;
-    font-size: clamp(0.85rem, 1.4vw, 1rem);
-    font-weight: 600;
-}
-
 .feedback-user-answer {
     color: var(--color-muted);
     text-decoration: line-through;
@@ -1112,23 +1125,6 @@ select:disabled {
 .feedback-correct-answer {
     color: var(--color-text);
     font-weight: 700;
-}
-
-.actions {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-}
-
-@media (max-height: 500px) {
-    .actions { margin-top: 0; }
-}
-
-.action-btn {
-    width: 100%;
-    max-width: clamp(13rem, 28vw, 18rem);
-    min-height: clamp(2.5rem, 4.2vh, 3.2rem);
-    font-size: clamp(0.95rem, 1.4vw, 1.15rem);
 }
 
 .numeric-keypad {
@@ -1181,9 +1177,148 @@ select:disabled {
     }
 }
 
-@media (max-height: 500px) {
-    .action-btn {
-        min-height: 2.1rem;
+/* SHORT PHONE LANDSCAPE: metadata/timer stay full-width; interaction and keypad share the body. */
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 560px) {
+    .training-host,
+    .mathfirst-shell {
+        height: 100dvh;
+        min-height: 100dvh;
+        padding: 0.3rem max(0.5rem, env(safe-area-inset-right)) 0.3rem max(0.5rem, env(safe-area-inset-left));
+    }
+
+    .mathfirst-container {
+        height: 100%;
+        min-height: 0;
+        max-width: none;
+        gap: 0.25rem;
+    }
+
+    .mathfirst-header {
+        flex: 0 0 auto;
+    }
+
+    .mathfirst-title-group {
+        gap: 0.35rem;
+    }
+
+    .mathfirst-title {
+        font-size: clamp(1.15rem, 2.8vw, 1.55rem);
+    }
+
+    .mathfirst-op-badge,
+    .checkpoint-badge {
+        padding: 0.1rem 0.35rem;
+        font-size: clamp(0.65rem, 1.35vw, 0.75rem);
+    }
+
+    .settings-nav-btn {
+        min-height: 2rem;
+        padding-block: 0.15rem;
+    }
+
+    .training-card {
+        flex: 1 0 18rem;
+        min-height: 18rem;
+        padding: 0.4rem 0.65rem;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 0.3rem;
+        border-radius: 0.55rem;
+    }
+
+    .practice-overlay {
+        min-height: 0;
+        padding: 0.75rem;
+    }
+
+    .training-top-region {
+        gap: 0.2rem;
+    }
+
+    .range-display,
+    .score-display {
+        font-size: clamp(0.7rem, 1.45vw, 0.8rem);
+    }
+
+    .timer-container {
+        margin-bottom: 0;
+    }
+
+    .timer-bar-track {
+        height: 1.8rem;
+        border-radius: 0.55rem;
+    }
+
+    .timer-bar-text {
+        font-size: 1rem;
+        -webkit-text-stroke: 1px #000000;
+    }
+
+    .practice-layout {
+        grid-template-columns: minmax(0, 42fr) minmax(16rem, 58fr);
+        grid-template-rows: minmax(0, 1fr);
+        gap: clamp(0.5rem, 1.5vw, 0.85rem);
+    }
+
+    .practice-interaction-column {
+        display: grid;
+        min-width: 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 0.25rem;
+    }
+
+    .practice-middle-region {
+        min-height: 0;
+    }
+
+    .expression-row {
+        gap: clamp(0.2rem, 0.8vw, 0.45rem);
+    }
+
+    .expression-problem {
+        gap: clamp(0.2rem, 0.8vw, 0.45rem);
+    }
+
+    .operand,
+    .operator,
+    .equals {
+        font-size: clamp(2rem, 5.2vw, 3.25rem);
+    }
+
+    .answer-input {
+        inline-size: min(6ch, 100%);
+        height: clamp(48px, 13vh, 58px);
+        font-size: clamp(2rem, 5.2vw, 3.25rem);
+    }
+
+    .validation-message {
+        margin-top: 0.2rem;
+        font-size: 0.75rem;
+    }
+
+    .numeric-keypad {
+        width: 100%;
+        height: 100%;
+        min-height: 11.75rem;
+        grid-template-rows: repeat(4, minmax(2.75rem, 1fr));
+        gap: 0.25rem;
+    }
+
+    .numeric-keypad-button {
+        min-height: 2.75rem;
+        border-radius: 0.45rem;
+        font-size: clamp(1.15rem, 3.8vh, 1.5rem);
+    }
+}
+
+@media (orientation: landscape) and (min-width: 560px) {
+    .choice-grid-three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .keypad-choice-grid {
+        grid-template-columns: repeat(2, minmax(min(100%, 13rem), 1fr));
     }
 }
 
@@ -1217,9 +1352,12 @@ select:disabled {
         font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
     }
 
-    .action-btn {
-        max-width: clamp(15rem, 50vw, 22rem);
-        min-height: clamp(2.85rem, 5vh, 3.5rem);
+}
+
+@media (orientation: portrait) and (max-width: 600px) {
+    .choice-grid-three,
+    .keypad-choice-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
