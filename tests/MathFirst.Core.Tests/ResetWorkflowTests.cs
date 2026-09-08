@@ -34,6 +34,7 @@ public sealed class ResetWorkflowTests : IDisposable
         public bool OnboardingCompleted { get; set; }
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
+        public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Phone;
 
         public bool GetOnboardingCompleted() => OnboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
@@ -41,11 +42,14 @@ public sealed class ResetWorkflowTests : IDisposable
         public void SetLanguagePreference(string preference) => Language = preference;
         public ThemePreference GetThemePreference() => Theme;
         public void SetThemePreference(ThemePreference preference) => Theme = preference;
+        public NumericKeypadLayout GetNumericKeypadLayout() => KeypadLayout;
+        public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
         public void ResetAllPreferences()
         {
             OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
+            KeypadLayout = NumericKeypadLayout.Phone;
         }
     }
 
@@ -58,7 +62,8 @@ public sealed class ResetWorkflowTests : IDisposable
         {
             OnboardingCompleted = true,
             Language = "de",
-            Theme = ThemePreference.Dark
+            Theme = ThemePreference.Dark,
+            KeypadLayout = NumericKeypadLayout.Numpad
         };
 
         var session = new TrainingSession(store);
@@ -80,6 +85,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.True(prefs.GetOnboardingCompleted());
         Assert.Equal("de", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.Dark, prefs.GetThemePreference());
+        Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
     }
 
     [Fact]
@@ -91,7 +97,8 @@ public sealed class ResetWorkflowTests : IDisposable
         {
             OnboardingCompleted = true,
             Language = "de",
-            Theme = ThemePreference.Dark
+            Theme = ThemePreference.Dark,
+            KeypadLayout = NumericKeypadLayout.Numpad
         };
 
         var session = new TrainingSession(store);
@@ -105,11 +112,13 @@ public sealed class ResetWorkflowTests : IDisposable
         prefs.SetOnboardingCompleted(false);
         prefs.SetLanguagePreference("system");
         prefs.SetThemePreference(ThemePreference.System);
+        prefs.SetNumericKeypadLayout(NumericKeypadLayout.Phone);
 
         // Verify UI prefs reset
         Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
+        Assert.Equal(NumericKeypadLayout.Phone, prefs.GetNumericKeypadLayout());
 
         // Verify DB still holds committed progress
         var snapshot = await store.LoadSnapshotAsync();
@@ -126,7 +135,8 @@ public sealed class ResetWorkflowTests : IDisposable
         {
             OnboardingCompleted = true,
             Language = "ru",
-            Theme = ThemePreference.Dark
+            Theme = ThemePreference.Dark,
+            KeypadLayout = NumericKeypadLayout.Numpad
         };
 
         var session = new TrainingSession(store);
@@ -147,5 +157,6 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
+        Assert.Equal(NumericKeypadLayout.Phone, prefs.GetNumericKeypadLayout());
     }
 }

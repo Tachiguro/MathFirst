@@ -118,6 +118,17 @@ select {
     font: inherit;
 }
 
+select {
+    width: 100%;
+    min-width: 0;
+    min-height: 3.1rem;
+    padding: 0.65rem 2.5rem 0.65rem 0.9rem;
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.8rem;
+    background: var(--color-input-background);
+    color: var(--color-text);
+}
+
 a {
     color: inherit;
     text-decoration: none;
@@ -276,14 +287,14 @@ select:disabled {
 .onboarding-host {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
     width: 100%;
-    height: 100%;
-    min-height: 100%;
-    padding: clamp(0.75rem, 3vw, 2.5rem) clamp(0.5rem, 2.5vw, 1.5rem);
+    height: 100dvh;
+    min-width: 0;
+    min-height: 0;
+    padding: clamp(1rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem);
     background: var(--color-background);
     color: var(--color-text);
+    overflow-x: hidden;
     overflow-y: auto;
 }
 
@@ -297,8 +308,9 @@ select:disabled {
 
 .onboarding-main {
     width: 100%;
-    max-width: min(42rem, 100%);
-    margin: auto 0;
+    min-width: 0;
+    max-width: 36rem;
+    margin: auto;
     outline: none;
 }
 
@@ -310,7 +322,8 @@ select:disabled {
 
 .onboarding-container {
     display: grid;
-    gap: clamp(0.75rem, 2vh, 1.75rem);
+    min-width: 0;
+    gap: clamp(1rem, 2.5vh, 2rem);
 }
 
 .onboarding-header {
@@ -320,7 +333,7 @@ select:disabled {
 .onboarding-title {
     margin: 0;
     color: var(--color-text);
-    font-size: clamp(1.35rem, 3.2vw + 0.4vh, 2.15rem);
+    font-size: clamp(1.75rem, 4vw + 0.4vh, 2.35rem);
     font-weight: 700;
     line-height: 1.2;
 }
@@ -335,7 +348,7 @@ select:disabled {
 .onboarding-card {
     display: grid;
     gap: clamp(0.75rem, 2vh, 1.25rem);
-    padding: clamp(0.85rem, 2.5vw + 1vh, 2rem);
+    padding: clamp(1rem, 4vw, 1.5rem);
     border: 1px solid var(--color-border);
     border-radius: clamp(0.75rem, 2vw, 1.1rem);
     background: var(--color-surface);
@@ -365,12 +378,142 @@ select:disabled {
     flex: 1 1 clamp(8rem, 20vw, 12rem);
 }
 
+.onboarding-actions-primary .button {
+    width: 100%;
+    flex-basis: 100%;
+}
+
+.onboarding-system-language-status {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.onboarding-workflow-list {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-4);
+}
+
+.onboarding-workflow-item {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: 1.1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.workflow-step-badge {
+    display: flex;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+    font-weight: 800;
+}
+
+.workflow-step-content {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-1);
+}
+
+.workflow-step-title,
+.workflow-step-text {
+    margin: 0;
+}
+
+.workflow-step-title {
+    font-size: 1.1rem;
+}
+
+.workflow-step-text {
+    color: var(--color-muted);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+.onboarding-ready-step {
+    gap: var(--space-6);
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--color-border);
+    border-radius: 1.1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.keypad-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: clamp(0.75rem, 2vw, 1rem);
+}
+
+.keypad-choice-card {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-3);
+    padding: clamp(0.75rem, 2vw, 1rem);
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.9rem;
+    background: var(--color-surface-elevated);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.keypad-choice-card:hover {
+    border-color: var(--color-border-strong);
+}
+
+.keypad-choice-card.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+
+.keypad-choice-title {
+    color: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.keypad-preview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.3rem;
+    width: 100%;
+    max-width: 10rem;
+    margin: 0 auto;
+}
+
+.keypad-preview-key {
+    display: flex;
+    min-height: 1.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 0.35rem;
+    background: var(--color-input-background);
+    color: var(--color-text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
 /* SETTINGS PAGE */
 .settings-page {
     width: 100%;
     height: 100%;
     min-height: 100%;
-    max-width: min(52rem, 100%);
+    max-width: min(48rem, 100%);
     margin: 0 auto;
     padding: clamp(0.75rem, 3vw, 2.5rem) clamp(0.5rem, 2.5vw, 1.5rem);
     display: grid;
@@ -411,6 +554,51 @@ select:disabled {
     margin: 0;
     font-size: clamp(1rem, 2vw, 1.25rem);
     font-weight: 700;
+}
+
+.settings-action-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.settings-confirm-panel {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-4);
+    padding: clamp(var(--space-4), 4vw, var(--space-6));
+    border: 1px solid var(--color-border);
+    border-radius: 1.1rem;
+    background: var(--color-surface-muted);
+}
+
+.settings-confirm-panel > p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.settings-confirm-buttons {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.settings-confirm-buttons .button {
+    flex: 1 1 10rem;
+}
+
+.learning-reset-card,
+.danger-card {
+    border-color: var(--color-danger-border);
+}
+
+.destructive-confirmation {
+    border-color: var(--color-danger-border);
+    background: var(--color-surface);
 }
 
 /* DIAGNOSTICS CARD & GROUPS */
@@ -639,21 +827,30 @@ select:disabled {
 
 .training-card {
     width: 100%;
+    min-height: clamp(40rem, calc(100dvh - 7rem), 58rem);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: clamp(0.75rem, 2vw, 1.25rem);
     box-shadow: var(--shadow-card);
     padding: clamp(0.85rem, 2.5vw + 1vh, 2.25rem) clamp(0.6rem, 2vw, 1.75rem);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: grid;
+    grid-template-rows: auto minmax(9rem, 1fr) minmax(3rem, auto) auto auto;
+    align-items: stretch;
+    gap: clamp(0.5rem, 1.5vh, 1rem);
 }
 
 @media (max-height: 500px) {
     .training-card {
+        min-height: 40rem;
         padding: 0.45rem 0.75rem;
         border-radius: 0.5rem;
     }
+}
+
+.training-top-region {
+    display: grid;
+    min-width: 0;
+    gap: clamp(0.35rem, 1vh, 0.75rem);
 }
 
 .training-meta-row {
@@ -661,7 +858,6 @@ select:disabled {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: clamp(0.25rem, 1vh, 0.75rem);
     gap: var(--space-2);
 }
 
@@ -672,11 +868,14 @@ select:disabled {
     color: var(--color-muted);
 }
 
-.problem-container {
+.practice-middle-region {
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 9rem;
 }
 
 .expression-row {
@@ -684,14 +883,22 @@ select:disabled {
     align-items: center;
     justify-content: center;
     gap: clamp(0.35rem, 1.8vw, 0.9rem);
-    margin: clamp(0.35rem, 1.4vh, 1.15rem) 0;
-    flex-wrap: nowrap;
+    margin: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+}
+
+.expression-problem {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.35rem, 1.8vw, 0.9rem);
 }
 
 .operand,
 .operator,
 .equals {
-    font-size: clamp(2.25rem, 5vw + 1.2vh, 4.25rem);
+    font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
     font-weight: 700;
     color: var(--color-text);
     line-height: 1;
@@ -702,7 +909,7 @@ select:disabled {
     .operand,
     .operator,
     .equals {
-        font-size: clamp(1.4rem, 3.2vw + 0.8vh, 2.25rem);
+        font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
     }
 }
 
@@ -712,24 +919,26 @@ select:disabled {
 }
 
 .answer-input {
-    width: clamp(90px, 12vw + 2vh, 155px);
+    box-sizing: border-box;
+    inline-size: min(10ch, 100%);
+    max-inline-size: 100%;
     height: clamp(52px, 7vw + 2vh, 78px);
-    font-size: clamp(2.25rem, 5vw + 1.2vh, 4.25rem);
+    font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
     font-weight: 700;
     text-align: center;
     border: 2px solid var(--color-input-border);
     border-radius: clamp(0.5rem, 1.2vw, 0.75rem);
     color: var(--color-text);
     background: var(--color-input-background);
+    padding-inline: 0.3em;
     outline: none;
     transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 @media (max-height: 500px) {
     .answer-input {
-        width: clamp(65px, 9vw + 1.5vh, 95px);
-        height: clamp(36px, 4.5vw + 1.5vh, 48px);
-        font-size: clamp(1.4rem, 3.2vw + 0.8vh, 2.25rem);
+        height: clamp(52px, 7vw + 2vh, 78px);
+        font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
     }
 }
 
@@ -843,13 +1052,11 @@ select:disabled {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: clamp(0.25rem, 0.8vh, 0.6rem);
 }
 
 @media (max-height: 500px) {
     .feedback-container {
         min-height: 2.2rem;
-        margin-top: 0.15rem;
     }
 }
 
@@ -908,16 +1115,13 @@ select:disabled {
 }
 
 .actions {
-    margin-top: clamp(1.25rem, 3vh, 2.5rem);
     width: 100%;
     display: flex;
     justify-content: center;
 }
 
 @media (max-height: 500px) {
-    .actions {
-        margin-top: 0.5rem;
-    }
+    .actions { margin-top: 0; }
 }
 
 .action-btn {
@@ -925,6 +1129,56 @@ select:disabled {
     max-width: clamp(13rem, 28vw, 18rem);
     min-height: clamp(2.5rem, 4.2vh, 3.2rem);
     font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+}
+
+.numeric-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(2.75rem, 1fr));
+    width: min(100%, 30rem);
+    height: clamp(12rem, 30dvh, 19rem);
+    margin: 0 auto;
+    gap: clamp(0.35rem, 1vh, 0.6rem);
+}
+
+.numeric-keypad-button {
+    min-width: 0;
+    min-height: 2.75rem;
+    border: 1px solid var(--color-input-border);
+    border-radius: clamp(0.45rem, 1vw, 0.7rem);
+    background: var(--color-surface-elevated);
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: clamp(1.25rem, 2.4vw + 0.5vh, 1.8rem);
+    font-weight: 750;
+    line-height: 1;
+    touch-action: manipulation;
+    user-select: none;
+    transition: background-color 100ms ease, border-color 100ms ease, transform 60ms ease;
+}
+
+.numeric-keypad-button:not(:disabled):hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.numeric-keypad-button:not(:disabled):active {
+    transform: translateY(1px);
+}
+
+.numeric-keypad-button:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.numeric-keypad-backspace {
+    font-size: clamp(1.4rem, 2.8vw + 0.5vh, 2rem);
+}
+
+@media (max-height: 500px) {
+    .numeric-keypad {
+        height: 12rem;
+    }
 }
 
 @media (max-height: 500px) {
@@ -949,7 +1203,7 @@ select:disabled {
     }
 
     .expression-row {
-        margin: clamp(0.75rem, 2.5vh, 2rem) 0;
+        margin: 0;
     }
 
     .operand,
@@ -959,13 +1213,8 @@ select:disabled {
     }
 
     .answer-input {
-        width: clamp(95px, 15vw + 2vh, 165px);
         height: clamp(56px, 8.5vw + 2vh, 84px);
         font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
-    }
-
-    .actions {
-        margin-top: clamp(1.75rem, 4.5vh, 3.5rem);
     }
 
     .action-btn {

@@ -663,6 +663,91 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     }
 
     [Fact]
+    public async Task Timer_PausedFact_DoesNotCreateSemanticAttemptDuringArbitraryInactiveTime()
+    {
+        var clock = new AdvancingClock { CurrentTimestampMs = 10000 };
+        var store = new InMemoryStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        clock.AdvanceMs(5000);
+        session.PauseItemTiming();
+        var practicePosition = session.Progression.PracticePosition;
+
+        clock.AdvanceMs(180000);
+
+        Assert.Equal(5000, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsTimingActive);
+        Assert.Equal(practicePosition, session.Progression.PracticePosition);
+        Assert.Equal(0, session.SessionTotalCount);
+        Assert.Equal(0, session.SessionCorrectCount);
+        Assert.Empty(store.CommittedChangeSets);
+
+        session.ResumeItemTiming();
+        clock.AdvanceMs(1000);
+
+        Assert.Equal(6000, session.GetCurrentActiveElapsedMs());
+        Assert.True(session.IsTimingActive);
+    }
+
+    [Fact]
+    public async Task InitializeForInactiveSurface_PreparesFreshFactWithoutStartingDeadline()
+    {
+        var clock = new AdvancingClock { CurrentTimestampMs = 10000 };
+        var store = new InMemoryStore();
+        var session = new TrainingSession(store, clock);
+
+        await session.InitializeAsync(startTiming: false);
+        clock.AdvanceMs(180000);
+
+        Assert.True(session.IsInitialized);
+        Assert.NotNull(session.CurrentFact);
+        Assert.False(session.IsTimingActive);
+        Assert.Equal(0, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsCurrentItemTimedOut());
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.Equal(0, session.SessionTotalCount);
+        Assert.Empty(store.CommittedChangeSets);
+
+        session.ResumeItemTiming();
+        clock.AdvanceMs(30000);
+
+        Assert.True(session.IsCurrentItemTimedOut());
+    }
+
+    [Fact]
+    public async Task ResetLearningProgress_PreservesPausedTimingUntilPracticeExplicitlyResumes()
+    {
+        var clock = new AdvancingClock { CurrentTimestampMs = 10000 };
+        var store = new InMemoryStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+        session.PauseItemTiming();
+
+        await session.ResetLearningProgressAsync();
+
+        Assert.False(session.IsTimingActive);
+        Assert.Equal(0, session.GetCurrentActiveElapsedMs());
+        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+
+        clock.AdvanceMs(180000);
+
+        Assert.False(session.IsCurrentItemTimedOut());
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.Equal(0, session.SessionTotalCount);
+        Assert.Equal(0, session.SessionCorrectCount);
+        Assert.Empty(store.CommittedChangeSets);
+
+        session.ResumeItemTiming();
+        clock.AdvanceMs(29999);
+        Assert.False(session.IsCurrentItemTimedOut());
+
+        clock.AdvanceMs(1);
+        Assert.True(session.IsCurrentItemTimedOut());
+    }
+
+    [Fact]
     public async Task Timer_PauseAndResume_TimeoutEvaluatesOnlyActivePracticeTime()
     {
         var clock = new AdvancingClock { CurrentTimestampMs = 10000 };

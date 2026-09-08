@@ -47,7 +47,9 @@ public sealed class TrainingSession
         _fluentThresholdMs = fluentThresholdMs;
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(
+        CancellationToken cancellationToken = default,
+        bool startTiming = true)
     {
         await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await _store.LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -62,7 +64,7 @@ public sealed class TrainingSession
         IsInitialized = true;
 
         LearningPolicy.SynchronizeProgression(Progression, ItemStates);
-        AdvanceToNextFact();
+        AdvanceToNextFact(startTiming);
     }
 
     public void ResetItemReadyTiming()
@@ -120,6 +122,22 @@ public sealed class TrainingSession
         GetCurrentItemElapsed().TotalSeconds >= deadlineSeconds;
 
     public SubmissionEvaluation SubmitAnswer(int submittedAnswer)
+        => SubmitAnswerCore(submittedAnswer, submittedAnswer);
+
+    public SubmissionEvaluation SubmitAnswer(decimal submittedAnswer)
+    {
+        int? persistedAnswer = null;
+        if (submittedAnswer == decimal.Truncate(submittedAnswer) &&
+            submittedAnswer >= int.MinValue &&
+            submittedAnswer <= int.MaxValue)
+        {
+            persistedAnswer = decimal.ToInt32(submittedAnswer);
+        }
+
+        return SubmitAnswerCore(submittedAnswer, persistedAnswer);
+    }
+
+    private SubmissionEvaluation SubmitAnswerCore(decimal submittedAnswer, int? persistedAnswer)
     {
         if (!IsInitialized || CurrentFact is null)
         {
@@ -140,11 +158,11 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = elapsedMs;
         _isTimingActive = false;
 
-        var isCorrect = (submittedAnswer == CurrentFact.CorrectResult);
+        var isCorrect = submittedAnswer == CurrentFact.CorrectResult;
         var outcome = isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect;
         InteractionState = isCorrect ? SessionInteractionState.CorrectFeedback : SessionInteractionState.IncorrectFeedback;
 
-        return EvaluateAndRecord(outcome, submittedAnswer, elapsedMs);
+        return EvaluateAndRecord(outcome, persistedAnswer, elapsedMs, submittedAnswer);
     }
 
     public SubmissionEvaluation RecordTimeout()
@@ -168,12 +186,16 @@ public sealed class TrainingSession
         _isTimingActive = false;
         InteractionState = SessionInteractionState.TimeoutFeedback;
 
-        return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs);
+        return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs, null);
     }
 
     public SubmissionEvaluation SubmitTimeout() => RecordTimeout();
 
-    private SubmissionEvaluation EvaluateAndRecord(AttemptOutcome outcome, int? submittedAnswer, long elapsedMs)
+    private SubmissionEvaluation EvaluateAndRecord(
+        AttemptOutcome outcome,
+        int? submittedAnswer,
+        long elapsedMs,
+        decimal? submittedNumericAnswer)
     {
         LastResponseLatencyMs = elapsedMs;
         var isCorrect = (outcome == AttemptOutcome.Correct);
@@ -296,7 +318,10 @@ public sealed class TrainingSession
             changeSet,
             itemState.IsProvisionallyMastered,
             rangeUnlocked,
-            OperationUnlocked: false);
+            OperationUnlocked: false)
+        {
+            SubmittedNumericAnswer = submittedNumericAnswer
+        };
 
         return LastEvaluation;
     }
@@ -317,7 +342,7 @@ public sealed class TrainingSession
         return result;
     }
 
-    public void AdvanceToNextFact()
+    public void AdvanceToNextFact(bool startTiming = true)
     {
         SessionOrderCounter++;
         CurrentFact = _selector.SelectNextFact(
@@ -331,7 +356,7 @@ public sealed class TrainingSession
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
         _accumulatedActiveElapsedMs = 0;
-        _isTimingActive = true;
+        _isTimingActive = startTiming;
         InteractionState = SessionInteractionState.AwaitingAnswer;
         LastEvaluation = null;
 
@@ -339,8 +364,11 @@ public sealed class TrainingSession
         CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
     }
 
-    public async Task ResetLearningProgressAsync(CancellationToken cancellationToken = default)
+    public async Task ResetLearningProgressAsync(
+        CancellationToken cancellationToken = default,
+        bool? startTiming = null)
     {
+        var shouldStartTiming = startTiming ?? _isTimingActive;
         await _store.ResetLearningProgressAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await _store.LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
@@ -353,6 +381,6 @@ public sealed class TrainingSession
         LastResponseLatencyMs = 0;
         _selector.ResetLastSelected();
 
-        AdvanceToNextFact();
+        AdvanceToNextFact(shouldStartTiming);
     }
 }

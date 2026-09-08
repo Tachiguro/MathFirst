@@ -1,107 +1,165 @@
 @implements IDisposable
+@using System.Globalization
 @using MathFirst.App.Services
 @using MathFirst.Application
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
 @inject IPreferenceStore PreferenceStore
+@inject TrainingSession Session
 
 <div class="onboarding-host">
     <main class="onboarding-main">
         <div class="onboarding-container">
-            <header class="onboarding-header">
-                <h1 class="onboarding-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
-                <p class="onboarding-concept">@Localizer["Onboarding_Concept"]</p>
-            </header>
+            @if (_currentStep == 1)
+            {
+                <section class="onboarding-step onboarding-welcome-step">
+                    <header class="onboarding-header">
+                        <h1 class="onboarding-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
+                        <p class="onboarding-concept">@Localizer["Onboarding_Concept"]</p>
+                    </header>
 
-            <div class="onboarding-card">
-                @if (_currentStep == 1)
-                {
-                    <section class="onboarding-step">
-                        <h2 class="onboarding-section-title">@Localizer["Onboarding_StepLanguage_Title"]</h2>
-                        <p class="setting-help">@Localizer["Onboarding_StepLanguage_Desc"]</p>
-
-                        <div class="choice-grid choice-grid-two">
-                            <button type="button"
-                                    class="choice-button @(_selectedLanguage == "system" ? "active" : null)"
-                                    @onclick='() => SelectLanguage("system")'>
-                                @Localizer["Settings_UILanguageSystem"]
-                            </button>
-                            <button type="button"
-                                    class="choice-button @(_selectedLanguage == "en" ? "active" : null)"
-                                    @onclick='() => SelectLanguage("en")'>
-                                @Localizer["Settings_English"]
-                            </button>
-                            <button type="button"
-                                    class="choice-button @(_selectedLanguage == "de" ? "active" : null)"
-                                    @onclick='() => SelectLanguage("de")'>
-                                @Localizer["Settings_German"]
-                            </button>
-                            <button type="button"
-                                    class="choice-button @(_selectedLanguage == "ru" ? "active" : null)"
-                                    @onclick='() => SelectLanguage("ru")'>
-                                @Localizer["Settings_Russian"]
-                            </button>
-                        </div>
-
-                        <div class="onboarding-actions">
-                            <button type="button" class="button button-primary" @onclick="() => _currentStep = 2">
-                                @Localizer["Common_Continue"]
-                            </button>
-                        </div>
+                    <section class="onboarding-card onboarding-setting-section" aria-labelledby="onboarding-language-title">
+                        <h2 id="onboarding-language-title" class="onboarding-section-title">
+                            <label for="onboarding-language-select">@Localizer["Settings_UILanguage"]</label>
+                        </h2>
+                        <select id="onboarding-language-select"
+                                @bind="_selectedLanguage"
+                                @bind:after="HandleLanguageChanged">
+                            <option value="system">@Localizer["Settings_UILanguageSystem"]</option>
+                            <option value="en">@Localizer["Settings_English"]</option>
+                            <option value="de">@Localizer["Settings_German"]</option>
+                            <option value="ru">@Localizer["Settings_Russian"]</option>
+                        </select>
+                        @if (IsSystemLanguageSelected)
+                        {
+                            <p class="onboarding-system-language-status" role="status">
+                                @Localizer["Onboarding_SystemLanguageDetected", DetectedSystemLanguage]
+                            </p>
+                        }
                     </section>
-                }
-                else if (_currentStep == 2)
-                {
-                    <section class="onboarding-step">
-                        <h2 class="onboarding-section-title">@Localizer["Onboarding_StepTheme_Title"]</h2>
-                        <p class="setting-help">@Localizer["Onboarding_StepTheme_Desc"]</p>
 
+                    <section class="onboarding-card onboarding-setting-section" aria-labelledby="onboarding-appearance-title">
+                        <h2 id="onboarding-appearance-title" class="onboarding-section-title">@Localizer["Settings_Appearance"]</h2>
                         <div class="choice-grid choice-grid-three">
                             <button type="button"
                                     class="choice-button @(_selectedTheme == ThemePreference.System ? "active" : null)"
+                                    aria-pressed="@(_selectedTheme == ThemePreference.System)"
                                     @onclick="() => SelectTheme(ThemePreference.System)">
                                 @Localizer["Settings_AppearanceSystem"]
                             </button>
                             <button type="button"
                                     class="choice-button @(_selectedTheme == ThemePreference.Light ? "active" : null)"
+                                    aria-pressed="@(_selectedTheme == ThemePreference.Light)"
                                     @onclick="() => SelectTheme(ThemePreference.Light)">
                                 @Localizer["Settings_AppearanceLight"]
                             </button>
                             <button type="button"
                                     class="choice-button @(_selectedTheme == ThemePreference.Dark ? "active" : null)"
+                                    aria-pressed="@(_selectedTheme == ThemePreference.Dark)"
                                     @onclick="() => SelectTheme(ThemePreference.Dark)">
                                 @Localizer["Settings_AppearanceDark"]
                             </button>
                         </div>
-
-                        <div class="onboarding-actions">
-                            <button type="button" class="button button-secondary" @onclick="() => _currentStep = 1">
-                                @Localizer["Common_Back"]
-                            </button>
-                            <button type="button" class="button button-primary" @onclick="() => _currentStep = 3">
-                                @Localizer["Common_Continue"]
-                            </button>
-                        </div>
                     </section>
-                }
-                else
-                {
-                    <section class="onboarding-step">
-                        <h2 class="onboarding-section-title">@Localizer["Onboarding_StepReady_Title"]</h2>
-                        <p class="setting-help">@Localizer["Onboarding_StepReady_Desc"]</p>
 
-                        <div class="onboarding-actions">
-                            <button type="button" class="button button-secondary" @onclick="() => _currentStep = 2">
-                                @Localizer["Common_Back"]
-                            </button>
-                            <button type="button" class="button button-primary" @onclick="CompleteOnboardingAsync">
-                                @Localizer["Common_Start"]
-                            </button>
+                    <div class="onboarding-actions onboarding-actions-primary">
+                        <button type="button" class="button button-primary" @onclick="() => _currentStep = 2">
+                            @Localizer["Common_Continue"]
+                        </button>
+                    </div>
+                </section>
+            }
+            else if (_currentStep == 2)
+            {
+                <section class="onboarding-step onboarding-keypad-step">
+                    <h1 class="onboarding-title">@Localizer["Onboarding_KeypadTitle"]</h1>
+                    <p class="onboarding-concept">@Localizer["Keypad_Explanation"]</p>
+
+                    <div class="keypad-choice-grid">
+                        <button type="button"
+                                class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Phone ? "active" : null)"
+                                aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Phone)"
+                                @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Phone)">
+                            <span class="keypad-choice-title">@Localizer["Keypad_Phone"]</span>
+                            <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Phone"
+                                                                                     DecimalSeparator="@DecimalSeparator" />
+                        </button>
+                        <button type="button"
+                                class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Numpad ? "active" : null)"
+                                aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Numpad)"
+                                @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Numpad)">
+                            <span class="keypad-choice-title">@Localizer["Keypad_Numpad"]</span>
+                            <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Numpad"
+                                                                                     DecimalSeparator="@DecimalSeparator" />
+                        </button>
+                    </div>
+
+                    <div class="onboarding-actions">
+                        <button type="button" class="button button-primary" @onclick="() => _currentStep = 3">
+                            @Localizer["Common_Continue"]
+                        </button>
+                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 1">
+                            @Localizer["Common_Back"]
+                        </button>
+                    </div>
+                </section>
+            }
+            else if (_currentStep == 3)
+            {
+                <section class="onboarding-step onboarding-workflow-step">
+                    <h1 class="onboarding-title">@Localizer["Onboarding_TutorialTitle"]</h1>
+
+                    <div class="onboarding-workflow-list" role="list">
+                        <div class="onboarding-workflow-item" role="listitem">
+                            <span class="workflow-step-badge" aria-hidden="true">1</span>
+                            <div class="workflow-step-content">
+                                <h2 class="workflow-step-title">@Localizer["Onboarding_TutorialStep1Title"]</h2>
+                                <p class="workflow-step-text">@Localizer["Onboarding_TutorialStep1Text"]</p>
+                            </div>
                         </div>
-                    </section>
-                }
-            </div>
+                        <div class="onboarding-workflow-item" role="listitem">
+                            <span class="workflow-step-badge" aria-hidden="true">2</span>
+                            <div class="workflow-step-content">
+                                <h2 class="workflow-step-title">@Localizer["Onboarding_TutorialStep2Title"]</h2>
+                                <p class="workflow-step-text">@Localizer["Onboarding_TutorialStep2Text"]</p>
+                            </div>
+                        </div>
+                        <div class="onboarding-workflow-item" role="listitem">
+                            <span class="workflow-step-badge" aria-hidden="true">3</span>
+                            <div class="workflow-step-content">
+                                <h2 class="workflow-step-title">@Localizer["Onboarding_TutorialStep3Title"]</h2>
+                                <p class="workflow-step-text">@Localizer["Onboarding_TutorialStep3Text"]</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="onboarding-actions">
+                        <button type="button" class="button button-primary" @onclick="() => _currentStep = 4">
+                            @Localizer["Common_Continue"]
+                        </button>
+                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 2">
+                            @Localizer["Common_Back"]
+                        </button>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <section class="onboarding-step onboarding-ready-step">
+                    <h1 class="onboarding-title">@Localizer["Onboarding_StepReady_Title"]</h1>
+                    <p class="onboarding-concept">@Localizer["Onboarding_StepReady_Desc"]</p>
+
+                    <div class="onboarding-actions">
+                        <button type="button" class="button button-primary" @onclick="CompleteOnboardingAsync">
+                            @Localizer["Common_Start"]
+                        </button>
+                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 3">
+                            @Localizer["Common_Back"]
+                        </button>
+                    </div>
+                </section>
+            }
         </div>
     </main>
 </div>
@@ -110,13 +168,22 @@
     [Parameter] public EventCallback OnCompleted { get; set; }
 
     private int _currentStep = 1;
-    private string _selectedLanguage = "system";
+    private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
+    private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Phone;
+
+    private bool IsSystemLanguageSelected =>
+        LanguagePreferencePolicy.IsExplicitSystemSelector(_selectedLanguage);
+
+    private string DetectedSystemLanguage => CultureInfo.CurrentUICulture.DisplayName;
+    private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
 
     protected override void OnInitialized()
     {
+        Session.PauseItemTiming();
         _selectedLanguage = PreferenceStore.GetLanguagePreference();
         _selectedTheme = PreferenceStore.GetThemePreference();
+        _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
 
         Localizer.UiLanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
@@ -138,10 +205,9 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private void SelectLanguage(string lang)
+    private void HandleLanguageChanged()
     {
-        _selectedLanguage = lang;
-        Localizer.ApplyPreviewLanguage(lang);
+        Localizer.ApplyPreviewLanguage(_selectedLanguage);
     }
 
     private void SelectTheme(ThemePreference theme)
@@ -150,10 +216,16 @@
         ThemeService.ApplyPreviewPreference(theme);
     }
 
+    private void SelectKeypadLayout(NumericKeypadLayout layout)
+    {
+        _selectedKeypadLayout = NumericKeypadLayoutPolicy.Normalize((int)layout);
+    }
+
     private async Task CompleteOnboardingAsync()
     {
         PreferenceStore.SetLanguagePreference(_selectedLanguage);
         PreferenceStore.SetThemePreference(_selectedTheme);
+        PreferenceStore.SetNumericKeypadLayout(_selectedKeypadLayout);
         PreferenceStore.SetOnboardingCompleted(true);
 
         Localizer.ApplyLanguagePreference(_selectedLanguage);
