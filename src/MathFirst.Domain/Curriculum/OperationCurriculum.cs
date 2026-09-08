@@ -2,10 +2,15 @@ namespace MathFirst.Domain.Curriculum;
 
 public sealed class OperationCurriculum
 {
+    private readonly Func<int, CurriculumBand?>? _structuredBandFactory;
+
     public ArithmeticOperation Operation { get; }
     public IReadOnlyList<CurriculumBand> Bands { get; }
 
-    public OperationCurriculum(ArithmeticOperation operation, IReadOnlyList<CurriculumBand> bands)
+    public OperationCurriculum(
+        ArithmeticOperation operation,
+        IReadOnlyList<CurriculumBand> bands,
+        Func<int, CurriculumBand?>? structuredBandFactory = null)
     {
         if (!Enum.IsDefined(operation))
         {
@@ -40,17 +45,34 @@ public sealed class OperationCurriculum
 
         Operation = operation;
         Bands = Array.AsReadOnly(completeBands);
+        _structuredBandFactory = structuredBandFactory;
     }
 
     public bool TryGetBand(int bandIndex, out CurriculumBand? band)
     {
-        if (bandIndex < 0 || bandIndex >= Bands.Count)
+        if (bandIndex < 0)
         {
             band = null;
             return false;
         }
 
-        band = Bands[bandIndex];
+        if (bandIndex < Bands.Count)
+        {
+            band = Bands[bandIndex];
+            return true;
+        }
+
+        band = _structuredBandFactory?.Invoke(bandIndex);
+        if (band is null)
+        {
+            return false;
+        }
+
+        if (band.Operation != Operation || band.BandIndex != bandIndex || band.Kind != CurriculumBandKind.Structured)
+        {
+            throw new InvalidOperationException("A procedural band must preserve its curriculum operation, index, and structured kind.");
+        }
+
         return true;
     }
 }

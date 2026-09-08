@@ -148,7 +148,7 @@ public sealed class DenseCurriculumTests
     }
 
     [Fact]
-    public void OperationCurriculum_LookupFailsSafelyOutsideCompleteBands()
+    public void OperationCurriculum_LookupExtendsPastDenseBandsAndFailsSafelyOutsideCompleteBands()
     {
         var addition = new ArithmeticCurriculum().Addition;
 
@@ -156,8 +156,10 @@ public sealed class DenseCurriculumTests
         Assert.Equal("ADD-D01", first!.Id.Value);
         Assert.False(addition.TryGetBand(-1, out var beforeFirst));
         Assert.Null(beforeFirst);
-        Assert.False(addition.TryGetBand(addition.Bands.Count, out var afterLast));
-        Assert.Null(afterLast);
+        Assert.True(addition.TryGetBand(addition.Bands.Count, out var firstStructured));
+        Assert.Equal("ADD-P1-ANCHOR", firstStructured!.Id.Value);
+        Assert.False(addition.TryGetBand(int.MaxValue, out var unavailable));
+        Assert.Null(unavailable);
     }
 
     [Fact]

@@ -11,16 +11,20 @@ public sealed class ArithmeticCurriculum
     {
         Addition = new OperationCurriculum(
             ArithmeticOperation.Addition,
-            CreateSquareFrontiers(ArithmeticOperation.Addition, "ADD", 10));
+            CreateSquareFrontiers(ArithmeticOperation.Addition, "ADD", 10),
+            bandIndex => CurriculumGenerators.TryCreateAdditionBand(bandIndex));
         Subtraction = new OperationCurriculum(
             ArithmeticOperation.Subtraction,
-            CreateSubtractionFrontiers());
+            CreateSubtractionFrontiers(),
+            bandIndex => CurriculumGenerators.TryCreateSubtractionBand(bandIndex));
         Multiplication = new OperationCurriculum(
             ArithmeticOperation.Multiplication,
-            CreateSquareFrontiers(ArithmeticOperation.Multiplication, "MUL", 12));
+            CreateSquareFrontiers(ArithmeticOperation.Multiplication, "MUL", 12),
+            bandIndex => CurriculumGenerators.TryCreateMultiplicationBand(bandIndex));
         Division = new OperationCurriculum(
             ArithmeticOperation.Division,
-            CreateDivisionFrontiers());
+            CreateDivisionFrontiers(),
+            bandIndex => CurriculumGenerators.TryCreateDivisionBand(bandIndex));
     }
 
     public OperationCurriculum GetCurriculum(ArithmeticOperation operation) => operation switch
