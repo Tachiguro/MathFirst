@@ -4,6 +4,8 @@
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
+@inject IPreferenceStore PreferenceStore
+@inject IJSRuntime JSRuntime
 
 <div class="training-host" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
@@ -23,13 +25,14 @@
         @if (!Session.IsInitialized || Session.CurrentFact is null)
         {
             <main class="training-card">
-                <div class="score-display">Loading...</div>
+                <div class="score-display">@Localizer["Training_Loading"]</div>
             </main>
         }
         else
         {
             <main class="training-card">
-                <div class="training-meta-row">
+                <div class="training-top-region">
+                    <div class="training-meta-row">
                     @if (Session.Progression.IsInCheckpoint)
                     {
                         <span class="checkpoint-badge">@Localizer["Training_CheckpointBadge", Math.Min(Session.Progression.CheckpointAttemptCount + 1, LearningPolicy.DefaultCheckpointAttemptCount), LearningPolicy.DefaultCheckpointAttemptCount]</span>
@@ -39,42 +42,49 @@
                         <span class="range-display">0..@Session.Progression.GetMaxOperand(Session.CurrentFact.Operation)</span>
                     }
                     <span class="score-display">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
-                </div>
+                    </div>
 
-                <div class="timer-container" aria-hidden="@(_isAwaitingNext || _isAwaitingAcknowledgement)">
-                    @if (!_isAwaitingNext && !_isAwaitingAcknowledgement)
-                    {
-                        <div class="timer-bar-track"
-                             role="progressbar"
-                             aria-valuemin="0"
-                             aria-valuemax="@Session.CurrentFactDeadlineSeconds"
-                             aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
-                             aria-label="@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]">
-                            <div class="timer-bar-fill"
-                                 style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
+                    <div class="timer-container" aria-hidden="@(_isAwaitingNext || _isAwaitingAcknowledgement)">
+                        @if (!_isAwaitingNext && !_isAwaitingAcknowledgement)
+                        {
+                            <div class="timer-bar-track"
+                                 role="progressbar"
+                                 aria-valuemin="0"
+                                 aria-valuemax="@Session.CurrentFactDeadlineSeconds"
+                                 aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
+                                 aria-label="@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]">
+                                <div class="timer-bar-fill"
+                                     style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
+                                </div>
+                                <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
                             </div>
-                            <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
 
-                <div class="problem-container">
+                <div class="practice-middle-region">
                     <div class="expression-row">
-                        <span class="operand">@Session.CurrentFact.LeftOperand</span>
-                        <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
-                        <span class="operand">@Session.CurrentFact.RightOperand</span>
-                        <span class="equals">=</span>
-                        <input @ref="_inputElement"
+                        <span class="expression-problem">
+                            <span class="operand">@Session.CurrentFact.LeftOperand</span>
+                            <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
+                            <span class="operand">@Session.CurrentFact.RightOperand</span>
+                            <span class="equals">=</span>
+                        </span>
+                        <input @key="_inputRenderVersion"
+                               @ref="_inputElement"
                                type="text"
-                               inputmode="numeric"
-                               pattern="[0-9]*"
+                               inputmode="decimal"
+                               pattern="(?:0|[1-9][0-9]*)?(?:[.,][0-9]*)?"
+                               maxlength="@NumericAnswerInputPolicy.MaximumLength"
                                autocomplete="off"
+                               autocapitalize="off"
+                               spellcheck="false"
+                               enterkeyhint="done"
                                class="answer-input @GetInputClass()"
-                               @bind-value="_answerInput"
-                               @bind-value:event="oninput"
-                               @onkeydown="HandleInputKeyDown"
+                               value="@_answerInput"
+                               @oninput="HandleAnswerInput"
                                disabled="@(_isAwaitingNext || _isAwaitingAcknowledgement)"
-                               aria-label="Answer input" />
+                               aria-label="@Localizer["Training_AnswerInputAriaLabel"]" />
                     </div>
 
                     @if (!string.IsNullOrEmpty(_validationError))
@@ -83,8 +93,9 @@
                             @_validationError
                         </div>
                     }
+                </div>
 
-                    <div class="feedback-container">
+                <div class="feedback-container">
                         @if (Session.LastEvaluation is not null)
                         {
                             @if (Session.LastEvaluation.Outcome == AttemptOutcome.Correct)
@@ -98,7 +109,7 @@
                                 <div class="feedback-banner feedback-incorrect" role="alert">
                                     <div class="feedback-incorrect-title">@Localizer["Training_IncorrectTitle"]</div>
                                     <div class="feedback-detail-row">
-                                        <span class="feedback-user-answer">@Localizer["Training_YourAnswer", Session.LastEvaluation.SubmittedAnswer ?? 0]</span>
+                                        <span class="feedback-user-answer">@Localizer["Training_YourAnswer", SubmittedAnswerDisplay]</span>
                                         <span class="feedback-correct-answer">@Localizer["Training_CorrectAnswer", Session.LastEvaluation.CorrectAnswer]</span>
                                     </div>
                                 </div>
@@ -113,9 +124,9 @@
                                 </div>
                             }
                         }
-                    </div>
+                </div>
 
-                    <div class="actions">
+                <div class="actions">
                         @if (_isAwaitingAcknowledgement)
                         {
                             <button type="button"
@@ -142,7 +153,22 @@
                                 @Localizer["Training_SubmitAction"] (Enter)
                             </button>
                         }
-                    </div>
+                </div>
+
+                <div class="numeric-keypad"
+                     role="group"
+                     aria-label="@Localizer["Keypad_NumberKeypad"]">
+                    @foreach (var key in NumericKeypadLayoutPolicy.GetKeys(_keypadLayout, DecimalSeparator))
+                    {
+                        var isBackspace = key == "backspace";
+                        <button type="button"
+                                class="numeric-keypad-button @(isBackspace ? "numeric-keypad-backspace" : null)"
+                                disabled="@(_isAwaitingNext || _isAwaitingAcknowledgement)"
+                                aria-label="@(isBackspace ? Localizer["Keypad_Backspace"] : key)"
+                                @onclick="() => HandleKeypadKey(key)">
+                            @(isBackspace ? "⌫" : key)
+                        </button>
+                    }
                 </div>
             </main>
         }
@@ -152,6 +178,10 @@
 @code {
     private string _answerInput = string.Empty;
     private string? _validationError;
+    private string? _submittedAnswerDisplay;
+    private NumericKeypadLayout _keypadLayout = NumericKeypadLayout.Phone;
+    private int _inputRenderVersion;
+    private int _guardedInputRenderVersion = -1;
     private bool _isAwaitingNext;
     private bool _isAwaitingAcknowledgement;
     private bool _isSubmitting;
@@ -169,6 +199,7 @@
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
+        _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
 
         if (!Session.IsInitialized)
         {
@@ -195,9 +226,10 @@
             _isAwaitingAcknowledgement = false;
             _shouldFocusInput = false;
             _shouldFocusNext = true;
-            if (Session.LastEvaluation?.SubmittedAnswer.HasValue == true)
+            if (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer)
             {
-                _answerInput = Session.LastEvaluation.SubmittedAnswer.Value.ToString();
+                _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
+                _submittedAnswerDisplay = _answerInput;
             }
             StopTimer();
         }
@@ -207,9 +239,10 @@
             _isAwaitingAcknowledgement = true;
             _shouldFocusInput = false;
             _shouldFocusNext = true;
-            if (Session.LastEvaluation?.SubmittedAnswer.HasValue == true)
+            if (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer)
             {
-                _answerInput = Session.LastEvaluation.SubmittedAnswer.Value.ToString();
+                _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
+                _submittedAnswerDisplay = _answerInput;
             }
             StopTimer();
         }
@@ -229,6 +262,22 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (Session.CurrentFact is not null && _guardedInputRenderVersion != _inputRenderVersion)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync(
+                    "MathFirstUi.attachNumericInputGuard",
+                    _inputElement,
+                    NumericAnswerInputPolicy.MaximumLength);
+                _guardedInputRenderVersion = _inputRenderVersion;
+            }
+            catch
+            {
+                // The C# controlled-input policy remains the fallback if JS interop is unavailable.
+            }
+        }
+
         if (_shouldFocusInput)
         {
             _shouldFocusInput = false;
@@ -253,27 +302,50 @@
         }
     }
 
-    private async Task HandleInputKeyDown(KeyboardEventArgs e)
+    private void HandleAnswerInput(ChangeEventArgs e)
     {
-        if (e.Key is "Enter" or "NumpadEnter")
+        var proposedValue = e.Value?.ToString();
+        if (NumericAnswerInputPolicy.IsValidEdit(proposedValue))
         {
-            if (_isAwaitingNext || _isAwaitingAcknowledgement)
-            {
-                Advance();
-            }
-            else
-            {
-                await Submit();
-            }
+            _answerInput = proposedValue!;
+            _validationError = null;
+            return;
         }
+
+        // Recreate the controlled field so rejected keyboard/paste text cannot remain in the DOM.
+        _inputRenderVersion++;
+        _shouldFocusInput = true;
     }
 
-    private void HandleGlobalKeyDown(KeyboardEventArgs e)
+    private async Task HandleGlobalKeyDown(KeyboardEventArgs e)
     {
-        if ((_isAwaitingNext || _isAwaitingAcknowledgement) && e.Key is "Enter" or "NumpadEnter")
+        if (e.Key is not "Enter" and not "NumpadEnter")
+        {
+            return;
+        }
+
+        if (_isAwaitingNext || _isAwaitingAcknowledgement)
         {
             Advance();
         }
+        else
+        {
+            await Submit();
+        }
+    }
+
+    private void HandleKeypadKey(string key)
+    {
+        if (_isAwaitingNext || _isAwaitingAcknowledgement)
+        {
+            return;
+        }
+
+        _answerInput = key == "backspace"
+            ? NumericAnswerInputPolicy.Backspace(_answerInput)
+            : NumericAnswerInputPolicy.Append(_answerInput, key);
+        _validationError = null;
+        _shouldFocusInput = true;
     }
 
     private void StartTimer()
@@ -360,20 +432,21 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_answerInput))
+        if (string.IsNullOrEmpty(_answerInput))
         {
             _validationError = Localizer["Training_EnterNumber"];
             _shouldFocusInput = true;
             return;
         }
 
-        if (int.TryParse(_answerInput.Trim(), out var parsedAnswer))
+        if (NumericAnswerInputPolicy.TryParseSubmission(_answerInput, out var parsedAnswer))
         {
             _isSubmitting = true;
             StopTimer();
             try
             {
                 _validationError = null;
+                _submittedAnswerDisplay = _answerInput;
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 if (eval.IsCorrect)
                 {
@@ -436,6 +509,7 @@
         _isAwaitingAcknowledgement = false;
         Session.AdvanceToNextFact();
         _answerInput = string.Empty;
+        _submittedAnswerDisplay = null;
         _validationError = null;
         _shouldFocusInput = true;
         StartTimer();
@@ -450,4 +524,12 @@
 
         return Session.LastEvaluation.IsCorrect ? "input-correct" : "input-incorrect";
     }
+
+    private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
+
+    private string SubmittedAnswerDisplay =>
+        _submittedAnswerDisplay ??
+        (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer
+            ? NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator)
+            : string.Empty);
 }

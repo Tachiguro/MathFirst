@@ -10,6 +10,9 @@ public interface IPreferenceStore
     ThemePreference GetThemePreference();
     void SetThemePreference(ThemePreference preference);
 
+    NumericKeypadLayout GetNumericKeypadLayout();
+    void SetNumericKeypadLayout(NumericKeypadLayout layout);
+
     string GetLanguagePreference();
     void SetLanguagePreference(string languageCode);
 

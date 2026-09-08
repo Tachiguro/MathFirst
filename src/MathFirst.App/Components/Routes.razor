@@ -24,11 +24,13 @@
     protected override void OnInitialized()
     {
         ThemeService.ThemeChanged += OnThemeChanged;
+        Navigation.LocationChanged += OnLocationChanged;
     }
 
     public void Dispose()
     {
         ThemeService.ThemeChanged -= OnThemeChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 
     private void HandleOnboardingCompleted()
@@ -38,6 +40,11 @@
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         _ = InvokeAsync(StateHasChanged);
     }

@@ -14,6 +14,8 @@ public sealed record SubmissionEvaluation(
     bool RangeUnlocked,
     bool OperationUnlocked)
 {
+    public decimal? SubmittedNumericAnswer { get; init; }
+
     public SubmissionEvaluation(
         bool isCorrect,
         int correctAnswer,

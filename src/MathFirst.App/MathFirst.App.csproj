@@ -31,7 +31,7 @@
         <ApplicationTitle>MathFirst</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.mathfirst.app</ApplicationId>
+        <ApplicationId>com.tachiguro.mathfirst</ApplicationId>
 
         <!-- Versions -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>

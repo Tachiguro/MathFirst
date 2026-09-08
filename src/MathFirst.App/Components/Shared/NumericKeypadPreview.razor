@@ -1,0 +1,15 @@
+@using MathFirst.Domain
+
+<div class="keypad-preview" aria-hidden="true">
+    @foreach (var key in NumericKeypadLayoutPolicy.GetKeys(Layout, DecimalSeparator))
+    {
+        <span class="keypad-preview-key @(key == "backspace" ? "keypad-preview-backspace" : null)">
+            @(key == "backspace" ? "⌫" : key)
+        </span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public NumericKeypadLayout Layout { get; set; }
+    [Parameter, EditorRequired] public string DecimalSeparator { get; set; } = ".";
+}

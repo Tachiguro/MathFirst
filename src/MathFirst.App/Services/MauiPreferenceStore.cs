@@ -9,6 +9,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore
     private const string OnboardingKey = "mathfirst.onboarding_completed";
     private const string ThemeKey = "mathfirst.theme_preference";
     private const string LanguageKey = "mathfirst.language_preference";
+    private const string NumericKeypadLayoutKey = "mathfirst.numeric_keypad_layout";
 
     public bool GetOnboardingCompleted() => Preferences.Default.Get(OnboardingKey, false);
 
@@ -26,6 +27,18 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         Preferences.Default.Set(ThemeKey, (int)normalized);
     }
 
+    public NumericKeypadLayout GetNumericKeypadLayout()
+    {
+        var raw = Preferences.Default.Get(NumericKeypadLayoutKey, (int)NumericKeypadLayout.Phone);
+        return NumericKeypadLayoutPolicy.Normalize(raw);
+    }
+
+    public void SetNumericKeypadLayout(NumericKeypadLayout layout)
+    {
+        var normalized = NumericKeypadLayoutPolicy.Normalize((int)layout);
+        Preferences.Default.Set(NumericKeypadLayoutKey, (int)normalized);
+    }
+
     public string GetLanguagePreference() =>
         Preferences.Default.Get(LanguageKey, LanguagePreferencePolicy.SystemPreferenceCode);
 
@@ -37,5 +50,6 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         Preferences.Default.Remove(OnboardingKey);
         Preferences.Default.Remove(ThemeKey);
         Preferences.Default.Remove(LanguageKey);
+        Preferences.Default.Remove(NumericKeypadLayoutKey);
     }
 }

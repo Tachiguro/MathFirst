@@ -9,33 +9,32 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-IMPL-006`
-- **Title**: Windows V1 Hardening & End-to-End Simulation
-- **Active Task Branch**: `feat/mf-impl-001-windows-addition-skeleton`
+- **Active Package ID**: `MF-WIN-UX-001`
+- **Title**: KnownFirst-Aligned Windows UX and Application Identity
+- **Active Task Branch**: `feat/mf-win-ux-001-knownfirst-alignment`
 - **Base Branch**: `main`
-- **Base Commit**: `a0b8d816ca1d2b8b2a4fbc958e4fb9e82badd273`
+- **Base Commit**: `e7f95dfa14b767496b7bec4b5ef2d477da3fd2c6`
 - **Current Lifecycle Mode**: `IMPLEMENT_ONLY_CONTINUE`
 - **Delivery Priority**: Windows-first
 - **Package Scope**:
-  - Performed comprehensive audit and hardening of the complete uncommitted Windows V1 candidate across domain, application, persistence, FSRS-6 scheduler, UI/UX, and localization;
-  - Exhaustively validated the entire 418-fact arithmetic catalog (121 Addition, 66 Subtraction, 121 Multiplication, 110 Division) verifying unique stable FactIds, non-negative subtraction, non-zero divisor, integer division, proper range bounds, and display symbols;
-  - Created and executed deterministic end-to-end progression simulation proving that fresh learner state reaches Level 10 checkpoint and transitions into open-ended adaptive mixed practice with all 418 facts exposed and zero level 11 expansion;
-  - Conducted high-volume synthetic learner simulations (5,000 attempts per profile: Strong, Mixed, and Struggling) verifying FSRS numeric safety (non-NaN, finite Stability/Difficulty, non-overflowing DuePracticePosition), proper prioritization of weak items, and larger spacing for mastered items;
-  - Verified FSRS task-time determinism across arbitrary calendar dates and timezones;
-  - Executed high-volume SQLite stress testing (5,000 atomic commits in isolated temp DB) with clean snapshot reload, revision verification, and zero corruption;
-  - Validated three-way reset matrix (Reset Learning Progress vs Reset UI Preferences vs Full Local Reset) and restart persistence;
-  - Audited package references and confirmed zero vulnerabilities across all dependencies;
-  - Verified localization dictionary parity across English, German, and Russian with zero missing keys;
-  - Executed clean Windows native smoke launches and restart validations;
-  - Expanded automated test suite to 174 passing unit and simulation tests with zero warnings and zero build errors;
-  - Implemented adaptive answer-deadline ladder based on consecutive-correct streak (30s / 20s / 15s / 10s) with streak failure reset safely restoring the longest 30s deadline;
-  - Enlarged the full-card-width countdown progress bar to 40-48px height (`clamp(40px, 4.5vh, 48px)`) with prominent centered bold millisecond display (`clamp(1.25rem, 2.8vh, 1.65rem)`, `XX.XXX s`) rendered with a direct high-contrast black glyph outline (`-webkit-text-stroke: 2px #000`, `paint-order: stroke fill`) directly on the countdown text;
-  - Implemented monotonic pause/resume timing in `TrainingSession` across Settings navigation, cleanly preserving remaining deadline, excluding time spent in Settings from response latency and timeout evaluations, and persisting completed feedback interaction states (`TimeoutFeedback`, `IncorrectFeedback`, `CorrectFeedback`) across view navigation;
-  - Re-aligned training page composition to top-justify MathFirst branding and Settings button, lowered primary action button placement, and added responsive portrait rules with resilient arithmetic typography (`clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem)`);
-  - Added Current Answer Deadline telemetry to Settings Developer Diagnostics in English, German, and Russian;
-  - Expanded automated test suite to 178 passing unit and simulation tests with zero warnings and zero build errors.
+  - Correct production identity to `com.tachiguro.mathfirst` and unpackaged Windows runtime publisher `Tachiguro`, while retaining the development signing identity and `FileSystem.AppDataDirectory`;
+  - Align Settings and onboarding visual structure with the verified KnownFirst reference at commit `e18eaaed26b5f662798d827f9199c77a18dc39fa`, adapted to MathFirst functionality and vocabulary;
+  - Combine language and appearance on the Welcome step, add a localized three-card arithmetic tutorial whose third item explains adaptive repetition and the non-pass/fail 12-task mixed round, and finish with a minimal Ready/Get Started step;
+  - Insert a dedicated localized Phone keypad / PC numpad selection step before the tutorial, persist the UI-only preference at Get Started, expose the same preview choices in Settings, and restore Phone only for UI-default/full resets;
+  - Enforce a shared canonical unsigned decimal grammar with comma/period equivalence, exact decimal parsing, rejection of redundant leading-zero forms, a 28-character safety limit, synchronous pre-DOM keyboard/paste filtering with C# fallback authority, and no semantic attempt for invalid or incomplete input;
+  - Render the selected responsive clickable/touchable numeric keypad on Windows while preserving physical keyboard, Windows numpad, Backspace, decimal-separator, focus, and single-Enter behavior;
+  - Enforce the monotonic timing lifecycle so only the active Practice/Home surface consumes answer time, including after learning resets, default restoration, full local reset, and direct Settings initialization;
+  - Center the arithmetic expression and a substantially wider answer field in the training card's flexible middle region, wrapping the two regions on narrow layouts while preserving the accepted timer design and strong arithmetic minimum size;
+  - Present the internal checkpoint phase to learners as localized `Mixed round` / `Mischrunde` / `Смешанный раунд` with concise `n/12` context, without changing the 12-accepted-attempt progression semantics;
+  - Bring all three Settings inline reset/restore confirmations into view after render with a coherent programmatic focus target and reduced-motion-aware nearest-block scrolling;
+  - Add deterministic timing, identity, numeric policy, keypad preference/order, reset, source-contract, and EN/DE/RU localization coverage;
+  - Validate the continued package with 261 automated tests passing (0 failed, 0 skipped) and a Windows Debug build with 0 warnings and 0 errors;
+  - Do not repeat native startup in the continuation run because a probe proved that overriding `LOCALAPPDATA` does not redirect the Windows special folder used for learner storage; preserving real learner data takes precedence. The earlier pre-continuation startup evidence remains historical only;
+  - Complete a native startup smoke showing a responsive `MathFirst` window and the canonical Tachiguro data root; no learner database was created before the onboarding Get Started gate. Automated screenshot-based visual acceptance was unavailable and remains a user spot-check;
+  - Keep all implementation uncommitted and unstaged for subsequent user spot-check and `REVIEW_ONLY`.
 - **Explicitly Deferred Features**:
-  - Web and Android implementations deferred.
+  - Web and Android implementations deferred;
+  - Android native decimal IME behavior, dynamic viewport resizing, software-keyboard height/overlap, Submit visibility, and custom-keypad hide/adapt behavior require explicit Android-package validation.
 
 ---
 

@@ -10,6 +10,7 @@
 @inject ILearnerStore LearnerStore
 @inject TrainingSession Session
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <div class="settings-page">
     <header class="settings-header">
@@ -21,30 +22,18 @@
 
     <div class="settings-container">
         <!-- 1. UI LANGUAGE -->
-        <section class="settings-card">
-            <h2 class="settings-section-title">@Localizer["Settings_UILanguage"]</h2>
-            <div class="choice-grid choice-grid-two">
-                <button type="button"
-                        class="choice-button @(IsLanguageSelected("system") ? "active" : null)"
-                        @onclick='() => SelectLanguage("system")'>
-                    @Localizer["Settings_UILanguageSystem"]
-                </button>
-                <button type="button"
-                        class="choice-button @(IsLanguageSelected("en") ? "active" : null)"
-                        @onclick='() => SelectLanguage("en")'>
-                    @Localizer["Settings_English"]
-                </button>
-                <button type="button"
-                        class="choice-button @(IsLanguageSelected("de") ? "active" : null)"
-                        @onclick='() => SelectLanguage("de")'>
-                    @Localizer["Settings_German"]
-                </button>
-                <button type="button"
-                        class="choice-button @(IsLanguageSelected("ru") ? "active" : null)"
-                        @onclick='() => SelectLanguage("ru")'>
-                    @Localizer["Settings_Russian"]
-                </button>
-            </div>
+        <section class="settings-card" aria-labelledby="settings-language-title">
+            <h2 id="settings-language-title" class="settings-section-title">
+                <label for="ui-language-select">@Localizer["Settings_UILanguage"]</label>
+            </h2>
+            <select id="ui-language-select"
+                    @bind="_selectedLanguage"
+                    @bind:after="HandleLanguageChanged">
+                <option value="system">@Localizer["Settings_UILanguageSystem"]</option>
+                <option value="en">@Localizer["Settings_English"]</option>
+                <option value="de">@Localizer["Settings_German"]</option>
+                <option value="ru">@Localizer["Settings_Russian"]</option>
+            </select>
             @if (!string.IsNullOrEmpty(_languageMessage))
             {
                 <p class="setting-feedback setting-feedback-success" role="status">
@@ -81,10 +70,38 @@
             }
         </section>
 
-        <!-- 3. DEVELOPER / TESTING DIAGNOSTICS -->
+        <!-- 3. NUMBER KEYPAD -->
+        <section class="settings-card keypad-settings-card" aria-labelledby="settings-keypad-title">
+            <h2 id="settings-keypad-title" class="settings-section-title">@Localizer["Keypad_NumberKeypad"]</h2>
+            <p class="setting-help">@Localizer["Keypad_Explanation"]</p>
+            <div class="keypad-choice-grid">
+                <button type="button"
+                        class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Phone ? "active" : null)"
+                        aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Phone)"
+                        @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Phone)">
+                    <span class="keypad-choice-title">@Localizer["Keypad_Phone"]</span>
+                    <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Phone"
+                                                                             DecimalSeparator="@DecimalSeparator" />
+                </button>
+                <button type="button"
+                        class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Numpad ? "active" : null)"
+                        aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Numpad)"
+                        @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Numpad)">
+                    <span class="keypad-choice-title">@Localizer["Keypad_Numpad"]</span>
+                    <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Numpad"
+                                                                             DecimalSeparator="@DecimalSeparator" />
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_keypadMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">@_keypadMessage</p>
+            }
+        </section>
+
+        <!-- 4. DEVELOPER / TESTING DIAGNOSTICS -->
         <section class="settings-card diagnostics-card">
             <h2 class="settings-section-title">@Localizer["Diagnostics_Title"]</h2>
-            <p class="setting-help">Read-only diagnostic telemetry from the live learner database and session engine.</p>
+            <p class="setting-help">@Localizer["Diagnostics_Description"]</p>
 
             <div class="diagnostics-sections">
                 <!-- Group 1: Learning Progression -->
@@ -201,107 +218,97 @@
             </div>
         </section>
 
-        <!-- 4. DANGER ZONE -->
-        <section class="settings-card danger-card">
-            <h2 class="settings-section-title danger-title">@Localizer["DangerZone_Title"]</h2>
-            <p class="setting-help">@Localizer["DangerZone_Desc"]</p>
-
-            <div class="danger-list">
-                <!-- Action A: Reset Learning Progress -->
-                <div class="danger-item">
-                    <div class="danger-action-header">
-                        <h3 class="danger-action-title">@Localizer["Reset_LearningProgress_Title"]</h3>
-                        @if (_activeConfirmAction != ConfirmAction.ResetLearning)
-                        {
-                            <button type="button" class="button button-danger" @onclick="() => PromptConfirm(ConfirmAction.ResetLearning)">
-                                @Localizer["Reset_LearningProgress_Title"]
-                            </button>
-                        }
-                    </div>
-                    <p class="setting-help">@Localizer["Reset_LearningProgress_Desc"]</p>
-
-                    @if (_activeConfirmAction == ConfirmAction.ResetLearning)
-                    {
-                        <div class="danger-confirm-panel">
-                            <p class="danger-confirm-prompt">@Localizer["Reset_LearningProgress_Confirm"]</p>
-                            <div class="danger-confirm-buttons">
-                                <button type="button" class="button button-secondary" @onclick="CancelConfirm">
-                                    @Localizer["Common_Cancel"]
-                                </button>
-                                <button type="button" class="button button-danger" @onclick="ExecuteResetLearning">
-                                    @Localizer["Common_Confirm"]
-                                </button>
-                            </div>
-                        </div>
-                    }
-                </div>
-
-                <!-- Action B: Reset Onboarding & UI Preferences -->
-                <div class="danger-item">
-                    <div class="danger-action-header">
-                        <h3 class="danger-action-title">@Localizer["Reset_UiPreferences_Title"]</h3>
-                        @if (_activeConfirmAction != ConfirmAction.ResetUi)
-                        {
-                            <button type="button" class="button button-secondary" @onclick="() => PromptConfirm(ConfirmAction.ResetUi)">
-                                @Localizer["Reset_UiPreferences_Title"]
-                            </button>
-                        }
-                    </div>
-                    <p class="setting-help">@Localizer["Reset_UiPreferences_Desc"]</p>
-
-                    @if (_activeConfirmAction == ConfirmAction.ResetUi)
-                    {
-                        <div class="danger-confirm-panel">
-                            <p class="danger-confirm-prompt">@Localizer["Reset_UiPreferences_Confirm"]</p>
-                            <div class="danger-confirm-buttons">
-                                <button type="button" class="button button-secondary" @onclick="CancelConfirm">
-                                    @Localizer["Common_Cancel"]
-                                </button>
-                                <button type="button" class="button button-secondary" @onclick="ExecuteResetUiPreferences">
-                                    @Localizer["Common_Confirm"]
-                                </button>
-                            </div>
-                        </div>
-                    }
-                </div>
-
-                <!-- Action C: Full Local Reset -->
-                <div class="danger-item">
-                    <div class="danger-action-header">
-                        <h3 class="danger-action-title">@Localizer["Reset_FullLocal_Title"]</h3>
-                        @if (_activeConfirmAction != ConfirmAction.ResetFull)
-                        {
-                            <button type="button" class="button button-danger" @onclick="() => PromptConfirm(ConfirmAction.ResetFull)">
-                                @Localizer["Reset_FullLocal_Title"]
-                            </button>
-                        }
-                    </div>
-                    <p class="setting-help">@Localizer["Reset_FullLocal_Desc"]</p>
-
-                    @if (_activeConfirmAction == ConfirmAction.ResetFull)
-                    {
-                        <div class="danger-confirm-panel">
-                            <p class="danger-confirm-prompt">@Localizer["Reset_FullLocal_Confirm"]</p>
-                            <div class="danger-confirm-buttons">
-                                <button type="button" class="button button-secondary" @onclick="CancelConfirm">
-                                    @Localizer["Common_Cancel"]
-                                </button>
-                                <button type="button" class="button button-danger" @onclick="ExecuteFullLocalReset">
-                                    @Localizer["Common_Confirm"]
-                                </button>
-                            </div>
-                        </div>
-                    }
-                </div>
+        <!-- 4. RESET LEARNING PROGRESS -->
+        <section class="settings-card learning-reset-card">
+            <div class="settings-action-header">
+                <h2 class="settings-section-title">@Localizer["Reset_LearningProgress_Title"]</h2>
+                @if (_activeConfirmAction != ConfirmAction.ResetLearning)
+                {
+                    <button type="button" class="button button-danger" @onclick="() => PromptConfirm(ConfirmAction.ResetLearning)">
+                        @Localizer["Reset_LearningProgress_Title"]
+                    </button>
+                }
             </div>
-
-            @if (!string.IsNullOrEmpty(_resetFeedbackMessage))
+            <p class="setting-help">@Localizer["Reset_LearningProgress_Desc"]</p>
+            @if (_activeConfirmAction == ConfirmAction.ResetLearning)
             {
-                <p class="setting-feedback setting-feedback-success" role="status">
-                    @_resetFeedbackMessage
-                </p>
+                <div id="reset-learning-confirmation"
+                     @ref="_confirmationPanel"
+                     class="settings-confirm-panel destructive-confirmation"
+                     role="group"
+                     tabindex="-1"
+                     aria-label="@Localizer["Reset_LearningProgress_Confirm"]">
+                    <p>@Localizer["Reset_LearningProgress_Confirm"]</p>
+                    <div class="settings-confirm-buttons">
+                        <button type="button" class="button button-secondary" @onclick="CancelConfirm">@Localizer["Common_Cancel"]</button>
+                        <button type="button" class="button button-danger" @onclick="ExecuteResetLearning">@Localizer["Common_Confirm"]</button>
+                    </div>
+                </div>
             }
         </section>
+
+        <!-- 5. RESTORE DEFAULT SETTINGS -->
+        <section class="settings-card restore-defaults-card">
+            <div class="settings-action-header">
+                <h2 class="settings-section-title">@Localizer["Reset_UiPreferences_Title"]</h2>
+                @if (_activeConfirmAction != ConfirmAction.ResetUi)
+                {
+                    <button type="button" class="button button-secondary" @onclick="() => PromptConfirm(ConfirmAction.ResetUi)">
+                        @Localizer["Reset_UiPreferences_Title"]
+                    </button>
+                }
+            </div>
+            <p class="setting-help">@Localizer["Reset_UiPreferences_Desc"]</p>
+            @if (_activeConfirmAction == ConfirmAction.ResetUi)
+            {
+                <div id="restore-defaults-confirmation"
+                     @ref="_confirmationPanel"
+                     class="settings-confirm-panel restore-defaults-confirmation"
+                     role="group"
+                     tabindex="-1"
+                     aria-label="@Localizer["Reset_UiPreferences_Confirm"]">
+                    <p>@Localizer["Reset_UiPreferences_Confirm"]</p>
+                    <div class="settings-confirm-buttons">
+                        <button type="button" class="button button-secondary" @onclick="CancelConfirm">@Localizer["Common_Cancel"]</button>
+                        <button type="button" class="button button-primary" @onclick="ExecuteResetUiPreferences">@Localizer["Reset_UiPreferences_Action"]</button>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <!-- 6. FULL LOCAL RESET -->
+        <section class="settings-card danger-card">
+            <div class="settings-action-header">
+                <h2 class="settings-section-title danger-title">@Localizer["Reset_FullLocal_Title"]</h2>
+                @if (_activeConfirmAction != ConfirmAction.ResetFull)
+                {
+                    <button type="button" class="button button-danger" @onclick="() => PromptConfirm(ConfirmAction.ResetFull)">
+                        @Localizer["Reset_FullLocal_Title"]
+                    </button>
+                }
+            </div>
+            <p class="setting-help">@Localizer["Reset_FullLocal_Desc"]</p>
+            @if (_activeConfirmAction == ConfirmAction.ResetFull)
+            {
+                <div id="full-local-reset-confirmation"
+                     @ref="_confirmationPanel"
+                     class="settings-confirm-panel destructive-confirmation"
+                     role="group"
+                     tabindex="-1"
+                     aria-label="@Localizer["Reset_FullLocal_Confirm"]">
+                    <p>@Localizer["Reset_FullLocal_Confirm"]</p>
+                    <div class="settings-confirm-buttons">
+                        <button type="button" class="button button-secondary" @onclick="CancelConfirm">@Localizer["Common_Cancel"]</button>
+                        <button type="button" class="button button-danger" @onclick="ExecuteFullLocalReset">@Localizer["Reset_FullLocal_Action"]</button>
+                    </div>
+                </div>
+            }
+        </section>
+
+        @if (!string.IsNullOrEmpty(_resetFeedbackMessage))
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">@_resetFeedbackMessage</p>
+        }
     </div>
 </div>
 
@@ -310,18 +317,27 @@
 
     private string? _languageMessage;
     private string? _appearanceMessage;
+    private string? _keypadMessage;
     private string? _resetFeedbackMessage;
+    private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
+    private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Phone;
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
+    private ElementReference _confirmationPanel;
+    private bool _pendingConfirmationVisibility;
 
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
+        _selectedLanguage = Localizer.SelectedLanguagePreference;
+        _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
 
         if (!Session.IsInitialized)
         {
-            await Session.InitializeAsync();
+            await Session.InitializeAsync(startTiming: false);
         }
+
+        Session.PauseItemTiming();
     }
 
     public void Dispose()
@@ -332,6 +348,7 @@
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
+        _selectedLanguage = Localizer.SelectedLanguagePreference;
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -340,13 +357,10 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private bool IsLanguageSelected(string code) =>
-        string.Equals(Localizer.SelectedLanguagePreference, code, StringComparison.OrdinalIgnoreCase);
-
-    private void SelectLanguage(string code)
+    private void HandleLanguageChanged()
     {
-        Localizer.ApplyLanguagePreference(code);
-        var displayName = code switch
+        Localizer.ApplyLanguagePreference(_selectedLanguage);
+        var displayName = _selectedLanguage switch
         {
             "en" => Localizer["Settings_English"],
             "de" => Localizer["Settings_German"],
@@ -355,6 +369,7 @@
         };
         _languageMessage = Localizer["Settings_LanguageChangedTo", displayName];
         _appearanceMessage = null;
+        _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -369,12 +384,45 @@
         };
         _appearanceMessage = Localizer["Settings_AppearanceChangedTo", displayName];
         _languageMessage = null;
+        _keypadMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_pendingConfirmationVisibility)
+        {
+            return;
+        }
+
+        _pendingConfirmationVisibility = false;
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("MathFirstUi.focusAndScrollIntoView", _confirmationPanel);
+        }
+        catch
+        {
+            // The confirmation remains visible and keyboard-accessible if JS interop is unavailable.
+        }
+    }
+
+    private void SelectKeypadLayout(NumericKeypadLayout layout)
+    {
+        _selectedKeypadLayout = NumericKeypadLayoutPolicy.Normalize((int)layout);
+        PreferenceStore.SetNumericKeypadLayout(_selectedKeypadLayout);
+        var displayName = _selectedKeypadLayout == NumericKeypadLayout.Phone
+            ? Localizer["Keypad_Phone"]
+            : Localizer["Keypad_Numpad"];
+        _keypadMessage = Localizer["Keypad_ChangedTo", displayName];
+        _languageMessage = null;
+        _appearanceMessage = null;
         _resetFeedbackMessage = null;
     }
 
     private void PromptConfirm(ConfirmAction action)
     {
         _activeConfirmAction = action;
+        _pendingConfirmationVisibility = true;
         _resetFeedbackMessage = null;
     }
 
@@ -385,18 +433,22 @@
 
     private async Task ExecuteResetLearning()
     {
-        await Session.ResetLearningProgressAsync();
+        Session.PauseItemTiming();
+        await Session.ResetLearningProgressAsync(startTiming: false);
         _activeConfirmAction = ConfirmAction.None;
         _resetFeedbackMessage = Localizer["Reset_LearningProgress_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
+        _keypadMessage = null;
     }
 
     private void ExecuteResetUiPreferences()
     {
+        Session.PauseItemTiming();
         PreferenceStore.SetOnboardingCompleted(false);
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
+        PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Phone);
 
         ThemeService.ResetPreference();
         Localizer.ApplyLanguagePreference("system");
@@ -405,17 +457,20 @@
         _resetFeedbackMessage = Localizer["Reset_UiPreferences_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
+        _keypadMessage = null;
 
         Navigation.NavigateTo("/", replace: true);
     }
 
     private async Task ExecuteFullLocalReset()
     {
-        await Session.ResetLearningProgressAsync();
+        Session.PauseItemTiming();
+        await Session.ResetLearningProgressAsync(startTiming: false);
 
         PreferenceStore.SetOnboardingCompleted(false);
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
+        PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Phone);
 
         ThemeService.ResetPreference();
         Localizer.ApplyLanguagePreference("system");
@@ -429,6 +484,8 @@
         var (phase, turn, maxOp, unexposed) = LearningPolicy.DetermineProgressionPhase(Session.Progression, Session.ItemStates);
         return (phase, turn, maxOp, unexposed.Count);
     }
+
+    private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
 
     private string GetPhaseDisplay()
     {
@@ -449,13 +506,13 @@
         var p = Session.Progression;
         if (p.IsInCheckpoint)
         {
-            return $"{Localizer["Phase_Checkpoint", p.ActiveCheckpointLevel ?? 1]} (#{p.ActiveCheckpointLevel})";
+            return Localizer["Phase_Checkpoint", p.ActiveCheckpointLevel ?? 1];
         }
         if (p.IsAllIntroductionsComplete)
         {
             return Localizer["Diagnostics_AllIntroductionsComplete"];
         }
-        return $"{Localizer["Diagnostics_CheckpointInactive"]} (L{p.CompletedCheckpointLevel} done)";
+        return Localizer["Diagnostics_CheckpointInactive"];
     }
 
     private string GetCheckpointProgressDisplay()
@@ -463,7 +520,11 @@
         var p = Session.Progression;
         if (p.IsInCheckpoint)
         {
-            return $"{p.CheckpointAttemptCount} / {LearningPolicy.DefaultCheckpointAttemptCount} ({p.CheckpointCorrectCount} correct)";
+            return Localizer[
+                "Diagnostics_MixedRoundProgressValue",
+                p.CheckpointAttemptCount,
+                LearningPolicy.DefaultCheckpointAttemptCount,
+                p.CheckpointCorrectCount];
         }
         return Localizer["Diagnostics_CheckpointInactive"];
     }

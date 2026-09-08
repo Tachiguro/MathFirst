@@ -56,15 +56,16 @@ MathFirst does not expose the full arithmetic problem space immediately. Learner
 
 - **Starting Range**: All four operations begin at initial working range `0..1` (`Addition: 0..1`, `Subtraction: 0..1`, `Multiplication: 0..1`, `Division: 0..1`).
 - **Independent Ranges**: Each arithmetic operation maintains its own independent maximum operand (`M_add`, `M_sub`, `M_mul`, `M_div`).
-- **Turn Sequence Cycle & Checkpoints**:
+- **Turn Sequence Cycle & Mixed Rounds**:
   ```
-  Addition (0..N) ──► Subtraction (0..N) ──► Multiplication (0..N) ──► Division (0..N) ──► Mixed Checkpoint (0..N, 12 attempts) ──► Addition (0..N+1) ──► ...
+  Addition (0..N) ──► Subtraction (0..N) ──► Multiplication (0..N) ──► Division (0..N) ──► Mixed round (0..N, 12 accepted attempts) ──► Addition (0..N+1) ──► ...
   ```
 - **Exposure-Based Turn Advancement**:
   - In each introduction turn, all newly unlocked facts for the active operation at its current max operand are introduced.
-  - When all newly unlocked facts for the 4 operations have been presented at least once (`TotalAttempts >= 1`), a **Bounded Mixed Checkpoint** (12 accepted attempts across all introduced facts up to level $N$) begins.
-  - The checkpoint is **not mastery-gated** (poor performance generates `Again`/`Hard` FSRS ratings and same-session remediation without blocking level advance).
-  - Upon completing attempt 12, the checkpoint completes and advances the next level's Addition introduction.
+  - When all newly unlocked facts for the 4 operations have been presented at least once (`TotalAttempts >= 1`), a **bounded mixed round** begins. The internal progression phase remains named `Checkpoint`, while the user-facing label is `Mixed round` / `Mischrunde` / the localized Russian equivalent.
+  - A mixed round contains exactly 12 accepted attempts across already introduced facts up to level $N$. Correct, Incorrect, and Timeout outcomes count; invalid input does not.
+  - The mixed round is **not a pass/fail or mastery gate**. Poor performance generates `Again`/`Hard` FSRS ratings and same-session remediation without blocking forward progression.
+  - Upon completing accepted attempt 12, the mixed round completes and advances the next level's Addition introduction.
   - Wrong or slow answers do **NOT** block range growth or turn advancement; missed facts immediately enter in-session adaptive remediation while range progression continues.
 - **Full Catalog Mixed Practice**: After the level 10 checkpoint completes, all introductions are finished and the system enters open-ended adaptive mixed practice across all 418 facts without level 11 expansion.
 
@@ -104,7 +105,9 @@ True arithmetic fluency requires evaluating both correctness and speed against d
    - The answer deadline adapts dynamically based on the item's consecutive correct streak (tuneable V1 policy ladder: streak 0 $\rightarrow$ **30 s**, streak 1 $\rightarrow$ **20 s**, streak 2 $\rightarrow$ **15 s**, streak $\ge 3$ $\rightarrow$ **10 s**).
    - A visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
    - Timer text features a direct black glyph contour/outline (`-webkit-text-stroke: 2px #000`) for crystal-clear readability directly over all dynamic fill colors without needing an enclosing dark badge.
-   - Navigating away from the training view (e.g. to Settings) cleanly pauses the active item's countdown and resumes the remaining deadline upon return, excluding navigation time from response latency and timeout evaluation. Completed feedback states (`TimeoutFeedback`, `IncorrectFeedback`, `CorrectFeedback`) survive view navigation without restarting the timer or generating duplicate attempt records.
+   - Practice timing is active only while the Practice/Home surface is visible and the session is awaiting an answer. Settings and onboarding keep the active item paused, including facts prepared by direct Settings initialization or a reset. Paused time does not affect response latency, deadlines, semantic attempt history, Practice Position, or session score.
+   - The onboarding **Get Started** action is the authoritative transition into active arithmetic practice. A fresh first fact starts with its full 30-second deadline only after that action; an existing paused fact resumes with its unchanged remaining time after onboarding triggered by restoring defaults.
+   - Completed feedback states (`TimeoutFeedback`, `IncorrectFeedback`, `CorrectFeedback`) survive Settings or onboarding navigation without restarting the timer or generating duplicate attempt records.
    - Visual UI refresh (~50 ms cadence) is presentation-only; monotonic time is authoritative and immune to UI rendering drift.
    - Any incorrect answer or timeout immediately resets the consecutive correct streak to 0, safely restoring the full 30-second deadline for that item's next presentation.
    - Response latency and FSRS scheduling remain strictly separate: the adaptive deadline only determines when a timeout occurs, while actual response latency is measured independently and rated deterministically (`Easy` $\le 1000\text{ ms}$, `Good` $1001..2500\text{ ms}$, `Hard` $> 2500\text{ ms}$, `Again` on Incorrect/Timeout).
@@ -136,12 +139,26 @@ When a learner provides an incorrect answer or times out during a session:
 
 Input ergonomics are critical to measuring true arithmetic recall rather than motor typing friction:
 
+- **Shared Numeric Answer Contract**:
+  - The answer editor accepts only canonical unsigned decimal notation with ASCII digits and at most one decimal separator. The integer part is either exactly `0` or begins with `1` through `9`; redundant leading-zero forms such as `00`, `01`, `0004`, and `00.5` are rejected. Leading decimal forms such as `.5` and `,5` remain valid.
+  - Both period and comma are accepted in every UI language; signs, whitespace, exponent notation, alphabetic characters, and multiple/mixed separators are rejected.
+  - Empty input plus trailing-separator states such as `12.` and `12,` remain valid while editing. Submission normalizes comma or period to an invariant exact `decimal` value; equivalent representations such as `14`, `14.0`, and `14,00` compare numerically.
+  - Supported browser/WebView input paths synchronously reject invalid prospective keyboard, selection-replacement, deletion, and paste edits before the DOM mutates. The C# numeric policy remains authoritative for submission, the on-screen keypad, fallback input handling, and tests.
+  - Rejected or incomplete input creates no semantic attempt and therefore cannot affect score, Practice Position, FSRS, exposure, remediation, or mixed-round progress. Input is bounded to 28 characters to protect layout while leaving ample future arithmetic range.
+  - The responsive answer field comfortably exposes approximately eight digits plus a decimal separator at normal Windows desktop sizes. It remains centered, never exceeds the card width, and wraps below the arithmetic expression on narrow layouts without reducing arithmetic typography.
 - **Android**:
   - Touch-first user interface.
-  - Efficient numeric answer entry.
+  - Efficient numeric answer entry. Decimal answer inputs expose the semantic `inputmode="decimal"` hint.
+  - Native Android IME behavior, dynamic viewport resizing, software-keyboard height/overlap, Submit visibility, and whether the MathFirst keypad is hidden or adapted remain explicit acceptance work for the future Android implementation package.
 - **Windows & Web**:
   - Effective physical keyboard support.
   - Physical numeric keypad (numpad) support where available.
+- **Windows On-Screen Keypad**:
+  - Practice renders a centered, responsive, clickable/touchable keypad without duplicating the primary Submit/Continue action. Physical digits, Backspace, decimal comma/period, and Enter remain supported through the same controlled answer model.
+  - Learners choose exactly one persistent UI layout: `Phone` (default; `1 2 3` at the top) or `Numpad` (`7 8 9` at the top). The locale-familiar decimal glyph is shown, while both separators remain valid input.
+  - The choice is previewed on a dedicated onboarding step between Welcome and Tutorial, persists only at Get Started, and can be changed immediately in Settings without resuming practice timing. Restore Defaults and Full Local Reset return it to Phone; Reset Learning Progress preserves it. The preference is UI state and is not stored in learner SQLite data.
+- **Windows Settings Confirmations**:
+  - Restore Defaults, Reset Learning Progress, and Full Local Reset remain explicit two-step actions. After an inline confirmation is rendered, it receives programmatic focus and is scrolled into view with nearest-block behavior; reduced-motion preferences disable smooth scrolling.
 
 ---
 
@@ -158,6 +175,12 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
 ### Local Persistence
 - Learning state, item histories, and progression milestones must persist reliably in local device storage.
 - Local persistence must survive application restarts, browser refreshes, and device reboots.
+
+### Windows Runtime Identity and App-Data Location
+- The canonical production application identifier is `com.tachiguro.mathfirst`.
+- The unpackaged Windows runtime publisher is `Tachiguro`; it is intentionally separate from the development manifest signing identity.
+- MathFirst continues to obtain its writable root from `FileSystem.AppDataDirectory`. The resulting logical Windows data root is `%LOCALAPPDATA%\Tachiguro\com.tachiguro.mathfirst\Data`, with the learner database at `mathfirst_learner.db` below that root.
+- Legacy template-identity data is not automatically migrated or deleted.
 
 ### Privacy & Data Integrity
 - The MVP does not require personal user identity information for the core learning loop.
