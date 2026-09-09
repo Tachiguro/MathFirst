@@ -9,4 +9,5 @@ public sealed record SubmissionChangeSet(
     AttemptRecord Attempt,
     ItemLearningState UpdatedItemState,
     LearnerProgression UpdatedProgression,
-    FsrsCardState? UpdatedFsrsState = null);
+    FsrsCardState? UpdatedFsrsState = null,
+    IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? OperationProgressions = null);

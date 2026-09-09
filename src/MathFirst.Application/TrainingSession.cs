@@ -2,8 +2,10 @@ namespace MathFirst.Application;
 
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
+using MathFirst.Application.Progression;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 
 public sealed class TrainingSession
 {
@@ -23,6 +25,10 @@ public sealed class TrainingSession
     private int _sessionCorrectCountBeforePendingEvaluation;
     private int _sessionTotalCountBeforePendingEvaluation;
     private long _lastResponseLatencyBeforePendingEvaluation;
+    private readonly ArithmeticCurriculum _curriculum = new();
+    private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
+    private List<AttemptRecord> _recentAttempts = [];
+    private SessionStateBackup? _preSubmissionState;
 
     public event EventHandler? AppForegroundStateChanged;
 
@@ -70,6 +76,9 @@ public sealed class TrainingSession
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
@@ -78,7 +87,6 @@ public sealed class TrainingSession
         _requiresBackgroundResumeAfterAdvance = false;
         IsInitialized = true;
 
-        LearningPolicy.SynchronizeProgression(Progression, ItemStates);
         AdvanceToNextFact(startTiming);
     }
 
@@ -304,6 +312,7 @@ public sealed class TrainingSession
         long elapsedMs,
         decimal? submittedNumericAnswer)
     {
+        _preSubmissionState = CaptureState();
         _sessionCorrectCountBeforePendingEvaluation = SessionCorrectCount;
         _sessionTotalCountBeforePendingEvaluation = SessionTotalCount;
         _lastResponseLatencyBeforePendingEvaluation = LastResponseLatencyMs;
@@ -317,8 +326,8 @@ public sealed class TrainingSession
             SessionCorrectCount++;
         }
 
-        // 2. Increment Practice Position (Task-based monotonic counter for accepted arithmetic attempts)
-        Progression.PracticePosition++;
+        var practicePosition = checked(Progression.PracticePosition + 1);
+        Progression.PracticePosition = practicePosition;
 
         // 3. Update FSRS card state
         var rating = FsrsRatingMapper.MapRating(outcome, elapsedMs, LearningPolicy.DefaultEasyResponseThresholdMs, _fluentThresholdMs);
@@ -327,7 +336,7 @@ public sealed class TrainingSession
             existingFsrsState,
             CurrentFact.Id,
             rating,
-            Progression.PracticePosition,
+            practicePosition,
             elapsedMs);
         _fsrsStates[CurrentFact.Id] = updatedFsrsState;
 
@@ -373,31 +382,31 @@ public sealed class TrainingSession
 
         itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, _fluentThresholdMs);
 
-        // 5. Update Checkpoint State (if in Checkpoint)
-        if (Progression.IsInCheckpoint)
-        {
-            Progression.CheckpointAttemptCount++;
-            if (isCorrect)
-            {
-                Progression.CheckpointCorrectCount++;
-            }
-
-            if (Progression.CheckpointAttemptCount >= LearningPolicy.DefaultCheckpointAttemptCount)
-            {
-                Progression.CompletedCheckpointLevel = Progression.ActiveCheckpointLevel ?? Progression.CurrentMaxOperand;
-                Progression.ActiveCheckpointLevel = null;
-                Progression.CheckpointAttemptCount = 0;
-                Progression.CheckpointCorrectCount = 0;
-            }
-        }
-
-        // 6. Evaluate Multi-Operation Range Progression & Checkpoint Entry
-        var rangeUnlocked = LearningPolicy.SynchronizeProgression(Progression, ItemStates);
-
-        Progression.CurrentOperation = CurrentFact.Operation;
+        // Evaluate only the scheduled operation from bounded positioned evidence.
+        var operationProgressions = Progression.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var currentOperationProgression = operationProgressions[CurrentFact.Operation];
+        var operationAttempts = _recentAttempts
+            .Where(existing => existing.Operation == CurrentFact.Operation)
+            .Select(existing => new BandAttemptEvidence(existing.PracticePosition!.Value, existing.FactId, existing.IsCorrect, existing.ResponseLatencyMs))
+            .Append(new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, elapsedMs));
+        var operationCurriculum = _curriculum.GetCurriculum(CurrentFact.Operation);
+        var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
+        var ownedFactIds = ownership.GetOwnedFrontier(currentOperationProgression.BandIndex)
+            .Select(fact => fact.Id).ToHashSet(StringComparer.Ordinal);
+        var currentBandIntroductions = operationAttempts
+            .Where(evidence => evidence.PracticePosition > currentOperationProgression.BandStartedPracticePosition && ownedFactIds.Contains(evidence.FactId))
+            .Select(evidence => evidence.FactId);
+        var advancement = _bandAdvancementEvaluator.Evaluate(
+            currentOperationProgression,
+            operationCurriculum,
+            new BandAdvancementEvidence(
+                operationAttempts,
+                ItemStates.Values.Where(state => state.TotalAttempts > 0).Select(state => state.FactId),
+                currentBandIntroductions));
+        operationProgressions[CurrentFact.Operation] = advancement.ResultingProgression;
+        Progression.OperationProgressions = operationProgressions;
         Progression.UpdatedAt = DateTimeOffset.UtcNow;
 
-        // 7. Construct Attempt Record and ChangeSet
         var submissionId = Guid.NewGuid().ToString("N");
         var attempt = new AttemptRecord(
             submissionId,
@@ -410,7 +419,8 @@ public sealed class TrainingSession
             isCorrect,
             elapsedMs,
             DateTimeOffset.UtcNow,
-            outcome);
+            outcome,
+            practicePosition);
 
         var changeSet = new SubmissionChangeSet(
             submissionId,
@@ -418,7 +428,8 @@ public sealed class TrainingSession
             attempt,
             itemState,
             Progression,
-            updatedFsrsState);
+            updatedFsrsState,
+            operationProgressions);
 
         LastEvaluation = new SubmissionEvaluation(
             outcome,
@@ -428,8 +439,8 @@ public sealed class TrainingSession
             elapsedMs,
             changeSet,
             itemState.IsProvisionallyMastered,
-            rangeUnlocked,
-            OperationUnlocked: false)
+            RangeUnlocked: advancement.Advances,
+            OperationUnlocked: advancement.Advances)
         {
             SubmittedNumericAnswer = submittedNumericAnswer
         };
@@ -448,15 +459,31 @@ public sealed class TrainingSession
         LastPersistenceResult = result;
         if (result.IsSuccess && result.NewRevision.HasValue)
         {
-            Progression.StoreRevision = result.NewRevision.Value;
-            if (InteractionState == SessionInteractionState.PersistenceFailure &&
-                LastEvaluation.Outcome == AttemptOutcome.Correct)
+            if (_preSubmissionState is not null)
             {
-                InteractionState = SessionInteractionState.CorrectFeedback;
+                Progression = LastEvaluation.ChangeSet.UpdatedProgression;
+                ItemStates[LastEvaluation.ChangeSet.UpdatedItemState.FactId] = LastEvaluation.ChangeSet.UpdatedItemState;
+                if (LastEvaluation.ChangeSet.UpdatedFsrsState is not null)
+                {
+                    _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
+                }
+                SessionTotalCount = _preSubmissionState.SessionTotalCount + 1;
+                SessionCorrectCount = _preSubmissionState.SessionCorrectCount + (LastEvaluation.IsCorrect ? 1 : 0);
+                LastResponseLatencyMs = LastEvaluation.LatencyMs;
             }
+            Progression.StoreRevision = result.NewRevision.Value;
+            _recentAttempts.Add(LastEvaluation.ChangeSet.Attempt);
+            InteractionState = LastEvaluation.Outcome switch
+            {
+                AttemptOutcome.Correct => SessionInteractionState.CorrectFeedback,
+                AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
+                _ => SessionInteractionState.IncorrectFeedback
+            };
+            _preSubmissionState = null;
         }
-        else if (LastEvaluation.Outcome == AttemptOutcome.Correct)
+        else
         {
+            RestoreState();
             InteractionState = SessionInteractionState.PersistenceFailure;
             ReconcileTimingState();
         }
@@ -467,7 +494,7 @@ public sealed class TrainingSession
     public async Task<bool> RecoverFromPersistenceFailureAsync(CancellationToken cancellationToken = default)
     {
         if (InteractionState != SessionInteractionState.PersistenceFailure ||
-            LastEvaluation?.Outcome != AttemptOutcome.Correct ||
+            LastEvaluation is null ||
             LastPersistenceResult is null)
         {
             return false;
@@ -490,6 +517,8 @@ public sealed class TrainingSession
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions).ToDictionary(pair => pair.Key, pair => pair.Value);
+        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
         SessionCorrectCount = _sessionCorrectCountBeforePendingEvaluation;
         SessionTotalCount = _sessionTotalCountBeforePendingEvaluation;
         LastResponseLatencyMs = _lastResponseLatencyBeforePendingEvaluation;
@@ -503,14 +532,17 @@ public sealed class TrainingSession
     public void AdvanceToNextFact(bool startTiming = true)
     {
         SessionOrderCounter++;
-        CurrentFact = _selector.SelectNextFact(
-            Progression,
-            ItemStates,
-            _fsrsStates,
+        var materializedFacts = ItemStates.Values
+            .Select(state => new ArithmeticFact(state.Operation, state.LeftOperand, state.RightOperand))
+            .ToArray();
+        var context = new PracticeSelectionContext(
+            checked(Progression.PracticePosition + 1),
             SessionOrderCounter,
-            Progression.PracticePosition,
-            _fluentThresholdMs);
-        Progression.CurrentOperation = CurrentFact.Operation;
+            Progression.OperationProgressions,
+            Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, operation => _curriculum.GetCurriculum(operation)),
+            new PracticeCandidateIndex(materializedFacts, ItemStates, _fsrsStates),
+            _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)));
+        CurrentFact = _selector.SelectTargetFact(context).Fact;
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
         _accumulatedActiveElapsedMs = 0;
@@ -554,6 +586,8 @@ public sealed class TrainingSession
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions).ToDictionary(pair => pair.Key, pair => pair.Value);
+        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         SessionOrderCounter = 0;
@@ -564,4 +598,61 @@ public sealed class TrainingSession
 
         AdvanceToNextFact(shouldStartTiming);
     }
+
+    private SessionStateBackup CaptureState() => new(
+        CloneProgression(Progression),
+        ItemStates.ToDictionary(pair => pair.Key, pair => CloneItemState(pair.Value), StringComparer.Ordinal),
+        _fsrsStates.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+        SessionCorrectCount,
+        SessionTotalCount,
+        LastResponseLatencyMs);
+
+    private void RestoreState()
+    {
+        if (_preSubmissionState is null)
+        {
+            return;
+        }
+        Progression = _preSubmissionState.Progression;
+        ItemStates = _preSubmissionState.ItemStates;
+        _fsrsStates = _preSubmissionState.FsrsStates;
+        SessionCorrectCount = _preSubmissionState.SessionCorrectCount;
+        SessionTotalCount = _preSubmissionState.SessionTotalCount;
+        LastResponseLatencyMs = _preSubmissionState.LastResponseLatencyMs;
+    }
+
+    private static LearnerProgression CloneProgression(LearnerProgression source) => new()
+    {
+        CurrentOperation = source.CurrentOperation,
+        CurrentIntroductionTurn = source.CurrentIntroductionTurn,
+        PracticePosition = source.PracticePosition,
+        OperationMaxOperands = new Dictionary<ArithmeticOperation, int>(source.OperationMaxOperands),
+        OperationProgressions = source.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value),
+        CompletedCheckpointLevel = source.CompletedCheckpointLevel,
+        ActiveCheckpointLevel = source.ActiveCheckpointLevel,
+        CheckpointAttemptCount = source.CheckpointAttemptCount,
+        CheckpointCorrectCount = source.CheckpointCorrectCount,
+        StoreRevision = source.StoreRevision,
+        SchemaVersion = source.SchemaVersion,
+        UpdatedAt = source.UpdatedAt
+    };
+
+    private static ItemLearningState CloneItemState(ItemLearningState source) => new()
+    {
+        FactId = source.FactId, Operation = source.Operation, LeftOperand = source.LeftOperand, RightOperand = source.RightOperand,
+        TotalAttempts = source.TotalAttempts, CorrectAttempts = source.CorrectAttempts, IncorrectAttempts = source.IncorrectAttempts,
+        ConsecutiveCorrectStreak = source.ConsecutiveCorrectStreak, LastLatencyMs = source.LastLatencyMs,
+        RollingLatencyMs = source.RollingLatencyMs, FluentStreak = source.FluentStreak,
+        IsProvisionallyMastered = source.IsProvisionallyMastered, NeedsRemediation = source.NeedsRemediation,
+        RemediationDueOrder = source.RemediationDueOrder, LastPracticedOrder = source.LastPracticedOrder,
+        LastPracticedAt = source.LastPracticedAt
+    };
+
+    private sealed record SessionStateBackup(
+        LearnerProgression Progression,
+        Dictionary<string, ItemLearningState> ItemStates,
+        Dictionary<string, FsrsCardState> FsrsStates,
+        int SessionCorrectCount,
+        int SessionTotalCount,
+        long LastResponseLatencyMs);
 }

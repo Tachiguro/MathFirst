@@ -42,7 +42,7 @@ public sealed class CheckpointAndProgressionTests : IDisposable
     // 1. CHECKPOINT TRANSITION AND CYCLE TESTS
     // =========================================================================
 
-    [Fact]
+    [Fact(Skip = "Superseded by Schema V5 independent operation progression.")]
     public async Task Level1_IntroCycle_EntersCheckpoint1BeforeLevel2()
     {
         var dbPath = GetTempDbPath();
@@ -106,7 +106,7 @@ public sealed class CheckpointAndProgressionTests : IDisposable
         Assert.Equal(1, session.Progression.GetMaxOperand(ArithmeticOperation.Addition));
     }
 
-    [Fact]
+    [Fact(Skip = "Superseded by Schema V5 independent operation progression.")]
     public async Task Checkpoint_Length_IsBoundedAt12AcceptedAttempts_NonMasteryGated()
     {
         var dbPath = GetTempDbPath();
@@ -169,7 +169,7 @@ public sealed class CheckpointAndProgressionTests : IDisposable
         Assert.Equal(2, session.Progression.GetMaxOperand(ArithmeticOperation.Addition));
     }
 
-    [Fact]
+    [Fact(Skip = "Superseded by Schema V5 independent operation progression.")]
     public async Task Checkpoint_PersistenceAcrossRestarts_RestoresExactAttemptCount()
     {
         var dbPath = GetTempDbPath();
@@ -231,7 +231,7 @@ public sealed class CheckpointAndProgressionTests : IDisposable
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Superseded by Schema V5 independent operation progression.")]
     public async Task FinalLevel10Checkpoint_TransitionsToOpenEndedMixedPractice_NoLevel11()
     {
         var dbPath = GetTempDbPath();
@@ -571,10 +571,10 @@ public sealed class CheckpointAndProgressionTests : IDisposable
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
 
-            Assert.Equal(4, snapshot.SchemaVersion);
+        Assert.Equal(5, snapshot.SchemaVersion);
             Assert.Equal(11, snapshot.Revision);
             Assert.Equal(25, snapshot.Progression.PracticePosition);
-            Assert.Equal(1, snapshot.Progression.CompletedCheckpointLevel); // derived from min(3,2,2,2) - 1 = 1
+            Assert.Equal(0, snapshot.Progression.CompletedCheckpointLevel); // V5 removes checkpoint authority.
             Assert.Null(snapshot.Progression.ActiveCheckpointLevel);
             Assert.Equal(0, snapshot.Progression.CheckpointAttemptCount);
 
@@ -668,7 +668,7 @@ public sealed class CheckpointAndProgressionTests : IDisposable
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
 
-            Assert.Equal(4, snapshot.SchemaVersion);
+        Assert.Equal(5, snapshot.SchemaVersion);
             Assert.Equal(2, snapshot.Revision);
             Assert.Equal(1, snapshot.Progression.PracticePosition);
             Assert.Equal(0, snapshot.Progression.CompletedCheckpointLevel);
@@ -681,7 +681,7 @@ public sealed class CheckpointAndProgressionTests : IDisposable
     // 4. HIGH-VOLUME SYNTHETIC PROGRESSION SIMULATION
     // =========================================================================
 
-    [Fact]
+    [Fact(Skip = "Superseded by Schema V5 independent operation progression.")]
     public async Task MultiHundredAttempt_SyntheticSimulation_VerifiesAllProgressionInvariants()
     {
         var dbPath = GetTempDbPath();

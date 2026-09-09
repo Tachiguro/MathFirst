@@ -2,11 +2,15 @@ namespace MathFirst.Domain;
 
 public sealed class LearnerProgression
 {
-    public const int DefaultSchemaVersion = 4;
+    public const int DefaultSchemaVersion = 5;
 
     public ArithmeticOperation CurrentOperation { get; set; } = ArithmeticOperation.Addition;
     public ArithmeticOperation CurrentIntroductionTurn { get; set; } = ArithmeticOperation.Addition;
     public long PracticePosition { get; set; } = 0;
+
+    // V5 authoritative independent operation progression. The V4 members below are
+    // retained temporarily for source compatibility, but are not used by the V5 runtime.
+    public Dictionary<ArithmeticOperation, OperationProgression> OperationProgressions { get; set; } = CreateInitialOperationProgressions();
 
     public int CurrentMaxOperand
     {
@@ -53,6 +57,7 @@ public sealed class LearnerProgression
             CurrentOperation = ArithmeticOperation.Addition,
             CurrentIntroductionTurn = ArithmeticOperation.Addition,
             PracticePosition = 0,
+            OperationProgressions = CreateInitialOperationProgressions(),
             OperationMaxOperands = new Dictionary<ArithmeticOperation, int>
             {
                 [ArithmeticOperation.Addition] = ArithmeticCatalog.DefaultInitialMaxOperand,
@@ -68,4 +73,9 @@ public sealed class LearnerProgression
             SchemaVersion = DefaultSchemaVersion,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+
+    public static Dictionary<ArithmeticOperation, OperationProgression> CreateInitialOperationProgressions() =>
+        Enum.GetValues<ArithmeticOperation>().ToDictionary(
+            operation => operation,
+            operation => new OperationProgression(operation, bandIndex: 0, bandStartedPracticePosition: 0));
 }

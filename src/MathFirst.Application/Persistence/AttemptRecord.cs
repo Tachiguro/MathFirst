@@ -15,6 +15,7 @@ public sealed record AttemptRecord
     public long ResponseLatencyMs { get; init; }
     public DateTimeOffset Timestamp { get; init; }
     public AttemptOutcome Outcome { get; init; }
+    public long? PracticePosition { get; init; }
 
     public AttemptRecord(
         string submissionId,
@@ -27,7 +28,8 @@ public sealed record AttemptRecord
         bool isCorrect,
         long responseLatencyMs,
         DateTimeOffset timestamp,
-        AttemptOutcome? outcome = null)
+        AttemptOutcome? outcome = null,
+        long? practicePosition = null)
     {
         SubmissionId = submissionId;
         FactId = factId;
@@ -40,5 +42,10 @@ public sealed record AttemptRecord
         ResponseLatencyMs = responseLatencyMs;
         Timestamp = timestamp;
         Outcome = outcome ?? (isCorrect ? AttemptOutcome.Correct : (submittedAnswer is null ? AttemptOutcome.Timeout : AttemptOutcome.Incorrect));
+        if (practicePosition is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(practicePosition), "Practice position must be positive when present.");
+        }
+        PracticePosition = practicePosition;
     }
 }

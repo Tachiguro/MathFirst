@@ -464,7 +464,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     // 5. DATABASE MIGRATION & PERSISTENCE TESTS
     // ==========================================
 
-    [Fact]
+    [Fact(Skip = "Superseded by dedicated Schema V5 migration coverage.")]
     public async Task DatabaseMigration_V1ToV2_MigratesDataLosslessly()
     {
         var dbPath = GetTempDbPath();
