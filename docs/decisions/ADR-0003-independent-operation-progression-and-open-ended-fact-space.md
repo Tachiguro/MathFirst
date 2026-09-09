@@ -10,11 +10,11 @@ Accepted
 
 ## Context
 
-MathFirst currently implements learner Schema V4, a finite 418-fact catalog, a global Addition-to-Subtraction-to-Multiplication-to-Division introduction sequence, and a 12-attempt mixed checkpoint after each shared operand level. Exposure advances that sequence even when answers are incorrect or slow, and completion of the level-10 checkpoint ends acquisition and enters mixed practice over the fixed catalog.
+Before MF-LEARN-001, MathFirst implemented learner Schema V4, a finite 418-fact catalog, a global Addition-to-Subtraction-to-Multiplication-to-Division introduction sequence, and a 12-attempt mixed checkpoint after each shared operand level. MF-LEARN-001 replaces that runtime with the independent, open-ended architecture recorded here.
 
 That implementation proved the end-to-end native learning loop, but it does not express the intended product model. Arithmetic operations develop at different rates; correctness and recall latency must both influence readiness; elementary facts benefit from exhaustive acquisition, while a Cartesian catalog becomes unsuitable as operand magnitudes grow. The architecture must also preserve existing learner evidence, exact-fact FSRS scheduling, deterministic offline behavior, and the atomic persistence boundary established by [ADR-0002](ADR-0002-offline-execution-and-local-persistence-boundary.md).
 
-This decision defines the approved target architecture for implementation planning. It does **not** describe the current implementation: Schema V5, independent band progression, procedural structured families, lazy materialization, and the selector policy below remain to be implemented.
+This decision defines the approved architecture implemented by MF-LEARN-001: Schema V5, independent band progression, procedural structured families, lazy materialization, and the deterministic selector policy below.
 
 ## Decision
 
@@ -329,7 +329,7 @@ The implementation must preserve these invariants:
 - advancement is atomic with its triggering submission;
 - wall-clock time does not determine advancement.
 
-A later implementation may use a stable cross-platform deterministic permutation or hash, but it must specify the algorithm portably and must not require persisted candidate cursors.
+The implementation uses a stable cross-platform deterministic ranking and does not require persisted candidate cursors.
 
 ### Mixed checkpoint removal
 

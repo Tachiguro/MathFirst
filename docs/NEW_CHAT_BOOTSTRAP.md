@@ -76,3 +76,7 @@ To determine what package is currently in flight or what should happen next, eva
 - If all branches are merged, working tree is clean on `main`, and no package is active in `docs/CURRENT_WORK.md`, state:
   > **"There is currently no clearly determined next work item."**
 - **Strict Prohibition**: Agents must NEVER autonomously pick an item from [docs/BACKLOG.md](BACKLOG.md) or [docs/ROADMAP.md](ROADMAP.md) without explicit user instruction and prompt dispatch.
+
+## 5. Current Verified Package Context
+
+When live repository state matches the active local feature branch, the current package is `MF-LEARN-001` (`feat/mf-learn-001-independent-progression`). Its implementation and final review are complete and approved. The lifecycle is between `DOCUMENT_ONLY` and `COMMIT_ONLY`; documentation reconciliation must finish before the next governed activity proceeds. The branch is local-only, `main` remains behind it until push and merge, and GitHub state remains authoritative for remote delivery.
