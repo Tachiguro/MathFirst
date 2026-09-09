@@ -471,7 +471,7 @@ public sealed class TrainingSession
                 LastResponseLatencyMs = LastEvaluation.LatencyMs;
             }
             Progression.StoreRevision = result.NewRevision.Value;
-            _recentAttempts.Add(LastEvaluation.ChangeSet.Attempt);
+            _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
             InteractionState = LastEvaluation.Outcome switch
             {
                 AttemptOutcome.Correct => SessionInteractionState.CorrectFeedback,
@@ -624,6 +624,25 @@ public sealed class TrainingSession
         SchemaVersion = source.SchemaVersion,
         UpdatedAt = source.UpdatedAt
     };
+
+    private static List<AttemptRecord> BoundRecentAttempts(IEnumerable<AttemptRecord> attempts)
+    {
+        var positioned = attempts
+            .Where(attempt => attempt.PracticePosition is > 0)
+            .OrderBy(attempt => attempt.PracticePosition)
+            .ToArray();
+        var requiredForAdvancement = positioned
+            .GroupBy(attempt => attempt.Operation)
+            .SelectMany(group => group.OrderByDescending(attempt => attempt.PracticePosition).Take(40));
+        var requiredForCooldown = positioned.TakeLast(LearningPolicy.ExactFactCooldownDistance);
+
+        return requiredForAdvancement
+            .Concat(requiredForCooldown)
+            .GroupBy(attempt => attempt.SubmissionId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(attempt => attempt.PracticePosition)
+            .ToList();
+    }
 
     private static ItemLearningState CloneItemState(ItemLearningState source) => new()
     {
