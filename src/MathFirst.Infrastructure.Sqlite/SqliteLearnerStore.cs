@@ -1445,7 +1445,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
             {
                 schema.Transaction = transaction;
                 schema.CommandText = @"
-                    ALTER TABLE attempt_history ADD COLUMN practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0);
+                    ALTER TABLE attempt_history ADD COLUMN practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0);";
+                await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                schema.CommandText = "DROP TABLE operation_progression;";
+                await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                schema.CommandText = @"
                     CREATE TABLE operation_progression (
                         operation TEXT PRIMARY KEY,
                         band_index INTEGER NOT NULL CHECK (band_index >= 0),
@@ -1455,9 +1459,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
                         practice_position INTEGER NOT NULL DEFAULT 0,
                         updated_at TEXT NOT NULL);
                     INSERT INTO learner_progression_v5 (id, practice_position, updated_at)
-                        SELECT id, practice_position, updated_at FROM learner_progression;
-                    DROP TABLE learner_progression;
-                    ALTER TABLE learner_progression_v5 RENAME TO learner_progression;";
+                        SELECT id, practice_position, updated_at FROM learner_progression;";
+                await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                schema.CommandText = "DROP TABLE learner_progression;";
+                await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                schema.CommandText = "ALTER TABLE learner_progression_v5 RENAME TO learner_progression;";
                 await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
