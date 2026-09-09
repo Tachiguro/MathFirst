@@ -115,14 +115,6 @@
                 {
                     <div class="training-top-region">
                         <div class="training-meta-row">
-                            @if (Session.Progression.IsInCheckpoint)
-                            {
-                                <span class="checkpoint-badge">@Localizer["Training_CheckpointBadge", Math.Min(Session.Progression.CheckpointAttemptCount + 1, LearningPolicy.DefaultCheckpointAttemptCount), LearningPolicy.DefaultCheckpointAttemptCount]</span>
-                            }
-                            else
-                            {
-                                <span class="range-display">0..@Session.Progression.GetMaxOperand(Session.CurrentFact.Operation)</span>
-                            }
                             <span class="score-display">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
                         </div>
 

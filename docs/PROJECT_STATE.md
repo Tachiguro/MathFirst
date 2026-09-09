@@ -10,7 +10,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
 - **Default Branch**: `main`
 - **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: Native V1 development
+- **Current Status**: Native V1 implementation complete for MF-LEARN-001 on the local feature branch; delivery remains unpushed and unmerged.
 
 ---
 
@@ -26,19 +26,19 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 ## 3. Current Implemented Learning and Persistence Baseline
 
-- The current runtime implements a finite 418-fact arithmetic catalog: 121 Addition, 66 non-negative triangular Subtraction, 121 Multiplication, and 110 exact Division facts through operand level 10.
-- The current progression implementation uses global Addition-to-Subtraction-to-Multiplication-to-Division introduction lockstep, exposure-based turn advancement, a 12-attempt Mixed Checkpoint per level, and terminal mixed practice after level 10.
+- The current runtime implements independent progression for Addition, Subtraction, Multiplication, and Division. The dense foundation contains 121 Addition, 121 Subtraction, 169 Multiplication, and 156 Division facts (567 total), followed by structured open-ended bands; the curriculum has no finite total size or permanent level-10 ceiling.
+- Operation scheduling and role selection are deterministic, and selection uses bounded evidence windows with lazy fact materialization. The global Mixed Checkpoint and global introduction lockstep are not active runtime concepts.
 - Exact facts use stable, presentation-direction-sensitive canonical IDs.
 - `FSRS.Core` 1.0.7 is integrated with 95% desired retention, 21 parameters, disabled fuzzing, deterministic per-FactId card identity, and Practice Position virtual time.
-- The current learner persistence format is **Schema V4**. It stores attempt history, item learning state, FSRS card state, global progression/checkpoint state, Practice Position, schema version, and optimistic store revision.
-- `MathFirst.Infrastructure.Sqlite` owns the concrete native `SqliteLearnerStore` and `Microsoft.Data.Sqlite`; the Application layer owns persistence contracts. Accepted submissions commit attempt, item, FSRS, and progression changes atomically with revision checks.
+- The current learner persistence format is **Schema V5**. It stores global Practice Position and StoreRevision, per-operation progression rows, positioned V5 attempts, item learning state, FSRS card state, and durable history. Valid migrated V4 attempts retain NULL Practice Position.
+- `MathFirst.Infrastructure.Sqlite` owns the concrete native `SqliteLearnerStore` and `Microsoft.Data.Sqlite`; the Application layer owns persistence contracts. Accepted submissions commit attempt, item, FSRS, and progression changes atomically with revision checks, idempotent SubmissionId replay, and publish-after-successful-persistence session semantics.
 - Reset Learning Progress clears learner attempts, item state, FSRS state, and progression while preserving UI/onboarding preferences. Full Local Reset additionally restores applicable UI and onboarding preferences. Ready, Pause, and Background-Resume gates are transient and are not stored in the learner schema.
 
 ---
 
 ## 4. Accepted Target Learning Architecture
 
-[ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) accepts the MF-LEARN-001 target architecture:
+[ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) records the accepted and implemented MF-LEARN-001 architecture:
 
 - independent per-operation band progression;
 - a 567-fact exhaustive dense foundation followed by deterministic structured arithmetic families;
@@ -50,7 +50,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - atomic preservation of valid V4 learner evidence without automatic reset;
 - removal of the global Mixed Checkpoint and fixed level-10/418-fact acquisition ceiling.
 
-This is an accepted target design, not current runtime behavior. MF-LEARN-001 implementation and Schema V5 migration remain pending.
+The implementation and review are complete on the local feature branch. The branch remains local-only pending documentation commit, full validation, push, Pull Request, manual merge, and post-merge synchronization.
 
 ---
 
@@ -59,7 +59,7 @@ This is an accepted target design, not current runtime behavior. MF-LEARN-001 im
 - MF-AND-001 was merged to `main` through GitHub Pull Request #7 on 2026-09-08, adding the Android V1 runtime and native SQLite layer while preserving Windows behavior.
 - Repository history records 178 passing automated unit and simulation tests before the Android V1 package; the merged Android package adds deterministic lifecycle, input, responsive-layout, localization, and SQLite architecture coverage.
 - Repository release notes record a completed real-device Android spot-check for responsive layout, keypad/native IME behavior, Ready/Pause/Resume, smart auto-submit, and Incorrect/Timeout feedback context.
-- These facts are historical delivery evidence, not a claim that MF-LEARN-001 or Schema V5 has been tested or implemented.
+- MF-LEARN-001 validation evidence includes a passing full Core suite, Windows and Android Release builds with zero warnings/errors, and final review approval. Exact checkpoint counts remain in the implementation evidence and task history rather than being repeated throughout this durable project-state summary.
 
 ---
 

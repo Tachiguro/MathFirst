@@ -9,7 +9,8 @@ public sealed record LearnerSnapshot(
     IReadOnlyDictionary<string, FsrsCardState> FsrsStates,
     IReadOnlyList<AttemptRecord> RecentAttempts,
     long Revision,
-    int SchemaVersion)
+    int SchemaVersion,
+    IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? OperationProgressions = null)
 {
     public LearnerSnapshot(
         LearnerProgression progression,

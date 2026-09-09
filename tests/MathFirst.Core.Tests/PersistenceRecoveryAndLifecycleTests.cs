@@ -88,18 +88,16 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         clock.AdvanceMs(750);
         var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         var result = await session.CommitCurrentEvaluationAsync();
-        var itemStateAfterEvaluation = session.ItemStates[factBefore.Id];
-        var fsrsStateAfterEvaluation = session.FsrsStates[factBefore.Id];
 
         Assert.False(result.IsSuccess);
         Assert.Equal(SessionInteractionState.PersistenceFailure, session.InteractionState);
         Assert.False(session.IsTimingActive);
         Assert.Equal(factBefore, session.CurrentFact);
         Assert.Equal(orderBefore, session.SessionOrderCounter);
-        Assert.Equal(1, session.SessionCorrectCount);
-        Assert.Equal(1, session.SessionTotalCount);
-        Assert.Equal(1, session.Progression.PracticePosition);
-        Assert.Equal(1, itemStateAfterEvaluation.TotalAttempts);
+        Assert.Equal(0, session.SessionCorrectCount);
+        Assert.Equal(0, session.SessionTotalCount);
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.False(session.ItemStates.ContainsKey(factBefore.Id));
         Assert.Single(store.Commits);
 
         var recovered = await session.RecoverFromPersistenceFailureAsync();
@@ -113,9 +111,8 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(1, session.SessionTotalCount);
         Assert.Equal(1, session.Progression.PracticePosition);
-        Assert.Same(itemStateAfterEvaluation, session.ItemStates[factBefore.Id]);
         Assert.Equal(1, session.ItemStates[factBefore.Id].TotalAttempts);
-        Assert.Same(fsrsStateAfterEvaluation, session.FsrsStates[factBefore.Id]);
+        Assert.True(session.FsrsStates.ContainsKey(factBefore.Id));
 
         Assert.True(session.AdvanceAfterCorrectAnswer());
         Assert.Equal(orderBefore + 1, session.SessionOrderCounter);
@@ -187,13 +184,13 @@ public sealed class PersistenceRecoveryAndLifecycleTests
 
         Assert.Equal(PersistenceStatus.RevisionConflict, result.Status);
         Assert.Equal(SessionInteractionState.PersistenceFailure, session.InteractionState);
-        Assert.Equal(1, session.Progression.PracticePosition);
+        Assert.Equal(0, session.Progression.PracticePosition);
         Assert.Single(store.Commits);
 
         var recovered = await session.RecoverFromPersistenceFailureAsync();
 
         Assert.True(recovered);
-        Assert.Equal(2, store.LoadCount);
+        Assert.Equal(4, store.LoadCount);
         Assert.Single(store.Commits);
         Assert.Same(evaluation.ChangeSet, store.Commits[0]);
         Assert.Equal(0, session.Progression.PracticePosition);

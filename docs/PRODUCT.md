@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression and hybrid curriculum in Sections 4–8 are the accepted target product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md). The current native applications still implement learner Schema V4, the finite 418-fact catalog, global introduction lockstep, and the 12-attempt Mixed Checkpoint until MF-LEARN-001 implementation is completed.
+> The independent-operation progression and hybrid curriculum in Sections 4–8 are the accepted and implemented MF-LEARN-001 product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md). The current native applications implement learner Schema V5, independent operation progression, deterministic bounded selection, and transactional V4-to-V5 migration. Web runtime implementation remains deferred.
 
 ---
 
@@ -243,7 +243,7 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
 ### Local Persistence
 - Learning state, item histories, and progression milestones must persist reliably in local device storage.
 - Local persistence must survive application restarts, browser refreshes, and device reboots.
-- The shared Application layer owns persistence contracts and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V4 store and is registered by the native app through dependency injection.
+- The shared Application layer owns persistence contracts and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V5 store and is registered by the native app through dependency injection.
 
 ### Android Runtime and App-Data Location
 - The native MAUI application targets Android and Windows (`net10.0-android` and `net10.0-windows10.0.19041.0`); Web, iOS, and Mac Catalyst are not activated by the Android V1 runtime package.

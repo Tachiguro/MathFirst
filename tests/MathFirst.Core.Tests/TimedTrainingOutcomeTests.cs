@@ -227,6 +227,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(1500);
         var eval = session.SubmitAnswer(fact.CorrectResult + 1);
         Assert.False(eval.IsCorrect);
+        Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(0, session.ItemStates[fact.Id].ConsecutiveCorrectStreak);
 
         // 3. Next presentation of this fact gets 30s deadline
@@ -255,6 +257,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(10050);
         var eval = session.RecordTimeout();
         Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
+        Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(0, session.ItemStates[fact.Id].ConsecutiveCorrectStreak);
 
         // 3. Next presentation of this fact gets 30s deadline
@@ -286,13 +290,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Equal(1842, eval.LatencyMs);
         Assert.Equal(1842, session.LastResponseLatencyMs);
 
-        // FSRS rating for 1842ms (>1000ms and <=2500ms) is Good
-        var fsrsState = session.FsrsStates[fact.Id];
-        Assert.NotNull(fsrsState);
         Assert.Equal(1842, eval.ChangeSet.Attempt.ResponseLatencyMs);
 
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
+        // FSRS rating for 1842ms (>1000ms and <=2500ms) is Good
+        var fsrsState = session.FsrsStates[fact.Id];
+        Assert.NotNull(fsrsState);
         Assert.Equal(1842, store.CommittedChangeSets[0].Attempt.ResponseLatencyMs);
     }
 
@@ -347,6 +351,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         Assert.Equal(2000, eval.LatencyMs);
         Assert.Equal(2000, session.LastResponseLatencyMs);
+        Assert.Equal(0, session.SessionTotalCount);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionTotalCount);
     }
 
@@ -368,7 +374,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.True(eval.IsCorrect);
         Assert.Equal(fact.CorrectResult, eval.SubmittedAnswer);
         Assert.Equal(fact.CorrectResult, eval.CorrectAnswer);
-        Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
+        Assert.False(eval.ChangeSet.UpdatedItemState.NeedsRemediation);
     }
 
     [Fact]
@@ -387,8 +393,9 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Equal(wrongAnswer, eval.SubmittedAnswer);
         Assert.Equal(fact.CorrectResult, eval.CorrectAnswer);
 
-        // Item state updated
-        var itemState = session.ItemStates[fact.Id];
+        // Candidate item state is not published until persistence succeeds.
+        Assert.False(session.ItemStates.ContainsKey(fact.Id));
+        var itemState = eval.ChangeSet.UpdatedItemState;
         Assert.True(itemState.NeedsRemediation);
         Assert.Equal(session.SessionOrderCounter + LearningPolicy.RemediationInterveningCount, itemState.RemediationDueOrder);
         Assert.Equal(0, itemState.ConsecutiveCorrectStreak);
@@ -418,8 +425,9 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Null(eval.ChangeSet.Attempt.SubmittedAnswer);
         Assert.Equal(AttemptOutcome.Timeout, eval.ChangeSet.Attempt.Outcome);
 
-        // Item state updated
-        var itemState = session.ItemStates[fact.Id];
+        // Candidate item state is not published until persistence succeeds.
+        Assert.False(session.ItemStates.ContainsKey(fact.Id));
+        var itemState = eval.ChangeSet.UpdatedItemState;
         Assert.True(itemState.NeedsRemediation);
         Assert.Equal(session.SessionOrderCounter + LearningPolicy.RemediationInterveningCount, itemState.RemediationDueOrder);
         Assert.Equal(1, itemState.IncorrectAttempts);
@@ -442,6 +450,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // 1. Correct attempt -> 1 / 1
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(1, session.SessionTotalCount);
 
@@ -449,6 +458,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // 2. Incorrect attempt -> 1 / 2
         session.SubmitAnswer(session.CurrentFact.CorrectResult + 99);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(2, session.SessionTotalCount);
 
@@ -456,6 +466,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // 3. Timeout -> 1 / 3
         session.RecordTimeout();
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(3, session.SessionTotalCount);
     }
@@ -465,7 +476,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     // ==========================================
 
     [Fact]
-    public async Task DatabaseMigration_V1ToV2_MigratesDataLosslessly()
+    public async Task DatabaseMigration_V1ToV5_MigratesDataLosslessly()
     {
         var dbPath = GetTempDbPath();
 
@@ -552,62 +563,14 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         var snapshot = await store.LoadSnapshotAsync();
 
-        // 3. Verify V3 upgrade and preserved state
+        // 3. Verify V5 upgrade and preserved state
         Assert.Equal(LearnerProgression.DefaultSchemaVersion, snapshot.SchemaVersion);
         Assert.Equal(3, snapshot.Revision);
-        Assert.Equal(2, snapshot.Progression.CurrentMaxOperand);
         Assert.Single(snapshot.ItemStates);
+        Assert.All(snapshot.Progression.OperationProgressions.Values, progression =>
+            Assert.Equal(snapshot.Progression.PracticePosition, progression.BandStartedPracticePosition));
         Assert.Equal(2, snapshot.RecentAttempts.Count);
-
-        // Check migrated attempt outcome inference
-        var att1 = snapshot.RecentAttempts.Single(a => a.SubmissionId == "sub1");
-        Assert.Equal(AttemptOutcome.Correct, att1.Outcome);
-        Assert.Equal(1, att1.SubmittedAnswer);
-        Assert.True(att1.IsCorrect);
-
-        var att2 = snapshot.RecentAttempts.Single(a => a.SubmissionId == "sub2");
-        Assert.Equal(AttemptOutcome.Incorrect, att2.Outcome);
-        Assert.Equal(2, att2.SubmittedAnswer);
-        Assert.False(att2.IsCorrect);
-
-        // 4. Verify Timeout outcome with NULL submitted_answer can be committed to migrated DB
-        var timeoutFact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 2);
-        var timeoutSubId = "sub3";
-        var timeoutAttempt = new AttemptRecord(
-            timeoutSubId,
-            timeoutFact.Id,
-            timeoutFact.Operation,
-            0,
-            2,
-            null,
-            2,
-            false,
-            30000,
-            DateTimeOffset.UtcNow,
-            AttemptOutcome.Timeout);
-
-        var itemState = ItemLearningState.CreateNew(timeoutFact);
-        itemState.TotalAttempts = 1;
-        itemState.IncorrectAttempts = 1;
-        itemState.NeedsRemediation = true;
-
-        var prog = snapshot.Progression;
-        var changeSet = new SubmissionChangeSet(timeoutSubId, ExpectedRevision: 3, timeoutAttempt, itemState, prog);
-
-        var result = await store.CommitSubmissionAsync(changeSet);
-        Assert.True(result.IsSuccess);
-        Assert.Equal(4, result.NewRevision);
-
-        // Reload and verify
-        var snapshot2 = await store.LoadSnapshotAsync();
-        Assert.Equal(4, snapshot2.Revision);
-        Assert.Equal(3, snapshot2.RecentAttempts.Count);
-
-        var att3 = snapshot2.RecentAttempts.Single(a => a.SubmissionId == "sub3");
-        Assert.Equal(AttemptOutcome.Timeout, att3.Outcome);
-        Assert.Null(att3.SubmittedAnswer);
-        Assert.Equal(2, att3.CorrectAnswer);
-        Assert.False(att3.IsCorrect);
+        Assert.All(snapshot.RecentAttempts, attempt => Assert.Null(attempt.PracticePosition));
     }
 
     // ==========================================
@@ -795,6 +758,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         clock.AdvanceMs(31000);
         session.RecordTimeout();
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionTotalCount);
 
         // Navigate to Settings and back

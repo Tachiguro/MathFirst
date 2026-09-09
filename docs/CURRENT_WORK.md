@@ -11,13 +11,15 @@ This document provides operational context for the package currently in flight.
 
 - **Active Package ID**: `MF-LEARN-001`
 - **Title**: Independent Operation Progression and Open-Ended Fact Space
-- **Active Task Branch**: `docs/mf-learn-001-independent-progression`
+- **Active Task Branch**: `feat/mf-learn-001-independent-progression`
 - **Base Branch**: `main`
-- **Base Commit**: `83eae5203440c6bb7aeaa230a483be16544d0ddf`
-- **Current Lifecycle Mode**: `DOCUMENT_ONLY`
-- **Planning Status**: Two `PLAN_ONLY` design passes are complete, and the refined Hybrid curriculum architecture is approved.
-- **Documentation Status**: ADR-0003 and the reconciled product contract are being authored.
-- **Implementation Status**: Implementation has not begun. Learner Schema V5, independent progression, structured generators, ownership-aware frontiers, and the target selector policy are not implemented.
+- **Base Commit**: `223a75f76adeb81983f50162c0941f344848260a`
+- **Current Lifecycle Mode**: `FULL_VALIDATION` (current delivery gate; validation has not yet passed).
+- **Planning Status**: Complete; the refined Hybrid curriculum architecture is approved.
+- **Documentation Status**: Documentation reconciliation is complete for the approved implementation and recorded for the pending final validation gate.
+- **Implementation Status**: Complete on the local feature branch. Learner Schema V5, independent progression, structured generators, ownership-aware frontiers, deterministic bounded selection, and the target selector policy are implemented and reviewed.
+- **Review Status**: `REVIEW_APPROVED`; persistence integrity, publish-after-commit state, bounded runtime selection, and long-run/restart/migration coverage findings are resolved.
+- **Delivery Status**: Local-only. No push or Pull Request exists; the branch remains 11 commits ahead of `main`.
 - **Platform Status**: No Web work is active. Windows and Android remain the active native product priorities.
 - **Package Scope**:
   - Document independent Addition, Subtraction, Multiplication, and Division progression;
@@ -31,4 +33,12 @@ This document provides operational context for the package currently in flight.
 ## 2. Operational Rules
 
 1. **Subordinate Status**: If this file differs from the current branch, working tree, or GitHub state, live repository evidence is authoritative.
-2. **Lifecycle Isolation**: This package must complete `DOCUMENT_ONLY` and stop before `REVIEW_ONLY`; no staging, commit, push, PR, or implementation is part of the current invocation.
+2. **Lifecycle Isolation**: The candidate is at the `FULL_VALIDATION` delivery gate; validation must complete before `PUSH_ONLY`, and no push, PR, or merge is part of the current invocation.
+
+---
+
+## 3. Current Lifecycle Position
+
+- **Current Activity**: Candidate at the `FULL_VALIDATION` delivery gate; validation has not yet passed.
+- **Next Governed Activity**: `PUSH_ONLY` after successful `FULL_VALIDATION`.
+- **Later Lifecycle**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.

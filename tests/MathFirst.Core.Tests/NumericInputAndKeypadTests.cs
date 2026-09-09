@@ -244,8 +244,6 @@ public sealed class NumericInputAndKeypadTests : IDisposable
         var session = new TrainingSession(store);
         await session.InitializeAsync();
         var practicePosition = session.Progression.PracticePosition;
-        var checkpointAttemptCount = session.Progression.CheckpointAttemptCount;
-        var checkpointCorrectCount = session.Progression.CheckpointCorrectCount;
         var fsrsStateCount = session.FsrsStates.Count;
 
         var accepted = NumericAnswerInputPolicy.TryParseSubmission(invalidInput, out var parsed);
@@ -257,8 +255,6 @@ public sealed class NumericInputAndKeypadTests : IDisposable
         Assert.False(accepted);
         Assert.Equal(practicePosition, session.Progression.PracticePosition);
         Assert.Equal(0, session.SessionTotalCount);
-        Assert.Equal(checkpointAttemptCount, session.Progression.CheckpointAttemptCount);
-        Assert.Equal(checkpointCorrectCount, session.Progression.CheckpointCorrectCount);
         Assert.Equal(fsrsStateCount, session.FsrsStates.Count);
         Assert.Null(session.LastEvaluation);
         Assert.Empty((await store.LoadSnapshotAsync()).RecentAttempts);

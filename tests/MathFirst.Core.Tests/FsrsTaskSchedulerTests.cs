@@ -209,151 +209,6 @@ public sealed class FsrsTaskSchedulerTests : IDisposable
     }
 
     // =========================================================================
-    // 4. ADAPTIVE PRACTICE SELECTOR & 4-TIER PRIORITY TESTS
-    // =========================================================================
-
-    [Fact]
-    public void AdaptiveSelector_Tier1_SameSessionRemediation_PreemptsDueFsrsCards()
-    {
-        var rng = new Random(42);
-        var selector = new AdaptivePracticeSelector(rng);
-        var progression = new LearnerProgression { CurrentMaxOperand = 1 };
-        var facts = ArithmeticCatalog.GetAllFacts(1);
-
-        var itemStates = facts.ToDictionary(f => f.Id, f => ItemLearningState.CreateNew(f), StringComparer.Ordinal);
-        var fsrsStates = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
-
-        // Fact A has an overdue FSRS card (due at position 1, current is 10)
-        var factA = facts[0];
-        fsrsStates[factA.Id] = new FsrsCardState(
-            factA.Id, Guid.NewGuid(), State: 2, Step: null, Stability: 1.0, Difficulty: 5.0,
-            DuePracticePosition: 1, LastReviewPracticePosition: 1, LastRating: FsrsRating.Good);
-
-        // Fact B has due same-session remediation at session order 3
-        var factB = facts[1];
-        itemStates[factB.Id].NeedsRemediation = true;
-        itemStates[factB.Id].RemediationDueOrder = 3;
-
-        // Current session order = 3, current practice position = 10
-        selector.ResetLastSelected();
-        var selected = selector.SelectNextFact(progression, itemStates, fsrsStates, currentSessionOrder: 3, currentPracticePosition: 10);
-
-        Assert.Equal(factB.Id, selected.Id);
-    }
-
-    [Fact]
-    public void AdaptiveSelector_Tier2_IntroductionPhase_PreemptsDueFsrsCards()
-    {
-        var rng = new Random(42);
-        var selector = new AdaptivePracticeSelector(rng);
-        var progression = LearnerProgression.CreateFresh(); // Addition 0..1 introduction
-        var facts = ArithmeticCatalog.GetAllFacts(1);
-
-        var itemStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
-        var fsrsStates = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
-
-        // First 2 addition facts have total attempts > 0 and overdue FSRS cards
-        var fact1 = facts[0];
-        var fact2 = facts[1];
-        itemStates[fact1.Id] = ItemLearningState.CreateNew(fact1); itemStates[fact1.Id].TotalAttempts = 1;
-        itemStates[fact2.Id] = ItemLearningState.CreateNew(fact2); itemStates[fact2.Id].TotalAttempts = 1;
-
-        fsrsStates[fact1.Id] = new FsrsCardState(fact1.Id, Guid.NewGuid(), 2, null, 1.0, 5.0, DuePracticePosition: 1, 1, FsrsRating.Good);
-        fsrsStates[fact2.Id] = new FsrsCardState(fact2.Id, Guid.NewGuid(), 2, null, 1.0, 5.0, DuePracticePosition: 1, 1, FsrsRating.Good);
-
-        // Facts 3 and 4 in Addition 0..1 are still unexposed
-        selector.ResetLastSelected();
-        var selected = selector.SelectNextFact(progression, itemStates, fsrsStates, currentSessionOrder: 3, currentPracticePosition: 10);
-
-        // Must select one of the unexposed introduction facts (not the overdue FSRS cards)
-        var unexposedIds = facts.Where(f => f.Operation == ArithmeticOperation.Addition && !itemStates.ContainsKey(f.Id)).Select(f => f.Id).ToHashSet();
-        Assert.Contains(selected.Id, unexposedIds);
-    }
-
-    [Fact]
-    public void AdaptiveSelector_Tier3_DueFsrsCards_PrioritizesMostOverdueCard()
-    {
-        var rng = new Random(42);
-        var selector = new AdaptivePracticeSelector(rng);
-        var progression = new LearnerProgression
-        {
-            OperationMaxOperands = new Dictionary<ArithmeticOperation, int>
-            {
-                [ArithmeticOperation.Addition] = 10,
-                [ArithmeticOperation.Subtraction] = 10,
-                [ArithmeticOperation.Multiplication] = 10,
-                [ArithmeticOperation.Division] = 10
-            }
-        };
-        var facts = ArithmeticCatalog.GetActiveFacts(progression);
-        var itemStates = facts.ToDictionary(f => f.Id, f =>
-        {
-            var st = ItemLearningState.CreateNew(f);
-            st.TotalAttempts = 1;
-            return st;
-        }, StringComparer.Ordinal);
-
-        var fsrsStates = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
-
-        // Card A: Due at 8 (overdue by 2 at pos 10)
-        var cardA = facts[0];
-        fsrsStates[cardA.Id] = new FsrsCardState(cardA.Id, Guid.NewGuid(), 2, null, 2.0, 4.0, DuePracticePosition: 8, 5, FsrsRating.Good);
-
-        // Card B: Due at 3 (overdue by 7 at pos 10 - MOST OVERDUE)
-        var cardB = facts[1];
-        fsrsStates[cardB.Id] = new FsrsCardState(cardB.Id, Guid.NewGuid(), 2, null, 2.0, 4.0, DuePracticePosition: 3, 1, FsrsRating.Good);
-
-        // Card C: Due at 15 (not due yet at pos 10)
-        var cardC = facts[2];
-        fsrsStates[cardC.Id] = new FsrsCardState(cardC.Id, Guid.NewGuid(), 2, null, 5.0, 3.0, DuePracticePosition: 15, 6, FsrsRating.Easy);
-
-        selector.ResetLastSelected();
-        var selected = selector.SelectNextFact(progression, itemStates, fsrsStates, currentSessionOrder: 10, currentPracticePosition: 10);
-
-        Assert.Equal(cardB.Id, selected.Id);
-    }
-
-    [Fact]
-    public void AdaptiveSelector_Tier4_NoDueCards_SurfacesEarliestUpcomingDueCard()
-    {
-        var rng = new Random(42);
-        var selector = new AdaptivePracticeSelector(rng);
-        var progression = new LearnerProgression
-        {
-            OperationMaxOperands = new Dictionary<ArithmeticOperation, int>
-            {
-                [ArithmeticOperation.Addition] = 10,
-                [ArithmeticOperation.Subtraction] = 10,
-                [ArithmeticOperation.Multiplication] = 10,
-                [ArithmeticOperation.Division] = 10
-            },
-            CompletedCheckpointLevel = 10
-        };
-        var facts = ArithmeticCatalog.GetActiveFacts(progression);
-        var itemStates = facts.ToDictionary(f => f.Id, f =>
-        {
-            var st = ItemLearningState.CreateNew(f);
-            st.TotalAttempts = 2;
-            return st;
-        }, StringComparer.Ordinal);
-
-        // All cards are in the future (none due at pos 5)
-        var fsrsStates = facts.ToDictionary(f => f.Id, f =>
-            new FsrsCardState(f.Id, Guid.NewGuid(), 2, null, 5.0, 3.0, DuePracticePosition: 20, 1, FsrsRating.Good),
-            StringComparer.Ordinal);
-
-        // Set one card to have the earliest upcoming due position (Due at 12)
-        var earliestFact = facts[3];
-        fsrsStates[earliestFact.Id] = new FsrsCardState(
-            earliestFact.Id, Guid.NewGuid(), 2, null, 2.0, 5.0, DuePracticePosition: 12, 1, FsrsRating.Good);
-
-        selector.ResetLastSelected();
-        var selected = selector.SelectNextFact(progression, itemStates, fsrsStates, currentSessionOrder: 5, currentPracticePosition: 5);
-
-        Assert.Equal(earliestFact.Id, selected.Id);
-    }
-
-    // =========================================================================
     // 5. SESSION ENGINE END-TO-END FSRS INTEGRATION
     // =========================================================================
 
@@ -624,7 +479,7 @@ public sealed class FsrsTaskSchedulerTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId1 = Guid.NewGuid().ToString("N");
-        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow);
+        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState1 = ItemLearningState.CreateNew(fact);
         var prog1 = LearnerProgression.CreateFresh();
         prog1.PracticePosition = 1;
@@ -654,7 +509,7 @@ public sealed class FsrsTaskSchedulerTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState = ItemLearningState.CreateNew(fact);
         var prog = LearnerProgression.CreateFresh();
         prog.PracticePosition = 1;

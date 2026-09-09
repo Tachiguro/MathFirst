@@ -11,8 +11,7 @@ public sealed record SubmissionEvaluation(
     long LatencyMs,
     SubmissionChangeSet ChangeSet,
     bool IsProvisionallyMastered,
-    bool RangeUnlocked,
-    bool OperationUnlocked)
+    bool OperationAdvanced)
 {
     public decimal? SubmittedNumericAnswer { get; init; }
 
@@ -22,8 +21,7 @@ public sealed record SubmissionEvaluation(
         long latencyMs,
         SubmissionChangeSet changeSet,
         bool isProvisionallyMastered,
-        bool rangeUnlocked,
-        bool operationUnlocked)
+        bool operationAdvanced)
         : this(
             isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect,
             isCorrect,
@@ -32,8 +30,7 @@ public sealed record SubmissionEvaluation(
             latencyMs,
             changeSet,
             isProvisionallyMastered,
-            rangeUnlocked,
-            operationUnlocked)
+            operationAdvanced)
     {
     }
 }

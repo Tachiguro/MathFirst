@@ -76,9 +76,8 @@ public sealed class ResetWorkflowTests : IDisposable
         // Perform learning reset
         await session.ResetLearningProgressAsync();
 
-        // Verify DB was reset to Addition 0..1
-        Assert.Equal(ArithmeticOperation.Addition, session.Progression.CurrentOperation);
-        Assert.Equal(1, session.Progression.CurrentMaxOperand);
+        // Verify DB was reset to the initial V5 operation bands.
+        Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(session.ItemStates);
 
         // Verify UI preferences and onboarding were PRESERVED
@@ -149,8 +148,7 @@ public sealed class ResetWorkflowTests : IDisposable
         prefs.ResetAllPreferences();
 
         // Verify DB reset
-        Assert.Equal(ArithmeticOperation.Addition, session.Progression.CurrentOperation);
-        Assert.Equal(1, session.Progression.CurrentMaxOperand);
+        Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(session.ItemStates);
 
         // Verify Prefs reset

@@ -19,24 +19,28 @@ public sealed record ArithmeticFact
         (Id, DisplaySymbol, CorrectResult) = operation switch
         {
             ArithmeticOperation.Addition => (
-                $"add:{leftOperand}+{rightOperand}",
+                $"add:{RequireNonNegative(leftOperand, nameof(leftOperand))}+{RequireNonNegative(rightOperand, nameof(rightOperand))}",
                 "+",
-                leftOperand + rightOperand
+                checked(leftOperand + rightOperand)
             ),
             ArithmeticOperation.Subtraction => (
-                $"sub:{leftOperand}-{rightOperand}",
+                $"sub:{RequireNonNegative(leftOperand, nameof(leftOperand))}-{RequireNonNegative(rightOperand, nameof(rightOperand))}",
                 "\u2212",
-                leftOperand - rightOperand
+                leftOperand < rightOperand
+                    ? throw new ArgumentException("Subtraction facts must have a non-negative result.", nameof(rightOperand))
+                    : checked(leftOperand - rightOperand)
             ),
             ArithmeticOperation.Multiplication => (
-                $"mul:{leftOperand}*{rightOperand}",
+                $"mul:{RequireNonNegative(leftOperand, nameof(leftOperand))}*{RequireNonNegative(rightOperand, nameof(rightOperand))}",
                 "\u00D7",
-                leftOperand * rightOperand
+                checked(leftOperand * rightOperand)
             ),
             ArithmeticOperation.Division => (
-                $"div:{leftOperand}/{rightOperand}",
+                $"div:{RequireNonNegative(leftOperand, nameof(leftOperand))}/{RequirePositive(rightOperand, nameof(rightOperand))}",
                 "\u00F7",
-                rightOperand == 0 ? throw new DivideByZeroException("Division by zero is not permitted in arithmetic facts.") : leftOperand / rightOperand
+                leftOperand % rightOperand != 0
+                    ? throw new ArgumentException("Division facts must have an exact integer result.", nameof(leftOperand))
+                    : checked(leftOperand / rightOperand)
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown arithmetic operation.")
         };
@@ -48,4 +52,14 @@ public sealed record ArithmeticFact
         new(operation, leftOperand, rightOperand);
 
     public override string ToString() => ExpressionText;
+
+    private static int RequireNonNegative(int value, string parameterName) =>
+        value >= 0
+            ? value
+            : throw new ArgumentOutOfRangeException(parameterName, value, "Arithmetic fact operands must be non-negative.");
+
+    private static int RequirePositive(int value, string parameterName) =>
+        value > 0
+            ? value
+            : throw new ArgumentOutOfRangeException(parameterName, value, "Division facts require a positive divisor.");
 }

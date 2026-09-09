@@ -6,7 +6,8 @@ public enum PersistenceStatus
     RevisionConflict = 2,
     SchemaVersionMismatch = 3,
     Corrupted = 4,
-    StorageUnavailable = 5
+    StorageUnavailable = 5,
+    InvalidSubmission = 6
 }
 
 public sealed record PersistenceResult(
@@ -30,4 +31,7 @@ public sealed record PersistenceResult(
 
     public static PersistenceResult Unavailable(string message) =>
         new(PersistenceStatus.StorageUnavailable, Message: message);
+
+    public static PersistenceResult InvalidSubmission(string message) =>
+        new(PersistenceStatus.InvalidSubmission, Message: message);
 }
