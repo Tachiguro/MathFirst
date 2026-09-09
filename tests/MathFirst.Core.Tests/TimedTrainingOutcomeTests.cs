@@ -227,6 +227,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(1500);
         var eval = session.SubmitAnswer(fact.CorrectResult + 1);
         Assert.False(eval.IsCorrect);
+        Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(0, session.ItemStates[fact.Id].ConsecutiveCorrectStreak);
 
         // 3. Next presentation of this fact gets 30s deadline
@@ -255,6 +257,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(10050);
         var eval = session.RecordTimeout();
         Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
+        Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(0, session.ItemStates[fact.Id].ConsecutiveCorrectStreak);
 
         // 3. Next presentation of this fact gets 30s deadline
@@ -286,13 +290,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Equal(1842, eval.LatencyMs);
         Assert.Equal(1842, session.LastResponseLatencyMs);
 
-        // FSRS rating for 1842ms (>1000ms and <=2500ms) is Good
-        var fsrsState = session.FsrsStates[fact.Id];
-        Assert.NotNull(fsrsState);
         Assert.Equal(1842, eval.ChangeSet.Attempt.ResponseLatencyMs);
 
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
+        // FSRS rating for 1842ms (>1000ms and <=2500ms) is Good
+        var fsrsState = session.FsrsStates[fact.Id];
+        Assert.NotNull(fsrsState);
         Assert.Equal(1842, store.CommittedChangeSets[0].Attempt.ResponseLatencyMs);
     }
 
@@ -347,6 +351,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         Assert.Equal(2000, eval.LatencyMs);
         Assert.Equal(2000, session.LastResponseLatencyMs);
+        Assert.Equal(0, session.SessionTotalCount);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionTotalCount);
     }
 
@@ -368,7 +374,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.True(eval.IsCorrect);
         Assert.Equal(fact.CorrectResult, eval.SubmittedAnswer);
         Assert.Equal(fact.CorrectResult, eval.CorrectAnswer);
-        Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
+        Assert.False(eval.ChangeSet.UpdatedItemState.NeedsRemediation);
     }
 
     [Fact]
@@ -387,8 +393,9 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Equal(wrongAnswer, eval.SubmittedAnswer);
         Assert.Equal(fact.CorrectResult, eval.CorrectAnswer);
 
-        // Item state updated
-        var itemState = session.ItemStates[fact.Id];
+        // Candidate item state is not published until persistence succeeds.
+        Assert.False(session.ItemStates.ContainsKey(fact.Id));
+        var itemState = eval.ChangeSet.UpdatedItemState;
         Assert.True(itemState.NeedsRemediation);
         Assert.Equal(session.SessionOrderCounter + LearningPolicy.RemediationInterveningCount, itemState.RemediationDueOrder);
         Assert.Equal(0, itemState.ConsecutiveCorrectStreak);
@@ -418,8 +425,9 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Null(eval.ChangeSet.Attempt.SubmittedAnswer);
         Assert.Equal(AttemptOutcome.Timeout, eval.ChangeSet.Attempt.Outcome);
 
-        // Item state updated
-        var itemState = session.ItemStates[fact.Id];
+        // Candidate item state is not published until persistence succeeds.
+        Assert.False(session.ItemStates.ContainsKey(fact.Id));
+        var itemState = eval.ChangeSet.UpdatedItemState;
         Assert.True(itemState.NeedsRemediation);
         Assert.Equal(session.SessionOrderCounter + LearningPolicy.RemediationInterveningCount, itemState.RemediationDueOrder);
         Assert.Equal(1, itemState.IncorrectAttempts);
@@ -442,6 +450,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // 1. Correct attempt -> 1 / 1
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(1, session.SessionTotalCount);
 
@@ -449,6 +458,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // 2. Incorrect attempt -> 1 / 2
         session.SubmitAnswer(session.CurrentFact.CorrectResult + 99);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(2, session.SessionTotalCount);
 
@@ -456,6 +466,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // 3. Timeout -> 1 / 3
         session.RecordTimeout();
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionCorrectCount);
         Assert.Equal(3, session.SessionTotalCount);
     }
@@ -747,6 +758,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         clock.AdvanceMs(31000);
         session.RecordTimeout();
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
+        await session.CommitCurrentEvaluationAsync();
         Assert.Equal(1, session.SessionTotalCount);
 
         // Navigate to Settings and back

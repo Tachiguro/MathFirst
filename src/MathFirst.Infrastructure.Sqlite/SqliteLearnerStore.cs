@@ -227,18 +227,36 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 return PersistenceResult.UnsupportedVersion($"Unsupported schema version {version}.");
             }
 
+            // A known submission ID is a committed replay even when its original revision and
+            // position are stale relative to the current durable state.
+            var alreadyCommitted = await IsSubmissionCommittedInTxAsync(transaction, changeSet.SubmissionId, cancellationToken).ConfigureAwait(false);
+            if (alreadyCommitted)
+            {
+                transaction.Commit();
+                return PersistenceResult.Success(revision);
+            }
+
             if (revision != changeSet.ExpectedRevision)
             {
-                // Check if this submission was already committed (idempotency)
-                var alreadyCommitted = await IsSubmissionCommittedInTxAsync(transaction, changeSet.SubmissionId, cancellationToken).ConfigureAwait(false);
-                if (alreadyCommitted)
-                {
-                    transaction.Commit();
-                    return PersistenceResult.Success(revision);
-                }
-
                 transaction.Rollback();
                 return PersistenceResult.Conflict($"Revision conflict: expected {changeSet.ExpectedRevision} but database is at revision {revision}.");
+            }
+
+            try
+            {
+                var storedPracticePosition = await ReadPracticePositionInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
+                var storedOperationProgressions = await ReadOperationProgressionsInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
+                ValidateNewAcceptedSubmission(changeSet, storedPracticePosition, storedOperationProgressions);
+            }
+            catch (InvalidOperationException ex)
+            {
+                transaction.Rollback();
+                return PersistenceResult.InvalidSubmission(ex.Message);
+            }
+            catch (OverflowException ex)
+            {
+                transaction.Rollback();
+                return PersistenceResult.InvalidSubmission(ex.Message);
             }
 
             // 1. Record Attempt
@@ -582,6 +600,111 @@ public sealed class SqliteLearnerStore : ILearnerStore
         return result != null;
     }
 
+    private static async Task<long> ReadPracticePositionInTxAsync(
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var command = transaction.Connection!.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT practice_position FROM learner_progression WHERE id = 1;";
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return result is null or DBNull ? 0 : Convert.ToInt64(result);
+    }
+
+    private static async Task<IReadOnlyDictionary<ArithmeticOperation, OperationProgression>> ReadOperationProgressionsInTxAsync(
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<ArithmeticOperation, OperationProgression>();
+        var command = transaction.Connection!.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT operation, band_index, band_started_practice_position FROM operation_progression;";
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (!Enum.TryParse<ArithmeticOperation>(reader.GetString(0), out var operation))
+            {
+                throw new InvalidOperationException("Stored operation progression has an unknown operation.");
+            }
+
+            result.Add(operation, new OperationProgression(operation, reader.GetInt32(1), reader.GetInt64(2)));
+        }
+
+        return result;
+    }
+
+    private static void ValidateNewAcceptedSubmission(
+        SubmissionChangeSet changeSet,
+        long storedPracticePosition,
+        IReadOnlyDictionary<ArithmeticOperation, OperationProgression> storedOperationProgressions)
+    {
+        var attemptPracticePosition = changeSet.Attempt.PracticePosition
+            ?? throw new InvalidOperationException("New Schema V5 submissions require a practice position.");
+        var requiredPracticePosition = checked(storedPracticePosition + 1);
+        if (attemptPracticePosition != requiredPracticePosition)
+        {
+            throw new InvalidOperationException($"Expected next practice position {requiredPracticePosition}, but received {attemptPracticePosition}.");
+        }
+
+        if (changeSet.UpdatedProgression.PracticePosition != attemptPracticePosition)
+        {
+            throw new InvalidOperationException("Updated learner progression practice position must match the accepted attempt.");
+        }
+
+        var scheduledOperation = new[]
+        {
+            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
+            ArithmeticOperation.Multiplication,
+            ArithmeticOperation.Division
+        }[(int)((attemptPracticePosition - 1) % 4)];
+        if (changeSet.Attempt.Operation != scheduledOperation)
+        {
+            throw new InvalidOperationException($"Practice position {attemptPracticePosition} requires {scheduledOperation}, but the attempt is {changeSet.Attempt.Operation}.");
+        }
+
+        var candidateOperationProgressions = ResolveOperationProgressions(changeSet);
+        ValidateOperationProgressions(storedOperationProgressions, changeSet.Attempt.Operation, storedPracticePosition);
+        ValidateOperationProgressions(candidateOperationProgressions, changeSet.Attempt.Operation, attemptPracticePosition);
+        ValidateOperationProgressions(changeSet.UpdatedProgression.OperationProgressions, changeSet.Attempt.Operation, attemptPracticePosition);
+
+        foreach (var operation in Enum.GetValues<ArithmeticOperation>())
+        {
+            var stored = storedOperationProgressions[operation];
+            var candidate = candidateOperationProgressions[operation];
+            var progressionCandidate = changeSet.UpdatedProgression.OperationProgressions[operation];
+            if (candidate != progressionCandidate)
+            {
+                throw new InvalidOperationException("Normalized operation progression must match the updated learner progression.");
+            }
+
+            if (candidate.BandIndex < stored.BandIndex || candidate.BandIndex > stored.BandIndex + 1)
+            {
+                throw new InvalidOperationException("Operation band index may advance by at most one and may not regress.");
+            }
+
+            if (operation != scheduledOperation)
+            {
+                if (candidate != stored)
+                {
+                    throw new InvalidOperationException("Only the scheduled operation may change progression.");
+                }
+
+                continue;
+            }
+
+            if (candidate.BandIndex == stored.BandIndex && candidate.BandStartedPracticePosition != stored.BandStartedPracticePosition)
+            {
+                throw new InvalidOperationException("A non-advancing scheduled operation must preserve its band start position.");
+            }
+
+            if (candidate.BandIndex == stored.BandIndex + 1 && candidate.BandStartedPracticePosition != attemptPracticePosition)
+            {
+                throw new InvalidOperationException("An advancing scheduled operation must start its new band at the accepted practice position.");
+            }
+        }
+    }
+
     private static void ValidateOperationProgressions(
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression> progressions,
         ArithmeticOperation attemptOperation,
@@ -603,7 +726,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
     private static IReadOnlyDictionary<ArithmeticOperation, OperationProgression> ResolveOperationProgressions(SubmissionChangeSet changeSet)
     {
-        return changeSet.OperationProgressions ?? changeSet.UpdatedProgression.OperationProgressions;
+        return changeSet.OperationProgressions;
     }
 
     private static async Task CreateV5AttemptIndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)

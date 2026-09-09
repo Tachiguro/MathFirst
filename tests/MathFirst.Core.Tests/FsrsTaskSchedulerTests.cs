@@ -479,7 +479,7 @@ public sealed class FsrsTaskSchedulerTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId1 = Guid.NewGuid().ToString("N");
-        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow);
+        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState1 = ItemLearningState.CreateNew(fact);
         var prog1 = LearnerProgression.CreateFresh();
         prog1.PracticePosition = 1;
@@ -509,7 +509,7 @@ public sealed class FsrsTaskSchedulerTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState = ItemLearningState.CreateNew(fact);
         var prog = LearnerProgression.CreateFresh();
         prog.PracticePosition = 1;

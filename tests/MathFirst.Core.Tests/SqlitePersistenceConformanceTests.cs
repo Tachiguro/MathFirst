@@ -58,7 +58,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
 
         var itemState = ItemLearningState.CreateNew(fact);
         itemState.TotalAttempts = 1;
@@ -67,6 +67,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         itemState.LastLatencyMs = 1200;
 
         var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
 
         var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, progression);
 
@@ -93,9 +94,10 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId1 = Guid.NewGuid().ToString("N");
-        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow);
+        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState1 = ItemLearningState.CreateNew(fact);
         var prog1 = LearnerProgression.CreateFresh();
+        prog1.PracticePosition = 1;
 
         var changeSet1 = new SubmissionChangeSet(subId1, ExpectedRevision: 1, attempt1, itemState1, prog1);
         var res1 = await store.CommitSubmissionAsync(changeSet1);
@@ -121,9 +123,10 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState = ItemLearningState.CreateNew(fact);
         var prog = LearnerProgression.CreateFresh();
+        prog.PracticePosition = 1;
 
         var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, prog);
 
@@ -180,7 +183,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         using (var store = new SqliteLearnerStore(dbPath))
         {
             await store.InitializeAsync();
-            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1300, DateTimeOffset.UtcNow);
+            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1300, DateTimeOffset.UtcNow, practicePosition: 1);
             var itemState = ItemLearningState.CreateNew(fact);
             itemState.TotalAttempts = 5;
             itemState.CorrectAttempts = 5;
@@ -189,6 +192,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
             itemState.LastLatencyMs = 1300;
 
             var prog = LearnerProgression.CreateFresh();
+            prog.PracticePosition = 1;
 
             var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, prog);
             await store.CommitSubmissionAsync(changeSet);
@@ -218,9 +222,10 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState = ItemLearningState.CreateNew(fact);
         var prog = LearnerProgression.CreateFresh();
+        prog.PracticePosition = 1;
 
         var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, prog);
         await store.CommitSubmissionAsync(changeSet);
@@ -244,17 +249,12 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
             await store.InitializeAsync();
 
             var prog = LearnerProgression.CreateFresh();
-            prog.OperationProgressions = new Dictionary<ArithmeticOperation, OperationProgression>
-            {
-                [ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, 4, 20),
-                [ArithmeticOperation.Subtraction] = new(ArithmeticOperation.Subtraction, 3, 16),
-                [ArithmeticOperation.Multiplication] = new(ArithmeticOperation.Multiplication, 2, 12),
-                [ArithmeticOperation.Division] = new(ArithmeticOperation.Division, 1, 8)
-            };
+            prog.PracticePosition = 1;
+            prog.OperationProgressions[ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, 1, 1);
 
             var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
             var subId = Guid.NewGuid().ToString("N");
-            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow);
+            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
             var itemState = ItemLearningState.CreateNew(fact);
 
             var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, prog);
@@ -267,10 +267,11 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
             await storeReopened.InitializeAsync();
             var snapshot = await storeReopened.LoadSnapshotAsync();
 
-            Assert.Equal(4, snapshot.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-            Assert.Equal(3, snapshot.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
-            Assert.Equal(2, snapshot.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-            Assert.Equal(1, snapshot.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
+            Assert.Equal(1, snapshot.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+            Assert.Equal(1, snapshot.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
+            Assert.All(
+                Enum.GetValues<ArithmeticOperation>().Where(operation => operation != ArithmeticOperation.Addition),
+                operation => Assert.Equal(0, snapshot.Progression.OperationProgressions[operation].BandIndex));
         }
     }
 }
