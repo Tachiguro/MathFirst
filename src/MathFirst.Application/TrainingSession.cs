@@ -28,6 +28,7 @@ public sealed class TrainingSession
     private readonly ArithmeticCurriculum _curriculum = new();
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
     private List<AttemptRecord> _recentAttempts = [];
+    private PracticeSelectionEvidence? _selectionEvidence;
 
     public event EventHandler? AppForegroundStateChanged;
 
@@ -70,14 +71,8 @@ public sealed class TrainingSession
         bool startTiming = true)
     {
         await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        var snapshot = await _store.LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-        Progression = snapshot.Progression;
-        ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
-        _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
-        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions)
-            .ToDictionary(pair => pair.Key, pair => pair.Value);
-        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
+        var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        ApplyRuntimeSnapshot(snapshot);
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
@@ -86,6 +81,7 @@ public sealed class TrainingSession
         _requiresBackgroundResumeAfterAdvance = false;
         IsInitialized = true;
 
+        await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming);
     }
 
@@ -319,31 +315,25 @@ public sealed class TrainingSession
         var isCorrect = (outcome == AttemptOutcome.Correct);
 
         var candidateProgression = CloneProgression(Progression);
-        var candidateItemStates = ItemStates.ToDictionary(
-            pair => pair.Key,
-            pair => CloneItemState(pair.Value),
-            StringComparer.Ordinal);
-        var candidateFsrsStates = _fsrsStates.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         var practicePosition = checked(candidateProgression.PracticePosition + 1);
         candidateProgression.PracticePosition = practicePosition;
 
         // 3. Update FSRS card state
         var rating = FsrsRatingMapper.MapRating(outcome, elapsedMs, LearningPolicy.DefaultEasyResponseThresholdMs, _fluentThresholdMs);
-        candidateFsrsStates.TryGetValue(CurrentFact.Id, out var existingFsrsState);
+        _fsrsStates.TryGetValue(CurrentFact.Id, out var existingFsrsState);
         var updatedFsrsState = _fsrsScheduler.ReviewCard(
             existingFsrsState,
             CurrentFact.Id,
             rating,
             practicePosition,
             elapsedMs);
-        candidateFsrsStates[CurrentFact.Id] = updatedFsrsState;
 
         // 4. Update ItemLearningState
-        if (!candidateItemStates.TryGetValue(CurrentFact.Id, out var itemState))
+        if (!ItemStates.TryGetValue(CurrentFact.Id, out var currentItemState))
         {
-            itemState = ItemLearningState.CreateNew(CurrentFact);
-            candidateItemStates[CurrentFact.Id] = itemState;
+            currentItemState = ItemLearningState.CreateNew(CurrentFact);
         }
+        var itemState = CloneItemState(currentItemState);
 
         itemState.TotalAttempts++;
         itemState.LastLatencyMs = elapsedMs;
@@ -394,12 +384,18 @@ public sealed class TrainingSession
         var currentBandIntroductions = operationAttempts
             .Where(evidence => evidence.PracticePosition > currentOperationProgression.BandStartedPracticePosition && ownedFactIds.Contains(evidence.FactId))
             .Select(evidence => evidence.FactId);
+        var lifetimeAttemptedFactIds = _selectionEvidence?.CurrentBandCandidates
+            .Where(candidate => candidate.ItemState.TotalAttempts > 0)
+            .Select(candidate => candidate.Fact.Id)
+            .Append(itemState.TotalAttempts > 0 ? itemState.FactId : string.Empty)
+            .Where(factId => !string.IsNullOrEmpty(factId))
+            ?? [];
         var advancement = _bandAdvancementEvaluator.Evaluate(
             currentOperationProgression,
             operationCurriculum,
             new BandAdvancementEvidence(
                 operationAttempts,
-                candidateItemStates.Values.Where(state => state.TotalAttempts > 0).Select(state => state.FactId),
+                lifetimeAttemptedFactIds,
                 currentBandIntroductions));
         operationProgressions[CurrentFact.Operation] = advancement.ResultingProgression;
         candidateProgression.OperationProgressions = operationProgressions;
@@ -467,6 +463,7 @@ public sealed class TrainingSession
             LastResponseLatencyMs = LastEvaluation.LatencyMs;
             Progression.StoreRevision = result.NewRevision.Value;
             _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
+            await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
             InteractionState = LastEvaluation.Outcome switch
             {
                 AttemptOutcome.Correct => SessionInteractionState.CorrectFeedback,
@@ -504,33 +501,31 @@ public sealed class TrainingSession
 
     private async Task ReloadAuthoritativeStateAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await _store.LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-        Progression = snapshot.Progression;
-        ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
-        _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
-        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions).ToDictionary(pair => pair.Key, pair => pair.Value);
-        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
+        var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        ApplyRuntimeSnapshot(snapshot);
         SessionCorrectCount = _sessionCorrectCountBeforePendingEvaluation;
         SessionTotalCount = _sessionTotalCountBeforePendingEvaluation;
         LastResponseLatencyMs = _lastResponseLatencyBeforePendingEvaluation;
         LastEvaluation = null;
         LastPersistenceResult = null;
+        await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming: true);
     }
 
     public void AdvanceToNextFact(bool startTiming = true)
     {
+        if (_selectionEvidence is null)
+        {
+            throw new InvalidOperationException("Bounded selection evidence must be loaded before advancing the session.");
+        }
+
         SessionOrderCounter++;
-        var materializedFacts = ItemStates.Values
-            .Select(state => new ArithmeticFact(state.Operation, state.LeftOperand, state.RightOperand))
-            .ToArray();
         var context = new PracticeSelectionContext(
             checked(Progression.PracticePosition + 1),
             SessionOrderCounter,
             Progression.OperationProgressions,
             Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, operation => _curriculum.GetCurriculum(operation)),
-            new PracticeCandidateIndex(materializedFacts, ItemStates, _fsrsStates),
+            new PracticeCandidateIndex(_selectionEvidence),
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)));
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         ItemReadyTimestamp = _clock.GetTimestamp();
@@ -571,20 +566,61 @@ public sealed class TrainingSession
     {
         var shouldStartTiming = startTiming ?? _isTimingActive;
         await _store.ResetLearningProgressAsync(cancellationToken).ConfigureAwait(false);
-        var snapshot = await _store.LoadSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-        Progression = snapshot.Progression;
-        ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
-        _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
-        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions).ToDictionary(pair => pair.Key, pair => pair.Value);
-        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
+        var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        ApplyRuntimeSnapshot(snapshot);
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         SessionOrderCounter = 0;
         LastResponseLatencyMs = 0;
         LastPersistenceResult = null;
         _requiresBackgroundResumeAfterAdvance = false;
+        await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(shouldStartTiming);
+    }
+
+    private void ApplyRuntimeSnapshot(LearnerSnapshot snapshot)
+    {
+        Progression = snapshot.Progression;
+        ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
+        Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
+        _selectionEvidence = null;
+    }
+
+    private async Task LoadNextSelectionEvidenceAsync(CancellationToken cancellationToken)
+    {
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var operation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition);
+        var progression = Progression.OperationProgressions[operation];
+        var curriculum = _curriculum.GetCurriculum(operation);
+        if (!curriculum.TryGetBand(progression.BandIndex, out var band))
+        {
+            throw new InvalidOperationException("The current target curriculum band is unavailable.");
+        }
+
+        var ownership = new AcquisitionOwnershipResolver(curriculum);
+        var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
+        var introductionFrontier = band!.Kind == CurriculumBandKind.Structured
+            ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
+            : ownedFrontier;
+        var request = new PracticeSelectionEvidenceRequest(
+            operation,
+            prospectivePosition,
+            checked(SessionOrderCounter + 1),
+            ownedFrontier,
+            introductionFrontier);
+        _selectionEvidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
+        foreach (var (factId, state) in _selectionEvidence.ItemStates)
+        {
+            ItemStates[factId] = CloneItemState(state);
+        }
+
+        foreach (var (factId, state) in _selectionEvidence.FsrsStates)
+        {
+            _fsrsStates[factId] = state;
+        }
     }
 
     private static LearnerProgression CloneProgression(LearnerProgression source) => new()

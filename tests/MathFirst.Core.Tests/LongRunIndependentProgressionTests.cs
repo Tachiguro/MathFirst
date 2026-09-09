@@ -6,11 +6,72 @@ using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 using MathFirst.Infrastructure.Sqlite;
 using Microsoft.Data.Sqlite;
 
 public sealed class LongRunIndependentProgressionTests
 {
+    [Fact]
+    public async Task PersistedSession_LoadsBoundedSelectionStateInsteadOfAllHistoricalCards()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "MathFirstBoundedSelectionRed_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "learner.db");
+        try
+        {
+            using (var store = new SqliteLearnerStore(path))
+            {
+                var session = new TrainingSession(store);
+                await session.InitializeAsync(startTiming: false);
+                for (var position = 1; position <= 500; position++)
+                {
+                    var fact = session.CurrentFact;
+                    session.SubmitAnswer(fact.CorrectResult);
+                    Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+                    Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                }
+            }
+
+            await SeedHistoricalMaterializationAsync(path, 800);
+
+            using var reopened = new SqliteLearnerStore(path);
+            var reopenedSession = new TrainingSession(reopened);
+            await reopenedSession.InitializeAsync(startTiming: false);
+
+            Assert.True(
+                reopenedSession.ItemStates.Count <= 512,
+                $"Selection state was history-sized: {reopenedSession.ItemStates.Count} item states were loaded.");
+            Assert.True(
+                reopenedSession.FsrsStates.Count <= 512,
+                $"Selection state was history-sized: {reopenedSession.FsrsStates.Count} FSRS states were loaded.");
+
+            var prospectivePosition = reopenedSession.Progression.PracticePosition + 1;
+            var operation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition);
+            var curriculum = new ArithmeticCurriculum().GetCurriculum(operation);
+            var progression = reopenedSession.Progression.OperationProgressions[operation];
+            var ownedFrontier = new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(progression.BandIndex);
+            Assert.True(curriculum.TryGetBand(progression.BandIndex, out var band));
+            var introductionFrontier = band!.Kind == CurriculumBandKind.Structured
+                ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
+                : ownedFrontier;
+            var evidence = await reopened.LoadPracticeSelectionEvidenceAsync(new PracticeSelectionEvidenceRequest(
+                operation,
+                prospectivePosition,
+                1,
+                ownedFrontier,
+                introductionFrontier));
+            Assert.Equal(64, evidence.DueCandidates.Count);
+            Assert.Equal(64, evidence.MaintenanceCandidates.Count);
+            Assert.Equal(64, evidence.RemediationCandidates.Count);
+            Assert.Equal(64, evidence.AnyMaterializedCandidates.Count);
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
     [Fact]
     public async Task StrongLearner_LongRun_UsesBoundedRuntimeEvidenceWithoutSelectorDeadEnds()
     {
@@ -138,5 +199,40 @@ public sealed class LongRunIndependentProgressionTests
             _revision++;
             return Task.FromResult(PersistenceResult.Success(_revision));
         }
+    }
+
+    private static async Task SeedHistoricalMaterializationAsync(string path, int count)
+    {
+        await using var connection = new SqliteConnection($"Data Source={path}");
+        await connection.OpenAsync();
+        await using var transaction = connection.BeginTransaction();
+        for (var index = 0; index < count; index++)
+        {
+            var fact = new ArithmeticFact(ArithmeticOperation.Addition, 1_000_000 + index, 1);
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = @"
+                INSERT INTO item_learning_state (
+                    fact_id, operation, left_operand, right_operand,
+                    total_attempts, correct_attempts, incorrect_attempts,
+                    consecutive_correct, last_latency_ms, rolling_latency_ms,
+                    fluent_streak, is_mastered, needs_remediation,
+                    remediation_due_order, last_practiced_order, last_practiced_at)
+                VALUES (@fact_id, 'Addition', @left, 1, 1, 1, 0, 1, 900, 900, 1, 0, @needs_remediation, @remediation_due_order, @order, NULL);
+                INSERT INTO fsrs_card_state (
+                    fact_id, card_id, state, step, stability, difficulty,
+                    due_practice_position, last_review_practice_position, last_rating)
+                VALUES (@fact_id, @card_id, 2, NULL, 1.0, 1.0, @due_position, @order, 3);";
+            command.Parameters.AddWithValue("@fact_id", fact.Id);
+            command.Parameters.AddWithValue("@left", fact.LeftOperand);
+            command.Parameters.AddWithValue("@card_id", Guid.NewGuid().ToString());
+            command.Parameters.AddWithValue("@order", index + 1);
+            command.Parameters.AddWithValue("@needs_remediation", index % 4 == 1 ? 1 : 0);
+            command.Parameters.AddWithValue("@remediation_due_order", index % 4 == 1 ? 1 : 0);
+            command.Parameters.AddWithValue("@due_position", index % 4 == 0 ? 1 : 1_000_000);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
     }
 }

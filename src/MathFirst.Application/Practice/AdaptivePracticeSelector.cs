@@ -84,12 +84,8 @@ public sealed class AdaptivePracticeSelector
 
         var ownership = new AcquisitionOwnershipResolver(curriculum);
         var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
-        var materializedCandidates = context.CandidateIndex.Candidates
-            .Where(candidate => candidate.Fact.Operation == operation)
-            .ToArray();
-
-        var remediation = materializedCandidates
-            .Where(candidate => candidate.NeedsRemediation
+        var remediation = context.CandidateIndex.RemediationCandidates
+            .Where(candidate => candidate.Fact.Operation == operation
                 && context.CurrentSessionOrder >= candidate.RemediationDueOrder)
             .ToArray();
         if (remediation.Length > 0)
@@ -116,31 +112,31 @@ public sealed class AdaptivePracticeSelector
         var newPool = introductionFrontier
             .Where(fact => !context.CandidateIndex.IsMaterialized(fact.Id))
             .ToArray();
-        var frontierPool = ownedFrontier
-            .Where(fact => context.CandidateIndex.IsMaterialized(fact.Id))
-            .ToArray();
-        var duePool = materializedCandidates
-            .Where(candidate => candidate.DuePracticePosition <= context.ProspectivePracticePosition)
-            .OrderBy(candidate => candidate.DuePracticePosition)
-            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-            .Take(TargetCandidateWindowSize)
-            .Select(candidate => candidate.Fact)
-            .ToArray();
-        var maintenancePool = materializedCandidates
-            .Where(candidate => candidate.DuePracticePosition > context.ProspectivePracticePosition
-                || candidate.DuePracticePosition is null)
-            .Where(candidate => !candidate.NeedsRemediation)
-            .OrderBy(candidate => candidate.LastPracticedOrder)
-            .ThenBy(candidate => candidate.DuePracticePosition ?? long.MaxValue)
-            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-            .Take(TargetCandidateWindowSize)
-            .Select(candidate => candidate.Fact)
-            .ToArray();
-        var anyMaterializedPool = materializedCandidates
-            .OrderBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-            .Take(TargetCandidateWindowSize)
-            .Select(candidate => candidate.Fact)
-            .ToArray();
+        var frontierPool = context.CandidateIndex.HasBoundedSemanticPools
+            ? context.CandidateIndex.CurrentBandMaterializedFacts
+            : ownedFrontier.Where(fact => context.CandidateIndex.IsMaterialized(fact.Id)).ToArray();
+        var duePool = context.CandidateIndex.HasBoundedSemanticPools
+            ? context.CandidateIndex.DueFacts
+            : context.CandidateIndex.Candidates
+                .Where(candidate => candidate.Fact.Operation == operation && candidate.DuePracticePosition <= context.ProspectivePracticePosition)
+                .OrderBy(candidate => candidate.DuePracticePosition).ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+                .Take(TargetCandidateWindowSize).Select(candidate => candidate.Fact).ToArray();
+        var maintenancePool = context.CandidateIndex.HasBoundedSemanticPools
+            ? context.CandidateIndex.MaintenanceFacts
+            : context.CandidateIndex.Candidates
+                .Where(candidate => candidate.Fact.Operation == operation)
+                .Where(candidate => candidate.DuePracticePosition > context.ProspectivePracticePosition || candidate.DuePracticePosition is null)
+                .Where(candidate => !candidate.NeedsRemediation)
+                .OrderBy(candidate => candidate.LastPracticedOrder)
+                .ThenBy(candidate => candidate.DuePracticePosition ?? long.MaxValue)
+                .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+                .Take(TargetCandidateWindowSize).Select(candidate => candidate.Fact).ToArray();
+        var anyMaterializedPool = context.CandidateIndex.HasBoundedSemanticPools
+            ? context.CandidateIndex.AnyMaterializedFacts
+            : context.CandidateIndex.Candidates
+                .Where(candidate => candidate.Fact.Operation == operation)
+                .OrderBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+                .Take(TargetCandidateWindowSize).Select(candidate => candidate.Fact).ToArray();
 
         var pools = new Dictionary<PracticeSelectionRole, IReadOnlyList<ArithmeticFact>>
         {

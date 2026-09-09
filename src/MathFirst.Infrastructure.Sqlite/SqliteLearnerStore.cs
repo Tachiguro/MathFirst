@@ -147,7 +147,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
             var defaultProgression = LearnerProgression.CreateFresh();
             await SaveProgressionAsync(defaultProgression, cancellationToken).ConfigureAwait(false);
-            await CreateV5AttemptIndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
+            await CreateV5IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 1)
         {
@@ -170,6 +170,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
         else if (version == 4)
         {
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == LearnerProgression.DefaultSchemaVersion)
+        {
+            await CreateV5IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version > LearnerProgression.DefaultSchemaVersion)
         {
@@ -203,6 +207,69 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
 
         return new LearnerSnapshot(progression, itemStates, fsrsStates, recentAttempts, revision, version, operationProgressions);
+    }
+
+    public async Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        var (version, revision) = await ReadSchemaInfoAsync(cancellationToken).ConfigureAwait(false);
+        if (version > LearnerProgression.DefaultSchemaVersion)
+        {
+            throw new InvalidOperationException($"Unsupported database schema version {version}.");
+        }
+
+        var progression = await ReadProgressionAsync(cancellationToken).ConfigureAwait(false);
+        progression.StoreRevision = revision;
+        progression.SchemaVersion = version;
+        var operationProgressions = await ReadOperationProgressionsAsync(cancellationToken).ConfigureAwait(false);
+        progression.OperationProgressions = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
+
+        return new LearnerSnapshot(
+            progression,
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal),
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal),
+            recentAttempts,
+            revision,
+            version,
+            operationProgressions);
+    }
+
+    public async Task<PracticeSelectionEvidence> LoadPracticeSelectionEvidenceAsync(
+        PracticeSelectionEvidenceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        var currentBand = await ReadCurrentBandCandidatesAsync(request, cancellationToken).ConfigureAwait(false);
+        var due = await ReadCandidatesAsync(@"
+            WHERE item.operation = @operation
+              AND card.due_practice_position <= @practice_position
+            ORDER BY card.due_practice_position ASC, item.fact_id ASC
+            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+        var maintenance = await ReadCandidatesAsync(@"
+            WHERE item.operation = @operation
+              AND item.needs_remediation = 0
+              AND (card.fact_id IS NULL OR card.due_practice_position > @practice_position)
+            ORDER BY item.last_practiced_order ASC,
+                     CASE WHEN card.fact_id IS NULL THEN 1 ELSE 0 END ASC,
+                     card.due_practice_position ASC,
+                     item.fact_id ASC
+            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+        var remediation = await ReadCandidatesAsync(@"
+            WHERE item.operation = @operation
+              AND item.needs_remediation = 1
+              AND item.remediation_due_order <= @session_order
+            ORDER BY item.remediation_due_order ASC, item.fact_id ASC
+            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+        var anyMaterialized = await ReadCandidatesAsync(@"
+            WHERE item.operation = @operation
+            ORDER BY item.fact_id ASC
+            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+
+        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, anyMaterialized);
     }
 
     public async Task<PersistenceResult> CommitSubmissionAsync(
@@ -729,14 +796,22 @@ public sealed class SqliteLearnerStore : ILearnerStore
         return changeSet.OperationProgressions;
     }
 
-    private static async Task CreateV5AttemptIndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    private static async Task CreateV5IndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         using var command = connection.CreateCommand();
         command.CommandText = @"
             CREATE UNIQUE INDEX IF NOT EXISTS ux_attempt_history_practice_position
                 ON attempt_history(practice_position) WHERE practice_position IS NOT NULL;
             CREATE INDEX IF NOT EXISTS ix_attempt_history_operation_practice_position
-                ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;";
+                ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS ix_item_learning_state_operation_fact
+                ON item_learning_state(operation, fact_id);
+            CREATE INDEX IF NOT EXISTS ix_item_learning_state_operation_remediation_order_fact
+                ON item_learning_state(operation, needs_remediation, remediation_due_order, fact_id);
+            CREATE INDEX IF NOT EXISTS ix_item_learning_state_operation_maintenance_fact
+                ON item_learning_state(operation, needs_remediation, last_practiced_order, fact_id);
+            CREATE INDEX IF NOT EXISTS ix_fsrs_card_state_due_fact
+                ON fsrs_card_state(due_practice_position, fact_id);";
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -792,6 +867,108 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await operationCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
+
+    private async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCurrentBandCandidatesAsync(
+        PracticeSelectionEvidenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.CurrentBandOwnedFrontier.Count == 0)
+        {
+            return [];
+        }
+
+        using var command = _connection!.CreateCommand();
+        var parameters = request.CurrentBandOwnedFrontier
+            .Select((_, index) => $"@fact_{index}")
+            .ToArray();
+        command.CommandText = $@"
+            {CandidateSelectSql}
+            WHERE item.operation = @operation
+              AND item.fact_id IN ({string.Join(", ", parameters)})
+            ORDER BY item.fact_id ASC;";
+        command.Parameters.AddWithValue("@operation", request.Operation.ToString());
+        for (var index = 0; index < request.CurrentBandOwnedFrontier.Count; index++)
+        {
+            command.Parameters.AddWithValue(parameters[index], request.CurrentBandOwnedFrontier[index].Id);
+        }
+
+        return await ReadCandidateRowsAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidatesAsync(
+        string predicateAndOrder,
+        PracticeSelectionEvidenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var command = _connection!.CreateCommand();
+        command.CommandText = CandidateSelectSql + predicateAndOrder;
+        command.Parameters.AddWithValue("@operation", request.Operation.ToString());
+        command.Parameters.AddWithValue("@practice_position", request.ProspectivePracticePosition);
+        command.Parameters.AddWithValue("@session_order", request.CurrentSessionOrder);
+        command.Parameters.AddWithValue("@limit", PracticeSelectionEvidenceRequest.CandidateWindowSize);
+        return await ReadCandidateRowsAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidateRowsAsync(
+        SqliteCommand command,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<PracticeSelectionCandidate>();
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var operation = Enum.Parse<ArithmeticOperation>(reader.GetString(1));
+            var fact = new ArithmeticFact(operation, reader.GetInt32(2), reader.GetInt32(3));
+            var item = new ItemLearningState
+            {
+                FactId = reader.GetString(0),
+                Operation = operation,
+                LeftOperand = fact.LeftOperand,
+                RightOperand = fact.RightOperand,
+                TotalAttempts = reader.GetInt32(4),
+                CorrectAttempts = reader.GetInt32(5),
+                IncorrectAttempts = reader.GetInt32(6),
+                ConsecutiveCorrectStreak = reader.GetInt32(7),
+                LastLatencyMs = reader.GetInt64(8),
+                RollingLatencyMs = reader.GetInt64(9),
+                FluentStreak = reader.GetInt32(10),
+                IsProvisionallyMastered = reader.GetInt32(11) == 1,
+                NeedsRemediation = reader.GetInt32(12) == 1,
+                RemediationDueOrder = reader.GetInt32(13),
+                LastPracticedOrder = reader.GetInt32(14),
+                LastPracticedAt = reader.IsDBNull(15) ? null : DateTimeOffset.Parse(reader.GetString(15))
+            };
+            FsrsCardState? card = null;
+            if (!reader.IsDBNull(16))
+            {
+                card = new FsrsCardState(
+                    reader.GetString(16),
+                    Guid.Parse(reader.GetString(17)),
+                    reader.GetInt32(18),
+                    reader.IsDBNull(19) ? null : reader.GetInt32(19),
+                    reader.IsDBNull(20) ? null : reader.GetDouble(20),
+                    reader.IsDBNull(21) ? null : reader.GetDouble(21),
+                    reader.GetInt64(22),
+                    reader.IsDBNull(23) ? null : reader.GetInt64(23),
+                    reader.IsDBNull(24) ? null : (FsrsRating)reader.GetInt32(24));
+            }
+
+            candidates.Add(new PracticeSelectionCandidate(fact, item, card));
+        }
+
+        return candidates;
+    }
+
+    private const string CandidateSelectSql = @"
+        SELECT item.fact_id, item.operation, item.left_operand, item.right_operand,
+               item.total_attempts, item.correct_attempts, item.incorrect_attempts,
+               item.consecutive_correct, item.last_latency_ms, item.rolling_latency_ms,
+               item.fluent_streak, item.is_mastered, item.needs_remediation,
+               item.remediation_due_order, item.last_practiced_order, item.last_practiced_at,
+               card.fact_id, card.card_id, card.state, card.step, card.stability, card.difficulty,
+               card.due_practice_position, card.last_review_practice_position, card.last_rating
+        FROM item_learning_state AS item
+        LEFT JOIN fsrs_card_state AS card ON card.fact_id = item.fact_id";
 
     private async Task<IReadOnlyDictionary<string, ItemLearningState>> ReadAllItemStatesAsync(CancellationToken cancellationToken)
     {
@@ -1303,6 +1480,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
                         ON attempt_history(practice_position) WHERE practice_position IS NOT NULL;
                     CREATE INDEX ix_attempt_history_operation_practice_position
                         ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;
+                    CREATE INDEX ix_item_learning_state_operation_fact
+                        ON item_learning_state(operation, fact_id);
+                    CREATE INDEX ix_item_learning_state_operation_remediation_order_fact
+                        ON item_learning_state(operation, needs_remediation, remediation_due_order, fact_id);
+                    CREATE INDEX ix_item_learning_state_operation_maintenance_fact
+                        ON item_learning_state(operation, needs_remediation, last_practiced_order, fact_id);
+                    CREATE INDEX ix_fsrs_card_state_due_fact
+                        ON fsrs_card_state(due_practice_position, fact_id);
                     UPDATE schema_info SET value = '5' WHERE key = 'schema_version';";
                 await indexes.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }

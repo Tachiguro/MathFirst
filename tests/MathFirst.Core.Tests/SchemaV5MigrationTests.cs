@@ -37,8 +37,18 @@ public sealed class SchemaV5MigrationTests : IDisposable
         await using var connection = new SqliteConnection($"Data Source={path}");
         await connection.OpenAsync();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM operation_progression;";
-        Assert.Equal(4L, (long)(await command.ExecuteScalarAsync())!);
+        command.CommandText = @"
+            SELECT name FROM sqlite_master
+            WHERE type = 'index' AND name IN (
+                'ix_item_learning_state_operation_fact',
+                'ix_item_learning_state_operation_remediation_order_fact',
+                'ix_item_learning_state_operation_maintenance_fact',
+                'ix_fsrs_card_state_due_fact')
+            ORDER BY name;";
+        using var reader = await command.ExecuteReaderAsync();
+        var indexes = new List<string>();
+        while (await reader.ReadAsync()) indexes.Add(reader.GetString(0));
+        Assert.Equal(4, indexes.Count);
     }
 
     [Fact]
@@ -60,6 +70,8 @@ public sealed class SchemaV5MigrationTests : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT practice_position FROM attempt_history WHERE submission_id = 'legacy';";
         Assert.IsType<DBNull>(await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'ix_item_learning_state_operation_%';";
+        Assert.Equal(3L, (long)(await command.ExecuteScalarAsync())!);
     }
 
     [Fact]

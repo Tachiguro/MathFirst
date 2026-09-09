@@ -3,6 +3,7 @@ namespace MathFirst.Core.Tests;
 using MathFirst.Application;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 
 public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
 {
@@ -75,6 +76,52 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         Assert.True(session.FsrsStates.ContainsKey(factBefore.Id));
         Assert.True(session.AdvanceAfterCorrectAnswer());
         Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
+    }
+
+    [Fact]
+    public async Task TrainingSession_DoesNotPublishAdvancementUntilTheTriggeringCommitSucceeds()
+    {
+        var store = new GatedStore(CreateAdvancementReadySnapshot());
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync(startTiming: false);
+        Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var pending = session.CommitCurrentEvaluationAsync();
+        await store.CommitStarted.Task;
+
+        Assert.Equal(156, session.Progression.PracticePosition);
+        Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+        Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
+        Assert.All(
+            Enum.GetValues<ArithmeticOperation>().Where(operation => operation != ArithmeticOperation.Addition),
+            operation => Assert.Equal(new OperationProgression(operation, 0, 0), session.Progression.OperationProgressions[operation]));
+
+        store.Complete(PersistenceResult.Success(2));
+        Assert.True((await pending).IsSuccess);
+        Assert.Equal(157, session.Progression.PracticePosition);
+        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+        Assert.Equal(157, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
+        Assert.All(
+            Enum.GetValues<ArithmeticOperation>().Where(operation => operation != ArithmeticOperation.Addition),
+            operation => Assert.Equal(new OperationProgression(operation, 0, 0), session.Progression.OperationProgressions[operation]));
+    }
+
+    [Fact]
+    public async Task TrainingSession_PersistenceFailureNeverPublishesAdvancement()
+    {
+        var store = new GatedStore(CreateAdvancementReadySnapshot());
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync(startTiming: false);
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var pending = session.CommitCurrentEvaluationAsync();
+        await store.CommitStarted.Task;
+
+        store.Complete(PersistenceResult.Unavailable("synthetic advancement failure"));
+        Assert.False((await pending).IsSuccess);
+        Assert.Equal(156, session.Progression.PracticePosition);
+        Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+        Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
     }
 
     [Fact]
@@ -300,23 +347,65 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         Assert.Equal(before.FsrsStates.Count, after.FsrsStates.Count);
     }
 
+    private static LearnerSnapshot CreateAdvancementReadySnapshot()
+    {
+        var curriculum = new ArithmeticCurriculum().GetCurriculum(ArithmeticOperation.Addition);
+        var ownership = new AcquisitionOwnershipResolver(curriculum);
+        var frontier = ownership.GetOwnedFrontier(0);
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 156;
+        var items = frontier.ToDictionary(fact => fact.Id, fact =>
+        {
+            var state = ItemLearningState.CreateNew(fact);
+            state.TotalAttempts = 1;
+            state.CorrectAttempts = 1;
+            state.ConsecutiveCorrectStreak = 1;
+            state.LastLatencyMs = 900;
+            return state;
+        }, StringComparer.Ordinal);
+        var attempts = Enumerable.Range(0, 39)
+            .Select(index =>
+            {
+                var fact = frontier[index % frontier.Count];
+                var position = 1L + (index * 4L);
+                return new AttemptRecord(
+                    $"advancement-ready-{position}", fact.Id, fact.Operation, fact.LeftOperand, fact.RightOperand,
+                    fact.CorrectResult, fact.CorrectResult, true, 900, DateTimeOffset.UtcNow,
+                    practicePosition: position);
+            })
+            .ToArray();
+        Assert.All(items.Values, state => Assert.Equal(
+            new ArithmeticFact(state.Operation, state.LeftOperand, state.RightOperand).Id,
+            state.FactId));
+        return new LearnerSnapshot(
+            progression,
+            items,
+            new Dictionary<string, MathFirst.Application.Scheduling.FsrsCardState>(),
+            attempts,
+            1,
+            LearnerProgression.DefaultSchemaVersion,
+            progression.OperationProgressions);
+    }
+
     private sealed class GatedStore : ILearnerStore
     {
         private readonly TaskCompletionSource<PersistenceResult> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly LearnerSnapshot _snapshot;
+
+        public GatedStore(LearnerSnapshot? snapshot = null) => _snapshot = snapshot ?? new LearnerSnapshot(
+            LearnerProgression.CreateFresh(),
+            new Dictionary<string, ItemLearningState>(),
+            new Dictionary<string, MathFirst.Application.Scheduling.FsrsCardState>(),
+            [],
+            1,
+            LearnerProgression.DefaultSchemaVersion);
 
         public TaskCompletionSource<bool> CommitStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string StoragePath => "inmemory://gated-submission";
 
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LearnerSnapshot(
-                LearnerProgression.CreateFresh(),
-                new Dictionary<string, ItemLearningState>(),
-                new Dictionary<string, MathFirst.Application.Scheduling.FsrsCardState>(),
-                [],
-                1,
-                LearnerProgression.DefaultSchemaVersion));
+        public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(_snapshot);
 
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,

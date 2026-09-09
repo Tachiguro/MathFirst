@@ -190,7 +190,7 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         var recovered = await session.RecoverFromPersistenceFailureAsync();
 
         Assert.True(recovered);
-        Assert.Equal(2, store.LoadCount);
+        Assert.Equal(4, store.LoadCount);
         Assert.Single(store.Commits);
         Assert.Same(evaluation.ChangeSet, store.Commits[0]);
         Assert.Equal(0, session.Progression.PracticePosition);

@@ -1,6 +1,7 @@
 namespace MathFirst.Application.Practice;
 
 using System.Collections.Frozen;
+using MathFirst.Application.Persistence;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 
@@ -9,6 +10,12 @@ public sealed class PracticeCandidateIndex
     private readonly FrozenDictionary<string, IndexedPracticeCandidate> _candidates;
 
     public IReadOnlyList<ArithmeticFact> MaterializedFacts { get; }
+    public IReadOnlyList<ArithmeticFact> CurrentBandMaterializedFacts { get; }
+    public IReadOnlyList<ArithmeticFact> DueFacts { get; }
+    public IReadOnlyList<ArithmeticFact> MaintenanceFacts { get; }
+    internal IReadOnlyList<IndexedPracticeCandidate> RemediationCandidates { get; }
+    public IReadOnlyList<ArithmeticFact> AnyMaterializedFacts { get; }
+    public bool HasBoundedSemanticPools { get; }
 
     internal IEnumerable<IndexedPracticeCandidate> Candidates => _candidates.Values;
 
@@ -82,6 +89,51 @@ public sealed class PracticeCandidateIndex
             .Select(candidate => candidate.Fact)
             .OrderBy(fact => fact.Id, StringComparer.Ordinal)
             .ToArray());
+        CurrentBandMaterializedFacts = MaterializedFacts;
+        DueFacts = candidates.Values
+            .Where(candidate => candidate.DuePracticePosition is not null)
+            .OrderBy(candidate => candidate.DuePracticePosition)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
+        MaintenanceFacts = candidates.Values
+            .Where(candidate => !candidate.NeedsRemediation)
+            .OrderBy(candidate => candidate.LastPracticedOrder)
+            .ThenBy(candidate => candidate.DuePracticePosition ?? long.MaxValue)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
+        RemediationCandidates = candidates.Values
+            .Where(candidate => candidate.NeedsRemediation)
+            .OrderBy(candidate => candidate.RemediationDueOrder)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .ToArray();
+        AnyMaterializedFacts = MaterializedFacts;
+        HasBoundedSemanticPools = false;
+    }
+
+    public PracticeCandidateIndex(PracticeSelectionEvidence evidence)
+        : this(
+            evidence?.AllCandidates().Select(candidate => candidate.Fact)
+                .GroupBy(fact => fact.Id, StringComparer.Ordinal)
+                .Select(group => group.First())
+                ?? throw new ArgumentNullException(nameof(evidence)),
+            evidence.ItemStates,
+            evidence.FsrsStates)
+    {
+        CurrentBandMaterializedFacts = evidence.CurrentBandCandidates.Select(candidate => candidate.Fact).ToArray();
+        DueFacts = evidence.DueCandidates.Select(candidate => candidate.Fact).ToArray();
+        MaintenanceFacts = evidence.MaintenanceCandidates.Select(candidate => candidate.Fact).ToArray();
+        RemediationCandidates = evidence.RemediationCandidates
+            .Select(candidate => new IndexedPracticeCandidate(
+                candidate.Fact,
+                candidate.ItemState.NeedsRemediation,
+                candidate.ItemState.RemediationDueOrder,
+                candidate.ItemState.LastPracticedOrder,
+                candidate.FsrsState?.DuePracticePosition))
+            .ToArray();
+        AnyMaterializedFacts = evidence.AnyMaterializedCandidates.Select(candidate => candidate.Fact).ToArray();
+        HasBoundedSemanticPools = true;
     }
 
     public bool IsMaterialized(string factId)
