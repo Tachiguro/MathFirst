@@ -67,10 +67,8 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Your answer: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Correct answer: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Welcome to MathFirst", service["Onboarding_WelcomeTitle"]);
-        Assert.Equal("Learning Progression", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Mixed round status", service["Diagnostics_Group_Checkpoint"]);
-        Assert.Equal("Mixed round", service["Training_MixedRoundLabel"]);
-        Assert.Equal("Mixed round · 3/12", service["Training_CheckpointBadge", 3, 12]);
+        Assert.Equal("Operation Bands", service["Diagnostics_Group_Learning"]);
+        Assert.Equal("Band 10: ADD-P1-ANCHOR · started at #11", service["Diagnostics_OperationProgress", 10, "ADD-P1-ANCHOR", 11]);
         Assert.Equal("FSRS-6 Task Scheduler", service["Diagnostics_Group_Scheduler"]);
         Assert.Equal("Timing & Storage", service["Diagnostics_Group_Storage"]);
         Assert.Equal("Choose your number keypad", service["Onboarding_KeypadTitle"]);
@@ -85,10 +83,8 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Deine Antwort: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Richtige Antwort: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Willkommen bei MathFirst", service["Onboarding_WelcomeTitle"]);
-        Assert.Equal("Lernfortschritt", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Mischrunden-Status", service["Diagnostics_Group_Checkpoint"]);
-        Assert.Equal("Mischrunde", service["Training_MixedRoundLabel"]);
-        Assert.Equal("Mischrunde · 3/12", service["Training_CheckpointBadge", 3, 12]);
+        Assert.Equal("Operationsbänder", service["Diagnostics_Group_Learning"]);
+        Assert.Equal("Band 10: ADD-P1-ANCHOR · begonnen bei #11", service["Diagnostics_OperationProgress", 10, "ADD-P1-ANCHOR", 11]);
         Assert.Equal("FSRS-6-Aufgabenplaner", service["Diagnostics_Group_Scheduler"]);
         Assert.Equal("Zeit & Speicher", service["Diagnostics_Group_Storage"]);
         Assert.Equal("Zahlentastatur auswählen", service["Onboarding_KeypadTitle"]);
@@ -103,10 +99,8 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Твой ответ: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Правильный ответ: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Добро пожаловать в MathFirst", service["Onboarding_WelcomeTitle"]);
-        Assert.Equal("Прогресс обучения", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Статус смешанного раунда", service["Diagnostics_Group_Checkpoint"]);
-        Assert.Equal("Смешанный раунд", service["Training_MixedRoundLabel"]);
-        Assert.Equal("Смешанный раунд · 3/12", service["Training_CheckpointBadge", 3, 12]);
+        Assert.Equal("Банды операций", service["Diagnostics_Group_Learning"]);
+        Assert.Equal("Банд 10: ADD-P1-ANCHOR · начат на #11", service["Diagnostics_OperationProgress", 10, "ADD-P1-ANCHOR", 11]);
         Assert.Equal("Планировщик FSRS-6", service["Diagnostics_Group_Scheduler"]);
         Assert.Equal("Время и хранилище", service["Diagnostics_Group_Storage"]);
         Assert.Equal("Выберите цифровую клавиатуру", service["Onboarding_KeypadTitle"]);
@@ -180,21 +174,17 @@ public sealed class PolicyAndLocalizationTests
     }
 
     [Theory]
-    [InlineData("en", "Mixed round", "12-question mixed round", "not a pass/fail test")]
-    [InlineData("de", "Mischrunde", "Mischrunde mit 12 Aufgaben", "keine Prüfung")]
-    [InlineData("ru", "Смешанный раунд", "12 задач", "не экзамен")]
-    public void LocalizationService_MixedRoundAndTutorialAreExplained(
+    [InlineData("en", "independently")]
+    [InlineData("de", "unabhängig")]
+    [InlineData("ru", "независимо")]
+    public void LocalizationService_TutorialExplainsIndependentOperationPractice(
         string language,
-        string expectedLabel,
-        string expectedTutorialPhrase,
-        string expectedNotTestPhrase)
+        string expectedIndependentPracticePhrase)
     {
         var service = new LocalizationService();
         service.ApplyLanguagePreference(language);
 
-        Assert.Equal(expectedLabel, service["Training_MixedRoundLabel"]);
-        Assert.Contains(expectedTutorialPhrase, service["Onboarding_TutorialStep3Text"], StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(expectedNotTestPhrase, service["Onboarding_TutorialStep3Text"], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(expectedIndependentPracticePhrase, service["Onboarding_TutorialStep3Text"], StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

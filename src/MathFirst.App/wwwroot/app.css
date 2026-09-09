@@ -806,8 +806,7 @@ select:disabled {
     letter-spacing: -0.025em;
 }
 
-.mathfirst-op-badge,
-.checkpoint-badge {
+.mathfirst-op-badge {
     font-size: clamp(0.725rem, 1.1vw, 0.825rem);
     font-weight: 700;
     padding: 0.2rem clamp(0.4rem, 1vw, 0.6rem);
@@ -1205,8 +1204,7 @@ select:disabled {
         font-size: clamp(1.15rem, 2.8vw, 1.55rem);
     }
 
-    .mathfirst-op-badge,
-    .checkpoint-badge {
+    .mathfirst-op-badge {
         padding: 0.1rem 0.35rem;
         font-size: clamp(0.65rem, 1.35vw, 0.75rem);
     }

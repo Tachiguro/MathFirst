@@ -2,8 +2,10 @@
 @implements IDisposable
 @using MathFirst.App.Services
 @using MathFirst.Application
+@using MathFirst.Application.Diagnostics
 @using MathFirst.Application.Persistence
 @using MathFirst.Domain
+@using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
 @inject IPreferenceStore PreferenceStore
@@ -107,6 +109,19 @@
             <p class="setting-help">@Localizer["Diagnostics_Description"]</p>
 
             <div class="diagnostics-sections">
+                <div class="diagnostics-group">
+                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Learning"]</h3>
+                    <div class="diagnostics-grid">
+                        @foreach (var operation in GetLearningProgressDiagnostics().Operations)
+                        {
+                            <div class="diag-item diag-item-wide">
+                                <span class="diag-label">@Localizer[$"Operation_{operation.Operation}"]</span>
+                                <span class="diag-value">@GetOperationProgressDisplay(operation)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
                 <!-- FSRS-6 Task Scheduler -->
                 <div class="diagnostics-group">
                     <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Scheduler"]</h3>
@@ -273,6 +288,7 @@
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
     private ElementReference _confirmationPanel;
     private bool _pendingConfirmationVisibility;
+    private readonly ArithmeticCurriculum _curriculum = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -429,6 +445,16 @@
     }
 
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
+
+    private LearningProgressDiagnostics GetLearningProgressDiagnostics() =>
+        LearningProgressDiagnostics.Create(Session.Progression, _curriculum);
+
+    private string GetOperationProgressDisplay(OperationProgressDiagnostics operation) =>
+        operation.BandIndex is int bandIndex &&
+        operation.CurriculumBandId is not null &&
+        operation.BandStartedPracticePosition is long bandStartedPracticePosition
+            ? Localizer["Diagnostics_OperationProgress", bandIndex, operation.CurriculumBandId, bandStartedPracticePosition]
+            : Localizer["Diagnostics_Unavailable"];
 
     private int GetTotalAttempts()
     {
