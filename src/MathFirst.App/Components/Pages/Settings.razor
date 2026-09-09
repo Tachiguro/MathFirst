@@ -107,61 +107,7 @@
             <p class="setting-help">@Localizer["Diagnostics_Description"]</p>
 
             <div class="diagnostics-sections">
-                <!-- Group 1: Learning Progression -->
-                <div class="diagnostics-group">
-                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Learning"]</h3>
-                    <div class="diagnostics-grid">
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_CurrentPhase"]</span>
-                            <span class="diag-value">@GetPhaseDisplay()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_Turn"]</span>
-                            <span class="diag-value">@Localizer[$"Operation_{GetProgressionInfo().Turn}"]</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_ActiveFacts"]</span>
-                            <span class="diag-value">@GetActiveFactsCount()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_NewFactsRemaining"]</span>
-                            <span class="diag-value">@GetProgressionInfo().UnexposedCount</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_MasteredFacts"]</span>
-                            <span class="diag-value">@GetMasteredFactsDisplay()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_LearningFacts"]</span>
-                            <span class="diag-value">@GetLearningFactsCount()</span>
-                        </div>
-                        <div class="diag-item diag-item-wide">
-                            <span class="diag-label">@Localizer["Diagnostics_Ranges"]</span>
-                            <span class="diag-value">@GetRangesDisplay()</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Group 2: Checkpoint Status -->
-                <div class="diagnostics-group">
-                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Checkpoint"]</h3>
-                    <div class="diagnostics-grid">
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_CheckpointStatus"]</span>
-                            <span class="diag-value">@GetCheckpointStatusDisplay()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_CheckpointProgress"]</span>
-                            <span class="diag-value">@GetCheckpointProgressDisplay()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_Remediation"]</span>
-                            <span class="diag-value">@GetPendingRemediationCount()</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Group 3: FSRS-6 Task Scheduler -->
+                <!-- FSRS-6 Task Scheduler -->
                 <div class="diagnostics-group">
                     <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Scheduler"]</h3>
                     <div class="diagnostics-grid">
@@ -482,86 +428,7 @@
         Navigation.NavigateTo("/", replace: true);
     }
 
-    private (ProgressionPhase Phase, ArithmeticOperation Turn, int TurnMaxOperand, int UnexposedCount) GetProgressionInfo()
-    {
-        var (phase, turn, maxOp, unexposed) = LearningPolicy.DetermineProgressionPhase(Session.Progression, Session.ItemStates);
-        return (phase, turn, maxOp, unexposed.Count);
-    }
-
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
-
-    private string GetPhaseDisplay()
-    {
-        var (phase, _, maxOp, _) = GetProgressionInfo();
-        if (phase == ProgressionPhase.MixedPractice)
-        {
-            return $"{Localizer["Phase_MixedPractice"]} (0..{LearningPolicy.MaxV1Operand})";
-        }
-        if (phase == ProgressionPhase.Checkpoint)
-        {
-            return Localizer["Phase_Checkpoint", Session.Progression.ActiveCheckpointLevel ?? 1];
-        }
-        return $"{Localizer[$"Phase_{phase}"]} (0..{maxOp})";
-    }
-
-    private string GetCheckpointStatusDisplay()
-    {
-        var p = Session.Progression;
-        if (p.IsInCheckpoint)
-        {
-            return Localizer["Phase_Checkpoint", p.ActiveCheckpointLevel ?? 1];
-        }
-        if (p.IsAllIntroductionsComplete)
-        {
-            return Localizer["Diagnostics_AllIntroductionsComplete"];
-        }
-        return Localizer["Diagnostics_CheckpointInactive"];
-    }
-
-    private string GetCheckpointProgressDisplay()
-    {
-        var p = Session.Progression;
-        if (p.IsInCheckpoint)
-        {
-            return Localizer[
-                "Diagnostics_MixedRoundProgressValue",
-                p.CheckpointAttemptCount,
-                LearningPolicy.DefaultCheckpointAttemptCount,
-                p.CheckpointCorrectCount];
-        }
-        return Localizer["Diagnostics_CheckpointInactive"];
-    }
-
-    private string GetRangesDisplay()
-    {
-        var p = Session.Progression;
-        var add = p.GetMaxOperand(ArithmeticOperation.Addition);
-        var sub = p.GetMaxOperand(ArithmeticOperation.Subtraction);
-        var mul = p.GetMaxOperand(ArithmeticOperation.Multiplication);
-        var div = p.GetMaxOperand(ArithmeticOperation.Division);
-        return $"+ 0..{add} | - 0..{sub} | × 0..{mul} | ÷ 0..{div}";
-    }
-
-    private int GetActiveFactsCount()
-    {
-        return ArithmeticCatalog.GetActiveFacts(Session.Progression).Count;
-    }
-
-    private string GetMasteredFactsDisplay()
-    {
-        var allActive = ArithmeticCatalog.GetActiveFacts(Session.Progression);
-        if (allActive.Count == 0) return "0 / 0 (0%)";
-        var mastered = allActive.Count(f => Session.ItemStates.TryGetValue(f.Id, out var s) && s.IsProvisionallyMastered);
-        var pct = (int)Math.Round((double)mastered / allActive.Count * 100);
-        return $"{mastered} / {allActive.Count} ({pct}%)";
-    }
-
-    private int GetLearningFactsCount()
-    {
-        var allActive = ArithmeticCatalog.GetActiveFacts(Session.Progression);
-        var mastered = allActive.Count(f => Session.ItemStates.TryGetValue(f.Id, out var s) && s.IsProvisionallyMastered);
-        return allActive.Count - mastered;
-    }
 
     private int GetTotalAttempts()
     {

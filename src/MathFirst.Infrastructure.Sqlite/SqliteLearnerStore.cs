@@ -200,8 +200,6 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var fsrsStates = await ReadAllFsrsStatesAsync(cancellationToken).ConfigureAwait(false);
         var operationProgressions = await ReadOperationProgressionsAsync(cancellationToken).ConfigureAwait(false);
         progression.OperationProgressions = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
-        progression.OperationMaxOperands = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value.BandIndex + 1);
-        progression.CurrentOperation = ArithmeticOperation.Addition;
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
 
         return new LearnerSnapshot(progression, itemStates, fsrsStates, recentAttempts, revision, version, operationProgressions);
@@ -605,17 +603,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
     private static IReadOnlyDictionary<ArithmeticOperation, OperationProgression> ResolveOperationProgressions(SubmissionChangeSet changeSet)
     {
-        var progressions = changeSet.OperationProgressions ?? changeSet.UpdatedProgression.OperationProgressions;
-        // Compatibility for old application-facing callers. The active TrainingSession
-        // always supplies V5 progression explicitly; this bridge is not a runtime policy.
-        if (progressions.Values.All(progression => progression.BandIndex == 0)
-            && changeSet.UpdatedProgression.OperationMaxOperands.Values.Any(maximum => maximum != 1))
-        {
-            return changeSet.UpdatedProgression.OperationMaxOperands.ToDictionary(
-                pair => pair.Key,
-                pair => new OperationProgression(pair.Key, pair.Value - 1, 0));
-        }
-        return progressions;
+        return changeSet.OperationProgressions ?? changeSet.UpdatedProgression.OperationProgressions;
     }
 
     private static async Task CreateV5AttemptIndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)

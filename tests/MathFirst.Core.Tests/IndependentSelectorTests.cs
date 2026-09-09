@@ -76,7 +76,7 @@ public sealed class IndependentSelectorTests
         var frontier = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0);
         var context = CreateContext(5, curriculum, Materialize(frontier));
 
-        var result = new AdaptivePracticeSelector(new Random(1)).SelectTargetFact(context);
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         var expected = DeterministicFactRanker.Order(
             frontier,
             ArithmeticOperation.Addition,
@@ -104,7 +104,7 @@ public sealed class IndependentSelectorTests
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal));
         var context = CreateContext(1, curriculum, materialized, currentSessionOrder: 7);
 
-        var result = new AdaptivePracticeSelector(new Random(1)).SelectTargetFact(context);
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
         Assert.Equal(PracticeSelectionRole.Remediation, result.ResolvedRole);
         Assert.Equal(remediationFact.Id, result.Fact.Id);
@@ -288,10 +288,10 @@ public sealed class IndependentSelectorTests
             FactSelectionRole.Due,
             1)[0];
 
-        var first = new AdaptivePracticeSelector(new Random(1)).SelectTargetFact(
+        var first = new AdaptivePracticeSelector().SelectTargetFact(
             CreateContext(1, curriculum, materialized, currentSessionOrder: 7));
         var reversed = ReverseMaterialized(materialized);
-        var second = new AdaptivePracticeSelector(new Random(999)).SelectTargetFact(
+        var second = new AdaptivePracticeSelector().SelectTargetFact(
             CreateContext(1, new ArithmeticCurriculum(), reversed, currentSessionOrder: 7));
 
         Assert.Equal(expected.Id, first.Fact.Id);
@@ -419,10 +419,10 @@ public sealed class IndependentSelectorTests
     {
         var firstCurriculum = new ArithmeticCurriculum();
         var facts = firstCurriculum.Addition.Bands[0].Frontier;
-        var first = new AdaptivePracticeSelector(new Random(1)).SelectTargetFact(
+        var first = new AdaptivePracticeSelector().SelectTargetFact(
             CreateContext(17, firstCurriculum, Materialize(facts)));
         var secondCurriculum = new ArithmeticCurriculum();
-        var second = new AdaptivePracticeSelector(new Random(999)).SelectTargetFact(
+        var second = new AdaptivePracticeSelector().SelectTargetFact(
             CreateContext(17, secondCurriculum, ReverseMaterialized(Materialize(facts))));
 
         Assert.Equal(first.ScheduledOperation, second.ScheduledOperation);

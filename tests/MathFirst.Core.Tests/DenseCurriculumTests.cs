@@ -170,30 +170,6 @@ public sealed class DenseCurriculumTests
         Assert.Throws<ArgumentException>(() => new CurriculumBandId("ADD D01"));
     }
 
-    [Fact]
-    public void V4Catalog_RemainsTheSame418CanonicalFacts()
-    {
-        var addition = ArithmeticCatalog.GetFacts(ArithmeticOperation.Addition, 10);
-        var subtraction = ArithmeticCatalog.GetFacts(ArithmeticOperation.Subtraction, 10);
-        var multiplication = ArithmeticCatalog.GetFacts(ArithmeticOperation.Multiplication, 10);
-        var division = ArithmeticCatalog.GetFacts(ArithmeticOperation.Division, 10);
-
-        Assert.Equal(121, addition.Count);
-        Assert.Equal(66, subtraction.Count);
-        Assert.Equal(121, multiplication.Count);
-        Assert.Equal(110, division.Count);
-        Assert.Equal(418, addition.Count + subtraction.Count + multiplication.Count + division.Count);
-
-        Assert.Equal("add:0+0", addition[0].Id);
-        Assert.Equal("add:10+10", addition[^1].Id);
-        Assert.Equal("sub:0-0", subtraction[0].Id);
-        Assert.Equal("sub:10-10", subtraction[^1].Id);
-        Assert.Equal("mul:0*0", multiplication[0].Id);
-        Assert.Equal("mul:10*10", multiplication[^1].Id);
-        Assert.Equal("div:0/1", division[0].Id);
-        Assert.Equal("div:100/10", division[^1].Id);
-    }
-
     private static void AssertBandIds(OperationCurriculum curriculum, IEnumerable<string> expectedIds)
     {
         Assert.Equal(expectedIds, curriculum.Bands.Select(b => b.Id.Value));

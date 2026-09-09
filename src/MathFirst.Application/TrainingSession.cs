@@ -439,8 +439,7 @@ public sealed class TrainingSession
             elapsedMs,
             changeSet,
             itemState.IsProvisionallyMastered,
-            RangeUnlocked: advancement.Advances,
-            OperationUnlocked: advancement.Advances)
+            OperationAdvanced: advancement.Advances)
         {
             SubmittedNumericAnswer = submittedNumericAnswer
         };
@@ -524,8 +523,6 @@ public sealed class TrainingSession
         LastResponseLatencyMs = _lastResponseLatencyBeforePendingEvaluation;
         LastEvaluation = null;
         LastPersistenceResult = null;
-        _selector.ResetLastSelected();
-
         AdvanceToNextFact(startTiming: true);
     }
 
@@ -594,8 +591,6 @@ public sealed class TrainingSession
         LastResponseLatencyMs = 0;
         LastPersistenceResult = null;
         _requiresBackgroundResumeAfterAdvance = false;
-        _selector.ResetLastSelected();
-
         AdvanceToNextFact(shouldStartTiming);
     }
 
@@ -623,15 +618,8 @@ public sealed class TrainingSession
 
     private static LearnerProgression CloneProgression(LearnerProgression source) => new()
     {
-        CurrentOperation = source.CurrentOperation,
-        CurrentIntroductionTurn = source.CurrentIntroductionTurn,
         PracticePosition = source.PracticePosition,
-        OperationMaxOperands = new Dictionary<ArithmeticOperation, int>(source.OperationMaxOperands),
         OperationProgressions = source.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value),
-        CompletedCheckpointLevel = source.CompletedCheckpointLevel,
-        ActiveCheckpointLevel = source.ActiveCheckpointLevel,
-        CheckpointAttemptCount = source.CheckpointAttemptCount,
-        CheckpointCorrectCount = source.CheckpointCorrectCount,
         StoreRevision = source.StoreRevision,
         SchemaVersion = source.SchemaVersion,
         UpdatedAt = source.UpdatedAt
