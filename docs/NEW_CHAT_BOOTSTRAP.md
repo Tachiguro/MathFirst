@@ -77,6 +77,12 @@ To determine what package is currently in flight or what should happen next, eva
   > **"There is currently no clearly determined next work item."**
 - **Strict Prohibition**: Agents must NEVER autonomously pick an item from [docs/BACKLOG.md](BACKLOG.md) or [docs/ROADMAP.md](ROADMAP.md) without explicit user instruction and prompt dispatch.
 
-## 5. Current Verified Package Context
+## 5. Explicitly Authorized Next Package Context
 
-When live repository state matches the active local feature branch, the current package is `MF-LEARN-001` (`feat/mf-learn-001-independent-progression`). Its implementation and final review are complete and approved. The candidate is at the `FULL_VALIDATION` delivery gate; successful validation leads to `PUSH_ONLY`. The branch is local-only, no Pull Request exists yet, and GitHub state remains authoritative for remote delivery.
+Use the live-state discovery rules above to distinguish the following cases:
+
+1. **Verified active package**: An open Pull Request, active task branch with checkpoint work, or `docs/CURRENT_WORK.md` consistent with live state identifies a package in flight. Report that package and continue only within its verified lifecycle.
+2. **No active package**: If no package is active and no explicit authorization is supplied, do not autonomously select a BACKLOG or ROADMAP item.
+3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package and lifecycle step, first verify live repository state, then proceed only with that authorized package under the repository governance.
+
+Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.

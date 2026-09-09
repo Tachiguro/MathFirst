@@ -23,7 +23,7 @@ This document defines the high-level development sequence and milestone phases f
 - Web remains part of the supported architecture established by [ADR-0001](decisions/ADR-0001-cross-platform-application-topology-and-stack-baseline.md), but runtime implementation is explicitly deferred until native Windows/Android V1 work and release readiness are complete.
 - iOS and Mac Catalyst are not active targets.
 
-MF-LEARN-001 implementation and review are complete for the native Windows and Android targets on the local feature branch. It does not begin Web implementation or any release activity; the branch remains local-only until the governed documentation commit, validation, push, Pull Request, manual merge, and post-merge synchronization lifecycle completes.
+MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It does not begin Web implementation or release activity. Windows and Android remain the native priorities while Native V1 release readiness is completed through separately governed packages and release lifecycle steps.
 
 ---
 
@@ -58,6 +58,15 @@ MF-LEARN-001 implementation and review are complete for the native Windows and A
 
 ### MF-LEARN-001 Delivery State
 - **Implementation**: Complete — independent operation progression, deterministic bounded selection, Schema V5 persistence, and open-ended curriculum runtime are implemented.
-- **Review**: `REVIEW_APPROVED`.
-- **Current lifecycle**: Documentation reconciliation is complete and awaits `COMMIT_ONLY` on the local feature branch.
-- **Delivery status**: Not yet committed as documentation, fully validated at the final candidate, pushed, submitted as a Pull Request, or merged. Web implementation remains deferred.
+- **Review and validation**: `REVIEW_APPROVED`; full validation passed.
+- **Delivery status**: Merged into `main` through Pull Request #9. Web implementation remains deferred.
+
+### Phase 6: Native V1 Release Readiness
+1. Reconcile post-merge current-state documentation (`MF-DOC-001`).
+2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`).
+3. Reconcile native identity, version, and visual treatment (`MF-UX-003`).
+4. Establish Android internal AAB packaging and release automation (`MF-REL-001`).
+5. Complete final exact-candidate Native V1 validation.
+6. Perform separately authorized build, package, and signing steps.
+7. Perform separately authorized final real-device verification.
+8. Make a separate later decision about Google Play upload.

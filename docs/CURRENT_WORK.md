@@ -9,36 +9,30 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-LEARN-001`
-- **Title**: Independent Operation Progression and Open-Ended Fact Space
-- **Active Task Branch**: `feat/mf-learn-001-independent-progression`
+- **Active Package ID**: `MF-DOC-001`
+- **Title**: Reconcile Post-Merge Current-State Documentation
+- **Active Task Branch**: `docs/mf-doc-001-post-merge-reconciliation`
 - **Base Branch**: `main`
-- **Base Commit**: `223a75f76adeb81983f50162c0941f344848260a`
-- **Current Lifecycle Mode**: `FULL_VALIDATION` (current delivery gate; validation has not yet passed).
-- **Planning Status**: Complete; the refined Hybrid curriculum architecture is approved.
-- **Documentation Status**: Documentation reconciliation is complete for the approved implementation and recorded for the pending final validation gate.
-- **Implementation Status**: Complete on the local feature branch. Learner Schema V5, independent progression, structured generators, ownership-aware frontiers, deterministic bounded selection, and the target selector policy are implemented and reviewed.
-- **Review Status**: `REVIEW_APPROVED`; persistence integrity, publish-after-commit state, bounded runtime selection, and long-run/restart/migration coverage findings are resolved.
-- **Delivery Status**: Local-only. No push or Pull Request exists; the branch remains 11 commits ahead of `main`.
-- **Platform Status**: No Web work is active. Windows and Android remain the active native product priorities.
-- **Package Scope**:
-  - Document independent Addition, Subtraction, Multiplication, and Division progression;
-  - Define the dense 567-fact foundation and deterministic structured arithmetic bands;
-  - Define unique acquisition ownership, representative structured acquisition, exact advancement gates, and deterministic queue roles;
-  - Define lazy materialization, stable FactIds, FSRS boundaries, and atomic V4-to-V5 migration without learner reset;
-  - Reconcile product, project-state, roadmap, ADR registry, and changelog documentation without changing application source or tests.
+- **Base Commit**: `47a3c7b7d17e8a45ef57f1e32835ce299c845f45`
+- **Current Lifecycle Mode**: `DOCUMENT_ONLY`.
+- **Planning Status**: Complete; approved for `DOCUMENT_ONLY`.
+- **Documentation Status**: Reconciliation in progress.
+- **Implementation Status**: Not applicable; this is a documentation-only package.
+- **Previous Delivery Status**: `MF-LEARN-001` is completed and merged through Pull Request #9.
+- **Current Product Direction**: Native V1 Release Readiness.
+- **Platform Status**: Windows and Android remain the active native priorities. Web remains deferred.
 
 ---
 
 ## 2. Operational Rules
 
 1. **Subordinate Status**: If this file differs from the current branch, working tree, or GitHub state, live repository evidence is authoritative.
-2. **Lifecycle Isolation**: The candidate is at the `FULL_VALIDATION` delivery gate; validation must complete before `PUSH_ONLY`, and no push, PR, or merge is part of the current invocation.
+2. **Lifecycle Isolation**: This package is in `DOCUMENT_ONLY`. No review, commit, validation, push, Pull Request, or merge has occurred for `MF-DOC-001`.
 
 ---
 
 ## 3. Current Lifecycle Position
 
-- **Current Activity**: Candidate at the `FULL_VALIDATION` delivery gate; validation has not yet passed.
-- **Next Governed Activity**: `PUSH_ONLY` after successful `FULL_VALIDATION`.
-- **Later Lifecycle**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Current Activity**: Post-merge documentation reconciliation for Native V1 Release Readiness.
+- **Next Governed Activity**: `REVIEW_ONLY` after `DOCUMENT_ONLY` completes successfully.
+- **Later Lifecycle**: `REVIEW_ONLY` → `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.

@@ -10,7 +10,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
 - **Default Branch**: `main`
 - **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: Native V1 implementation complete for MF-LEARN-001 on the local feature branch; delivery remains unpushed and unmerged.
+- **Current Status**: MF-LEARN-001 is complete and merged into `main` through Pull Request #9. Native V1 release-readiness work remains outstanding.
 
 ---
 
@@ -50,7 +50,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - atomic preservation of valid V4 learner evidence without automatic reset;
 - removal of the global Mixed Checkpoint and fixed level-10/418-fact acquisition ceiling.
 
-The implementation and review are complete on the local feature branch. The branch remains local-only pending documentation commit, full validation, push, Pull Request, manual merge, and post-merge synchronization.
+MF-LEARN-001 implementation and review completed, its full validation passed, and the feature branch was merged into `main` through Pull Request #9. Post-merge synchronization completed successfully; Native V1 release-readiness work remains separate.
 
 ---
 
@@ -59,7 +59,7 @@ The implementation and review are complete on the local feature branch. The bran
 - MF-AND-001 was merged to `main` through GitHub Pull Request #7 on 2026-09-08, adding the Android V1 runtime and native SQLite layer while preserving Windows behavior.
 - Repository history records 178 passing automated unit and simulation tests before the Android V1 package; the merged Android package adds deterministic lifecycle, input, responsive-layout, localization, and SQLite architecture coverage.
 - Repository release notes record a completed real-device Android spot-check for responsive layout, keypad/native IME behavior, Ready/Pause/Resume, smart auto-submit, and Incorrect/Timeout feedback context.
-- MF-LEARN-001 validation evidence includes a passing full Core suite, Windows and Android Release builds with zero warnings/errors, and final review approval. Exact checkpoint counts remain in the implementation evidence and task history rather than being repeated throughout this durable project-state summary.
+- MF-LEARN-001 completed with `REVIEW_APPROVED`, a full Core suite of 409 passed, 0 failed, and 0 skipped, Windows and Android Release builds with 0 warnings and 0 errors, clean vulnerability and static-regression audits, Pull Request #9 merge, and successful post-merge synchronization.
 
 ---
 
