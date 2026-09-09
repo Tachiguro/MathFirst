@@ -88,6 +88,36 @@ public sealed class PracticeCopyLibraryTests
         }
     }
 
+    [Fact]
+    public void Library_EachLocaleAndTrigger_HasUniqueVisibleText()
+    {
+        foreach (var locale in SupportedLocales)
+        {
+            foreach (var trigger in AllTriggers)
+            {
+                var ids = Library.GetMessageIds(trigger, locale);
+                var texts = ids
+                    .Select(id => Library.GetText(id, locale)!.Trim())
+                    .ToList();
+
+                Assert.True(
+                    texts.Distinct(StringComparer.Ordinal).Count() == ids.Count,
+                    $"Locale '{locale}' contains duplicate visible text for trigger '{trigger}'.");
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("InitialReady.Neutral.003", "InitialReady.LightlyCheeky.002")]
+    [InlineData("ResumeManualPause.Neutral.001", "ResumeManualPause.Neutral.003")]
+    [InlineData("ResumeBackground.Welcoming.001", "ResumeBackground.Welcoming.002")]
+    public void Library_RussianKnownDuplicatePairs_HaveDistinctVisibleText(string firstId, string secondId)
+    {
+        Assert.NotEqual(
+            Library.GetText(firstId, "ru")!.Trim(),
+            Library.GetText(secondId, "ru")!.Trim());
+    }
+
     // ---------------------------------------------------------------------------
     // E. Placeholder parity — {N} placeholders identical across locales
     // ---------------------------------------------------------------------------

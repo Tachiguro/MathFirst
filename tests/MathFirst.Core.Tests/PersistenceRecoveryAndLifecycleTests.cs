@@ -178,6 +178,7 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         ]);
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
+        var initialGeneration = session.LearnerStateGenerationRevision;
 
         var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         var result = await session.CommitCurrentEvaluationAsync();
@@ -199,6 +200,7 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
         Assert.Null(session.LastEvaluation);
         Assert.True(session.IsTimingActive);
+        Assert.True(session.LearnerStateGenerationRevision > initialGeneration);
     }
 
     [Theory]

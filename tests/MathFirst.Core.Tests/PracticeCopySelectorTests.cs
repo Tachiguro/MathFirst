@@ -452,11 +452,11 @@ public sealed class PracticeCopySelectorTests
         var selector = new PracticeCopySelector(new FakeCopyLibrary());
         var context = MakeContext(PracticeCopyTrigger.InitialReady, 42, "en");
         var applicationState = new PracticeGateCopyState(selector);
-        applicationState.Synchronize(7, context, "Ready");
+        applicationState.Synchronize(new PracticeGatePresentationIdentity(3, 7), context, "Ready");
         var selectedId = applicationState.Current!.MessageId;
 
         // A replacement Home consumer synchronizes the same application state.
-        applicationState.Synchronize(7, context, "Ready");
+        applicationState.Synchronize(new PracticeGatePresentationIdentity(3, 7), context, "Ready");
 
         Assert.Equal(selectedId, applicationState.Current!.MessageId);
     }
@@ -467,17 +467,33 @@ public sealed class PracticeCopySelectorTests
         var library = new PracticeCopyLibrary();
         var state = new PracticeGateCopyState(new PracticeCopySelector(library));
         var englishContext = MakeContext(PracticeCopyTrigger.InitialReady, 42, "en");
-        state.Synchronize(7, englishContext, "Ready");
+        state.Synchronize(new PracticeGatePresentationIdentity(3, 7), englishContext, "Ready");
         var messageId = state.Current!.MessageId;
 
-        state.Synchronize(7, englishContext with { Locale = "de" }, "Bereit");
+        state.Synchronize(
+            new PracticeGatePresentationIdentity(3, 7),
+            englishContext with { Locale = "de" },
+            "Bereit");
 
         Assert.Equal(messageId, state.Current!.MessageId);
         Assert.Equal(library.GetText(messageId, "de"), state.Current.LocalizedText);
 
-        state.Synchronize(8, englishContext, "Ready");
+        state.Synchronize(new PracticeGatePresentationIdentity(3, 8), englishContext, "Ready");
 
         Assert.NotEqual(messageId, state.Current!.MessageId);
+    }
+
+    [Fact]
+    public void GatePresentation_SameActivationNumberInNewLearnerGeneration_SelectsAgain()
+    {
+        var state = new PracticeGateCopyState(new PracticeCopySelector(new FakeCopyLibrary()));
+        var context = MakeContext(PracticeCopyTrigger.InitialReady, 42, "en");
+        state.Synchronize(new PracticeGatePresentationIdentity(1, 7), context, "Ready");
+        var oldMessageId = state.Current!.MessageId;
+
+        state.Synchronize(new PracticeGatePresentationIdentity(2, 7), context, "Ready");
+
+        Assert.NotEqual(oldMessageId, state.Current!.MessageId);
     }
 
     [Fact]
@@ -487,6 +503,7 @@ public sealed class PracticeCopySelectorTests
             "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
 
         Assert.Contains("@inject PracticeGateCopyState PracticeGateCopyState", home, StringComparison.Ordinal);
+        Assert.Contains("Session.LearnerStateGenerationRevision", home, StringComparison.Ordinal);
         Assert.Contains("Session.PracticeGateActivationRevision", home, StringComparison.Ordinal);
         Assert.DoesNotContain("new PracticeGateCopyState", home, StringComparison.Ordinal);
     }

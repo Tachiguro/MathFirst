@@ -682,7 +682,9 @@
             Localizer.CurrentUiLanguage,
             DateTimeOffset.UtcNow);
         PracticeGateCopyState.Synchronize(
-            Session.PracticeGateActivationRevision,
+            new PracticeGatePresentationIdentity(
+                Session.LearnerStateGenerationRevision,
+                Session.PracticeGateActivationRevision),
             context,
             PracticeGateFallbackTitle);
     }

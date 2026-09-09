@@ -1,5 +1,9 @@
 namespace MathFirst.Application.Copy;
 
+public readonly record struct PracticeGatePresentationIdentity(
+    long LearnerStateGenerationRevision,
+    long PracticeGateActivationRevision);
+
 /// <summary>
 /// Application-session presentation state for practice-gate activations.
 /// Selection occurs only in <see cref="Activate"/>; reading <see cref="Current"/>
@@ -15,7 +19,7 @@ public sealed class PracticeGateCopyState
     }
 
     public PracticeCopyResult? Current { get; private set; }
-    public long? CurrentActivationRevision { get; private set; }
+    public PracticeGatePresentationIdentity? CurrentIdentity { get; private set; }
 
     public void Activate(PracticeCopyContext context, string localizedFallback)
     {
@@ -30,22 +34,26 @@ public sealed class PracticeGateCopyState
     }
 
     /// <summary>
-    /// Selects once for a session-owned gate activation; later consumers of the same
-    /// activation only re-localize the established language-independent message ID.
+    /// Selects once for a session-owned learner-generation/gate-activation identity;
+    /// later consumers of the same identity only re-localize the established
+    /// language-independent message ID.
     /// </summary>
-    public void Synchronize(long activationRevision, PracticeCopyContext context, string localizedFallback)
+    public void Synchronize(
+        PracticeGatePresentationIdentity identity,
+        PracticeCopyContext context,
+        string localizedFallback)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentException.ThrowIfNullOrWhiteSpace(localizedFallback);
 
-        if (CurrentActivationRevision == activationRevision && Current is not null)
+        if (CurrentIdentity == identity && Current is not null)
         {
             Relocalize(context.Locale, localizedFallback);
             return;
         }
 
         Activate(context, localizedFallback);
-        CurrentActivationRevision = activationRevision;
+        CurrentIdentity = identity;
     }
 
     public void Relocalize(string locale, string localizedFallback)
@@ -67,6 +75,6 @@ public sealed class PracticeGateCopyState
     public void Clear()
     {
         Current = null;
-        CurrentActivationRevision = null;
+        CurrentIdentity = null;
     }
 }

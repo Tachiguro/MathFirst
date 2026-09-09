@@ -275,7 +275,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["InitialReady.DryHumor.002"] = "Всё ещё здесь. Примеры тоже.",
         ["InitialReady.DryHumor.003"] = "Набор примеров готов.",
         ["InitialReady.LightlyCheeky.001"] = "Примеры подозрительно готовы.",
-        ["InitialReady.LightlyCheeky.002"] = "Начинай, когда удобно.",
+        ["InitialReady.LightlyCheeky.002"] = "Примеры уже ждут — можно начинать.",
 
         // ReturnShortAbsence
         ["ReturnShortAbsence.Neutral.001"] = "Готово.",
@@ -304,7 +304,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         // ResumeManualPause
         ["ResumeManualPause.Neutral.001"] = "Продолжай, когда удобно.",
         ["ResumeManualPause.Neutral.002"] = "Тренировка на паузе.",
-        ["ResumeManualPause.Neutral.003"] = "Продолжай, когда удобно.",
+        ["ResumeManualPause.Neutral.003"] = "Можно продолжать.",
         ["ResumeManualPause.Welcoming.001"] = "Не спеши. Продолжай, когда удобно.",
         ["ResumeManualPause.Welcoming.002"] = "Не спеши.",
         ["ResumeManualPause.DryHumor.001"] = "Таймер очень терпелив.",
@@ -318,7 +318,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["ResumeBackground.Neutral.002"] = "Тренировка готова.",
         ["ResumeBackground.Neutral.003"] = "Можно продолжать.",
         ["ResumeBackground.Welcoming.001"] = "Продолжай, когда удобно.",
-        ["ResumeBackground.Welcoming.002"] = "Продолжай, когда удобно.",
+        ["ResumeBackground.Welcoming.002"] = "С возвращением — можно продолжать.",
         ["ResumeBackground.DryHumor.001"] = "Здесь. Пример тоже.",
         ["ResumeBackground.DryHumor.002"] = "Пример подождал.",
         ["ResumeBackground.LightlyCheeky.001"] = "Уже снова здесь?",

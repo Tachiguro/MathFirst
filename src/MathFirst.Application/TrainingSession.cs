@@ -22,6 +22,7 @@ public sealed class TrainingSession
     private bool _isPracticeSurfaceActive = true;
     private PracticeGateState _practiceGateState = PracticeGateState.Running;
     private long _practiceGateActivationRevision;
+    private long _learnerStateGenerationRevision;
     private bool _requiresBackgroundResumeAfterAdvance;
     private int _sessionCorrectCountBeforePendingEvaluation;
     private int _sessionTotalCountBeforePendingEvaluation;
@@ -56,6 +57,11 @@ public sealed class TrainingSession
     /// This transient presentation lifecycle metadata is deliberately not persisted.
     /// </summary>
     public long PracticeGateActivationRevision => _practiceGateActivationRevision;
+    /// <summary>
+    /// Monotonic identity for the authoritative learner-state generation held by
+    /// this session object. This transient lifecycle metadata is not persisted.
+    /// </summary>
+    public long LearnerStateGenerationRevision => _learnerStateGenerationRevision;
     public bool IsInitialized { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
@@ -602,6 +608,7 @@ public sealed class TrainingSession
 
     private void ApplyRuntimeSnapshot(LearnerSnapshot snapshot)
     {
+        _learnerStateGenerationRevision = checked(_learnerStateGenerationRevision + 1);
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
