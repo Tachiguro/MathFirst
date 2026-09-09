@@ -14,9 +14,9 @@ This document provides operational context for the package currently in flight.
 - **Active Task Branch**: `feat/mf-learn-001-independent-progression`
 - **Base Branch**: `main`
 - **Base Commit**: `223a75f76adeb81983f50162c0941f344848260a`
-- **Current Lifecycle Mode**: `DOCUMENT_ONLY`
+- **Current Lifecycle Mode**: `FULL_VALIDATION` (current delivery gate; validation has not yet passed).
 - **Planning Status**: Complete; the refined Hybrid curriculum architecture is approved.
-- **Documentation Status**: Documentation reconciliation is complete for the approved implementation and is awaiting `COMMIT_ONLY`.
+- **Documentation Status**: Documentation reconciliation is complete for the approved implementation and recorded for the pending final validation gate.
 - **Implementation Status**: Complete on the local feature branch. Learner Schema V5, independent progression, structured generators, ownership-aware frontiers, deterministic bounded selection, and the target selector policy are implemented and reviewed.
 - **Review Status**: `REVIEW_APPROVED`; persistence integrity, publish-after-commit state, bounded runtime selection, and long-run/restart/migration coverage findings are resolved.
 - **Delivery Status**: Local-only. No push or Pull Request exists; the branch remains 11 commits ahead of `main`.
@@ -33,12 +33,12 @@ This document provides operational context for the package currently in flight.
 ## 2. Operational Rules
 
 1. **Subordinate Status**: If this file differs from the current branch, working tree, or GitHub state, live repository evidence is authoritative.
-2. **Lifecycle Isolation**: This `DOCUMENT_ONLY` reconciliation stops before `COMMIT_ONLY`; no staging, commit, push, PR, or merge is part of the current invocation.
+2. **Lifecycle Isolation**: The candidate is at the `FULL_VALIDATION` delivery gate; validation must complete before `PUSH_ONLY`, and no push, PR, or merge is part of the current invocation.
 
 ---
 
 ## 3. Current Lifecycle Position
 
-- **Current Activity**: Documentation reconciliation complete / awaiting `COMMIT_ONLY`.
-- **Next Governed Activity**: `COMMIT_ONLY`.
+- **Current Activity**: Candidate at the `FULL_VALIDATION` delivery gate; validation has not yet passed.
+- **Next Governed Activity**: `PUSH_ONLY` after successful `FULL_VALIDATION`.
 - **Later Lifecycle**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
