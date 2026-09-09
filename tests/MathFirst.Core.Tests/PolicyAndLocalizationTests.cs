@@ -119,6 +119,11 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Correct: 3 / 5", formatted);
     }
 
+    /// <summary>
+    /// Verifies that the static practice gate localization keys remain present and correct in
+    /// all languages. These keys serve as the ultimate fallback for the contextual copy system
+    /// introduced in MF-UX-002 and must not be removed.
+    /// </summary>
     [Theory]
     [InlineData("en", "Ready to practice?", "Start", "Paused", "Resume practice", "Pause")]
     [InlineData("de", "Bereit zum Üben?", "Los geht's", "Pausiert", "Weiterüben", "Pausieren")]
@@ -134,6 +139,7 @@ public sealed class PolicyAndLocalizationTests
         var service = new LocalizationService();
         service.ApplyLanguagePreference(language);
 
+        // Static keys are preserved as ultimate fallback for the contextual copy selector.
         Assert.Equal(expectedReady, service["Training_ReadyTitle"]);
         Assert.Equal(expectedStart, service["Training_Start"]);
         Assert.Equal(expectedPaused, service["Training_PausedTitle"]);

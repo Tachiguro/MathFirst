@@ -1,9 +1,11 @@
 @page "/"
 @implements IDisposable
 @using MathFirst.Application
+@using MathFirst.Application.Copy
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
+@inject PracticeCopySelector CopySelector
 @inject IPreferenceStore PreferenceStore
 @inject IJSRuntime JSRuntime
 
@@ -655,9 +657,14 @@
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
 
-    private string PracticeGateTitle => Session.PracticeGate == PracticeGateState.InitialReadyGate
-        ? Localizer["Training_ReadyTitle"]
-        : Localizer["Training_PausedTitle"];
+    private string PracticeGateTitle
+    {
+        get
+        {
+            var ctx = PracticeCopyContext.FromSession(Session, Localizer.CurrentUiLanguage);
+            return CopySelector.Select(ctx).LocalizedText;
+        }
+    }
 
     private string PracticeGateAction => Session.PracticeGate == PracticeGateState.InitialReadyGate
         ? Localizer["Training_Start"]
