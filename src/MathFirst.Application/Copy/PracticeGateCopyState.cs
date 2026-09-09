@@ -1,7 +1,7 @@
 namespace MathFirst.Application.Copy;
 
 /// <summary>
-/// Component-owned presentation state for one visible practice-gate activation.
+/// Application-session presentation state for practice-gate activations.
 /// Selection occurs only in <see cref="Activate"/>; reading <see cref="Current"/>
 /// during rendering has no side effects.
 /// </summary>
@@ -15,6 +15,7 @@ public sealed class PracticeGateCopyState
     }
 
     public PracticeCopyResult? Current { get; private set; }
+    public long? CurrentActivationRevision { get; private set; }
 
     public void Activate(PracticeCopyContext context, string localizedFallback)
     {
@@ -26,6 +27,25 @@ public sealed class PracticeGateCopyState
             localizedFallback,
             context.Trigger,
             IsFallback: true);
+    }
+
+    /// <summary>
+    /// Selects once for a session-owned gate activation; later consumers of the same
+    /// activation only re-localize the established language-independent message ID.
+    /// </summary>
+    public void Synchronize(long activationRevision, PracticeCopyContext context, string localizedFallback)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localizedFallback);
+
+        if (CurrentActivationRevision == activationRevision && Current is not null)
+        {
+            Relocalize(context.Locale, localizedFallback);
+            return;
+        }
+
+        Activate(context, localizedFallback);
+        CurrentActivationRevision = activationRevision;
     }
 
     public void Relocalize(string locale, string localizedFallback)
@@ -44,5 +64,9 @@ public sealed class PracticeGateCopyState
             ?? Current with { LocalizedText = localizedFallback, IsFallback = true };
     }
 
-    public void Clear() => Current = null;
+    public void Clear()
+    {
+        Current = null;
+        CurrentActivationRevision = null;
+    }
 }

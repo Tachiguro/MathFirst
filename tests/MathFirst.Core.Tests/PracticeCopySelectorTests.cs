@@ -447,6 +447,51 @@ public sealed class PracticeCopySelectorTests
     }
 
     [Fact]
+    public void GatePresentation_ConsumerRecreationForSameActivation_DoesNotSelectAgain()
+    {
+        var selector = new PracticeCopySelector(new FakeCopyLibrary());
+        var context = MakeContext(PracticeCopyTrigger.InitialReady, 42, "en");
+        var applicationState = new PracticeGateCopyState(selector);
+        applicationState.Synchronize(7, context, "Ready");
+        var selectedId = applicationState.Current!.MessageId;
+
+        // A replacement Home consumer synchronizes the same application state.
+        applicationState.Synchronize(7, context, "Ready");
+
+        Assert.Equal(selectedId, applicationState.Current!.MessageId);
+    }
+
+    [Fact]
+    public void GatePresentation_SameActivationRelocalizesWithoutSelection_ButNewActivationMaySelectAgain()
+    {
+        var library = new PracticeCopyLibrary();
+        var state = new PracticeGateCopyState(new PracticeCopySelector(library));
+        var englishContext = MakeContext(PracticeCopyTrigger.InitialReady, 42, "en");
+        state.Synchronize(7, englishContext, "Ready");
+        var messageId = state.Current!.MessageId;
+
+        state.Synchronize(7, englishContext with { Locale = "de" }, "Bereit");
+
+        Assert.Equal(messageId, state.Current!.MessageId);
+        Assert.Equal(library.GetText(messageId, "de"), state.Current.LocalizedText);
+
+        state.Synchronize(8, englishContext, "Ready");
+
+        Assert.NotEqual(messageId, state.Current!.MessageId);
+    }
+
+    [Fact]
+    public void Home_UsesApplicationLifetimeGateCopyStateAndSessionActivationIdentity()
+    {
+        var home = File.ReadAllText(GetRepositoryPath(
+            "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        Assert.Contains("@inject PracticeGateCopyState PracticeGateCopyState", home, StringComparison.Ordinal);
+        Assert.Contains("Session.PracticeGateActivationRevision", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("new PracticeGateCopyState", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GatePresentation_ActivationDoesNotMutateLearningState()
     {
         var session = new TrainingSession(new SnapshotStore(CreateSnapshot()));

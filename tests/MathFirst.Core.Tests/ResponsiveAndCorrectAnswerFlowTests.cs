@@ -195,6 +195,25 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
     }
 
     [Fact]
+    public async Task PracticeGateActivationRevision_ChangesOnlyForNewGateActivations()
+    {
+        var (session, _, _) = await CreateSession();
+        var initialRevision = session.PracticeGateActivationRevision;
+
+        session.PausePractice();
+        var pausedRevision = session.PracticeGateActivationRevision;
+        session.PausePractice();
+
+        Assert.True(pausedRevision > initialRevision);
+        Assert.Equal(pausedRevision, session.PracticeGateActivationRevision);
+
+        session.StartOrResumePractice();
+        session.PausePractice();
+
+        Assert.True(session.PracticeGateActivationRevision > pausedRevision);
+    }
+
+    [Fact]
     public async Task BackgroundReturn_RequiresExplicitResumeWithSameRemainingTime()
     {
         var (session, clock, _) = await CreateSession();

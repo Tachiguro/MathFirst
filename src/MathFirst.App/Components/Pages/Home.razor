@@ -5,7 +5,7 @@
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
-@inject PracticeCopySelector CopySelector
+@inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
 @inject IJSRuntime JSRuntime
 
@@ -204,8 +204,6 @@
     private ElementReference _primaryOverlayButton;
     private bool _shouldFocusInput = true;
     private bool _shouldFocusPrimaryOverlay;
-    private PracticeGateCopyState? _practiceGateCopyState;
-    private PracticeGateState? _copyGate;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -217,7 +215,6 @@
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
-        _practiceGateCopyState = new PracticeGateCopyState(CopySelector);
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
 
         if (!Session.IsInitialized)
@@ -293,7 +290,7 @@
     {
         if (Session.PracticeGate != PracticeGateState.Running)
         {
-            _practiceGateCopyState?.Relocalize(
+            PracticeGateCopyState.Relocalize(
                 Localizer.CurrentUiLanguage,
                 PracticeGateFallbackTitle);
         }
@@ -673,21 +670,10 @@
 
     private void SyncPracticeGateCopy()
     {
-        if (_practiceGateCopyState is null)
-        {
-            return;
-        }
-
         var gate = Session.PracticeGate;
         if (gate == PracticeGateState.Running)
         {
-            _practiceGateCopyState.Clear();
-            _copyGate = null;
-            return;
-        }
-
-        if (_copyGate == gate && _practiceGateCopyState.Current is not null)
-        {
+            PracticeGateCopyState.Clear();
             return;
         }
 
@@ -695,12 +681,14 @@
             Session,
             Localizer.CurrentUiLanguage,
             DateTimeOffset.UtcNow);
-        _practiceGateCopyState.Activate(context, PracticeGateFallbackTitle);
-        _copyGate = gate;
+        PracticeGateCopyState.Synchronize(
+            Session.PracticeGateActivationRevision,
+            context,
+            PracticeGateFallbackTitle);
     }
 
     private string PracticeGateTitle =>
-        _practiceGateCopyState?.Current?.LocalizedText ?? PracticeGateFallbackTitle;
+        PracticeGateCopyState.Current?.LocalizedText ?? PracticeGateFallbackTitle;
 
     private string PracticeGateFallbackTitle =>
         Session.PracticeGate == PracticeGateState.InitialReadyGate

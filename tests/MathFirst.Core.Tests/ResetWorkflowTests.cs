@@ -132,6 +132,14 @@ public sealed class ResetWorkflowTests : IDisposable
         var snapshot = await store.LoadSnapshotAsync();
         Assert.Equal(2, snapshot.Revision);
         Assert.Single(snapshot.ItemStates);
+
+        var localizer = new LocalizationService();
+        foreach (var language in new[] { "en", "de", "ru" })
+        {
+            localizer.ApplyLanguagePreference(language);
+            Assert.DoesNotContain(language == "en" ? "first" : language == "de" ? "erste" : "Первый",
+                localizer["Onboarding_StepReady_Desc"], StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]

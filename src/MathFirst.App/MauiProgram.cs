@@ -33,6 +33,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<TrainingSession>();
 		builder.Services.AddSingleton<IPracticeCopyLibrary, PracticeCopyLibrary>();
 		builder.Services.AddSingleton<PracticeCopySelector>();
+		builder.Services.AddSingleton<PracticeGateCopyState>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

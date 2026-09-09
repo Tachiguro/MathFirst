@@ -21,6 +21,7 @@ public sealed class TrainingSession
     private bool _isAppForeground = true;
     private bool _isPracticeSurfaceActive = true;
     private PracticeGateState _practiceGateState = PracticeGateState.Running;
+    private long _practiceGateActivationRevision;
     private bool _requiresBackgroundResumeAfterAdvance;
     private int _sessionCorrectCountBeforePendingEvaluation;
     private int _sessionTotalCountBeforePendingEvaluation;
@@ -50,6 +51,11 @@ public sealed class TrainingSession
     public bool IsAppForeground => _isAppForeground;
     public bool IsPracticeSurfaceActive => _isPracticeSurfaceActive;
     public PracticeGateState PracticeGate => _practiceGateState;
+    /// <summary>
+    /// Monotonic identity for the current non-running practice-gate activation.
+    /// This transient presentation lifecycle metadata is deliberately not persisted.
+    /// </summary>
+    public long PracticeGateActivationRevision => _practiceGateActivationRevision;
     public bool IsInitialized { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
@@ -114,7 +120,7 @@ public sealed class TrainingSession
         {
             if (InteractionState == SessionInteractionState.AwaitingAnswer)
             {
-                _practiceGateState = PracticeGateState.BackgroundResumeGate;
+                TransitionPracticeGate(PracticeGateState.BackgroundResumeGate);
             }
             else if (LastEvaluation?.Outcome == AttemptOutcome.Correct &&
                      InteractionState is SessionInteractionState.CorrectFeedback or SessionInteractionState.PersistenceFailure)
@@ -157,7 +163,7 @@ public sealed class TrainingSession
             return;
         }
 
-        _practiceGateState = PracticeGateState.InitialReadyGate;
+        TransitionPracticeGate(PracticeGateState.InitialReadyGate);
         ReconcileTimingState();
     }
 
@@ -169,7 +175,7 @@ public sealed class TrainingSession
             return;
         }
 
-        _practiceGateState = PracticeGateState.ManualPause;
+        TransitionPracticeGate(PracticeGateState.ManualPause);
         ReconcileTimingState();
     }
 
@@ -180,8 +186,22 @@ public sealed class TrainingSession
             return;
         }
 
-        _practiceGateState = PracticeGateState.Running;
+        TransitionPracticeGate(PracticeGateState.Running);
         ReconcileTimingState();
+    }
+
+    private void TransitionPracticeGate(PracticeGateState nextState)
+    {
+        if (_practiceGateState == nextState)
+        {
+            return;
+        }
+
+        _practiceGateState = nextState;
+        if (nextState != PracticeGateState.Running)
+        {
+            _practiceGateActivationRevision++;
+        }
     }
 
     private void ReconcileTimingState()
@@ -541,7 +561,7 @@ public sealed class TrainingSession
 
         if (_requiresBackgroundResumeAfterAdvance)
         {
-            _practiceGateState = PracticeGateState.BackgroundResumeGate;
+            TransitionPracticeGate(PracticeGateState.BackgroundResumeGate);
             _requiresBackgroundResumeAfterAdvance = false;
         }
 

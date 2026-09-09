@@ -193,6 +193,18 @@ public sealed class PolicyAndLocalizationTests
         Assert.Contains(expectedIndependentPracticePhrase, service["Onboarding_TutorialStep3Text"], StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("en", "Your arithmetic practice is ready. The answer timer starts only when you select Get Started.")]
+    [InlineData("de", "Dein Rechentraining ist bereit. Der Antworttimer startet erst mit „Los geht's“.")]
+    [InlineData("ru", "Тренировка по арифметике готова. Таймер ответа запустится только после нажатия «Начать».")]
+    public void LocalizationService_OnboardingReadyDescription_IsHistoryNeutral(string language, string expected)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expected, service["Onboarding_StepReady_Desc"]);
+    }
+
     [Fact]
     public void LocalizationService_ApplyLanguagePreference_FiresUiLanguageChangedOnlyWhenChanged()
     {
