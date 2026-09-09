@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application;
+using MathFirst.Application.Copy;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
 using Xunit;
@@ -72,6 +73,7 @@ public sealed class ResetWorkflowTests : IDisposable
         // Advance and submit
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
+        Assert.Equal(session.LastEvaluation!.ChangeSet.Attempt.Timestamp, session.LatestAcceptedPracticeAt);
 
         // Perform learning reset
         await session.ResetLearningProgressAsync();
@@ -79,6 +81,13 @@ public sealed class ResetWorkflowTests : IDisposable
         // Verify DB was reset to the initial V5 operation bands.
         Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(session.ItemStates);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+        session.ShowInitialReadyGate();
+        var copyContext = PracticeCopyContext.FromSession(
+            session,
+            "de",
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal(PracticeCopyTrigger.InitialReady, copyContext.Trigger);
 
         // Verify UI preferences and onboarding were PRESERVED
         Assert.True(prefs.GetOnboardingCompleted());
@@ -150,6 +159,13 @@ public sealed class ResetWorkflowTests : IDisposable
         // Verify DB reset
         Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(session.ItemStates);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+        session.ShowInitialReadyGate();
+        var copyContext = PracticeCopyContext.FromSession(
+            session,
+            "en",
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal(PracticeCopyTrigger.InitialReady, copyContext.Trigger);
 
         // Verify Prefs reset
         Assert.False(prefs.GetOnboardingCompleted());

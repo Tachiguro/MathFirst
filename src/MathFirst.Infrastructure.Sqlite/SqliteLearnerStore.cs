@@ -1,6 +1,7 @@
 namespace MathFirst.Infrastructure.Sqlite;
 
 using System.Data;
+using System.Globalization;
 using System.Text.Json;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Scheduling;
@@ -205,8 +206,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var operationProgressions = await ReadOperationProgressionsAsync(cancellationToken).ConfigureAwait(false);
         progression.OperationProgressions = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
+        var latestAcceptedPracticeAt = await ReadLatestAcceptedPracticeAtAsync(cancellationToken).ConfigureAwait(false);
 
-        return new LearnerSnapshot(progression, itemStates, fsrsStates, recentAttempts, revision, version, operationProgressions);
+        return new LearnerSnapshot(progression, itemStates, fsrsStates, recentAttempts, revision, version, operationProgressions, latestAcceptedPracticeAt);
     }
 
     public async Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken cancellationToken = default)
@@ -225,6 +227,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var operationProgressions = await ReadOperationProgressionsAsync(cancellationToken).ConfigureAwait(false);
         progression.OperationProgressions = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
+        var latestAcceptedPracticeAt = await ReadLatestAcceptedPracticeAtAsync(cancellationToken).ConfigureAwait(false);
 
         return new LearnerSnapshot(
             progression,
@@ -233,7 +236,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
             recentAttempts,
             revision,
             version,
-            operationProgressions);
+            operationProgressions,
+            latestAcceptedPracticeAt);
     }
 
     public async Task<PracticeSelectionEvidence> LoadPracticeSelectionEvidenceAsync(
@@ -1113,6 +1117,31 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await ReadLegacyAttemptsAsync(50, list, cancellationToken).ConfigureAwait(false);
         }
         return list.Values.OrderBy(attempt => attempt.PracticePosition).ToArray();
+    }
+
+    private async Task<DateTimeOffset?> ReadLatestAcceptedPracticeAtAsync(CancellationToken cancellationToken)
+    {
+        if (_connection is null)
+        {
+            return null;
+        }
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = @"
+            SELECT timestamp
+            FROM attempt_history
+            ORDER BY CASE WHEN practice_position IS NULL THEN 0 ELSE 1 END DESC,
+                     practice_position DESC,
+                     timestamp DESC
+            LIMIT 1;";
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return value is string timestamp && DateTimeOffset.TryParse(
+            timestamp,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out var parsed)
+            ? parsed
+            : null;
     }
 
     private async Task ReadLegacyAttemptsAsync(int limit, IDictionary<string, AttemptRecord> destination, CancellationToken cancellationToken)

@@ -349,7 +349,7 @@ public sealed class LocalizationService : ILocalizationService
         ["Training_AnswerInputAriaLabel"] = "Поле ответа",
         ["Training_EnterNumber"] = "Пожалуйста, введите число.",
         ["Training_EnterValidNumber"] = "Пожалуйста, введите допустимое десятичное число.",
-        ["Training_ReadyTitle"] = "Готовы заниматься?",
+        ["Training_ReadyTitle"] = "Пора заниматься?",
         ["Training_Start"] = "Начать",
         ["Training_PausedTitle"] = "Пауза",
         ["Training_ResumePractice"] = "Продолжить занятие",

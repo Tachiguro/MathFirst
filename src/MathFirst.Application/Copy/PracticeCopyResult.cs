@@ -12,8 +12,8 @@ namespace MathFirst.Application.Copy;
 /// </param>
 /// <param name="Trigger">The trigger that drove this selection.</param>
 /// <param name="IsFallback">
-/// True when the result was produced by the static-key fallback path rather than
-/// a corpus message.
+/// True when the result came from a neutral corpus or established localization-key fallback
+/// rather than the requested trigger pool.
 /// </param>
 public sealed record PracticeCopyResult(
     string MessageId,

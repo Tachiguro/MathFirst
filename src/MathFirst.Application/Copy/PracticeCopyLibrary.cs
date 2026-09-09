@@ -1,5 +1,7 @@
 namespace MathFirst.Application.Copy;
 
+using MathFirst.Domain;
+
 /// <summary>
 /// Initial V1 EN/DE/RU contextual copy corpus for MF-UX-002.
 ///
@@ -13,23 +15,13 @@ namespace MathFirst.Application.Copy;
 /// - No sycophantic praise, no guilt/shame, no age/gender assumptions.
 /// - Tone: calm, dry, occasionally cheeky — never hostile, never patronizing.
 ///
-/// V1 corpus: ~55 variants per locale × 3 locales = ~165 strings total.
+/// V1 corpus: 55 variants per locale × 3 locales = 165 strings total.
 /// </summary>
 public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
 {
     // -------------------------------------------------------------------------
     // Message ID pools per trigger (language-independent)
     // -------------------------------------------------------------------------
-
-    private static readonly string[] FirstEverReadyIds =
-    [
-        "FirstEverReady.Welcoming.001",
-        "FirstEverReady.Welcoming.002",
-        "FirstEverReady.Neutral.001",
-        "FirstEverReady.Neutral.002",
-        "FirstEverReady.DryHumor.001",
-        "FirstEverReady.LightlyCheeky.001",
-    ];
 
     private static readonly string[] InitialReadyIds =
     [
@@ -120,15 +112,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
 
     private static readonly Dictionary<string, string> EnglishStrings = new(StringComparer.Ordinal)
     {
-        // FirstEverReady — learner's very first session
-        ["FirstEverReady.Welcoming.001"] = "Your first practice is ready.",
-        ["FirstEverReady.Welcoming.002"] = "First fact is ready.",
-        ["FirstEverReady.Neutral.001"] = "Practice starts now.",
-        ["FirstEverReady.Neutral.002"] = "Ready to begin.",
-        ["FirstEverReady.DryHumor.001"] = "Arithmetic is ready. So is the timer.",
-        ["FirstEverReady.LightlyCheeky.001"] = "No pressure. (There's a timer.)",
-
-        // InitialReady — same-session return, short gap
+        // InitialReady — no prior accepted practice or return within 30 minutes
         ["InitialReady.Neutral.001"] = "Ready to practice?",
         ["InitialReady.Neutral.002"] = "Practice is ready.",
         ["InitialReady.Neutral.003"] = "Start when ready.",
@@ -138,7 +122,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["InitialReady.DryHumor.001"] = "The numbers have been patient.",
         ["InitialReady.DryHumor.002"] = "Still here. So are the facts.",
         ["InitialReady.DryHumor.003"] = "The problem set is ready.",
-        ["InitialReady.LightlyCheeky.001"] = "The facts won't practice themselves.",
+        ["InitialReady.LightlyCheeky.001"] = "The facts look suspiciously ready.",
         ["InitialReady.LightlyCheeky.002"] = "Ready when you are.",
 
         // ReturnShortAbsence — 30 min to 3 days
@@ -153,7 +137,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["ReturnShortAbsence.LightlyCheeky.001"] = "Back already?",
         ["ReturnShortAbsence.LightlyCheeky.002"] = "Ready when you are.",
 
-        // ReturnLongAbsence — more than 3 days
+        // ReturnLongAbsence — 3 days or more
         ["ReturnLongAbsence.Neutral.001"] = "Welcome back.",
         ["ReturnLongAbsence.Neutral.002"] = "Ready to practice.",
         ["ReturnLongAbsence.Neutral.003"] = "Practice is ready.",
@@ -162,8 +146,8 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["ReturnLongAbsence.DryHumor.001"] = "The facts haven't moved.",
         ["ReturnLongAbsence.DryHumor.002"] = "Numbers: still reliable.",
         ["ReturnLongAbsence.DryHumor.003"] = "Arithmetic waited patiently.",
-        ["ReturnLongAbsence.LightlyCheeky.001"] = "Long time no practice.",
-        ["ReturnLongAbsence.LightlyCheeky.002"] = "The facts kept your seat warm.",
+        ["ReturnLongAbsence.LightlyCheeky.001"] = "A few days passed. Arithmetic did not.",
+        ["ReturnLongAbsence.LightlyCheeky.002"] = "The numbers kept their places.",
 
         // ResumeManualPause — user pressed pause, now resuming
         ["ResumeManualPause.Neutral.001"] = "Whenever you're ready.",
@@ -174,7 +158,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["ResumeManualPause.DryHumor.001"] = "The timer is very patient.",
         ["ResumeManualPause.DryHumor.002"] = "The problem is still there.",
         ["ResumeManualPause.DryHumor.003"] = "Paused. Fact: unchanged.",
-        ["ResumeManualPause.LightlyCheeky.001"] = "The problem hasn't solved itself.",
+        ["ResumeManualPause.LightlyCheeky.001"] = "The problem remains confidently unsolved.",
         ["ResumeManualPause.LightlyCheeky.002"] = "Still here. So is the fact.",
 
         // ResumeBackground — app was backgrounded, returning to foreground
@@ -204,14 +188,6 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
     {
-        // FirstEverReady
-        ["FirstEverReady.Welcoming.001"] = "Deine erste Übung ist bereit.",
-        ["FirstEverReady.Welcoming.002"] = "Erste Aufgabe ist bereit.",
-        ["FirstEverReady.Neutral.001"] = "Übung beginnt jetzt.",
-        ["FirstEverReady.Neutral.002"] = "Bereit zum Starten.",
-        ["FirstEverReady.DryHumor.001"] = "Aufgabe bereit. Timer auch.",
-        ["FirstEverReady.LightlyCheeky.001"] = "Kein Druck. (Es gibt einen Timer.)",
-
         // InitialReady
         ["InitialReady.Neutral.001"] = "Bereit zum Üben?",
         ["InitialReady.Neutral.002"] = "Übung ist bereit.",
@@ -222,7 +198,7 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["InitialReady.DryHumor.001"] = "Die Zahlen waren geduldig.",
         ["InitialReady.DryHumor.002"] = "Noch da. Die Aufgaben auch.",
         ["InitialReady.DryHumor.003"] = "Die Aufgaben sind bereit.",
-        ["InitialReady.LightlyCheeky.001"] = "Die Aufgaben üben sich nicht selbst.",
+        ["InitialReady.LightlyCheeky.001"] = "Die Aufgaben wirken verdächtig bereit.",
         ["InitialReady.LightlyCheeky.002"] = "Bereit, wenn du es bist.",
 
         // ReturnShortAbsence
@@ -246,19 +222,19 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
         ["ReturnLongAbsence.DryHumor.001"] = "Die Aufgaben haben sich nicht verändert.",
         ["ReturnLongAbsence.DryHumor.002"] = "Zahlen: weiterhin zuverlässig.",
         ["ReturnLongAbsence.DryHumor.003"] = "Arithmetik hat geduldig gewartet.",
-        ["ReturnLongAbsence.LightlyCheeky.001"] = "Lang nicht geübt.",
-        ["ReturnLongAbsence.LightlyCheeky.002"] = "Die Aufgaben haben deinen Platz freigehalten.",
+        ["ReturnLongAbsence.LightlyCheeky.001"] = "Ein paar Tage vergingen. Arithmetik nicht.",
+        ["ReturnLongAbsence.LightlyCheeky.002"] = "Die Zahlen blieben an ihrem Platz.",
 
         // ResumeManualPause
         ["ResumeManualPause.Neutral.001"] = "Wenn du bereit bist.",
         ["ResumeManualPause.Neutral.002"] = "Übung pausiert.",
         ["ResumeManualPause.Neutral.003"] = "Weitermachen, wenn bereit.",
-        ["ResumeManualPause.Welcoming.001"] = "Kein Eile. Bereit, wenn du es bist.",
+        ["ResumeManualPause.Welcoming.001"] = "Keine Eile. Bereit, wenn du es bist.",
         ["ResumeManualPause.Welcoming.002"] = "Lass dir Zeit.",
         ["ResumeManualPause.DryHumor.001"] = "Der Timer ist sehr geduldig.",
         ["ResumeManualPause.DryHumor.002"] = "Die Aufgabe ist noch da.",
         ["ResumeManualPause.DryHumor.003"] = "Pausiert. Aufgabe: unverändert.",
-        ["ResumeManualPause.LightlyCheeky.001"] = "Die Aufgabe löst sich nicht von selbst.",
+        ["ResumeManualPause.LightlyCheeky.001"] = "Die Aufgabe wartet bemerkenswert gelassen.",
         ["ResumeManualPause.LightlyCheeky.002"] = "Noch da. Die Aufgabe auch.",
 
         // ResumeBackground
@@ -288,81 +264,73 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
     {
-        // FirstEverReady
-        ["FirstEverReady.Welcoming.001"] = "Первая тренировка готова.",
-        ["FirstEverReady.Welcoming.002"] = "Первый пример готов.",
-        ["FirstEverReady.Neutral.001"] = "Тренировка начинается.",
-        ["FirstEverReady.Neutral.002"] = "Готовы начать.",
-        ["FirstEverReady.DryHumor.001"] = "Пример готов. Таймер тоже.",
-        ["FirstEverReady.LightlyCheeky.001"] = "Без давления. (Есть таймер.)",
-
         // InitialReady
-        ["InitialReady.Neutral.001"] = "Готовы заниматься?",
+        ["InitialReady.Neutral.001"] = "Пора заниматься?",
         ["InitialReady.Neutral.002"] = "Тренировка готова.",
-        ["InitialReady.Neutral.003"] = "Начните, когда будете готовы.",
+        ["InitialReady.Neutral.003"] = "Начинай, когда удобно.",
         ["InitialReady.Neutral.004"] = "Примеры ждут.",
-        ["InitialReady.Welcoming.001"] = "Готовы продолжить.",
+        ["InitialReady.Welcoming.001"] = "Можно продолжать.",
         ["InitialReady.Welcoming.002"] = "Продолжаем.",
         ["InitialReady.DryHumor.001"] = "Числа терпеливо ждали.",
         ["InitialReady.DryHumor.002"] = "Всё ещё здесь. Примеры тоже.",
         ["InitialReady.DryHumor.003"] = "Набор примеров готов.",
-        ["InitialReady.LightlyCheeky.001"] = "Примеры сами себя не решат.",
-        ["InitialReady.LightlyCheeky.002"] = "Готовы, когда вы готовы.",
+        ["InitialReady.LightlyCheeky.001"] = "Примеры подозрительно готовы.",
+        ["InitialReady.LightlyCheeky.002"] = "Начинай, когда удобно.",
 
         // ReturnShortAbsence
         ["ReturnShortAbsence.Neutral.001"] = "Готово.",
         ["ReturnShortAbsence.Neutral.002"] = "Возвращаемся к тренировке.",
         ["ReturnShortAbsence.Neutral.003"] = "Тренировка готова.",
-        ["ReturnShortAbsence.Welcoming.001"] = "Рады видеть вас снова.",
+        ["ReturnShortAbsence.Welcoming.001"] = "Снова здесь — можно продолжать.",
         ["ReturnShortAbsence.Welcoming.002"] = "Продолжаем.",
         ["ReturnShortAbsence.DryHumor.001"] = "Примеры подождали.",
         ["ReturnShortAbsence.DryHumor.002"] = "Числа: по-прежнему здесь.",
         ["ReturnShortAbsence.DryHumor.003"] = "Арифметика не устаревает.",
-        ["ReturnShortAbsence.LightlyCheeky.001"] = "Уже вернулись?",
-        ["ReturnShortAbsence.LightlyCheeky.002"] = "Готовы, когда вы готовы.",
+        ["ReturnShortAbsence.LightlyCheeky.001"] = "Уже снова здесь?",
+        ["ReturnShortAbsence.LightlyCheeky.002"] = "Начинай, когда удобно.",
 
         // ReturnLongAbsence
         ["ReturnLongAbsence.Neutral.001"] = "Добро пожаловать обратно.",
-        ["ReturnLongAbsence.Neutral.002"] = "Готовы заниматься.",
+        ["ReturnLongAbsence.Neutral.002"] = "Можно начинать.",
         ["ReturnLongAbsence.Neutral.003"] = "Тренировка готова.",
-        ["ReturnLongAbsence.Welcoming.001"] = "Рады снова видеть вас.",
-        ["ReturnLongAbsence.Welcoming.002"] = "Готовы, когда вы готовы.",
+        ["ReturnLongAbsence.Welcoming.001"] = "С возвращением.",
+        ["ReturnLongAbsence.Welcoming.002"] = "Начинай, когда удобно.",
         ["ReturnLongAbsence.DryHumor.001"] = "Примеры не изменились.",
         ["ReturnLongAbsence.DryHumor.002"] = "Числа: по-прежнему надёжны.",
         ["ReturnLongAbsence.DryHumor.003"] = "Арифметика терпеливо ждала.",
-        ["ReturnLongAbsence.LightlyCheeky.001"] = "Давно не занимались.",
-        ["ReturnLongAbsence.LightlyCheeky.002"] = "Примеры держали ваше место.",
+        ["ReturnLongAbsence.LightlyCheeky.001"] = "Прошло несколько дней. Арифметика на месте.",
+        ["ReturnLongAbsence.LightlyCheeky.002"] = "Числа остались на своих местах.",
 
         // ResumeManualPause
-        ["ResumeManualPause.Neutral.001"] = "Когда будете готовы.",
+        ["ResumeManualPause.Neutral.001"] = "Продолжай, когда удобно.",
         ["ResumeManualPause.Neutral.002"] = "Тренировка на паузе.",
-        ["ResumeManualPause.Neutral.003"] = "Продолжите, когда будете готовы.",
-        ["ResumeManualPause.Welcoming.001"] = "Не торопитесь. Готовы, когда вы готовы.",
-        ["ResumeManualPause.Welcoming.002"] = "Не спешите.",
+        ["ResumeManualPause.Neutral.003"] = "Продолжай, когда удобно.",
+        ["ResumeManualPause.Welcoming.001"] = "Не спеши. Продолжай, когда удобно.",
+        ["ResumeManualPause.Welcoming.002"] = "Не спеши.",
         ["ResumeManualPause.DryHumor.001"] = "Таймер очень терпелив.",
         ["ResumeManualPause.DryHumor.002"] = "Пример всё ещё здесь.",
         ["ResumeManualPause.DryHumor.003"] = "Пауза. Пример: без изменений.",
-        ["ResumeManualPause.LightlyCheeky.001"] = "Пример сам себя не решит.",
+        ["ResumeManualPause.LightlyCheeky.001"] = "Пример всё ещё невозмутимо ждёт.",
         ["ResumeManualPause.LightlyCheeky.002"] = "Здесь. Пример тоже.",
 
         // ResumeBackground
         ["ResumeBackground.Neutral.001"] = "Возвращаемся к тренировке.",
         ["ResumeBackground.Neutral.002"] = "Тренировка готова.",
-        ["ResumeBackground.Neutral.003"] = "Готовы продолжить.",
-        ["ResumeBackground.Welcoming.001"] = "Готовы, когда вы готовы.",
-        ["ResumeBackground.Welcoming.002"] = "Продолжите, когда будете готовы.",
+        ["ResumeBackground.Neutral.003"] = "Можно продолжать.",
+        ["ResumeBackground.Welcoming.001"] = "Продолжай, когда удобно.",
+        ["ResumeBackground.Welcoming.002"] = "Продолжай, когда удобно.",
         ["ResumeBackground.DryHumor.001"] = "Здесь. Пример тоже.",
         ["ResumeBackground.DryHumor.002"] = "Пример подождал.",
-        ["ResumeBackground.LightlyCheeky.001"] = "Уже вернулись?",
+        ["ResumeBackground.LightlyCheeky.001"] = "Уже снова здесь?",
 
         // NeutralReady
-        ["NeutralReady.Neutral.001"] = "Готовы заниматься?",
-        ["NeutralReady.Neutral.002"] = "Начните, когда будете готовы.",
+        ["NeutralReady.Neutral.001"] = "Пора заниматься?",
+        ["NeutralReady.Neutral.002"] = "Начинай, когда удобно.",
         ["NeutralReady.DryHumor.001"] = "Числа готовы.",
 
         // NeutralPaused
         ["NeutralPaused.Neutral.001"] = "Пауза.",
-        ["NeutralPaused.Neutral.002"] = "Продолжите, когда будете готовы.",
+        ["NeutralPaused.Neutral.002"] = "Продолжай, когда удобно.",
         ["NeutralPaused.DryHumor.001"] = "Тренировка приостановлена.",
     };
 
@@ -374,7 +342,6 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
     public IReadOnlyList<string> GetMessageIds(PracticeCopyTrigger trigger, string locale) =>
         trigger switch
         {
-            PracticeCopyTrigger.FirstEverReady => FirstEverReadyIds,
             PracticeCopyTrigger.InitialReady => InitialReadyIds,
             PracticeCopyTrigger.ReturnShortAbsence => ReturnShortAbsenceIds,
             PracticeCopyTrigger.ReturnLongAbsence => ReturnLongAbsenceIds,
@@ -388,21 +355,15 @@ public sealed class PracticeCopyLibrary : IPracticeCopyLibrary
     /// <inheritdoc/>
     public string? GetText(string messageId, string locale)
     {
-        var lang = locale.Length >= 2 ? locale[..2].ToLowerInvariant() : "en";
+        var lang = LanguagePreferencePolicy.Normalize(locale);
 
         var dictionary = lang switch
         {
-            "de" => GermanStrings,
-            "ru" => RussianStrings,
+            LanguagePreferencePolicy.GermanLanguageCode => GermanStrings,
+            LanguagePreferencePolicy.RussianLanguageCode => RussianStrings,
             _ => EnglishStrings,
         };
 
-        if (dictionary.TryGetValue(messageId, out var text))
-        {
-            return text;
-        }
-
-        // Fallback: try English for missing locale entry.
-        return EnglishStrings.TryGetValue(messageId, out var enText) ? enText : null;
+        return dictionary.TryGetValue(messageId, out var text) ? text : null;
     }
 }

@@ -1,6 +1,7 @@
 namespace MathFirst.Application.Copy;
 
 using System.Text;
+using MathFirst.Domain;
 
 /// <summary>
 /// Deterministic contextual copy selector for MF-UX-002.
@@ -8,24 +9,25 @@ using System.Text;
 /// Algorithm:
 /// 1. Obtains the ordered pool of message IDs for the context trigger from <see cref="IPracticeCopyLibrary"/>.
 /// 2. Filters out IDs in the in-memory per-trigger recency exclusion set.
-/// 3. Computes a stable uint hash from (Trigger, PracticePosition % 97, Locale).
+/// 3. Computes a stable uint hash from (Trigger, PracticePosition % 97).
 /// 4. Selects pool[hash % pool.Count].
-/// 5. Records the selected ID in the recency set (capped at min(pool.Count - 1, 5)).
+/// 5. Records the selected ID in an ordered recency window (capped at min(pool.Count - 1, 5)).
 ///
 /// Fallback chain (when pool is empty or no text found):
-///   trigger-specific neutral pool → NeutralReady/NeutralPaused pool → static string constant
+///   trigger-specific neutral pool → NeutralReady/NeutralPaused pool → no contextual result
 ///
 /// Invariants:
 /// - Does NOT mutate any TrainingSession state.
 /// - Does NOT perform I/O.
-/// - Is NOT thread-safe (intended as a scoped/singleton per UI session on the UI thread).
+/// - Is NOT thread-safe. Its singleton registration intentionally makes recency application-scoped,
+///   and the MAUI/Blazor UI invokes it on the UI thread.
 /// </summary>
 public sealed class PracticeCopySelector
 {
     private readonly IPracticeCopyLibrary _library;
 
-    /// <summary>Per-trigger in-memory recency exclusion sets. Resets when the selector is re-created (app restart).</summary>
-    private readonly Dictionary<PracticeCopyTrigger, HashSet<string>> _recentlyShown = new();
+    /// <summary>Per-trigger ordered recency windows. Resets when the application-scoped selector is re-created.</summary>
+    private readonly Dictionary<PracticeCopyTrigger, RecencyWindow> _recentlyShown = new();
 
     /// <summary>Maximum recency window per trigger (capped to pool size − 1 during selection).</summary>
     private const int MaxRecencyWindow = 5;
@@ -36,14 +38,6 @@ public sealed class PracticeCopySelector
     /// </summary>
     private const long PositionModulus = 97L;
 
-    /// <summary>Static fallback texts by locale for when the library has no matching entry.</summary>
-    private static readonly Dictionary<string, (string Ready, string Paused)> StaticFallbacks = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["en"] = ("Ready to practice?", "Paused"),
-        ["de"] = ("Bereit zum Üben?", "Pausiert"),
-        ["ru"] = ("Готовы заниматься?", "Пауза"),
-    };
-
     public PracticeCopySelector(IPracticeCopyLibrary library)
     {
         _library = library ?? throw new ArgumentNullException(nameof(library));
@@ -51,14 +45,15 @@ public sealed class PracticeCopySelector
 
     /// <summary>
     /// Selects a contextual copy message for the given context.
-    /// Always returns a non-null result with non-empty <see cref="PracticeCopyResult.LocalizedText"/>.
+    /// Returns <c>null</c> when neither the contextual nor neutral corpus can resolve a message.
+    /// The presentation owner then uses the application's established localization fallback key.
     /// </summary>
-    public PracticeCopyResult Select(PracticeCopyContext context)
+    public PracticeCopyResult? Select(PracticeCopyContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         var trigger = context.Trigger;
-        var locale = context.Locale ?? "en";
+        var locale = LanguagePreferencePolicy.Normalize(context.Locale);
 
         // 1. Attempt selection from the trigger-specific pool.
         var result = TrySelectFromPool(trigger, context.PracticePosition, locale);
@@ -81,8 +76,23 @@ public sealed class PracticeCopySelector
             }
         }
 
-        // 3. Static string fallback — always succeeds.
-        return StaticFallback(trigger, locale);
+        return null;
+    }
+
+    /// <summary>
+    /// Re-localizes a stable message ID without selecting or mutating recency state.
+    /// </summary>
+    public PracticeCopyResult? Relocalize(
+        string messageId,
+        PracticeCopyTrigger trigger,
+        string locale,
+        bool isFallback)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
+        var text = ResolveText(messageId, LanguagePreferencePolicy.Normalize(locale));
+        return text is null
+            ? null
+            : new PracticeCopyResult(messageId, text, trigger, isFallback);
     }
 
     // -------------------------------------------------------------------------
@@ -104,7 +114,7 @@ public sealed class PracticeCopySelector
         // If pool has 1 item, the window is 0 → nothing is excluded.
         var recencyWindow = Math.Min(allIds.Count - 1, MaxRecencyWindow);
 
-        var recent = GetOrCreateRecentSet(trigger);
+        var recent = GetOrCreateRecentWindow(trigger);
 
         // Build the eligible pool by excluding recently shown IDs (if window > 0).
         IReadOnlyList<string> eligibleIds;
@@ -114,21 +124,16 @@ public sealed class PracticeCopySelector
         }
         else
         {
-            var filtered = allIds.Where(id => !recent.Contains(id)).ToList();
+            var filtered = allIds.Where(id => !recent.Membership.Contains(id)).ToList();
             eligibleIds = filtered.Count > 0 ? filtered : allIds; // safety: never block entirely
         }
 
         // Deterministic hash selection.
-        var hash = ComputeHash(trigger, practicePosition, locale);
+        var hash = ComputeHash(trigger, practicePosition);
         var selected = eligibleIds[(int)(hash % (uint)eligibleIds.Count)];
 
         // Resolve localized text.
-        var text = _library.GetText(selected, locale);
-        if (string.IsNullOrEmpty(text))
-        {
-            // ID exists but text missing — try English fallback.
-            text = _library.GetText(selected, "en");
-        }
+        var text = ResolveText(selected, locale);
 
         if (string.IsNullOrEmpty(text))
         {
@@ -138,54 +143,48 @@ public sealed class PracticeCopySelector
         // Record in recency set (trim to window size).
         if (recencyWindow > 0)
         {
-            recent.Add(selected);
-            while (recent.Count > recencyWindow)
+            recent.Order.Enqueue(selected);
+            recent.Membership.Add(selected);
+            while (recent.Order.Count > recencyWindow)
             {
-                recent.Remove(recent.First());
+                recent.Membership.Remove(recent.Order.Dequeue());
             }
         }
 
         return new PracticeCopyResult(selected, text, trigger, IsFallback: false);
     }
 
-    private static PracticeCopyResult StaticFallback(PracticeCopyTrigger trigger, string locale)
+    private string? ResolveText(string messageId, string locale)
     {
-        var lang = locale.Length >= 2 ? locale[..2].ToLowerInvariant() : "en";
-        if (!StaticFallbacks.TryGetValue(lang, out var pair))
+        var text = _library.GetText(messageId, locale);
+        if (string.IsNullOrEmpty(text) && locale != LanguagePreferencePolicy.EnglishLanguageCode)
         {
-            pair = StaticFallbacks["en"];
+            text = _library.GetText(messageId, LanguagePreferencePolicy.EnglishLanguageCode);
         }
-
-        var text = IsReadyGate(trigger) ? pair.Ready : pair.Paused;
-        return new PracticeCopyResult(
-            MessageId: $"Fallback.{trigger}",
-            LocalizedText: text,
-            Trigger: trigger,
-            IsFallback: true);
+        return string.IsNullOrEmpty(text) ? null : text;
     }
 
     private static bool IsReadyGate(PracticeCopyTrigger trigger) =>
         trigger is PracticeCopyTrigger.InitialReady
-            or PracticeCopyTrigger.FirstEverReady
             or PracticeCopyTrigger.ReturnShortAbsence
             or PracticeCopyTrigger.ReturnLongAbsence
             or PracticeCopyTrigger.NeutralReady;
 
-    private HashSet<string> GetOrCreateRecentSet(PracticeCopyTrigger trigger)
+    private RecencyWindow GetOrCreateRecentWindow(PracticeCopyTrigger trigger)
     {
-        if (!_recentlyShown.TryGetValue(trigger, out var set))
+        if (!_recentlyShown.TryGetValue(trigger, out var window))
         {
-            set = new HashSet<string>(StringComparer.Ordinal);
-            _recentlyShown[trigger] = set;
+            window = new RecencyWindow();
+            _recentlyShown[trigger] = window;
         }
-        return set;
+        return window;
     }
 
     /// <summary>
     /// Computes a deterministic uint hash from the selection inputs.
     /// Uses FNV-1a (32-bit) for stability, simplicity, and absence of external dependencies.
     /// </summary>
-    private static uint ComputeHash(PracticeCopyTrigger trigger, long practicePosition, string locale)
+    private static uint ComputeHash(PracticeCopyTrigger trigger, long practicePosition)
     {
         // FNV-1a constants
         const uint FnvPrime = 16777619u;
@@ -206,15 +205,13 @@ public sealed class PracticeCopySelector
         hash ^= positionValue;
         hash *= FnvPrime;
 
-        // Locale (first 2 chars)
-        var localeNorm = (locale.Length >= 2 ? locale[..2] : locale).ToLowerInvariant();
-        var localeBytes = Encoding.UTF8.GetBytes(localeNorm);
-        foreach (var b in localeBytes)
-        {
-            hash ^= b;
-            hash *= FnvPrime;
-        }
-
         return hash;
+    }
+
+    private sealed class RecencyWindow
+    {
+        public Queue<string> Order { get; } = new();
+        public HashSet<string> Membership { get; } = new(StringComparer.Ordinal);
+        public int Count => Order.Count;
     }
 }

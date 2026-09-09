@@ -7,8 +7,9 @@ namespace MathFirst.Application.Copy;
 /// Contract:
 /// - <see cref="GetMessageIds"/> must return a stable, ordered list of stable language-independent
 ///   message IDs for the given trigger and locale. ID ordering should be consistent.
-/// - <see cref="GetText"/> must return the localized text for a given message ID and locale,
-///   or <c>null</c> if the ID is not present.
+/// - <see cref="GetText"/> must return the physical localized text for a given message ID and
+///   normalized locale, or <c>null</c> if that locale dictionary does not contain the ID.
+///   It must not hide missing translations behind an English fallback.
 /// - Implementations are expected to be singletons with no per-call state mutation.
 /// </summary>
 public interface IPracticeCopyLibrary

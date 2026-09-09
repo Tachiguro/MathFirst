@@ -1,6 +1,9 @@
 namespace MathFirst.Core.Tests;
 
+using MathFirst.Application;
 using MathFirst.Application.Copy;
+using MathFirst.Application.Persistence;
+using MathFirst.Domain;
 using Xunit;
 
 /// <summary>
@@ -25,9 +28,9 @@ public sealed class PracticeCopySelectorTests
         var ctx = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 42, locale: "en");
 
         // Fresh selector, no recency history — pure hash selection must be stable
-        var result1 = selector.Select(ctx);
+        var result1 = selector.Select(ctx)!;
         var selector2 = new PracticeCopySelector(library);
-        var result2 = selector2.Select(ctx);
+        var result2 = selector2.Select(ctx)!;
 
         Assert.NotNull(result1.MessageId);
         Assert.Equal(result1.MessageId, result2.MessageId);
@@ -46,8 +49,8 @@ public sealed class PracticeCopySelectorTests
         var ctx1 = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 10, locale: "en");
         var ctx2 = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 11, locale: "en");
 
-        var id1 = selector.Select(ctx1).MessageId;
-        var id2 = selector.Select(ctx2).MessageId;
+        var id1 = selector.Select(ctx1)!.MessageId;
+        var id2 = selector.Select(ctx2)!.MessageId;
 
         // They *may* differ — we verify a valid ID is returned regardless.
         Assert.NotNull(id1);
@@ -65,8 +68,8 @@ public sealed class PracticeCopySelectorTests
         var ready = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 1, locale: "en");
         var paused = MakeContext(PracticeCopyTrigger.ResumeManualPause, practicePosition: 1, locale: "en");
 
-        var readyResult = selector.Select(ready);
-        var pausedResult = selector.Select(paused);
+        var readyResult = selector.Select(ready)!;
+        var pausedResult = selector.Select(paused)!;
 
         // Different triggers must produce IDs from their respective pools.
         Assert.Contains("InitialReady", readyResult.MessageId);
@@ -82,8 +85,8 @@ public sealed class PracticeCopySelectorTests
 
         var ctx = MakeContext(PracticeCopyTrigger.NeutralReady, practicePosition: 5, locale: "en");
 
-        var r1 = selector1.Select(ctx);
-        var r2 = selector2.Select(ctx);
+        var r1 = selector1.Select(ctx)!;
+        var r2 = selector2.Select(ctx)!;
 
         Assert.Equal(r1.LocalizedText, r2.LocalizedText);
         Assert.NotEmpty(r1.LocalizedText);
@@ -102,10 +105,10 @@ public sealed class PracticeCopySelectorTests
 
         var ctx = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 1, locale: "en");
 
-        var first = selector.Select(ctx).MessageId;
+        var first = selector.Select(ctx)!.MessageId;
         // Calling again with the same context after the first selection recorded recency
         // should prefer the other variant (when pool has 2 items).
-        var second = selector.Select(ctx).MessageId;
+        var second = selector.Select(ctx)!.MessageId;
 
         // Both must be valid IDs from the pool.
         Assert.NotEmpty(first);
@@ -123,23 +126,56 @@ public sealed class PracticeCopySelectorTests
 
         var ctx = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 1, locale: "en");
 
-        var first = selector.Select(ctx).MessageId;
+        var first = selector.Select(ctx)!.MessageId;
         // Second call with pool size 1 — the exclusion must not apply (pool size 1 means
         // window is capped at 0, so the single variant is always eligible).
-        var second = selector.Select(ctx).MessageId;
+        var second = selector.Select(ctx)!.MessageId;
 
         Assert.Equal(first, second);
         Assert.NotEmpty(first);
     }
 
+    [Fact]
+    public void Selector_ProductionPool_DoesNotRepeatWithinRecencyWindowAcrossMultipleRollovers()
+    {
+        var selector = new PracticeCopySelector(new PracticeCopyLibrary());
+        var ctx = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 42, locale: "en");
+        var selectedIds = Enumerable.Range(0, 24)
+            .Select(_ => selector.Select(ctx)!.MessageId)
+            .ToArray();
+
+        for (var index = 0; index < selectedIds.Length; index++)
+        {
+            var priorWindow = selectedIds
+                .Skip(Math.Max(0, index - 5))
+                .Take(Math.Min(5, index));
+            Assert.DoesNotContain(selectedIds[index], priorWindow);
+        }
+
+        Assert.True(selectedIds.Distinct(StringComparer.Ordinal).Count() > 5);
+    }
+
+    [Fact]
+    public void Selector_OrderedRecency_EvictsOldestAndRetainsNewest()
+    {
+        var selector = new PracticeCopySelector(new SixVariantFakeCopyLibrary());
+        var context = MakeContext(PracticeCopyTrigger.InitialReady, 42, "en");
+        var selectedIds = Enumerable.Range(0, 7)
+            .Select(_ => selector.Select(context)!.MessageId)
+            .ToArray();
+
+        Assert.Equal(6, selectedIds.Take(6).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(selectedIds[0], selectedIds[6]);
+        Assert.NotEqual(selectedIds[5], selectedIds[6]);
+    }
+
     // ---------------------------------------------------------------------------
-    // C. Fallback — every gate state must produce non-empty text even with an
-    //    empty library or unknown trigger
+    // C. Fallback — the component-owned state uses established localized copy
+    //    when contextual and neutral pools are unavailable
     // ---------------------------------------------------------------------------
 
     [Theory]
     [InlineData(PracticeCopyTrigger.InitialReady)]
-    [InlineData(PracticeCopyTrigger.FirstEverReady)]
     [InlineData(PracticeCopyTrigger.ReturnShortAbsence)]
     [InlineData(PracticeCopyTrigger.ReturnLongAbsence)]
     [InlineData(PracticeCopyTrigger.ResumeManualPause)]
@@ -148,15 +184,14 @@ public sealed class PracticeCopySelectorTests
     [InlineData(PracticeCopyTrigger.NeutralPaused)]
     public void Selector_AllTriggers_FallbackReturnsNonEmptyText(PracticeCopyTrigger trigger)
     {
-        // Empty library — selector must fall back to static strings.
-        var library = new EmptyFakeCopyLibrary();
-        var selector = new PracticeCopySelector(library);
+        var state = new PracticeGateCopyState(new PracticeCopySelector(new EmptyFakeCopyLibrary()));
 
         var ctx = MakeContext(trigger, practicePosition: 0, locale: "en");
-        var result = selector.Select(ctx);
+        state.Activate(ctx, "Localized fallback");
 
-        Assert.NotNull(result);
-        Assert.NotEmpty(result.LocalizedText);
+        Assert.NotNull(state.Current);
+        Assert.Equal("Localized fallback", state.Current.LocalizedText);
+        Assert.True(state.Current.IsFallback);
     }
 
     [Theory]
@@ -165,13 +200,12 @@ public sealed class PracticeCopySelectorTests
     [InlineData("ru")]
     public void Selector_AllLocales_FallbackReturnsNonEmptyText(string locale)
     {
-        var library = new EmptyFakeCopyLibrary();
-        var selector = new PracticeCopySelector(library);
+        var state = new PracticeGateCopyState(new PracticeCopySelector(new EmptyFakeCopyLibrary()));
 
         var ctx = MakeContext(PracticeCopyTrigger.InitialReady, practicePosition: 1, locale: locale);
-        var result = selector.Select(ctx);
+        state.Activate(ctx, $"fallback-{locale}");
 
-        Assert.NotEmpty(result.LocalizedText);
+        Assert.Equal($"fallback-{locale}", state.Current!.LocalizedText);
     }
 
     // ---------------------------------------------------------------------------
@@ -179,24 +213,53 @@ public sealed class PracticeCopySelectorTests
     // ---------------------------------------------------------------------------
 
     [Fact]
-    public void PracticeCopyContext_IsFirstEverSession_WhenPracticePositionZeroAndNoItems()
+    public async Task PracticeCopyContext_FreshOrResetLearningState_UsesNeutralInitialReadyCopy()
     {
-        var ctx = new PracticeCopyContext(
-            Trigger: PracticeCopyTrigger.FirstEverReady,
-            PracticePosition: 0,
-            SessionCorrectCount: 0,
-            SessionTotalCount: 0,
-            AbsenceBucket: AbsenceBucket.SameSession,
-            IsFirstEverSession: true,
-            Locale: "en");
+        var session = new TrainingSession(new SnapshotStore(CreateSnapshot()));
+        await session.InitializeAsync(startTiming: false);
+        session.ShowInitialReadyGate();
 
-        Assert.True(ctx.IsFirstEverSession);
-        Assert.Equal(PracticeCopyTrigger.FirstEverReady, ctx.Trigger);
+        var context = PracticeCopyContext.FromSession(
+            session,
+            "en",
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+
+        Assert.Equal(PracticeCopyTrigger.InitialReady, context.Trigger);
+    }
+
+    [Fact]
+    public async Task PracticeCopyContext_UsesPersistedLatestAttemptWhenMaterializedItemStateIsBoundedAway()
+    {
+        var now = new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+        var latestAcceptedAt = now.AddDays(-10);
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
+        var latestAttempt = new AttemptRecord(
+            "latest-persisted",
+            "add:9+9",
+            ArithmeticOperation.Addition,
+            9,
+            9,
+            18,
+            18,
+            true,
+            900,
+            latestAcceptedAt,
+            practicePosition: 1);
+        var snapshot = CreateSnapshot(progression, [latestAttempt], latestAcceptedAt);
+        var session = new TrainingSession(new SnapshotStore(snapshot));
+        await session.InitializeAsync(startTiming: false);
+        session.ShowInitialReadyGate();
+
+        Assert.DoesNotContain("add:9+9", session.ItemStates.Keys);
+
+        var context = PracticeCopyContext.FromSession(session, "en", now);
+
+        Assert.Equal(PracticeCopyTrigger.ReturnLongAbsence, context.Trigger);
     }
 
     [Theory]
-    [InlineData(AbsenceBucket.SameSession)]
-    [InlineData(AbsenceBucket.RecentReturn)]
+    [InlineData(AbsenceBucket.Recent)]
     [InlineData(AbsenceBucket.ShortAbsence)]
     [InlineData(AbsenceBucket.LongAbsence)]
     public void AbsenceBucket_AllValues_DefinedAndDistinct(AbsenceBucket bucket)
@@ -207,7 +270,6 @@ public sealed class PracticeCopySelectorTests
 
     [Theory]
     [InlineData(PracticeCopyTrigger.InitialReady)]
-    [InlineData(PracticeCopyTrigger.FirstEverReady)]
     [InlineData(PracticeCopyTrigger.ReturnShortAbsence)]
     [InlineData(PracticeCopyTrigger.ReturnLongAbsence)]
     [InlineData(PracticeCopyTrigger.ResumeManualPause)]
@@ -230,7 +292,7 @@ public sealed class PracticeCopySelectorTests
         var selector = new PracticeCopySelector(library);
 
         var ctx = MakeContext(PracticeCopyTrigger.ResumeBackground, practicePosition: 10, locale: "en");
-        var result = selector.Select(ctx);
+        var result = selector.Select(ctx)!;
 
         Assert.Equal(PracticeCopyTrigger.ResumeBackground, result.Trigger);
     }
@@ -242,7 +304,7 @@ public sealed class PracticeCopySelectorTests
         var selector = new PracticeCopySelector(library);
 
         var ctx = MakeContext(PracticeCopyTrigger.ReturnLongAbsence, practicePosition: 200, locale: "en");
-        var result = selector.Select(ctx);
+        var result = selector.Select(ctx)!;
 
         // Message ID convention: "{Trigger}.{Tone}.{Index}"
         Assert.StartsWith("ReturnLongAbsence.", result.MessageId);
@@ -256,34 +318,25 @@ public sealed class PracticeCopySelectorTests
     [InlineData(0)]          // exactly zero minutes
     [InlineData(15)]         // 15 minutes
     [InlineData(29)]         // 29 minutes (boundary)
-    public void AbsenceBucketHelper_SameSession_WhenUnder30Minutes(int minutesAgo)
+    public void AbsenceBucketHelper_Recent_WhenUnder30Minutes(int minutesAgo)
     {
-        var lastPracticed = DateTimeOffset.UtcNow.AddMinutes(-minutesAgo);
-        var bucket = AbsenceBucketHelper.Classify(lastPracticed);
+        var now = new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+        var lastPracticed = now.AddMinutes(-minutesAgo);
+        var bucket = AbsenceBucketHelper.Classify(lastPracticed, now);
 
-        Assert.Equal(AbsenceBucket.SameSession, bucket);
+        Assert.Equal(AbsenceBucket.Recent, bucket);
     }
 
     [Theory]
     [InlineData(30)]         // exactly 30 minutes
-    [InlineData(60)]         // 1 hour
-    [InlineData(23 * 60)]    // 23 hours
-    public void AbsenceBucketHelper_RecentReturn_WhenBetween30MinAnd24Hours(int minutesAgo)
-    {
-        var lastPracticed = DateTimeOffset.UtcNow.AddMinutes(-minutesAgo);
-        var bucket = AbsenceBucketHelper.Classify(lastPracticed);
-
-        Assert.Equal(AbsenceBucket.RecentReturn, bucket);
-    }
-
-    [Theory]
+    [InlineData(60)]              // 1 hour
     [InlineData(24 * 60)]         // exactly 1 day
-    [InlineData(2 * 24 * 60)]     // 2 days
     [InlineData(3 * 24 * 60 - 1)] // just under 3 days
-    public void AbsenceBucketHelper_ShortAbsence_WhenBetween1And3Days(int minutesAgo)
+    public void AbsenceBucketHelper_ShortAbsence_WhenBetween30MinutesAnd3Days(int minutesAgo)
     {
-        var lastPracticed = DateTimeOffset.UtcNow.AddMinutes(-minutesAgo);
-        var bucket = AbsenceBucketHelper.Classify(lastPracticed);
+        var now = new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+        var lastPracticed = now.AddMinutes(-minutesAgo);
+        var bucket = AbsenceBucketHelper.Classify(lastPracticed, now);
 
         Assert.Equal(AbsenceBucket.ShortAbsence, bucket);
     }
@@ -294,19 +347,36 @@ public sealed class PracticeCopySelectorTests
     [InlineData(30 * 24 * 60)]    // 1 month
     public void AbsenceBucketHelper_LongAbsence_WhenOver3Days(int minutesAgo)
     {
-        var lastPracticed = DateTimeOffset.UtcNow.AddMinutes(-minutesAgo);
-        var bucket = AbsenceBucketHelper.Classify(lastPracticed);
+        var now = new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+        var lastPracticed = now.AddMinutes(-minutesAgo);
+        var bucket = AbsenceBucketHelper.Classify(lastPracticed, now);
 
         Assert.Equal(AbsenceBucket.LongAbsence, bucket);
     }
 
     [Fact]
-    public void AbsenceBucketHelper_NullTimestamp_ReturnsSameSession()
+    public void AbsenceBucketHelper_NullTimestamp_ReturnsRecent()
     {
-        // No prior practice — treat as SameSession (first-ever or no item states).
-        var bucket = AbsenceBucketHelper.Classify(null);
+        var now = new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+        var bucket = AbsenceBucketHelper.Classify(null, now);
 
-        Assert.Equal(AbsenceBucket.SameSession, bucket);
+        Assert.Equal(AbsenceBucket.Recent, bucket);
+    }
+
+    [Fact]
+    public void AbsenceBucketHelper_UsesExactFrozenClockBoundaries()
+    {
+        var now = new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(
+            AbsenceBucket.Recent,
+            AbsenceBucketHelper.Classify(now - TimeSpan.FromMinutes(30) + TimeSpan.FromTicks(1), now));
+        Assert.Equal(
+            AbsenceBucket.ShortAbsence,
+            AbsenceBucketHelper.Classify(now - TimeSpan.FromMinutes(30), now));
+        Assert.Equal(
+            AbsenceBucket.LongAbsence,
+            AbsenceBucketHelper.Classify(now - TimeSpan.FromDays(3), now));
     }
 
     // ---------------------------------------------------------------------------
@@ -332,6 +402,100 @@ public sealed class PracticeCopySelectorTests
         Assert.Equal(originalLocale, ctx.Locale);
     }
 
+    [Fact]
+    public void GatePresentation_RepeatedReadsRemainStableUntilNextActivation()
+    {
+        var state = new PracticeGateCopyState(new PracticeCopySelector(new FakeCopyLibrary()));
+        state.Activate(MakeContext(PracticeCopyTrigger.InitialReady, 42, "en"), "Ready");
+        var activated = state.Current!;
+
+        for (var index = 0; index < 20; index++)
+        {
+            Assert.Same(activated, state.Current);
+            Assert.Equal(activated.MessageId, state.Current!.MessageId);
+            Assert.Equal(activated.LocalizedText, state.Current.LocalizedText);
+        }
+    }
+
+    [Fact]
+    public void GatePresentation_MeaningfulTransitionCanSelectNewMessage()
+    {
+        var state = new PracticeGateCopyState(new PracticeCopySelector(new FakeCopyLibrary()));
+        state.Activate(MakeContext(PracticeCopyTrigger.InitialReady, 42, "en"), "Ready");
+        var readyId = state.Current!.MessageId;
+
+        state.Activate(MakeContext(PracticeCopyTrigger.ResumeManualPause, 42, "en"), "Paused");
+
+        Assert.NotEqual(readyId, state.Current!.MessageId);
+        Assert.Equal(PracticeCopyTrigger.ResumeManualPause, state.Current.Trigger);
+    }
+
+    [Fact]
+    public void GatePresentation_LanguageChangePreservesMessageIdentity()
+    {
+        var library = new PracticeCopyLibrary();
+        var state = new PracticeGateCopyState(new PracticeCopySelector(library));
+        state.Activate(MakeContext(PracticeCopyTrigger.InitialReady, 42, "en"), "Ready");
+        var messageId = state.Current!.MessageId;
+        var english = state.Current.LocalizedText;
+
+        state.Relocalize("de-DE", "Bereit");
+
+        Assert.Equal(messageId, state.Current!.MessageId);
+        Assert.Equal(library.GetText(messageId, "de"), state.Current.LocalizedText);
+        Assert.NotEqual(english, state.Current.LocalizedText);
+    }
+
+    [Fact]
+    public async Task GatePresentation_ActivationDoesNotMutateLearningState()
+    {
+        var session = new TrainingSession(new SnapshotStore(CreateSnapshot()));
+        await session.InitializeAsync(startTiming: false);
+        session.ShowInitialReadyGate();
+        var fact = session.CurrentFact;
+        var practicePosition = session.Progression.PracticePosition;
+        var sessionOrder = session.SessionOrderCounter;
+        var itemCount = session.ItemStates.Count;
+        var state = new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary()));
+
+        state.Activate(
+            PracticeCopyContext.FromSession(
+                session,
+                "en",
+                new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)),
+            "Ready");
+
+        Assert.Equal(practicePosition, session.Progression.PracticePosition);
+        Assert.Equal(sessionOrder, session.SessionOrderCounter);
+        Assert.Equal(itemCount, session.ItemStates.Count);
+        Assert.Equal(fact, session.CurrentFact);
+        Assert.Equal(0, session.SessionCorrectCount);
+        Assert.Equal(0, session.SessionTotalCount);
+    }
+
+    [Fact]
+    public void PracticeGateTitle_DoesNotSelectCopyDuringRendering()
+    {
+        var home = File.ReadAllText(GetRepositoryPath(
+            "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var propertyStart = home.IndexOf("private string PracticeGateTitle", StringComparison.Ordinal);
+        var propertyEnd = home.IndexOf("private string PracticeGateAction", propertyStart, StringComparison.Ordinal);
+
+        Assert.True(propertyStart >= 0 && propertyEnd > propertyStart);
+        var property = home[propertyStart..propertyEnd];
+        Assert.DoesNotContain("CopySelector.Select", property, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeCopyContext.FromSession", property, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PracticeCopyLibrary_NormalizesLocaleWithApplicationPolicy()
+    {
+        var library = new PracticeCopyLibrary();
+        var id = library.GetMessageIds(PracticeCopyTrigger.InitialReady, "de")[0];
+
+        Assert.Equal("Bereit zum Üben?", library.GetText(id, " de_DE "));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
@@ -345,9 +509,58 @@ public sealed class PracticeCopySelectorTests
             PracticePosition: practicePosition,
             SessionCorrectCount: 0,
             SessionTotalCount: 0,
-            AbsenceBucket: AbsenceBucket.SameSession,
-            IsFirstEverSession: practicePosition == 0,
+            AbsenceBucket: AbsenceBucket.Recent,
             Locale: locale);
+
+    private static LearnerSnapshot CreateSnapshot(
+        LearnerProgression? progression = null,
+        IReadOnlyList<AttemptRecord>? recentAttempts = null,
+        DateTimeOffset? latestAcceptedPracticeAt = null) =>
+        new(
+            progression ?? LearnerProgression.CreateFresh(),
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal),
+            new Dictionary<string, MathFirst.Application.Scheduling.FsrsCardState>(StringComparer.Ordinal),
+            recentAttempts ?? [],
+            1,
+            LearnerProgression.DefaultSchemaVersion,
+            null,
+            latestAcceptedPracticeAt);
+
+    private static string GetRepositoryPath(params string[] segments)
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null && !File.Exists(Path.Combine(current.FullName, "MathFirst.slnx")))
+        {
+            current = current.Parent;
+        }
+
+        Assert.NotNull(current);
+        return Path.Combine([current!.FullName, .. segments]);
+    }
+
+    private sealed class SnapshotStore(LearnerSnapshot snapshot) : ILearnerStore
+    {
+        public string StoragePath => "inmemory://practice-copy";
+
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(snapshot);
+
+        public Task<PersistenceResult> CommitSubmissionAsync(
+            SubmissionChangeSet changeSet,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public void Dispose()
+        {
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -364,7 +577,6 @@ internal sealed class FakeCopyLibrary : IPracticeCopyLibrary
     private static readonly string[] ResumeBackgroundIds = ["ResumeBackground.Neutral.001", "ResumeBackground.Welcoming.001", "ResumeBackground.DryHumor.001"];
     private static readonly string[] ReturnShortIds = ["ReturnShortAbsence.Neutral.001", "ReturnShortAbsence.DryHumor.001", "ReturnShortAbsence.Welcoming.001"];
     private static readonly string[] ReturnLongIds = ["ReturnLongAbsence.Neutral.001", "ReturnLongAbsence.DryHumor.001", "ReturnLongAbsence.LightlyCheeky.001"];
-    private static readonly string[] FirstEverIds = ["FirstEverReady.Welcoming.001", "FirstEverReady.Neutral.001", "FirstEverReady.DryHumor.001"];
     private static readonly string[] NeutralReadyIds = ["NeutralReady.Neutral.001", "NeutralReady.Neutral.002", "NeutralReady.DryHumor.001"];
     private static readonly string[] NeutralPausedIds = ["NeutralPaused.Neutral.001", "NeutralPaused.Neutral.002"];
 
@@ -385,9 +597,6 @@ internal sealed class FakeCopyLibrary : IPracticeCopyLibrary
         ["ReturnLongAbsence.Neutral.001"] = "Welcome back.",
         ["ReturnLongAbsence.DryHumor.001"] = "The facts haven't moved.",
         ["ReturnLongAbsence.LightlyCheeky.001"] = "Been a while.",
-        ["FirstEverReady.Welcoming.001"] = "Your first fact is ready.",
-        ["FirstEverReady.Neutral.001"] = "First practice begins.",
-        ["FirstEverReady.DryHumor.001"] = "Arithmetic awaits.",
         ["NeutralReady.Neutral.001"] = "Ready to practice?",
         ["NeutralReady.Neutral.002"] = "Start when ready.",
         ["NeutralReady.DryHumor.001"] = "Numbers are waiting.",
@@ -403,7 +612,6 @@ internal sealed class FakeCopyLibrary : IPracticeCopyLibrary
             PracticeCopyTrigger.ResumeBackground => ResumeBackgroundIds,
             PracticeCopyTrigger.ReturnShortAbsence => ReturnShortIds,
             PracticeCopyTrigger.ReturnLongAbsence => ReturnLongIds,
-            PracticeCopyTrigger.FirstEverReady => FirstEverIds,
             PracticeCopyTrigger.NeutralReady => NeutralReadyIds,
             PracticeCopyTrigger.NeutralPaused => NeutralPausedIds,
             _ => []
@@ -431,6 +639,19 @@ internal sealed class TwoVariantFakeCopyLibrary : IPracticeCopyLibrary
 
     public string? GetText(string messageId, string locale) =>
         Texts.TryGetValue(messageId, out var text) ? text : null;
+}
+
+internal sealed class SixVariantFakeCopyLibrary : IPracticeCopyLibrary
+{
+    private static readonly string[] Ids = Enumerable.Range(1, 6)
+        .Select(index => $"InitialReady.Neutral.{index:000}")
+        .ToArray();
+
+    public IReadOnlyList<string> GetMessageIds(PracticeCopyTrigger trigger, string locale) =>
+        trigger == PracticeCopyTrigger.InitialReady ? Ids : [];
+
+    public string? GetText(string messageId, string locale) =>
+        Ids.Contains(messageId, StringComparer.Ordinal) ? messageId : null;
 }
 
 /// <summary>Exactly one variant for InitialReady — used to test pool-size-1 fallback.</summary>

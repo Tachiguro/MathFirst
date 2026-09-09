@@ -127,7 +127,7 @@ public sealed class PolicyAndLocalizationTests
     [Theory]
     [InlineData("en", "Ready to practice?", "Start", "Paused", "Resume practice", "Pause")]
     [InlineData("de", "Bereit zum Üben?", "Los geht's", "Pausiert", "Weiterüben", "Pausieren")]
-    [InlineData("ru", "Готовы заниматься?", "Начать", "Пауза", "Продолжить занятие", "Приостановить")]
+    [InlineData("ru", "Пора заниматься?", "Начать", "Пауза", "Продолжить занятие", "Приостановить")]
     public void LocalizationService_PracticeGatesHaveLanguageParity(
         string language,
         string expectedReady,

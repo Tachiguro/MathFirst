@@ -8,12 +8,7 @@ namespace MathFirst.Application.Copy;
 public enum PracticeCopyTrigger
 {
     /// <summary>
-    /// The very first session of a brand-new learner (PracticePosition == 0, no item history).
-    /// </summary>
-    FirstEverReady,
-
-    /// <summary>
-    /// Normal start-of-session gate when the learner returns within a short time (SameSession absence bucket).
+    /// Normal start-of-session gate when there is no prior practice or the return is very recent.
     /// </summary>
     InitialReady,
 
@@ -23,7 +18,7 @@ public enum PracticeCopyTrigger
     ReturnShortAbsence,
 
     /// <summary>
-    /// Learner returns after a longer absence (more than 3 days).
+    /// Learner returns after a longer absence (3 days or more).
     /// </summary>
     ReturnLongAbsence,
 

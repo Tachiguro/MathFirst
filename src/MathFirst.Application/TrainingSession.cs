@@ -51,6 +51,7 @@ public sealed class TrainingSession
     public bool IsPracticeSurfaceActive => _isPracticeSurfaceActive;
     public PracticeGateState PracticeGate => _practiceGateState;
     public bool IsInitialized { get; private set; }
+    public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
     public TrainingSession(
         ILearnerStore store,
@@ -462,6 +463,7 @@ public sealed class TrainingSession
             SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
             LastResponseLatencyMs = LastEvaluation.LatencyMs;
             Progression.StoreRevision = result.NewRevision.Value;
+            LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
             _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
             await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
             InteractionState = LastEvaluation.Outcome switch
@@ -587,6 +589,7 @@ public sealed class TrainingSession
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
         _selectionEvidence = null;
+        LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
     }
 
     private async Task LoadNextSelectionEvidenceAsync(CancellationToken cancellationToken)

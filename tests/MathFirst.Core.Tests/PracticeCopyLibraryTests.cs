@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using System.Text.RegularExpressions;
+using System.Reflection;
 using MathFirst.Application.Copy;
 using Xunit;
 
@@ -16,7 +17,6 @@ public sealed class PracticeCopyLibraryTests
 
     private static readonly PracticeCopyTrigger[] AllTriggers =
     [
-        PracticeCopyTrigger.FirstEverReady,
         PracticeCopyTrigger.InitialReady,
         PracticeCopyTrigger.ReturnShortAbsence,
         PracticeCopyTrigger.ReturnLongAbsence,
@@ -58,7 +58,7 @@ public sealed class PracticeCopyLibraryTests
     [InlineData("en")]
     [InlineData("de")]
     [InlineData("ru")]
-    public void Library_AllVariants_HaveNonEmptyText(string locale)
+    public void Library_AllVariants_HavePhysicalNonEmptyText(string locale)
     {
         foreach (var trigger in AllTriggers)
         {
@@ -69,6 +69,22 @@ public sealed class PracticeCopyLibraryTests
                 Assert.False(string.IsNullOrWhiteSpace(text),
                     $"Variant '{id}' for locale '{locale}' has null or empty text.");
             }
+        }
+    }
+
+    [Fact]
+    public void Library_PhysicalDictionariesContainEveryLanguageIndependentMessageId()
+    {
+        var flags = BindingFlags.NonPublic | BindingFlags.Static;
+        var expectedIds = AllTriggers
+            .SelectMany(trigger => Library.GetMessageIds(trigger, "en"))
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var fieldName in new[] { "EnglishStrings", "GermanStrings", "RussianStrings" })
+        {
+            var dictionary = (Dictionary<string, string>)typeof(PracticeCopyLibrary)
+                .GetField(fieldName, flags)!.GetValue(null)!;
+            Assert.Equal(expectedIds.OrderBy(id => id), dictionary.Keys.OrderBy(id => id));
         }
     }
 
@@ -90,23 +106,18 @@ public sealed class PracticeCopyLibraryTests
             var deText = Library.GetText(id, "de");
             var ruText = Library.GetText(id, "ru");
 
+            Assert.NotNull(deText);
+            Assert.NotNull(ruText);
+
             var enPlaceholders = ExtractPlaceholders(enText);
-
-            if (deText is not null)
-            {
-                var dePlaceholders = ExtractPlaceholders(deText);
-                Assert.True(enPlaceholders.SequenceEqual(dePlaceholders),
-                    $"Placeholder mismatch for ID '{id}' between EN and DE. " +
-                    $"EN: [{string.Join(",", enPlaceholders)}], DE: [{string.Join(",", dePlaceholders)}]");
-            }
-
-            if (ruText is not null)
-            {
-                var ruPlaceholders = ExtractPlaceholders(ruText);
-                Assert.True(enPlaceholders.SequenceEqual(ruPlaceholders),
-                    $"Placeholder mismatch for ID '{id}' between EN and RU. " +
-                    $"EN: [{string.Join(",", enPlaceholders)}], RU: [{string.Join(",", ruPlaceholders)}]");
-            }
+            var dePlaceholders = ExtractPlaceholders(deText!);
+            var ruPlaceholders = ExtractPlaceholders(ruText!);
+            Assert.True(enPlaceholders.SequenceEqual(dePlaceholders),
+                $"Placeholder mismatch for ID '{id}' between EN and DE. " +
+                $"EN: [{string.Join(",", enPlaceholders)}], DE: [{string.Join(",", dePlaceholders)}]");
+            Assert.True(enPlaceholders.SequenceEqual(ruPlaceholders),
+                $"Placeholder mismatch for ID '{id}' between EN and RU. " +
+                $"EN: [{string.Join(",", enPlaceholders)}], RU: [{string.Join(",", ruPlaceholders)}]");
         }
     }
 
@@ -122,6 +133,7 @@ public sealed class PracticeCopyLibraryTests
             "amazing", "brilliant", "great job", "well done", "you're crushing",
             "haven't practiced", "you haven't", "you've been away",
             "you missed", "don't forget", "you should",
+            "won't practice themselves", "long time no practice", "hasn't solved itself",
             "champion", "hero", "superstar",
         ];
 
@@ -137,6 +149,32 @@ public sealed class PracticeCopyLibraryTests
                 }
             }
         }
+    }
+
+    [Fact]
+    public void Library_EditorialPass_RemovesKnownGermanAndRussianRegisterDefects()
+    {
+        var flags = BindingFlags.NonPublic | BindingFlags.Static;
+        var german = (Dictionary<string, string>)typeof(PracticeCopyLibrary)
+            .GetField("GermanStrings", flags)!.GetValue(null)!;
+        var russian = (Dictionary<string, string>)typeof(PracticeCopyLibrary)
+            .GetField("RussianStrings", flags)!.GetValue(null)!;
+
+        Assert.DoesNotContain(german.Values, text => text.Contains("Kein Eile", StringComparison.Ordinal));
+        Assert.DoesNotContain(russian.Values, text => Regex.IsMatch(
+            text,
+            @"\b(вы|вас|ваш|ваше|ваши|вам)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+        Assert.DoesNotContain(russian.Values, text => text.Contains("Готовы, когда вы готовы", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Library_DoesNotContainFalseFirstEverMessageIds()
+    {
+        Assert.DoesNotContain("FirstEverReady", Enum.GetNames<PracticeCopyTrigger>());
+        Assert.DoesNotContain(
+            AllTriggers.SelectMany(trigger => Library.GetMessageIds(trigger, "en")),
+            id => id.StartsWith("FirstEverReady.", StringComparison.Ordinal));
     }
 
     // ---------------------------------------------------------------------------
@@ -162,7 +200,6 @@ public sealed class PracticeCopyLibraryTests
     // ---------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(PracticeCopyTrigger.FirstEverReady, 2)]
     [InlineData(PracticeCopyTrigger.InitialReady, 4)]
     [InlineData(PracticeCopyTrigger.ReturnShortAbsence, 3)]
     [InlineData(PracticeCopyTrigger.ReturnLongAbsence, 3)]
@@ -216,11 +253,10 @@ public sealed class PracticeCopyLibraryTests
                 PracticePosition: 100,
                 SessionCorrectCount: 0,
                 SessionTotalCount: 0,
-                AbsenceBucket: AbsenceBucket.SameSession,
-                IsFirstEverSession: false,
+                AbsenceBucket: AbsenceBucket.Recent,
                 Locale: locale);
 
-            var result = selector.Select(ctx);
+            var result = selector.Select(ctx)!;
 
             Assert.False(result.IsFallback,
                 $"Selector fell back to static string for trigger {trigger} locale {locale}. " +

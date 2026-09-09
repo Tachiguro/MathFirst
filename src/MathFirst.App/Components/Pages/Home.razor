@@ -204,6 +204,8 @@
     private ElementReference _primaryOverlayButton;
     private bool _shouldFocusInput = true;
     private bool _shouldFocusPrimaryOverlay;
+    private PracticeGateCopyState? _practiceGateCopyState;
+    private PracticeGateState? _copyGate;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -215,6 +217,7 @@
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
+        _practiceGateCopyState = new PracticeGateCopyState(CopySelector);
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
 
         if (!Session.IsInitialized)
@@ -274,6 +277,8 @@
             }
             StopTimer();
         }
+
+        SyncPracticeGateCopy();
     }
 
     public void Dispose()
@@ -286,6 +291,12 @@
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
+        if (Session.PracticeGate != PracticeGateState.Running)
+        {
+            _practiceGateCopyState?.Relocalize(
+                Localizer.CurrentUiLanguage,
+                PracticeGateFallbackTitle);
+        }
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -301,6 +312,7 @@
             {
                 StopTimer();
                 UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
+                SyncPracticeGateCopy();
             }
             StateHasChanged();
         });
@@ -633,11 +645,13 @@
         StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
+        SyncPracticeGateCopy();
     }
 
     private void StartOrResumePractice()
     {
         Session.StartOrResumePractice();
+        SyncPracticeGateCopy();
         _shouldFocusPrimaryOverlay = false;
         _shouldFocusInput = true;
         if (Session.IsTimingActive)
@@ -657,14 +671,41 @@
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
 
-    private string PracticeGateTitle
+    private void SyncPracticeGateCopy()
     {
-        get
+        if (_practiceGateCopyState is null)
         {
-            var ctx = PracticeCopyContext.FromSession(Session, Localizer.CurrentUiLanguage);
-            return CopySelector.Select(ctx).LocalizedText;
+            return;
         }
+
+        var gate = Session.PracticeGate;
+        if (gate == PracticeGateState.Running)
+        {
+            _practiceGateCopyState.Clear();
+            _copyGate = null;
+            return;
+        }
+
+        if (_copyGate == gate && _practiceGateCopyState.Current is not null)
+        {
+            return;
+        }
+
+        var context = PracticeCopyContext.FromSession(
+            Session,
+            Localizer.CurrentUiLanguage,
+            DateTimeOffset.UtcNow);
+        _practiceGateCopyState.Activate(context, PracticeGateFallbackTitle);
+        _copyGate = gate;
     }
+
+    private string PracticeGateTitle =>
+        _practiceGateCopyState?.Current?.LocalizedText ?? PracticeGateFallbackTitle;
+
+    private string PracticeGateFallbackTitle =>
+        Session.PracticeGate == PracticeGateState.InitialReadyGate
+            ? Localizer["Training_ReadyTitle"]
+            : Localizer["Training_PausedTitle"];
 
     private string PracticeGateAction => Session.PracticeGate == PracticeGateState.InitialReadyGate
         ? Localizer["Training_Start"]

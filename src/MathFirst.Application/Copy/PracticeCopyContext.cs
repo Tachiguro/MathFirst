@@ -1,5 +1,7 @@
 namespace MathFirst.Application.Copy;
 
+using MathFirst.Domain;
+
 /// <summary>
 /// Immutable presentation-only snapshot of the context in which a practice gate is shown.
 /// Populated read-only from <see cref="MathFirst.Application.TrainingSession"/> state.
@@ -14,7 +16,6 @@ namespace MathFirst.Application.Copy;
 /// <param name="SessionCorrectCount">Correct accepted submissions in the current app session.</param>
 /// <param name="SessionTotalCount">Total accepted submissions in the current app session.</param>
 /// <param name="AbsenceBucket">Derived absence duration bucket.</param>
-/// <param name="IsFirstEverSession">True when PracticePosition is 0 and no items have been materialized.</param>
 /// <param name="Locale">Active UI locale code ("en", "de", or "ru").</param>
 public sealed record PracticeCopyContext(
     PracticeCopyTrigger Trigger,
@@ -22,34 +23,24 @@ public sealed record PracticeCopyContext(
     int SessionCorrectCount,
     int SessionTotalCount,
     AbsenceBucket AbsenceBucket,
-    bool IsFirstEverSession,
     string Locale)
 {
     /// <summary>
     /// Builds a <see cref="PracticeCopyContext"/> from live <see cref="TrainingSession"/> state.
     /// This is a pure read operation — no mutations are performed.
     /// </summary>
-    public static PracticeCopyContext FromSession(TrainingSession session, string locale)
+    public static PracticeCopyContext FromSession(
+        TrainingSession session,
+        string locale,
+        DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(session);
 
         var practicePosition = session.Progression.PracticePosition;
-        var isFirstEver = practicePosition == 0 && session.ItemStates.Count == 0;
+        var lastPracticedAt = session.LatestAcceptedPracticeAt;
+        var absenceBucket = AbsenceBucketHelper.Classify(lastPracticedAt, now);
 
-        // Derive absence bucket from the most recently practiced item.
-        var lastPracticedAt = session.ItemStates.Values.Count > 0
-            ? session.ItemStates.Values
-                .Select(s => s.LastPracticedAt)
-                .Where(t => t != default)
-                .Select(t => (DateTimeOffset?)t)
-                .OrderByDescending(t => t)
-                .FirstOrDefault()
-            : null;
-
-        var absenceBucket = AbsenceBucketHelper.Classify(lastPracticedAt);
-
-        var trigger = ResolveTrigger(session.PracticeGate, session.SessionTotalCount,
-            isFirstEver, absenceBucket);
+        var trigger = ResolveTrigger(session.PracticeGate, lastPracticedAt, absenceBucket);
 
         return new PracticeCopyContext(
             Trigger: trigger,
@@ -57,27 +48,24 @@ public sealed record PracticeCopyContext(
             SessionCorrectCount: session.SessionCorrectCount,
             SessionTotalCount: session.SessionTotalCount,
             AbsenceBucket: absenceBucket,
-            IsFirstEverSession: isFirstEver,
-            Locale: locale);
+            Locale: LanguagePreferencePolicy.Normalize(locale));
     }
 
     private static PracticeCopyTrigger ResolveTrigger(
         PracticeGateState gate,
-        int sessionTotalCount,
-        bool isFirstEver,
+        DateTimeOffset? lastPracticedAt,
         AbsenceBucket absenceBucket)
     {
         return gate switch
         {
             PracticeGateState.ManualPause => PracticeCopyTrigger.ResumeManualPause,
             PracticeGateState.BackgroundResumeGate => PracticeCopyTrigger.ResumeBackground,
-            PracticeGateState.InitialReadyGate when isFirstEver => PracticeCopyTrigger.FirstEverReady,
+            PracticeGateState.InitialReadyGate when lastPracticedAt is null => PracticeCopyTrigger.InitialReady,
             PracticeGateState.InitialReadyGate => absenceBucket switch
             {
                 AbsenceBucket.LongAbsence => PracticeCopyTrigger.ReturnLongAbsence,
                 AbsenceBucket.ShortAbsence => PracticeCopyTrigger.ReturnShortAbsence,
-                AbsenceBucket.RecentReturn => PracticeCopyTrigger.ReturnShortAbsence,
-                _ => PracticeCopyTrigger.InitialReady,  // SameSession
+                _ => PracticeCopyTrigger.InitialReady,
             },
             _ => PracticeCopyTrigger.NeutralReady,
         };

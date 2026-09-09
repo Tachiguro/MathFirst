@@ -10,7 +10,8 @@ public sealed record LearnerSnapshot(
     IReadOnlyList<AttemptRecord> RecentAttempts,
     long Revision,
     int SchemaVersion,
-    IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? OperationProgressions = null)
+    IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? OperationProgressions = null,
+    DateTimeOffset? LatestAcceptedPracticeAt = null)
 {
     public LearnerSnapshot(
         LearnerProgression progression,
