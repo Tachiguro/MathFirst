@@ -64,9 +64,10 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 ### Phase 6: Native V1 Release Readiness
 1. Reconcile post-merge current-state documentation (`MF-DOC-001`) — complete and merged.
 2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — complete and merged.
-3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — implementation complete and review-approved; documentation reconciliation is complete locally but the package is not merged.
-4. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — next after MF-UX-003 completes its lifecycle; not started.
-5. Complete final exact-candidate Native V1 validation.
-6. Perform separately authorized build, package, and signing steps.
-7. Perform separately authorized final real-device verification.
-8. Make a separate later decision about Google Play upload.
+3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — complete and merged through Pull Request #12.
+4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) — active pre-release stabilization package; implementation is review-approved locally, but `FULL_VALIDATION`, push, Pull Request, merge, and post-merge synchronization remain outstanding.
+5. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — next only after MF-STAB-001 completes its full lifecycle; not started.
+6. Complete final exact-candidate Native V1 validation.
+7. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
+8. Perform separately authorized final real-device verification.
+9. Make a separate later decision about Google Play upload.
