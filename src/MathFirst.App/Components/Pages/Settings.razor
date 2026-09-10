@@ -8,6 +8,7 @@
 @using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
+@inject AppBuildInfo BuildInfo
 @inject IPreferenceStore PreferenceStore
 @inject ILearnerStore LearnerStore
 @inject TrainingSession Session
@@ -274,6 +275,10 @@
             <p class="setting-feedback setting-feedback-success" role="status">@_resetFeedbackMessage</p>
         }
     </div>
+
+    <footer class="settings-version">
+        <p>@Localizer["Settings_VersionBuild", BuildInfo.DisplayVersion, BuildInfo.BuildNumber]</p>
+    </footer>
 </div>
 
 @code {

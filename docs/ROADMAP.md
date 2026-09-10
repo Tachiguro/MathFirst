@@ -63,9 +63,9 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 
 ### Phase 6: Native V1 Release Readiness
 1. Reconcile post-merge current-state documentation (`MF-DOC-001`) — complete and merged.
-2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — implementation complete and `REVIEW_APPROVED` on candidate branch `feat/mf-ux-002-contextual-copy`; documentation and delivery lifecycle steps remain before merge.
-3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — next only after MF-UX-002 is merged and synchronized.
-4. Establish Android internal AAB packaging and release automation (`MF-REL-001`).
+2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — complete and merged.
+3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — implementation complete and review-approved; documentation reconciliation is complete locally but the package is not merged.
+4. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — next after MF-UX-003 completes its lifecycle; not started.
 5. Complete final exact-candidate Native V1 validation.
 6. Perform separately authorized build, package, and signing steps.
 7. Perform separately authorized final real-device verification.

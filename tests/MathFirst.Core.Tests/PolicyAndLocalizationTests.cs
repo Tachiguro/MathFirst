@@ -75,6 +75,7 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Phone keypad", service["Keypad_Phone"]);
         Assert.Equal("PC numpad", service["Keypad_Numpad"]);
         Assert.Equal("Backspace", service["Keypad_Backspace"]);
+        Assert.Equal("Version 1.0 (Build 1)", service["Settings_VersionBuild", "1.0", 1]);
 
         service.ApplyLanguagePreference("de");
         Assert.Equal("Richtig!", service["Training_Correct"]);
@@ -91,6 +92,7 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Telefon-Tastatur", service["Keypad_Phone"]);
         Assert.Equal("PC-Ziffernblock", service["Keypad_Numpad"]);
         Assert.Equal("Rücktaste", service["Keypad_Backspace"]);
+        Assert.Equal("Version 1.0 (Build 1)", service["Settings_VersionBuild", "1.0", 1]);
 
         service.ApplyLanguagePreference("ru");
         Assert.Equal("Правильно!", service["Training_Correct"]);
@@ -107,6 +109,7 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Телефонная клавиатура", service["Keypad_Phone"]);
         Assert.Equal("Цифровой блок ПК", service["Keypad_Numpad"]);
         Assert.Equal("Удалить символ", service["Keypad_Backspace"]);
+        Assert.Equal("Версия 1.0 (сборка 1)", service["Settings_VersionBuild", "1.0", 1]);
     }
 
     [Fact]
