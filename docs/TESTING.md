@@ -69,3 +69,13 @@ Before a language runtime or application technology stack is selected, `FULL_VAL
 4. **Git Hygiene Audit**: Verify `git status` is clean on candidate HEAD and no unexpected untracked artifacts or temporary files are present.
 
 *Note: Canonical stack-specific validation commands will be introduced when the product technology stack is formally established.*
+
+---
+
+## 7. MF-UX-002 Contextual-Copy Contracts
+
+Contextual practice-gate tests must use deterministic clocks and synthetic learner state. They verify deterministic stable-hash selection with ordered per-trigger recency rollover and an effective exclusion window of `min(pool.Count - 1, 5)`; the selector contract includes its deterministic recency state and must not be represented as a raw-argument-only pure function.
+
+The corpus contract verifies English, German, and Russian physical-ID and placeholder parity (55 IDs per locale, 165 localized strings total), unique visible text within each locale and trigger pool, normalized locale behavior, and static Ready/Paused fallback. Gate-presentation tests verify no selection rotation on ordinary rerender, navigation, or route recreation; same-ID re-localization on language change; and invalidation after learner-state reset or authoritative reload.
+
+Persistence/lifecycle coverage verifies the authoritative latest-accepted-practice read model across cold startup, successful persistence, reset, and recovery, plus contextual Background Resume selection for immediate and deferred final gate transitions. These tests also preserve learning-state isolation: contextual copy must not alter curriculum, progression, learning evidence, FSRS, answer semantics, or Schema V5. The final implementation review recorded 497 Core tests passed, 0 failed, 0 skipped, a Windows build with 0 warnings and 0 errors, and passing `git diff --check`; this evidence does not claim the separate `FULL_VALIDATION` lifecycle step.
