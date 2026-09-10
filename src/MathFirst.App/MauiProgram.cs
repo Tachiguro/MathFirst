@@ -25,6 +25,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IPreferenceStore, MauiPreferenceStore>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
+		builder.Services.AddSingleton<AppBuildInfo>();
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));

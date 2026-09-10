@@ -36,6 +36,11 @@
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
         <ApplicationVersion>1</ApplicationVersion>
 
+        <Company>Tachiguro</Company>
+        <Product>MathFirst</Product>
+        <AssemblyTitle>MathFirst</AssemblyTitle>
+        <Description>Focused practice for mental arithmetic.</Description>
+
         <WindowsPackageType Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">None</WindowsPackageType>
 
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
@@ -44,6 +49,12 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
     </PropertyGroup>
+
+    <ItemGroup>
+        <AssemblyMetadata Include="MathFirst.ApplicationTitle" Value="$(ApplicationTitle)" />
+        <AssemblyMetadata Include="MathFirst.ApplicationDisplayVersion" Value="$(ApplicationDisplayVersion)" />
+        <AssemblyMetadata Include="MathFirst.ApplicationVersion" Value="$(ApplicationVersion)" />
+    </ItemGroup>
 
     <ItemGroup>
         <!-- App Icon -->
