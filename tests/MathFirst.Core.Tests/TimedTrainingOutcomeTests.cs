@@ -3,6 +3,7 @@ namespace MathFirst.Core.Tests;
 using System.Data;
 using MathFirst.Application;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -142,10 +143,10 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     [Theory]
     [InlineData(0, 30000)]
     [InlineData(-1, 30000)]
-    [InlineData(1, 20000)]
-    [InlineData(2, 15000)]
-    [InlineData(3, 10000)]
-    [InlineData(10, 10000)]
+    [InlineData(1, 30000)]
+    [InlineData(2, 30000)]
+    [InlineData(3, 30000)]
+    [InlineData(99, 30000)]
     public void DeadlinePolicy_Streak_ProducesExpectedDeadline(int streak, long expectedMs)
     {
         Assert.Equal(expectedMs, LearningPolicy.GetAnswerDeadlineMs(streak));
@@ -155,12 +156,14 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     [Theory]
     [InlineData(0, 29999, false)]
     [InlineData(0, 30000, true)]
-    [InlineData(1, 19999, false)]
-    [InlineData(1, 20000, true)]
-    [InlineData(2, 14999, false)]
-    [InlineData(2, 15000, true)]
-    [InlineData(3, 9999, false)]
-    [InlineData(3, 10000, true)]
+    [InlineData(1, 29999, false)]
+    [InlineData(1, 30000, true)]
+    [InlineData(2, 29999, false)]
+    [InlineData(2, 30000, true)]
+    [InlineData(3, 29999, false)]
+    [InlineData(3, 30000, true)]
+    [InlineData(99, 29999, false)]
+    [InlineData(99, 30000, true)]
     public async Task Timer_ExactTimeoutBoundaries_EvaluatedAccurately(int streak, long elapsedMs, bool expectedTimedOut)
     {
         var fakeClock = new FakeClock();
@@ -220,8 +223,8 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ItemStates[fact.Id] = itemState;
         session.ResetItemReadyTiming();
 
-        // 1. Current presentation has 10s deadline
-        Assert.Equal(10000, session.CurrentFactDeadlineMs);
+        // 1. Historical streak does not shorten the current presentation deadline.
+        Assert.Equal(30000, session.CurrentFactDeadlineMs);
 
         // 2. Incorrect submission resets streak to 0
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(1500);
@@ -250,11 +253,11 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ItemStates[fact.Id] = itemState;
         session.ResetItemReadyTiming();
 
-        // 1. Current presentation has 10s deadline
-        Assert.Equal(10000, session.CurrentFactDeadlineMs);
+        // 1. Historical streak does not shorten the current presentation deadline.
+        Assert.Equal(30000, session.CurrentFactDeadlineMs);
 
         // 2. Timeout resets streak to 0
-        fakeClock.Elapsed = TimeSpan.FromMilliseconds(10050);
+        fakeClock.Elapsed = TimeSpan.FromMilliseconds(30050);
         var eval = session.RecordTimeout();
         Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
         Assert.False(session.ItemStates[fact.Id].NeedsRemediation);
@@ -267,7 +270,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     }
 
     [Fact]
-    public async Task ResponseLatency_SeparateFromAdaptiveDeadline_PreservesActualLatencyAndFsrs()
+    public async Task ResponseLatency_SeparateFromFixedDeadline_PreservesActualLatencyAndFsrs()
     {
         var fakeClock = new FakeClock();
         var store = new InMemoryStore();
@@ -276,11 +279,11 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         var fact = session.CurrentFact;
         var itemState = ItemLearningState.CreateNew(fact);
-        itemState.ConsecutiveCorrectStreak = 3; // 10s deadline
+        itemState.ConsecutiveCorrectStreak = 3;
         session.ItemStates[fact.Id] = itemState;
         session.ResetItemReadyTiming();
 
-        Assert.Equal(10000, session.CurrentFactDeadlineMs);
+        Assert.Equal(30000, session.CurrentFactDeadlineMs);
 
         // Learner answers after 1,842 ms
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(1842);
@@ -298,6 +301,33 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         var fsrsState = session.FsrsStates[fact.Id];
         Assert.NotNull(fsrsState);
         Assert.Equal(1842, store.CommittedChangeSets[0].Attempt.ResponseLatencyMs);
+    }
+
+    [Fact]
+    public async Task HistoricalHighStreak_StillUsesThirtySecondDeadlineAndSlowCorrectAnswerIsHard()
+    {
+        var fakeClock = new FakeClock();
+        var store = new InMemoryStore();
+        var session = new TrainingSession(store, fakeClock);
+        await session.InitializeAsync();
+
+        var fact = session.CurrentFact;
+        var itemState = ItemLearningState.CreateNew(fact);
+        itemState.ConsecutiveCorrectStreak = 99;
+        itemState.TotalAttempts = 99;
+        itemState.CorrectAttempts = 99;
+        session.ItemStates[fact.Id] = itemState;
+        session.ResetItemReadyTiming();
+
+        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        fakeClock.Elapsed = TimeSpan.FromMilliseconds(15000);
+        Assert.False(session.IsCurrentItemTimedOut());
+
+        var evaluation = session.SubmitAnswer(fact.CorrectResult);
+        Assert.True(evaluation.IsCorrect);
+        Assert.Equal(15000, evaluation.LatencyMs);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+        Assert.Equal(FsrsRating.Hard, session.FsrsStates[fact.Id].LastRating);
     }
 
     // ==========================================
