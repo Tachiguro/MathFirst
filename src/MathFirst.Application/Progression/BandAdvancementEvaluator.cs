@@ -6,11 +6,18 @@ using MathFirst.Domain.Curriculum;
 
 public sealed class BandAdvancementEvaluator
 {
-    private const int AdvancementWindowSize = 40;
-    private const int RequiredCorrectAttempts = 38;
-    private const int RequiredFluentAttempts = 34;
-    private const int RequiredFrontierAttempts = 20;
-    private const int MaximumRequiredDistinctFrontierFacts = 16;
+    private static readonly AdvancementRequirements StandardRequirements = new(
+        WindowSize: 40,
+        RequiredCorrectAttempts: 38,
+        RequiredFluentAttempts: 34,
+        RequiredFrontierAttempts: 20,
+        MaximumRequiredDistinctFrontierFacts: 16);
+    private static readonly AdvancementRequirements InitialMultiplicationRequirements = new(
+        WindowSize: 12,
+        RequiredCorrectAttempts: 11,
+        RequiredFluentAttempts: 11,
+        RequiredFrontierAttempts: 8,
+        MaximumRequiredDistinctFrontierFacts: 4);
     private const long FluentLatencyThresholdMs = 2500;
 
     public BandAdvancementDecision Evaluate(
@@ -36,20 +43,21 @@ public sealed class BandAdvancementEvaluator
                 nameof(currentProgression));
         }
 
+        var requirements = ResolveRequirements(currentProgression);
         ValidateUniquePracticePositions(evidence.AcceptedAttempts);
 
         var qualifyingAttempts = evidence.AcceptedAttempts
             .Where(attempt => attempt.PracticePosition > currentProgression.BandStartedPracticePosition)
             .OrderBy(attempt => attempt.PracticePosition)
             .ToArray();
-        if (qualifyingAttempts.Length < AdvancementWindowSize)
+        if (qualifyingAttempts.Length < requirements.WindowSize)
         {
             return Stay(currentProgression);
         }
 
-        var latestWindow = qualifyingAttempts[^AdvancementWindowSize..];
-        if (latestWindow.Count(attempt => attempt.IsCorrect) < RequiredCorrectAttempts
-            || latestWindow.Count(IsFluent) < RequiredFluentAttempts)
+        var latestWindow = qualifyingAttempts[^requirements.WindowSize..];
+        if (latestWindow.Count(attempt => attempt.IsCorrect) < requirements.RequiredCorrectAttempts
+            || latestWindow.Count(IsFluent) < requirements.RequiredFluentAttempts)
         {
             return Stay(currentProgression);
         }
@@ -59,12 +67,12 @@ public sealed class BandAdvancementEvaluator
         var ownedFactIds = ownedFrontier
             .Select(fact => fact.Id)
             .ToHashSet(StringComparer.Ordinal);
-        if (latestWindow.Count(attempt => ownedFactIds.Contains(attempt.FactId)) < RequiredFrontierAttempts)
+        if (latestWindow.Count(attempt => ownedFactIds.Contains(attempt.FactId)) < requirements.RequiredFrontierAttempts)
         {
             return Stay(currentProgression);
         }
 
-        var requiredDistinctCount = Math.Min(MaximumRequiredDistinctFrontierFacts, ownedFactIds.Count);
+        var requiredDistinctCount = Math.Min(requirements.MaximumRequiredDistinctFrontierFacts, ownedFactIds.Count);
         var distinctFrontierCount = latestWindow
             .Select(attempt => attempt.FactId)
             .Where(ownedFactIds.Contains)
@@ -92,6 +100,11 @@ public sealed class BandAdvancementEvaluator
             latestWindow[^1].PracticePosition);
         return new BandAdvancementDecision(true, advanced);
     }
+
+    private static AdvancementRequirements ResolveRequirements(OperationProgression progression) =>
+        progression.Operation == ArithmeticOperation.Multiplication && progression.BandIndex == 0
+            ? InitialMultiplicationRequirements
+            : StandardRequirements;
 
     private static bool IsFluent(BandAttemptEvidence attempt) =>
         attempt.IsCorrect && attempt.ResponseLatencyMs <= FluentLatencyThresholdMs;
@@ -127,4 +140,11 @@ public sealed class BandAdvancementEvaluator
 
     private static BandAdvancementDecision Stay(OperationProgression currentProgression) =>
         new(false, currentProgression);
+
+    private readonly record struct AdvancementRequirements(
+        int WindowSize,
+        int RequiredCorrectAttempts,
+        int RequiredFluentAttempts,
+        int RequiredFrontierAttempts,
+        int MaximumRequiredDistinctFrontierFacts);
 }

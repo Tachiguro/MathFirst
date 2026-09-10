@@ -116,6 +116,43 @@ public sealed class LongRunIndependentProgressionTests
     }
 
     [Fact]
+    public async Task StrongFreshLearner_AdvancesInitialMultiplicationAndNaturallyReceivesFactorTwo()
+    {
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: false);
+
+        for (var position = 1; position <= 50; position++)
+        {
+            var fact = session.CurrentFact;
+            session.SubmitAnswer(fact.CorrectResult);
+            var result = await session.CommitCurrentEvaluationAsync();
+            Assert.True(result.IsSuccess);
+
+            if (position == 47)
+            {
+                Assert.True(session.LastEvaluation!.OperationAdvanced);
+                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+                Assert.All(
+                    new[]
+                    {
+                        ArithmeticOperation.Addition,
+                        ArithmeticOperation.Subtraction,
+                        ArithmeticOperation.Division
+                    },
+                    operation => Assert.Equal(0, session.Progression.OperationProgressions[operation].BandIndex));
+            }
+
+            Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        }
+
+        Assert.Equal(51, session.Progression.PracticePosition + 1);
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.True(session.CurrentFact.LeftOperand == 2 || session.CurrentFact.RightOperand == 2);
+        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+    }
+
+    [Fact]
     public async Task PersistedLongRun_SnapshotIsBoundedWhileDurableHistoryIsPreserved()
     {
         var directory = Path.Combine(Path.GetTempPath(), "MathFirstLongRun_" + Guid.NewGuid().ToString("N"));

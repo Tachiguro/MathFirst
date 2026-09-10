@@ -179,6 +179,29 @@ public sealed class IndependentSelectorTests
         Assert.False(exhausted.IsNewIntroduction);
     }
 
+    [Fact]
+    public void MultiplicationBandOne_NewOpportunitySelectsAnOwnedFactorTwoFact()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var progressions = CreateProgressions((ArithmeticOperation.Multiplication, 1));
+        var context = CreateContext(
+            position: 3,
+            curriculum,
+            EmptyMaterialized(),
+            operationProgressions: progressions);
+
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+        var ownedBandOneIds = new AcquisitionOwnershipResolver(curriculum.Multiplication)
+            .GetOwnedFrontier(1)
+            .Select(fact => fact.Id);
+
+        Assert.Equal(ArithmeticOperation.Multiplication, result.ScheduledOperation);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.Contains(result.Fact.Id, ownedBandOneIds);
+        Assert.True(result.Fact.LeftOperand == 2 || result.Fact.RightOperand == 2);
+    }
+
     [Theory]
     [InlineData(ArithmeticOperation.Addition, 10, 1)]
     [InlineData(ArithmeticOperation.Multiplication, 13, 19)]
