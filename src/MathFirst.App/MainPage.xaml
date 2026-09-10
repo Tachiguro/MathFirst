@@ -4,9 +4,12 @@
              xmlns:local="clr-namespace:MathFirst.App"
              xmlns:components="clr-namespace:MathFirst.App.Components"
              x:Class="MathFirst.App.MainPage"
-             SafeAreaEdges="Container">
+             SafeAreaEdges="Container"
+             BackgroundColor="{AppThemeBinding Light={StaticResource NativeHostBackgroundLight}, Dark={StaticResource NativeHostBackgroundDark}}">
 
-    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
+    <BlazorWebView x:Name="blazorWebView"
+                   HostPage="wwwroot/index.html"
+                   BackgroundColor="{AppThemeBinding Light={StaticResource NativeHostBackgroundLight}, Dark={StaticResource NativeHostBackgroundDark}}">
         <BlazorWebView.RootComponents>
             <RootComponent Selector="#app" ComponentType="{x:Type components:LocalizationHost}" />
         </BlazorWebView.RootComponents>

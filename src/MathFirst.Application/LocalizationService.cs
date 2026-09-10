@@ -119,6 +119,8 @@ public sealed class LocalizationService : ILocalizationService
     {
         ["App_Title"] = "MathFirst",
         ["App_Subtitle"] = "Speed and accuracy in mental arithmetic.",
+        ["NotFound_Title"] = "Page not found",
+        ["NotFound_Description"] = "The requested page could not be found.",
         ["Training_Score"] = "Correct: {0} / {1}",
         ["Training_Correct"] = "Correct!",
         ["Training_Incorrect"] = "Incorrect. The answer is {0}.",
@@ -229,6 +231,8 @@ public sealed class LocalizationService : ILocalizationService
     {
         ["App_Title"] = "MathFirst",
         ["App_Subtitle"] = "Schnelligkeit und Sicherheit beim Kopfrechnen.",
+        ["NotFound_Title"] = "Seite nicht gefunden",
+        ["NotFound_Description"] = "Die angeforderte Seite wurde nicht gefunden.",
         ["Training_Score"] = "Richtig: {0} / {1}",
         ["Training_Correct"] = "Richtig!",
         ["Training_Incorrect"] = "Falsch. Das Ergebnis ist {0}.",
@@ -339,6 +343,8 @@ public sealed class LocalizationService : ILocalizationService
     {
         ["App_Title"] = "MathFirst",
         ["App_Subtitle"] = "Скорость и точность устного счета.",
+        ["NotFound_Title"] = "Страница не найдена",
+        ["NotFound_Description"] = "Запрошенная страница не найдена.",
         ["Training_Score"] = "Правильно: {0} / {1}",
         ["Training_Correct"] = "Правильно!",
         ["Training_Incorrect"] = "Неверно. Правильный ответ: {0}.",
