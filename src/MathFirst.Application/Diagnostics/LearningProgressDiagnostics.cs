@@ -59,7 +59,7 @@ public sealed record OperationProgressDiagnostics(
     string? CurriculumBandId,
     long? BandStartedPracticePosition)
 {
-    public int? PresentationStage => BandIndex is >= 0 and < int.MaxValue
+    public int? PresentationStage => CurriculumBandId is not null && BandIndex is >= 0 and < int.MaxValue
         ? BandIndex + 1
         : null;
 }

@@ -22,7 +22,7 @@
                 }
             </div>
             <div class="practice-header-actions">
-                @if (Session.IsInitialized)
+                @if (IsSessionScoreVisible)
                 {
                     <span class="score-display header-session-score">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
                 }
@@ -222,6 +222,10 @@
     private ElementReference _primaryOverlayButton;
     private bool _shouldFocusInput = true;
     private bool _shouldFocusPrimaryOverlay;
+    private readonly ArithmeticCurriculum _curriculum = new();
+    private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
+    private long _operationProgressLearnerStateGeneration = long.MinValue;
+    private long _operationProgressPracticePosition = long.MinValue;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -687,8 +691,27 @@
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
 
-    private IReadOnlyList<OperationProgressDiagnostics> OperationProgress =>
-        LearningProgressDiagnostics.Create(Session.Progression, new ArithmeticCurriculum()).Operations;
+    private bool IsSessionScoreVisible =>
+        Session.IsInitialized &&
+        Session.PracticeGate != PracticeGateState.InitialReadyGate;
+
+    private IReadOnlyList<OperationProgressDiagnostics> OperationProgress
+    {
+        get
+        {
+            var learnerStateGeneration = Session.LearnerStateGenerationRevision;
+            var practicePosition = Session.Progression.PracticePosition;
+            if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
+                _operationProgressPracticePosition != practicePosition)
+            {
+                _operationProgress = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+                _operationProgressLearnerStateGeneration = learnerStateGeneration;
+                _operationProgressPracticePosition = practicePosition;
+            }
+
+            return _operationProgress;
+        }
+    }
 
     private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
     {
