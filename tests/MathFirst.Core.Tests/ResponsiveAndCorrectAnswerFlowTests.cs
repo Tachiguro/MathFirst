@@ -286,6 +286,25 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         Assert.Contains("InitializeAsync(startTiming: true)", onboarding, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PracticeHeader_UsesDangerPauseAndShowsTheOnlyScoreBesideBoundedOperationProgress()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
+        var header = home[..home.IndexOf("</header>", StringComparison.Ordinal)];
+
+        Assert.Contains("class=\"button button-danger pause-practice-btn\"", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("button button-secondary pause-practice-btn", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"button button-primary practice-overlay-action\"", home, StringComparison.Ordinal);
+        Assert.Contains("@Localizer[\"Training_Score\", Session.SessionCorrectCount, Session.SessionTotalCount]", header, StringComparison.Ordinal);
+        Assert.Equal(1, home.Split("Training_Score", StringSplitOptions.None).Length - 1);
+        Assert.Contains("class=\"operation-progress-hud\"", home, StringComparison.Ordinal);
+        Assert.Contains("GetOperationSymbol(progress.Operation)", home, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr));", styles, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud", styles, StringComparison.Ordinal);
+        Assert.Contains("@media (max-width: 480px)", styles, StringComparison.Ordinal);
+    }
+
     private static async Task<(TrainingSession Session, FakeClock Clock, RecordingStore Store)> CreateSession()
     {
         var clock = new FakeClock();

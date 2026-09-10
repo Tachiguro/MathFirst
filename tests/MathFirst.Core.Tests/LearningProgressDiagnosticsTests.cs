@@ -51,7 +51,27 @@ public sealed class LearningProgressDiagnosticsTests
         Assert.DoesNotContain(typeof(LearningProgressDiagnostics).GetProperties(), property =>
             property.Name.Contains("Level", StringComparison.Ordinal) ||
             property.Name.Contains("Percentage", StringComparison.Ordinal) ||
-            property.Name.Contains("Completion", StringComparison.Ordinal));
+                   property.Name.Contains("Completion", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LearningProgressDiagnostics_ExposeSafeOneBasedPresentationStagesInCanonicalOrder()
+    {
+        var diagnostics = LearningProgressDiagnostics.Create(CreateProgression(), new ArithmeticCurriculum());
+        var stageProperty = typeof(OperationProgressDiagnostics).GetProperty("PresentationStage");
+
+        Assert.NotNull(stageProperty);
+        Assert.Equal(
+            [11, 11, 11, 11],
+            diagnostics.Operations.Select(operation => (int?)stageProperty!.GetValue(operation)).ToArray());
+
+        var advancedMultiplication = new OperationProgressDiagnostics(
+            ArithmeticOperation.Multiplication, 1, "MUL-D02", 12);
+        var malformed = new OperationProgressDiagnostics(
+            ArithmeticOperation.Division, -1, null, null);
+
+        Assert.Equal(2, (int?)stageProperty.GetValue(advancedMultiplication));
+        Assert.Null((int?)stageProperty.GetValue(malformed));
     }
 
     [Fact]
