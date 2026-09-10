@@ -94,11 +94,13 @@ The detailed canonical band order, pure generation formulas, candidate counts, a
 
 Dense advancement means complete lifetime exposure to the band's owned frontier plus recent operation-specific evidence of readiness. Structured advancement means representative fluency sufficient to begin the next arithmetic family; it does not claim exhaustive mastery of every candidate or arbitrary arithmetic at that magnitude.
 
-An operation advances only on the atomic accepted submission that completes all of these requirements:
+The standard advancement profile applies to Addition, Subtraction, Division, and Multiplication BandIndex 1 and later. An operation advances only on the atomic accepted submission that completes all of these requirements:
 
 1. At least 40 accepted attempts for that operation after its current band began.
 2. In its latest 40 qualifying attempts: at least 38 correct, at least 34 fluent, at least 20 from the current acquisition frontier, and at least `min(16, owned-frontier-size)` distinct current-frontier facts.
 3. Dense coverage includes a lifetime accepted attempt for every owned-frontier fact; structured coverage includes at least 16 distinct owned-frontier introductions during the band.
+
+The sole exception is the initial Multiplication band: Multiplication BandIndex 0 (`MUL-D01`) advances after 12 qualifying accepted multiplication attempts following `BandStartedPracticePosition`, with at least 11 correct, 11 fluent, 8 owned-frontier attempts, all four owned `MUL-D01` facts represented distinctly, and complete dense lifetime coverage of `0 × 0`, `0 × 1`, `1 × 0`, and `1 × 1`. After advancement, `MUL-D02` becomes active and factor-2 facts enter only through the existing deterministic selector; no factor-2 injection bypasses normal selection.
 
 Fluent means Correct with response latency at or below 2500 ms. Incorrect and Timeout are incorrect and non-fluent; a slower correct response is correct but non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window, while weak facts remain active through remediation and FSRS.
 
@@ -168,22 +170,21 @@ True arithmetic fluency requires evaluating both correctness and speed against d
 1. **Correctness**: Whether the submitted numeric answer is mathematically correct.
 2. **Response Latency**: The elapsed monotonic time between item presentation (`ITEM_READY`) and answer submission.
 3. **Answer Deadline & Visible Countdown**:
-   - The answer deadline adapts dynamically based on the item's consecutive correct streak (tuneable V1 policy ladder: streak 0 $\rightarrow$ **30 s**, streak 1 $\rightarrow$ **20 s**, streak 2 $\rightarrow$ **15 s**, streak $\ge 3$ $\rightarrow$ **10 s**).
+   - Every newly presented arithmetic fact receives a fixed **30,000 ms** answer deadline, independent of `ConsecutiveCorrectStreak`, operation, BandIndex, FactId, FSRS state, and prior latency. The timeout boundary is based on that fixed deadline; historical `ConsecutiveCorrectStreak` remains stored and maintained where already required.
    - A visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
    - Timer text features a direct black glyph contour/outline (`-webkit-text-stroke: 2px #000`) for crystal-clear readability directly over all dynamic fill colors without needing an enclosing dark badge.
    - Practice timing is active only while the application is foreground/interactable, the Practice/Home surface is visible, the transient Practice gate is `Running`, and the session is awaiting an answer. Settings, onboarding, Ready/Pause/Resume gates, and feedback states keep the active item paused. Paused time does not affect response latency, deadlines, semantic attempt history, Practice Position, or session score.
    - The onboarding **Get Started** action is the authoritative transition into active arithmetic practice. A fresh first fact starts with its full 30-second deadline only after that action; an existing paused fact resumes with its unchanged remaining time after onboarding triggered by restoring defaults.
    - Completed feedback states (`TimeoutFeedback`, `IncorrectFeedback`, `CorrectFeedback`) survive Settings or onboarding navigation without restarting the timer or generating duplicate attempt records.
    - Visual UI refresh (~50 ms cadence) is presentation-only; monotonic time is authoritative and immune to UI rendering drift.
-   - Any incorrect answer or timeout immediately resets the consecutive correct streak to 0, safely restoring the full 30-second deadline for that item's next presentation.
-   - Response latency and FSRS scheduling remain strictly separate: the adaptive deadline only determines when a timeout occurs, while actual response latency is measured independently and rated deterministically (`Easy` $\le 1000\text{ ms}$, `Good` $1001..2500\text{ ms}$, `Hard` $> 2500\text{ ms}$, `Again` on Incorrect/Timeout).
+   - Response latency and FSRS scheduling remain strictly separate: the fixed deadline determines only when a timeout occurs, while actual response latency is measured independently and rated deterministically (`Easy` $\le 1000\text{ ms}$, `Good` $1001..2500\text{ ms}$, `Hard` $> 2500\text{ ms}$, `Again` on Incorrect/Timeout). A correct answer at 15,000 ms is still `Hard`; the progression fluency threshold remains 2500 ms.
 
 ### Behavioral Requirement
 - The system must distinguish between:
   - **Automated Recall**: Fast, accurate responses indicating memorized mastery.
   - **Conscious Calculation**: Correct responses that required noticeable calculation time.
   - **Incorrect Answer**: Submitted wrong numeric integer.
-  - **Timeout**: Elapsed adaptive answer-deadline window without valid submission.
+  - **Timeout**: Elapsed fixed 30-second answer-deadline window without valid submission.
 - A slowly calculated correct answer must not be treated as equivalent to an automated recall; it must remain active in practice until retrieval is fluid.
 
 ---
@@ -192,6 +193,13 @@ True arithmetic fluency requires evaluating both correctness and speed against d
 
 ### Queue Composition
 Training sessions are automatically generated by blending items across learning categories (new items, weak items, due reviews, and items requiring remediation).
+
+### Session Score and Progress HUD
+
+- The transient session score is `SessionCorrectCount / SessionTotalCount`. It is hidden in Initial Ready before first Start, then shown once in the top-right header/action region after Start, during manual Pause, Resume, relevant background-resume states, feedback, and persistence recovery according to retained session context. It is neither learner persistence nor a mastery metric.
+- The compact progression HUD presents Addition, Subtraction, Multiplication, and Division in that visible order with `+`, `−`, `×`, and `÷`. Its numeric value is `BandIndex + 1`: an independent progression stage, not a maximum operand, mastery percentage, global arithmetic level, or session score. Valid BandIndex 0 and 1 display stages 1 and 2; unavailable or malformed bands fail closed as presentation unavailable rather than displaying a false stage. Internal curriculum band IDs are not learner-facing.
+- Ordinary widths use four bounded HUD columns; below approximately 480 px, the layout deterministically becomes two columns. Symbols are visual, while accessible labels identify operation and progression stage (including unavailable state). English, German, and Russian progression labels are complete; no broad keypad or training-card redesign is implied.
+- Home practice owns or reuses one stable `ArithmeticCurriculum` for the component lifetime. HUD diagnostics are cached by authoritative learner-state generation and Practice Position, so timer-only approximately 50 ms presentation refreshes do not reconstruct the curriculum or regenerate the full diagnostic snapshot. Authoritative progression, reload, recovery, and reset changes refresh the presentation. This is an architectural regression-prevention contract, not a performance benchmark.
 
 ### Explicit Error Feedback and In-Session Remediation
 When a learner provides an incorrect answer or times out during a session:
@@ -230,7 +238,7 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
 - **Practice Flow and Readiness Gates**:
   - After a correct answer is accepted and persisted exactly once, Practice immediately prepares the next fact without visual delay or acknowledgement. Incorrect answers and timeouts pause timing and show a blocking dialog containing the original arithmetic expression, the submitted answer when applicable, the correct answer, and a Continue action that is also activated by Enter.
   - A cold application session with onboarding already complete starts behind an opaque Ready to practice dialog. No problem, keypad, semantic timing, attempt, score, or Practice Position change is exposed before Start. Onboarding Get Started itself satisfies this gate and does not lead to a redundant second dialog.
-  - Manual Pause is available beside Settings only during active answer entry. It freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice.
+  - Manual Pause is available beside Settings only during active answer entry. It is presented with the danger action treatment (red in the current theme), freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice. Start and Resume remain normal primary (green) actions whenever the Pause action is absent.
   - Leaving the application foreground converts a running awaiting-answer item to a Background Resume gate. Foreground return does not restart timing; explicit Resume is required, including after returning from Settings to an interrupted Practice item. These transient gates require no learner SQLite schema change.
 
 ### Contextual Practice-Gate Personality
@@ -261,6 +269,7 @@ Contextual copy is presentation behavior only. It does not change FactId, curric
 
 ### Local Persistence
 - Learning state, item histories, and progression milestones must persist reliably in local device storage.
+- MF-STAB-001 retains Schema V5 and introduces no migration, learner reset, card deletion, FactId change, band reindexing, FSRS reset, persisted session score, or persisted HUD cache. Existing Multiplication BandIndex-0 learners can advance under the bootstrap profile if their retained valid evidence satisfies it; BandIndex-1-or-later learners retain the standard profile, and no learner is intentionally moved backward.
 - Local persistence must survive application restarts, browser refreshes, and device reboots.
 - The shared Application layer owns persistence contracts and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V5 store and is registered by the native app through dependency injection.
 

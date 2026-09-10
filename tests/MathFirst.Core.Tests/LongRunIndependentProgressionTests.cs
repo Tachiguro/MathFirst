@@ -116,6 +116,112 @@ public sealed class LongRunIndependentProgressionTests
     }
 
     [Fact]
+    public async Task StrongFreshLearner_AdvancesInitialMultiplicationAndNaturallyReceivesFactorTwo()
+    {
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: false);
+
+        for (var position = 1; position <= 50; position++)
+        {
+            var fact = session.CurrentFact;
+            session.SubmitAnswer(fact.CorrectResult);
+            var result = await session.CommitCurrentEvaluationAsync();
+            Assert.True(result.IsSuccess);
+
+            if (position == 47)
+            {
+                Assert.True(session.LastEvaluation!.OperationAdvanced);
+                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+                Assert.All(
+                    new[]
+                    {
+                        ArithmeticOperation.Addition,
+                        ArithmeticOperation.Subtraction,
+                        ArithmeticOperation.Division
+                    },
+                    operation => Assert.Equal(0, session.Progression.OperationProgressions[operation].BandIndex));
+            }
+
+            Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        }
+
+        Assert.Equal(51, session.Progression.PracticePosition + 1);
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.True(session.CurrentFact.LeftOperand == 2 || session.CurrentFact.RightOperand == 2);
+        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+    }
+
+    [Fact]
+    public async Task RehydratedMultiplicationBandZeroLearner_AdvancesWithoutResettingPersistedFactsOrFsrs()
+    {
+        using var store = new InMemoryLearnerStore(CreatePersistedMultiplicationSnapshot(
+            bandIndex: 0,
+            historicalAttemptCount: 11,
+            historicalCorrectCount: 10));
+        var originalSnapshot = store.Snapshot;
+        var originalFactIds = originalSnapshot.ItemStates.Keys.ToHashSet(StringComparer.Ordinal);
+        var originalFsrs = originalSnapshot.FsrsStates;
+        var session = new TrainingSession(store);
+
+        await session.InitializeAsync(startTiming: false);
+
+        Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        var submittedFactId = session.CurrentFact.Id;
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        Assert.True(session.LastEvaluation!.OperationAdvanced);
+        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(originalFactIds, session.ItemStates.Keys.ToHashSet(StringComparer.Ordinal));
+        Assert.All(
+            originalFactIds.Where(factId => factId != submittedFactId),
+            factId => Assert.Equal(originalFsrs[factId], session.FsrsStates[factId]));
+        Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.True(progression.BandIndex >= 0));
+    }
+
+    [Fact]
+    public async Task RehydratedMultiplicationBandZeroLearner_MissingBootstrapCorrectness_DoesNotAdvanceOrReset()
+    {
+        using var store = new InMemoryLearnerStore(CreatePersistedMultiplicationSnapshot(
+            bandIndex: 0,
+            historicalAttemptCount: 11,
+            historicalCorrectCount: 9));
+        var originalFactIds = store.Snapshot.ItemStates.Keys.ToHashSet(StringComparer.Ordinal);
+        var session = new TrainingSession(store);
+
+        await session.InitializeAsync(startTiming: false);
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        Assert.False(session.LastEvaluation!.OperationAdvanced);
+        Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(originalFactIds, session.ItemStates.Keys.ToHashSet(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task RehydratedMultiplicationBandOneLearner_UsesTheStandardFortyAttemptProfile()
+    {
+        using var store = new InMemoryLearnerStore(CreatePersistedMultiplicationSnapshot(
+            bandIndex: 1,
+            historicalAttemptCount: 39,
+            historicalCorrectCount: 39));
+        var session = new TrainingSession(store);
+
+        await session.InitializeAsync(startTiming: false);
+        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        Assert.True(session.LastEvaluation!.OperationAdvanced);
+        Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+    }
+
+    [Fact]
     public async Task PersistedLongRun_SnapshotIsBoundedWhileDurableHistoryIsPreserved()
     {
         var directory = Path.Combine(Path.GetTempPath(), "MathFirstLongRun_" + Guid.NewGuid().ToString("N"));
@@ -168,6 +274,35 @@ public sealed class LongRunIndependentProgressionTests
         private LearnerProgression _progression = LearnerProgression.CreateFresh();
         private long _revision = 1;
 
+        public InMemoryLearnerStore(LearnerSnapshot? snapshot = null)
+        {
+            if (snapshot is null)
+            {
+                return;
+            }
+
+            _progression = snapshot.Progression;
+            _revision = snapshot.Revision;
+            foreach (var (factId, itemState) in snapshot.ItemStates)
+            {
+                _items[factId] = itemState;
+            }
+            foreach (var (factId, fsrsState) in snapshot.FsrsStates)
+            {
+                _fsrs[factId] = fsrsState;
+            }
+            _attempts.AddRange(snapshot.RecentAttempts);
+        }
+
+        public LearnerSnapshot Snapshot => new(
+            _progression,
+            _items,
+            _fsrs,
+            _attempts,
+            _revision,
+            LearnerProgression.DefaultSchemaVersion,
+            _progression.OperationProgressions);
+
         public string StoragePath => "inmemory://long-run";
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -199,6 +334,73 @@ public sealed class LongRunIndependentProgressionTests
             _revision++;
             return Task.FromResult(PersistenceResult.Success(_revision));
         }
+    }
+
+    private static LearnerSnapshot CreatePersistedMultiplicationSnapshot(
+        int bandIndex,
+        int historicalAttemptCount,
+        int historicalCorrectCount)
+    {
+        var curriculum = new ArithmeticCurriculum().Multiplication;
+        Assert.True(curriculum.TryGetBand(bandIndex, out var band));
+        var frontier = band!.Frontier;
+        var practicePosition = checked((historicalAttemptCount * 4) + 2);
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = practicePosition;
+        progression.StoreRevision = 7;
+        progression.OperationProgressions[ArithmeticOperation.Multiplication] =
+            new OperationProgression(ArithmeticOperation.Multiplication, bandIndex, 0);
+
+        var attempts = Enumerable.Range(0, historicalAttemptCount)
+            .Select(index =>
+            {
+                var fact = frontier[index % frontier.Count];
+                var isCorrect = index < historicalCorrectCount;
+                return new AttemptRecord(
+                    $"persisted-{bandIndex}-{index}",
+                    fact.Id,
+                    fact.Operation,
+                    fact.LeftOperand,
+                    fact.RightOperand,
+                    isCorrect ? fact.CorrectResult : fact.CorrectResult + 1,
+                    fact.CorrectResult,
+                    isCorrect,
+                    isCorrect ? 800 : 3_000,
+                    DateTimeOffset.UnixEpoch.AddMinutes(index),
+                    practicePosition: 3 + (index * 4));
+            })
+            .ToArray();
+        var itemStates = frontier.ToDictionary(
+            fact => fact.Id,
+            fact => new ItemLearningState
+            {
+                FactId = fact.Id,
+                Operation = fact.Operation,
+                LeftOperand = fact.LeftOperand,
+                RightOperand = fact.RightOperand,
+                TotalAttempts = attempts.Count(attempt => attempt.FactId == fact.Id),
+                CorrectAttempts = attempts.Count(attempt => attempt.FactId == fact.Id && attempt.IsCorrect),
+                IncorrectAttempts = attempts.Count(attempt => attempt.FactId == fact.Id && !attempt.IsCorrect),
+                ConsecutiveCorrectStreak = 1,
+                LastLatencyMs = 800,
+                RollingLatencyMs = 800,
+                FluentStreak = 1,
+                LastPracticedOrder = checked((int)attempts.Where(attempt => attempt.FactId == fact.Id).Select(attempt => attempt.PracticePosition!.Value).DefaultIfEmpty().Max())
+            },
+            StringComparer.Ordinal);
+        var fsrsStates = frontier.ToDictionary(
+            fact => fact.Id,
+            fact => new FsrsCardState(fact.Id, Guid.NewGuid(), 2, null, 1, 1, practicePosition + 10, practicePosition - 1, FsrsRating.Good),
+            StringComparer.Ordinal);
+
+        return new LearnerSnapshot(
+            progression,
+            itemStates,
+            fsrsStates,
+            attempts,
+            progression.StoreRevision,
+            LearnerProgression.DefaultSchemaVersion,
+            progression.OperationProgressions);
     }
 
     private static async Task SeedHistoricalMaterializationAsync(string path, int count)

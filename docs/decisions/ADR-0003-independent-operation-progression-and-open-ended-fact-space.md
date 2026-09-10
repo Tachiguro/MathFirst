@@ -188,7 +188,7 @@ Dense advancement means every exact owned-frontier fact has been encountered at 
 
 Structured advancement means the learner has demonstrated sufficient fluency on a deterministic representative owned-frontier sample to begin the next arithmetic family. It is neither exhaustive mastery of all mathematical candidates nor proof of arbitrary arithmetic mastery at that magnitude.
 
-An operation advances from its current band only when all of the following are true:
+The standard profile applies to Addition, Subtraction, Division, and Multiplication BandIndex 1 and later. Those bands advance only when all of the following are true:
 
 1. At least 40 accepted attempts for that operation occurred after its `BandStartedPracticePosition`.
 2. Within the latest 40 accepted attempts for that operation after `BandStartedPracticePosition`:
@@ -200,6 +200,8 @@ An operation advances from its current band only when all of the following are t
    - dense: every owned-frontier fact has at least one lifetime accepted attempt;
    - structured: at least 16 distinct owned-frontier facts were introduced during the current band.
 4. Advancement occurs only as part of the atomic accepted submission that completes the gate.
+
+The sole approved exception is Multiplication BandIndex 0 (`MUL-D01`): it advances after 12 qualifying accepted multiplication attempts following `BandStartedPracticePosition`, with at least 11 correct, 11 fluent, 8 owned-frontier attempts, all four owned `MUL-D01` facts represented distinctly, and complete dense lifetime coverage of `0 × 0`, `0 × 1`, `1 × 0`, and `1 × 1`. It exists narrowly to avoid an excessively long 0-and-1-only multiplication introduction while retaining deterministic independent progression and ordinary acquisition behavior. After advancement, `MUL-D02` is selected through the existing deterministic selector; factor-2 facts receive no injection bypass.
 
 `Fluent` means Correct with `ResponseLatencyMs <= 2500`. Incorrect and Timeout attempts are incorrect and non-fluent. Correct attempts above 2500 ms are correct but non-fluent. There is no automatic band regression. Earlier weak facts remain scheduled through remediation and FSRS.
 
@@ -340,7 +342,7 @@ The current 12-attempt Mixed Checkpoint is superseded in the target product arch
 1. Every exact fact has one acquisition-owner band per operation.
 2. Dense foundations are exhaustive; structured bands use representative owned-frontier acquisition.
 3. All four operations advance independently.
-4. Recent correctness, fluency, current-frontier evidence, and band-specific coverage jointly gate advancement.
+4. Recent correctness, fluency, current-frontier evidence, and band-specific coverage jointly gate advancement; only Multiplication BandIndex 0 uses the explicitly defined bootstrap thresholds.
 5. Exact-fact remediation and FSRS review survive operation advancement.
 6. Facts and selection are generated deterministically and materialized only by accepted submissions.
 7. V4 evidence migrates atomically without fabricated historical Practice Positions or automatic reset.

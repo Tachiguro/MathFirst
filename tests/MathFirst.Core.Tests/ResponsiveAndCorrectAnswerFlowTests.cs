@@ -286,6 +286,55 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         Assert.Contains("InitializeAsync(startTiming: true)", onboarding, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PracticeHeader_UsesDangerPauseAndShowsTheOnlyScoreBesideBoundedOperationProgress()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
+        var header = home[..home.IndexOf("</header>", StringComparison.Ordinal)];
+
+        Assert.Contains("class=\"button button-danger pause-practice-btn\"", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("button button-secondary pause-practice-btn", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"button button-primary practice-overlay-action\"", home, StringComparison.Ordinal);
+        Assert.Contains("@Localizer[\"Training_Score\", Session.SessionCorrectCount, Session.SessionTotalCount]", header, StringComparison.Ordinal);
+        Assert.Equal(1, home.Split("Training_Score", StringSplitOptions.None).Length - 1);
+        Assert.Contains("class=\"operation-progress-hud\"", home, StringComparison.Ordinal);
+        Assert.Contains("GetOperationSymbol(progress.Operation)", home, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr));", styles, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud", styles, StringComparison.Ordinal);
+        Assert.Contains("@media (max-width: 480px)", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PracticeHeader_HidesScoreOnlyUntilTheInitialReadyGateHasBeenStarted()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var header = home[..home.IndexOf("</header>", StringComparison.Ordinal)];
+
+        Assert.Contains("@if (IsSessionScoreVisible)", header, StringComparison.Ordinal);
+        Assert.Contains("private bool IsSessionScoreVisible =>", home, StringComparison.Ordinal);
+        Assert.Contains("Session.IsInitialized &&", home, StringComparison.Ordinal);
+        Assert.Contains("Session.PracticeGate != PracticeGateState.InitialReadyGate", home, StringComparison.Ordinal);
+        var predicateStart = home.IndexOf("private bool IsSessionScoreVisible =>", StringComparison.Ordinal);
+        var predicate = home[predicateStart..(home.IndexOf(';', predicateStart) + 1)];
+        Assert.DoesNotContain("Session.PracticeGate == PracticeGateState.Running", predicate, StringComparison.Ordinal);
+        Assert.Equal(1, home.Split("Training_Score", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void OperationProgressHud_UsesComponentLifetimeCurriculumAndProgressionCache()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        Assert.Contains("private readonly ArithmeticCurriculum _curriculum = new();", home, StringComparison.Ordinal);
+        Assert.Contains("private IReadOnlyList<OperationProgressDiagnostics> _operationProgress", home, StringComparison.Ordinal);
+        Assert.Contains("_operationProgressLearnerStateGeneration", home, StringComparison.Ordinal);
+        Assert.Contains("_operationProgressPracticePosition", home, StringComparison.Ordinal);
+        Assert.Contains("Session.LearnerStateGenerationRevision", home, StringComparison.Ordinal);
+        Assert.Contains("LearningProgressDiagnostics.Create(Session.Progression, _curriculum)", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("LearningProgressDiagnostics.Create(Session.Progression, new ArithmeticCurriculum())", home, StringComparison.Ordinal);
+    }
+
     private static async Task<(TrainingSession Session, FakeClock Clock, RecordingStore Store)> CreateSession()
     {
         var clock = new FakeClock();

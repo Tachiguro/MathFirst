@@ -91,9 +91,19 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
+`main` / `origin/main`: `30580ce7788466e6524668a4a7f479eb76274b5c`
 
-The current task is MF-UX-003, **Native Identity, Version, Visual Reconciliation**, on `feat/mf-ux-003-native-identity`. Its review-approved implementation HEAD is `9a67f387a57261a4d76afa70510fc6e8b1d23447`; the base and `origin/main` are `194b6d6a5a9f11c989bcaaf1468758ff82386bba`.
+The active task is MF-STAB-001, **Practice Progression and HUD Stabilization**, on `feat/mf-stab-001-practice-stabilization`. Its current local implementation candidate is `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264`, six commits ahead of `main` and zero behind before documentation reconciliation:
 
-`DOCUMENT_ONLY` reconciliation is applied locally and awaits `COMMIT_ONLY`; implementation is `REVIEW_APPROVED`. No documentation-inclusive final candidate SHA exists yet. The branch is not pushed, no Pull Request exists, and no merge has occurred. The next lifecycle step is `COMMIT_ONLY — MF-UX-003 — Documentation Reconciliation Commit`. MF-REL-001 has not started.
+1. `243008d5134600f93066c637dd7014cbbc8edd26` — multiplication bootstrap advancement
+2. `29cf40b9764ecdb57a28aaa91f1c719c9a0b253b` — fixed answer deadline
+3. `8b75d701026ef5b7a45fd6844c13eef735167460` — practice-header progress HUD
+4. `3fc1605174843638a2d03efeef31e22ec4bc3f25` — review remediation
+5. `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` — documentation reconciliation (docs commit between checkpoints 4 and 5)
+6. `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264` — validation test remediation
+
+Implementation and test remediation are complete and `REVIEW_APPROVED` with no findings. The first `FULL_VALIDATION` attempt on `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` failed solely due to a stale legacy integration expectation; post-remediation Core tests passed 546/546. Narrow documentation reconciliation is the current `DOCUMENT_ONLY` lifecycle step and remains local and uncommitted. After documentation is committed, `FULL_VALIDATION` must target the newly created documentation-inclusive SHA; no push, Pull Request, or merge has occurred. MF-UX-003 is complete and merged through Pull Request #12 at `30580ce7788466e6524668a4a7f479eb76274b5c`. MF-REL-001 remains not started.
+
+After successful documentation reconciliation with changes, the exact next lifecycle is `COMMIT_ONLY — MF-STAB-001 — Validation Remediation Documentation Commit`.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

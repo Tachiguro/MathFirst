@@ -46,6 +46,164 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
+    public void InitialMultiplicationBootstrap_AdvancesAfterTwelveQualifyingAttempts()
+    {
+        var testCase = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+
+        Assert.True(decision.Advances);
+        Assert.Equal(1, decision.ResultingProgression.BandIndex);
+        Assert.Equal(112, decision.ResultingProgression.BandStartedPracticePosition);
+    }
+
+    [Fact]
+    public void InitialMultiplicationBootstrap_RequiresElevenCorrectAttempts()
+    {
+        var passing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+        var failing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 10,
+            fluentCount: 10,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+
+        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
+        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
+    }
+
+    [Fact]
+    public void InitialMultiplicationBootstrap_RequiresElevenFluentAttempts()
+    {
+        var passing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 12,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+        var failing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 12,
+            fluentCount: 10,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+
+        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
+        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
+    }
+
+    [Fact]
+    public void InitialMultiplicationBootstrap_RequiresEightFrontierAttempts()
+    {
+        var passing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+        var failing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 7,
+            distinctFrontierCount: 4);
+
+        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
+        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
+    }
+
+    [Fact]
+    public void InitialMultiplicationBootstrap_RequiresAllFourFactsForCoverageAndDistinctEvidence()
+    {
+        var passing = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4);
+        var missingCoverage = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 4,
+            completeCoverage: false);
+        var insufficientDistinctEvidence = CreateCase(
+            ArithmeticOperation.Multiplication,
+            bandIndex: 0,
+            attemptCount: 12,
+            correctCount: 11,
+            fluentCount: 11,
+            frontierAttemptCount: 8,
+            distinctFrontierCount: 3);
+
+        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
+        Assert.False(_evaluator.Evaluate(
+            missingCoverage.Progression,
+            missingCoverage.Curriculum,
+            missingCoverage.Evidence).Advances);
+        Assert.False(_evaluator.Evaluate(
+            insufficientDistinctEvidence.Progression,
+            insufficientDistinctEvidence.Curriculum,
+            insufficientDistinctEvidence.Evidence).Advances);
+    }
+
+    [Theory]
+    [InlineData(ArithmeticOperation.Multiplication, 1)]
+    [InlineData(ArithmeticOperation.Addition, 0)]
+    [InlineData(ArithmeticOperation.Division, 0)]
+    public void BootstrapThresholds_DoNotApplyOutsideInitialMultiplication(
+        ArithmeticOperation operation,
+        int bandIndex)
+    {
+        var twelveAttempts = CreateCase(
+            operation,
+            bandIndex,
+            attemptCount: 12,
+            correctCount: 12,
+            fluentCount: 12,
+            frontierAttemptCount: 12);
+        var fortyAttempts = CreateCase(operation, bandIndex);
+
+        Assert.False(_evaluator.Evaluate(
+            twelveAttempts.Progression,
+            twelveAttempts.Curriculum,
+            twelveAttempts.Evidence).Advances);
+        Assert.True(_evaluator.Evaluate(
+            fortyAttempts.Progression,
+            fortyAttempts.Curriculum,
+            fortyAttempts.Evidence).Advances);
+    }
+
+    [Fact]
     public void CorrectnessThreshold_DistinguishesThirtyEightFromThirtySeven()
     {
         var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, correctCount: 38, fluentCount: 34);

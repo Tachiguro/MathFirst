@@ -2,7 +2,9 @@
 @implements IDisposable
 @using MathFirst.Application
 @using MathFirst.Application.Copy
+@using MathFirst.Application.Diagnostics
 @using MathFirst.Domain
+@using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
 @inject PracticeGateCopyState PracticeGateCopyState
@@ -20,10 +22,14 @@
                 }
             </div>
             <div class="practice-header-actions">
+                @if (IsSessionScoreVisible)
+                {
+                    <span class="score-display header-session-score">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
+                }
                 @if (CanPausePractice)
                 {
                     <button type="button"
-                            class="button button-secondary pause-practice-btn"
+                            class="button button-danger pause-practice-btn"
                             title='@Localizer["Training_Pause"]'
                             aria-label='@Localizer["Training_Pause"]'
                             @onclick="PausePractice">
@@ -117,7 +123,19 @@
                 {
                     <div class="training-top-region">
                         <div class="training-meta-row">
-                            <span class="score-display">@Localizer["Training_Score", Session.SessionCorrectCount, Session.SessionTotalCount]</span>
+                            <div class="operation-progress-hud" role="group" aria-label="@Localizer["Diagnostics_Group_Learning"]">
+                                @foreach (var progress in OperationProgress)
+                                {
+                                    var operationName = Localizer[$"Operation_{progress.Operation}"];
+                                    <span class="operation-progress-entry"
+                                          aria-label="@(progress.PresentationStage is int stage
+                                              ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                              : Localizer["Training_OperationProgressUnavailable", operationName])">
+                                        <span class="operation-progress-symbol" aria-hidden="true">@GetOperationSymbol(progress.Operation)</span>
+                                        <span class="operation-progress-stage">@(progress.PresentationStage?.ToString() ?? "—")</span>
+                                    </span>
+                                }
+                            </div>
                         </div>
 
                         <div class="timer-container">
@@ -204,6 +222,10 @@
     private ElementReference _primaryOverlayButton;
     private bool _shouldFocusInput = true;
     private bool _shouldFocusPrimaryOverlay;
+    private readonly ArithmeticCurriculum _curriculum = new();
+    private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
+    private long _operationProgressLearnerStateGeneration = long.MinValue;
+    private long _operationProgressPracticePosition = long.MinValue;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -668,6 +690,37 @@
         Session.InteractionState == SessionInteractionState.AwaitingAnswer;
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
+
+    private bool IsSessionScoreVisible =>
+        Session.IsInitialized &&
+        Session.PracticeGate != PracticeGateState.InitialReadyGate;
+
+    private IReadOnlyList<OperationProgressDiagnostics> OperationProgress
+    {
+        get
+        {
+            var learnerStateGeneration = Session.LearnerStateGenerationRevision;
+            var practicePosition = Session.Progression.PracticePosition;
+            if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
+                _operationProgressPracticePosition != practicePosition)
+            {
+                _operationProgress = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+                _operationProgressLearnerStateGeneration = learnerStateGeneration;
+                _operationProgressPracticePosition = practicePosition;
+            }
+
+            return _operationProgress;
+        }
+    }
+
+    private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
+    {
+        ArithmeticOperation.Addition => "+",
+        ArithmeticOperation.Subtraction => "−",
+        ArithmeticOperation.Multiplication => "×",
+        ArithmeticOperation.Division => "÷",
+        _ => "—"
+    };
 
     private void SyncPracticeGateCopy()
     {

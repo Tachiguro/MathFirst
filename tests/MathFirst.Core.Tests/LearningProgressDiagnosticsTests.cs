@@ -48,10 +48,46 @@ public sealed class LearningProgressDiagnosticsTests
         Assert.Equal(equivalent.PracticePosition, identical.PracticePosition);
         Assert.Equal(equivalent.Operations, identical.Operations);
         Assert.Equal(new OperationProgressDiagnostics(ArithmeticOperation.Addition, 999, null, 11), unavailable.Operations[0]);
+        Assert.Null(unavailable.Operations[0].CurriculumBandId);
+        Assert.Null(unavailable.Operations[0].PresentationStage);
         Assert.DoesNotContain(typeof(LearningProgressDiagnostics).GetProperties(), property =>
             property.Name.Contains("Level", StringComparison.Ordinal) ||
             property.Name.Contains("Percentage", StringComparison.Ordinal) ||
-            property.Name.Contains("Completion", StringComparison.Ordinal));
+                   property.Name.Contains("Completion", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LearningProgressDiagnostics_ExposeSafeOneBasedPresentationStagesInCanonicalOrder()
+    {
+        var diagnostics = LearningProgressDiagnostics.Create(CreateProgression(), new ArithmeticCurriculum());
+        var stageProperty = typeof(OperationProgressDiagnostics).GetProperty("PresentationStage");
+
+        Assert.NotNull(stageProperty);
+        Assert.Equal(
+            [11, 11, 11, 11],
+            diagnostics.Operations.Select(operation => (int?)stageProperty!.GetValue(operation)).ToArray());
+
+        var advancedMultiplication = new OperationProgressDiagnostics(
+            ArithmeticOperation.Multiplication, 1, "MUL-D02", 12);
+        var malformed = new OperationProgressDiagnostics(
+            ArithmeticOperation.Division, -1, null, null);
+        var overflowAdjacent = LearningProgressDiagnostics.Create(
+            new LearnerProgression
+            {
+                OperationProgressions = new Dictionary<ArithmeticOperation, OperationProgression>
+                {
+                    [ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, int.MaxValue, 0),
+                    [ArithmeticOperation.Subtraction] = new(ArithmeticOperation.Subtraction, 0, 0),
+                    [ArithmeticOperation.Multiplication] = new(ArithmeticOperation.Multiplication, 0, 0),
+                    [ArithmeticOperation.Division] = new(ArithmeticOperation.Division, 0, 0)
+                }
+            },
+            new ArithmeticCurriculum());
+
+        Assert.Equal(2, (int?)stageProperty.GetValue(advancedMultiplication));
+        Assert.Null((int?)stageProperty.GetValue(malformed));
+        Assert.Null(overflowAdjacent.Operations[0].CurriculumBandId);
+        Assert.Null(overflowAdjacent.Operations[0].PresentationStage);
     }
 
     [Fact]

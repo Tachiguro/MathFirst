@@ -10,7 +10,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
 - **Default Branch**: `main`
 - **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: MF-LEARN-001 and MF-UX-002 are complete and merged into `main`. MF-UX-003 is implementation-complete and review-approved on its candidate branch; its delivery lifecycle remains outstanding.
+- **Current Status**: MF-LEARN-001, MF-UX-002, and MF-UX-003 are complete and merged into `main`; MF-UX-003 merged through Pull Request #12 at `30580ce7788466e6524668a4a7f479eb76274b5c`. MF-STAB-001 is implementation-complete and review-approved locally; its delivery lifecycle remains outstanding.
 
 ---
 
@@ -63,10 +63,14 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 - Native Not Found content is localized in English, German, and Russian; the pre-Blazor host placeholder is the language-neutral `MathFirst`. The former unused template image/raw payloads were removed.
 - Contract coverage verifies canonical project properties and MSBuild projection, metadata parsing including fail-closed invalid inputs, localization and version display, SVG and native-host XAML structure, Android palette/identity, Windows unpackaged identity, removed template payloads, Not Found localization, and the startup identity.
 
-## 6. Candidate Delivery State
+## 6. Current Feature Candidate State
 
-- MF-UX-003 is implementation-complete and consolidated-review `REVIEW_APPROVED` at `9a67f387a57261a4d76afa70510fc6e8b1d23447`, based on `main` commit `194b6d6a5a9f11c989bcaaf1468758ff82386bba`. Its documentation has been reconciled locally but not committed; `FULL_VALIDATION`, push, Pull Request, and merge remain pending.
-- Focused implementation evidence includes slice results of 50 passed and 64 passed tests, targeted Windows/Android builds with 0 warnings and 0 errors, and final remediation coverage of 26 passed tests with targeted Windows/Android builds at 0 warnings and 0 errors. This is not formal documentation-inclusive `FULL_VALIDATION` evidence.
+- MF-STAB-001, **Practice Progression and HUD Stabilization**, is implementation-complete and consolidated-review `REVIEW_APPROVED` at local candidate `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264`, based on `main` commit `30580ce7788466e6524668a4a7f479eb76274b5c`. It is six commits ahead and zero behind before documentation reconciliation.
+- The initial documentation-inclusive candidate `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` underwent `FULL_VALIDATION`; Windows and Android Release builds passed with 0 warnings and 0 errors, while the Core test suite uncovered 1 failure due to a legacy integration assertion assuming Multiplication BandIndex 0. Validation test remediation `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264` updated the assertion to match the approved bootstrap contract, achieved 546/546 passing Core tests, and was `REVIEW_APPROVED`.
+- Narrow documentation reconciliation is in progress locally; final `FULL_VALIDATION` against the upcoming documentation-inclusive exact candidate, push, Pull Request, and merge remain pending.
+- The candidate introduces a narrow Multiplication BandIndex-0/MUL-D01 bootstrap advancement profile, while every other operation and band retains the standard 40-attempt advancement policy. Every new fact has a fixed 30-second answer deadline; latency classification and FSRS ratings remain independent. It also makes Pause a red danger action while running, shows a transient session score after Start, and presents independent stages for all four operations in a compact HUD.
+- Schema V5 remains unchanged: no migration, learner reset, card deletion, FactId change, band reindexing, FSRS reset, persisted score, or persisted HUD cache occurs. Existing retained MUL-D01 evidence may satisfy the bootstrap profile without intentionally moving a learner backward.
+- Focused implementation evidence is recorded in [docs/TESTING.md](TESTING.md); it is not formal exact-candidate `FULL_VALIDATION` evidence and does not establish release readiness.
 
 ## 7. Durable Delivery Evidence
 

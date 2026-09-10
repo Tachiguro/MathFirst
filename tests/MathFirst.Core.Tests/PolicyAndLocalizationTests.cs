@@ -122,6 +122,22 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Correct: 3 / 5", formatted);
     }
 
+    [Theory]
+    [InlineData("en", "Addition: progression stage 1", "Addition: progression unavailable")]
+    [InlineData("de", "Addition: Fortschrittsstufe 1", "Addition: Fortschritt nicht verfügbar")]
+    [InlineData("ru", "Сложение: этап прогресса 1", "Сложение: прогресс недоступен")]
+    public void LocalizationService_OperationProgressHudHasAccessibleLanguageParity(
+        string language,
+        string expectedStage,
+        string expectedUnavailable)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expectedStage, service["Training_OperationProgressStage", service["Operation_Addition"], 1]);
+        Assert.Equal(expectedUnavailable, service["Training_OperationProgressUnavailable", service["Operation_Addition"]]);
+    }
+
     /// <summary>
     /// Verifies that the static practice gate localization keys remain present and correct in
     /// all languages. These keys serve as the ultimate fallback for the contextual copy system
