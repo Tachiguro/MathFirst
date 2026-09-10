@@ -41,6 +41,13 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 4. **Frictionless Interaction**: Fast, low-latency input tailored to the ergonomics of each supported platform.
 5. **Offline Core and Account Independence**: Core learning must function without an active network connection, the MVP does not require a user account, and learning progress must persist locally across sessions.
 
+### Native Product Identity
+
+- **Product identity**: MathFirst (`com.tachiguro.mathfirst`) currently presents release version `1.0` and build `1`.
+- **Visible version information**: Settings displays localized Version/Build information.
+- **Native brand treatment**: A white geometric MF mark uses primary green `#176B4D`, companion green `#0F523A`, light native background `#F4F7F5`, and dark native background `#121916`.
+- **Fallback surfaces**: Not Found content is localized in English, German, and Russian; the native startup placeholder is the language-neutral `MathFirst`.
+
 ---
 
 ## 4. Core Learning Model

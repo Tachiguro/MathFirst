@@ -9,16 +9,16 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-UX-002`
-- **Title**: Deterministic Practice Personality and Contextual Copy
-- **Active Task Branch**: `feat/mf-ux-002-contextual-copy`
+- **Active Package ID**: `MF-UX-003`
+- **Title**: Native Identity, Version, Visual Reconciliation
+- **Active Task Branch**: `feat/mf-ux-003-native-identity`
 - **Base Branch**: `main`
-- **Base Commit**: `97bd5476eff12858068119a7e84880c9c92be3dd`
-- **Candidate Implementation Commit**: `27e8fb6db511bc5875c8ca16feb6e800b84bc8b0`
-- **Documentation Reconciliation**: Complete and `REVIEW_APPROVED` as part of the MF-UX-002 candidate delivery.
-- **Implementation Status**: Complete and `REVIEW_APPROVED` on the candidate branch; all implementation review findings are resolved.
-- **Delivery Status**: The branch is unpushed, no Pull Request exists, and `main` does not yet contain MF-UX-002.
-- **Previous Delivery Status**: `MF-DOC-001` is complete and merged; `MF-LEARN-001` is completed and merged through Pull Request #9.
+- **Base Commit**: `194b6d6a5a9f11c989bcaaf1468758ff82386bba`
+- **Review-Approved Implementation Commit**: `9a67f387a57261a4d76afa70510fc6e8b1d23447`
+- **Documentation Reconciliation**: Applied locally in the current working tree; documentation changes are not yet committed.
+- **Implementation Status**: Complete and consolidated re-review `REVIEW_APPROVED`; all review findings are resolved.
+- **Delivery Status**: The branch is unpushed, no Pull Request exists, and `main` does not yet contain MF-UX-003.
+- **Previous Delivery Status**: `MF-UX-002` is complete and merged; `MF-DOC-001` and `MF-LEARN-001` are also complete and merged.
 - **Current Product Direction**: Native V1 Release Readiness.
 - **Platform Status**: Windows and Android remain the active native priorities. Web remains deferred.
 
@@ -27,12 +27,12 @@ This document provides operational context for the package currently in flight.
 ## 2. Operational Rules
 
 1. **Subordinate Status**: If this file differs from the current branch, working tree, or GitHub state, live repository evidence is authoritative.
-2. **Lifecycle Isolation**: Formal full validation, push, Pull Request, and merge have not occurred for `MF-UX-002`.
+2. **Lifecycle Isolation**: Formal full validation, push, Pull Request, and merge have not occurred for `MF-UX-003`.
 
 ---
 
 ## 3. Current Lifecycle Position
 
-- **Documentation Commit Boundary**: A `COMMIT_ONLY` lifecycle step records the review-approved reconciliation before formal candidate validation.
+- **Documentation Commit Boundary**: The review-approved implementation HEAD is `9a67f387a57261a4d76afa70510fc6e8b1d23447`. A final documentation-inclusive candidate HEAD does not yet exist; `COMMIT_ONLY — MF-UX-003 — Documentation Reconciliation Commit` creates it.
 - **Remaining Delivery Sequence**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- **Next Package Gate**: MF-UX-003 remains blocked until MF-UX-002 is merged and post-merge synchronization completes.
+- **Next Package Gate**: MF-REL-001 is not started and remains blocked until MF-UX-003 completes its lifecycle.

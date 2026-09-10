@@ -10,7 +10,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
 - **Default Branch**: `main`
 - **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: MF-LEARN-001 is complete and merged into `main` through Pull Request #9. Native V1 release-readiness work remains outstanding.
+- **Current Status**: MF-LEARN-001 and MF-UX-002 are complete and merged into `main`. MF-UX-003 is implementation-complete and review-approved on its candidate branch; its delivery lifecycle remains outstanding.
 
 ---
 
@@ -54,14 +54,21 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 
 ---
 
-## 5. Review-Approved Candidate Delivery State
+## 5. Native Identity and Version Baseline
 
-- MF-UX-002, **Deterministic Practice Personality and Contextual Copy**, is implemented and `REVIEW_APPROVED` on candidate branch `feat/mf-ux-002-contextual-copy`; its final implementation baseline before the documentation commit was `27e8fb6db511bc5875c8ca16feb6e800b84bc8b0`, based on `main` commit `97bd5476eff12858068119a7e84880c9c92be3dd`. Documentation reconciliation is also `REVIEW_APPROVED`. The branch is unpushed, has no Pull Request, and MF-UX-002 is not yet in `main`.
-- The candidate replaces static practice-gate titles with deterministic contextual localized copy. It uses the latest durably accepted-practice timestamp from `attempt_history` through `SqliteLearnerStore`, `LearnerSnapshot.LatestAcceptedPracticeAt`, and `TrainingSession.LatestAcceptedPracticeAt` to form presentation context; this timestamp loads on cold startup, advances only after successful persistence, and is cleared with its history on reset.
-- The candidate retains Schema V5. Contextual-copy message IDs and presentation identity are transient and are not persisted; they do not affect fact identity, curriculum generation, Practice Position, advancement, evidence, FSRS, remediation, cooldowns, operation scheduling, answer evaluation, or accepted-attempt semantics.
-- Final implementation-review evidence recorded 497 Core tests passed with 0 failed and 0 skipped, a Windows build with 0 warnings and 0 errors, and a passing `git diff --check`. This is review evidence, not the later governed `FULL_VALIDATION` lifecycle result.
+- MF-UX-002, **Deterministic Practice Personality and Contextual Copy**, is complete and merged. Its deterministic contextual copy remains presentation-only and does not affect Schema V5, learning-policy semantics, or accepted-attempt behavior.
+- MF-UX-003 establishes the canonical V1 identity: application title `MathFirst`, application identifier `com.tachiguro.mathfirst`, display version `1.0`, build `1`, and company `Tachiguro`. Product and assembly titles are projected from the canonical title; Android and unpackaged Windows identity remain unchanged.
+- Settings displays localized version/build information. `AppBuildInfo` reads generated application metadata through the shared platform-neutral parser, which requires complete, non-blank, valid numeric display-version metadata and a positive invariantly parsed build number.
+- Native branding uses a white geometric MF mark, primary `#176B4D`, companion `#0F523A`, light host background `#F4F7F5`, dark host background `#121916`, and adaptive icon foreground scale `0.65`. The MAUI single-project `MauiIcon`/`MauiSplashScreen` architecture generates native identity assets; manually maintained Android or Windows icon sets are not used.
+- Native Not Found content is localized in English, German, and Russian; the pre-Blazor host placeholder is the language-neutral `MathFirst`. The former unused template image/raw payloads were removed.
+- Contract coverage verifies canonical project properties and MSBuild projection, metadata parsing including fail-closed invalid inputs, localization and version display, SVG and native-host XAML structure, Android palette/identity, Windows unpackaged identity, removed template payloads, Not Found localization, and the startup identity.
 
-## 6. Durable Delivery Evidence
+## 6. Candidate Delivery State
+
+- MF-UX-003 is implementation-complete and consolidated-review `REVIEW_APPROVED` at `9a67f387a57261a4d76afa70510fc6e8b1d23447`, based on `main` commit `194b6d6a5a9f11c989bcaaf1468758ff82386bba`. Its documentation has been reconciled locally but not committed; `FULL_VALIDATION`, push, Pull Request, and merge remain pending.
+- Focused implementation evidence includes slice results of 50 passed and 64 passed tests, targeted Windows/Android builds with 0 warnings and 0 errors, and final remediation coverage of 26 passed tests with targeted Windows/Android builds at 0 warnings and 0 errors. This is not formal documentation-inclusive `FULL_VALIDATION` evidence.
+
+## 7. Durable Delivery Evidence
 
 - MF-AND-001 was merged to `main` through GitHub Pull Request #7 on 2026-09-08, adding the Android V1 runtime and native SQLite layer while preserving Windows behavior.
 - Repository history records 178 passing automated unit and simulation tests before the Android V1 package; the merged Android package adds deterministic lifecycle, input, responsive-layout, localization, and SQLite architecture coverage.
@@ -70,7 +77,7 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 
 ---
 
-## 7. Durable Product Boundaries
+## 8. Durable Product Boundaries
 
 - Core practice is offline-first and requires no account.
 - Correctness and response latency are separate learning evidence.

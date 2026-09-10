@@ -89,4 +89,11 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 ## 6. Current Verified Candidate Snapshot
 
-At the latest documentation checkpoint, MF-UX-002, **Deterministic Practice Personality and Contextual Copy**, is the active package. Its final implementation baseline before the documentation commit was `feat/mf-ux-002-contextual-copy` at `27e8fb6db511bc5875c8ca16feb6e800b84bc8b0`, six commits ahead of `main` commit `97bd5476eff12858068119a7e84880c9c92be3dd`. Both implementation and documentation reconciliation are `REVIEW_APPROVED`. Verify HEAD before acting; formal `FULL_VALIDATION`, push, Pull Request, merge, and post-merge synchronization remain pending, and MF-UX-003 must not begin. A new session must still re-verify every fact above before acting.
+Repository: `Tachiguro/MathFirst`
+Canonical path: `C:\Dev\MathFirst`
+
+The current task is MF-UX-003, **Native Identity, Version, Visual Reconciliation**, on `feat/mf-ux-003-native-identity`. Its review-approved implementation HEAD is `9a67f387a57261a4d76afa70510fc6e8b1d23447`; the base and `origin/main` are `194b6d6a5a9f11c989bcaaf1468758ff82386bba`.
+
+`DOCUMENT_ONLY` reconciliation is applied locally and awaits `COMMIT_ONLY`; implementation is `REVIEW_APPROVED`. No documentation-inclusive final candidate SHA exists yet. The branch is not pushed, no Pull Request exists, and no merge has occurred. The next lifecycle step is `COMMIT_ONLY — MF-UX-003 — Documentation Reconciliation Commit`. MF-REL-001 has not started.
+
+This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
