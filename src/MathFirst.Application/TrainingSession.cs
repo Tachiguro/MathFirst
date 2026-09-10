@@ -21,6 +21,8 @@ public sealed class TrainingSession
     private bool _isAppForeground = true;
     private bool _isPracticeSurfaceActive = true;
     private PracticeGateState _practiceGateState = PracticeGateState.Running;
+    private long _practiceGateActivationRevision;
+    private long _learnerStateGenerationRevision;
     private bool _requiresBackgroundResumeAfterAdvance;
     private int _sessionCorrectCountBeforePendingEvaluation;
     private int _sessionTotalCountBeforePendingEvaluation;
@@ -50,7 +52,18 @@ public sealed class TrainingSession
     public bool IsAppForeground => _isAppForeground;
     public bool IsPracticeSurfaceActive => _isPracticeSurfaceActive;
     public PracticeGateState PracticeGate => _practiceGateState;
+    /// <summary>
+    /// Monotonic identity for the current non-running practice-gate activation.
+    /// This transient presentation lifecycle metadata is deliberately not persisted.
+    /// </summary>
+    public long PracticeGateActivationRevision => _practiceGateActivationRevision;
+    /// <summary>
+    /// Monotonic identity for the authoritative learner-state generation held by
+    /// this session object. This transient lifecycle metadata is not persisted.
+    /// </summary>
+    public long LearnerStateGenerationRevision => _learnerStateGenerationRevision;
     public bool IsInitialized { get; private set; }
+    public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
     public TrainingSession(
         ILearnerStore store,
@@ -113,7 +126,7 @@ public sealed class TrainingSession
         {
             if (InteractionState == SessionInteractionState.AwaitingAnswer)
             {
-                _practiceGateState = PracticeGateState.BackgroundResumeGate;
+                TransitionPracticeGate(PracticeGateState.BackgroundResumeGate);
             }
             else if (LastEvaluation?.Outcome == AttemptOutcome.Correct &&
                      InteractionState is SessionInteractionState.CorrectFeedback or SessionInteractionState.PersistenceFailure)
@@ -156,7 +169,7 @@ public sealed class TrainingSession
             return;
         }
 
-        _practiceGateState = PracticeGateState.InitialReadyGate;
+        TransitionPracticeGate(PracticeGateState.InitialReadyGate);
         ReconcileTimingState();
     }
 
@@ -168,7 +181,7 @@ public sealed class TrainingSession
             return;
         }
 
-        _practiceGateState = PracticeGateState.ManualPause;
+        TransitionPracticeGate(PracticeGateState.ManualPause);
         ReconcileTimingState();
     }
 
@@ -179,8 +192,22 @@ public sealed class TrainingSession
             return;
         }
 
-        _practiceGateState = PracticeGateState.Running;
+        TransitionPracticeGate(PracticeGateState.Running);
         ReconcileTimingState();
+    }
+
+    private void TransitionPracticeGate(PracticeGateState nextState)
+    {
+        if (_practiceGateState == nextState)
+        {
+            return;
+        }
+
+        _practiceGateState = nextState;
+        if (nextState != PracticeGateState.Running)
+        {
+            _practiceGateActivationRevision++;
+        }
     }
 
     private void ReconcileTimingState()
@@ -462,6 +489,7 @@ public sealed class TrainingSession
             SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
             LastResponseLatencyMs = LastEvaluation.LatencyMs;
             Progression.StoreRevision = result.NewRevision.Value;
+            LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
             _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
             await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
             InteractionState = LastEvaluation.Outcome switch
@@ -539,7 +567,7 @@ public sealed class TrainingSession
 
         if (_requiresBackgroundResumeAfterAdvance)
         {
-            _practiceGateState = PracticeGateState.BackgroundResumeGate;
+            TransitionPracticeGate(PracticeGateState.BackgroundResumeGate);
             _requiresBackgroundResumeAfterAdvance = false;
         }
 
@@ -580,6 +608,7 @@ public sealed class TrainingSession
 
     private void ApplyRuntimeSnapshot(LearnerSnapshot snapshot)
     {
+        _learnerStateGenerationRevision = checked(_learnerStateGenerationRevision + 1);
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
@@ -587,6 +616,7 @@ public sealed class TrainingSession
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
         _selectionEvidence = null;
+        LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
     }
 
     private async Task LoadNextSelectionEvidenceAsync(CancellationToken cancellationToken)

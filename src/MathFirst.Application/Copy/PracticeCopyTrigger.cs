@@ -1,0 +1,44 @@
+namespace MathFirst.Application.Copy;
+
+/// <summary>
+/// Identifies the reason a practice gate is being shown.
+/// Used as the primary selector key for contextual copy.
+/// Values map to copy pool keys in the format "{Trigger}.{Tone}.{Index}".
+/// </summary>
+public enum PracticeCopyTrigger
+{
+    /// <summary>
+    /// Normal start-of-session gate when there is no prior practice or the return is very recent.
+    /// </summary>
+    InitialReady,
+
+    /// <summary>
+    /// Learner returns after a short absence (30 minutes to 3 days).
+    /// </summary>
+    ReturnShortAbsence,
+
+    /// <summary>
+    /// Learner returns after a longer absence (3 days or more).
+    /// </summary>
+    ReturnLongAbsence,
+
+    /// <summary>
+    /// Learner explicitly paused practice and is resuming.
+    /// </summary>
+    ResumeManualPause,
+
+    /// <summary>
+    /// App was backgrounded (e.g. lock screen, switch app) and learner has returned.
+    /// </summary>
+    ResumeBackground,
+
+    /// <summary>
+    /// Neutral fallback for any InitialReadyGate state when no specific trigger applies.
+    /// </summary>
+    NeutralReady,
+
+    /// <summary>
+    /// Neutral fallback for ManualPause / BackgroundResumeGate when no specific trigger applies.
+    /// </summary>
+    NeutralPaused,
+}

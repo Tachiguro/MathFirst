@@ -32,6 +32,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
 
         var snapshot = await store.LoadSnapshotAsync();
         Assert.Equal(5, snapshot.SchemaVersion);
+        Assert.Null(snapshot.LatestAcceptedPracticeAt);
         await store.CloseAsync();
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -63,6 +64,9 @@ public sealed class SchemaV5MigrationTests : IDisposable
         var snapshot = await store.LoadSnapshotAsync();
         Assert.Equal(5, snapshot.SchemaVersion);
         Assert.Equal(17, snapshot.Progression.PracticePosition);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero),
+            snapshot.LatestAcceptedPracticeAt);
         await store.CloseAsync();
 
         await using var connection = new SqliteConnection($"Data Source={path}");

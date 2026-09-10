@@ -119,10 +119,15 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Correct: 3 / 5", formatted);
     }
 
+    /// <summary>
+    /// Verifies that the static practice gate localization keys remain present and correct in
+    /// all languages. These keys serve as the ultimate fallback for the contextual copy system
+    /// introduced in MF-UX-002 and must not be removed.
+    /// </summary>
     [Theory]
     [InlineData("en", "Ready to practice?", "Start", "Paused", "Resume practice", "Pause")]
     [InlineData("de", "Bereit zum Üben?", "Los geht's", "Pausiert", "Weiterüben", "Pausieren")]
-    [InlineData("ru", "Готовы заниматься?", "Начать", "Пауза", "Продолжить занятие", "Приостановить")]
+    [InlineData("ru", "Пора заниматься?", "Начать", "Пауза", "Продолжить занятие", "Приостановить")]
     public void LocalizationService_PracticeGatesHaveLanguageParity(
         string language,
         string expectedReady,
@@ -134,6 +139,7 @@ public sealed class PolicyAndLocalizationTests
         var service = new LocalizationService();
         service.ApplyLanguagePreference(language);
 
+        // Static keys are preserved as ultimate fallback for the contextual copy selector.
         Assert.Equal(expectedReady, service["Training_ReadyTitle"]);
         Assert.Equal(expectedStart, service["Training_Start"]);
         Assert.Equal(expectedPaused, service["Training_PausedTitle"]);
@@ -185,6 +191,18 @@ public sealed class PolicyAndLocalizationTests
         service.ApplyLanguagePreference(language);
 
         Assert.Contains(expectedIndependentPracticePhrase, service["Onboarding_TutorialStep3Text"], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("en", "Your arithmetic practice is ready. The answer timer starts only when you select Get Started.")]
+    [InlineData("de", "Dein Rechentraining ist bereit. Der Antworttimer startet erst mit „Los geht's“.")]
+    [InlineData("ru", "Тренировка по арифметике готова. Таймер ответа запустится только после нажатия «Начать».")]
+    public void LocalizationService_OnboardingReadyDescription_IsHistoryNeutral(string language, string expected)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expected, service["Onboarding_StepReady_Desc"]);
     }
 
     [Fact]

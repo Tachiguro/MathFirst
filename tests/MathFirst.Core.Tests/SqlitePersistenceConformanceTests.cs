@@ -47,6 +47,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.All(snapshot.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(snapshot.ItemStates);
         Assert.Empty(snapshot.RecentAttempts);
+        Assert.Null(snapshot.LatestAcceptedPracticeAt);
     }
 
     [Fact]
@@ -58,7 +59,8 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
+        var acceptedAt = new DateTimeOffset(2026, 9, 9, 10, 15, 0, TimeSpan.Zero);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, acceptedAt, practicePosition: 1);
 
         var itemState = ItemLearningState.CreateNew(fact);
         itemState.TotalAttempts = 1;
@@ -83,6 +85,11 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.Equal(1200, snapshot.ItemStates[fact.Id].LastLatencyMs);
         Assert.Single(snapshot.RecentAttempts);
         Assert.Equal(subId, snapshot.RecentAttempts[0].SubmissionId);
+        Assert.Equal(acceptedAt, snapshot.LatestAcceptedPracticeAt);
+
+        var runtimeSnapshot = await store.LoadRuntimeSnapshotAsync();
+        Assert.Empty(runtimeSnapshot.ItemStates);
+        Assert.Equal(acceptedAt, runtimeSnapshot.LatestAcceptedPracticeAt);
     }
 
     [Fact]
@@ -238,6 +245,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.All(snapshot.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(snapshot.ItemStates);
         Assert.Empty(snapshot.RecentAttempts);
+        Assert.Null(snapshot.LatestAcceptedPracticeAt);
     }
 
     [Fact]

@@ -86,3 +86,7 @@ Use the live-state discovery rules above to distinguish the following cases:
 3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package and lifecycle step, first verify live repository state, then proceed only with that authorized package under the repository governance.
 
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
+
+## 6. Current Verified Candidate Snapshot
+
+At the latest documentation checkpoint, MF-UX-002, **Deterministic Practice Personality and Contextual Copy**, is the active package. Its final implementation baseline before the documentation commit was `feat/mf-ux-002-contextual-copy` at `27e8fb6db511bc5875c8ca16feb6e800b84bc8b0`, six commits ahead of `main` commit `97bd5476eff12858068119a7e84880c9c92be3dd`. Both implementation and documentation reconciliation are `REVIEW_APPROVED`. Verify HEAD before acting; formal `FULL_VALIDATION`, push, Pull Request, merge, and post-merge synchronization remain pending, and MF-UX-003 must not begin. A new session must still re-verify every fact above before acting.

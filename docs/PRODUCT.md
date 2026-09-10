@@ -225,6 +225,18 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
   - A cold application session with onboarding already complete starts behind an opaque Ready to practice dialog. No problem, keypad, semantic timing, attempt, score, or Practice Position change is exposed before Start. Onboarding Get Started itself satisfies this gate and does not lead to a redundant second dialog.
   - Manual Pause is available beside Settings only during active answer entry. It freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice.
   - Leaving the application foreground converts a running awaiting-answer item to a Background Resume gate. Foreground return does not restart timing; explicit Resume is required, including after returning from Settings to an interrupted Practice item. These transient gates require no learner SQLite schema change.
+
+### Contextual Practice-Gate Personality
+
+The practice gate uses deterministic localized contextual copy instead of a static title. Its contexts are initial readiness, return after a short absence, return after a long absence, manual-pause resume, background resume, and neutral Ready/Paused fallbacks. A prior accepted practice is Recent when it is absent or less than 30 minutes old, a Short Absence from 30 minutes to less than 3 days, and a Long Absence at 3 days or more; future-clock skew is safely Recent.
+
+The selected copy remains stable for one genuine gate activation: ordinary rerenders, Home/Settings navigation, route recreation, and language changes do not rotate it. Language changes retain the same language-independent message identity and re-localize its text. A later genuine gate activation may choose another variant, while reset or authoritative learner-state replacement invalidates stale presentation identity. Background-resume copy applies both immediately and after a pending persistence, advance, or recovery operation reaches its final gate state.
+
+The physical contextual corpus supports English, German, and Russian with 55 message IDs per locale (165 localized strings total). It has ID and placeholder parity across locales, unique visible text within each locale and trigger pool, locale normalization under `LanguagePreferencePolicy`, and static Ready/Paused localization as the ultimate fallback. It is local-only: there is no runtime AI, remote copy service, network dependency, or telemetry dependency.
+
+Tone is concise, respectful, age-neutral, and secondary to arithmetic interaction. Neutral, welcoming, semantically supported progress-aware, dry-humorous, and occasional lightly cheeky wording is allowed. The product avoids insults, humiliation, guilt, patronizing or manipulative language, exaggerated praise, false achievement claims, and assumptions about a learner’s personal circumstances. Onboarding readiness is history-neutral: “Your arithmetic practice is ready,” because restored UI preferences can replay onboarding while learning history remains.
+
+Contextual copy is presentation behavior only. It does not change FactId, curriculum generation, Practice Position, BandIndex progression, advancement gates, evidence windows, FSRS, remediation, cooldowns, operation scheduling, answer deadlines, answer evaluation, accepted-attempt semantics, or Schema V5.
 - **Windows Settings Confirmations**:
   - Restore Defaults, Reset Learning Progress, and Full Local Reset remain explicit two-step actions. After an inline confirmation is rendered, it receives programmatic focus and is scrolled into view with nearest-block behavior; reduced-motion preferences disable smooth scrolling.
 

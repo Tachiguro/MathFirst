@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MathFirst.Application;
+using MathFirst.Application.Copy;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
 using MathFirst.App.Services;
@@ -30,6 +31,9 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IClock>(_ => MonotonicClock.Instance);
 		builder.Services.AddSingleton<AdaptivePracticeSelector>();
 		builder.Services.AddSingleton<TrainingSession>();
+		builder.Services.AddSingleton<IPracticeCopyLibrary, PracticeCopyLibrary>();
+		builder.Services.AddSingleton<PracticeCopySelector>();
+		builder.Services.AddSingleton<PracticeGateCopyState>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

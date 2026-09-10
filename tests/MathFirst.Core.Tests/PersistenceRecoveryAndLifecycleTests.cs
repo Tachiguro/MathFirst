@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application;
+using MathFirst.Application.Copy;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
 using Xunit;
@@ -170,6 +171,72 @@ public sealed class PersistenceRecoveryAndLifecycleTests
     }
 
     [Fact]
+    public async Task DeferredBackgroundResumeAfterCorrectCommit_SynchronizesContextualResumeCopy()
+    {
+        var completion = new TaskCompletionSource<PersistenceResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new ControllableStore(pendingCommit: completion);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+        var copyState = new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary()));
+
+        var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var commit = session.CommitCurrentEvaluationAsync();
+        session.SetAppForeground(false);
+        session.SetAppForeground(true);
+
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+        Assert.Null(copyState.Current);
+
+        completion.SetResult(PersistenceResult.Success(evaluation.ChangeSet.ExpectedRevision + 1));
+        Assert.True((await commit).IsSuccess);
+        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: true));
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, session.PracticeGate);
+
+        SynchronizeCurrentGatePresentation(copyState, session);
+
+        Assert.NotNull(copyState.Current);
+        Assert.Equal(PracticeCopyTrigger.ResumeBackground, copyState.Current!.Trigger);
+        Assert.StartsWith("ResumeBackground.", copyState.Current.MessageId, StringComparison.Ordinal);
+
+        var home = File.ReadAllText(GetRepositoryPath(
+            "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var prepareStart = home.IndexOf("private void PrepareNextFactUi()", StringComparison.Ordinal);
+        var prepareEnd = home.IndexOf("private void PausePractice()", prepareStart, StringComparison.Ordinal);
+        Assert.True(prepareStart >= 0 && prepareEnd > prepareStart);
+        Assert.Contains("SyncPracticeGateCopy();", home[prepareStart..prepareEnd], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DeferredBackgroundResumeAfterPersistenceRecovery_UsesResumeBackgroundPresentation()
+    {
+        var store = new ControllableStore(
+        [
+            PersistenceResult.Unavailable("Synthetic transient failure."),
+            PersistenceResult.Success(2)
+        ]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+        var copyState = new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary()));
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.False((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+        session.SetAppForeground(false);
+        session.SetAppForeground(true);
+
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+        Assert.True(await session.RecoverFromPersistenceFailureAsync());
+        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: true));
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, session.PracticeGate);
+
+        SynchronizeCurrentGatePresentation(copyState, session);
+
+        Assert.NotNull(copyState.Current);
+        Assert.Equal(PracticeCopyTrigger.ResumeBackground, copyState.Current!.Trigger);
+        Assert.StartsWith("ResumeBackground.", copyState.Current.MessageId, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RevisionConflict_RecoversByReloadingAuthoritativeStateWithoutRetryingStaleChangeSet()
     {
         var store = new ControllableStore(
@@ -178,6 +245,7 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         ]);
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
+        var initialGeneration = session.LearnerStateGenerationRevision;
 
         var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         var result = await session.CommitCurrentEvaluationAsync();
@@ -199,6 +267,7 @@ public sealed class PersistenceRecoveryAndLifecycleTests
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
         Assert.Null(session.LastEvaluation);
         Assert.True(session.IsTimingActive);
+        Assert.True(session.LearnerStateGenerationRevision > initialGeneration);
     }
 
     [Theory]
@@ -259,5 +328,20 @@ public sealed class PersistenceRecoveryAndLifecycleTests
 
         Assert.NotNull(current);
         return Path.Combine([current!.FullName, .. segments]);
+    }
+
+    private static void SynchronizeCurrentGatePresentation(
+        PracticeGateCopyState copyState,
+        TrainingSession session)
+    {
+        copyState.Synchronize(
+            new PracticeGatePresentationIdentity(
+                session.LearnerStateGenerationRevision,
+                session.PracticeGateActivationRevision),
+            PracticeCopyContext.FromSession(
+                session,
+                "en",
+                new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)),
+            "Paused");
     }
 }

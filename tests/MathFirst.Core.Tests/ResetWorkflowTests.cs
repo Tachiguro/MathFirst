@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application;
+using MathFirst.Application.Copy;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
 using Xunit;
@@ -72,6 +73,7 @@ public sealed class ResetWorkflowTests : IDisposable
         // Advance and submit
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
+        Assert.Equal(session.LastEvaluation!.ChangeSet.Attempt.Timestamp, session.LatestAcceptedPracticeAt);
 
         // Perform learning reset
         await session.ResetLearningProgressAsync();
@@ -79,12 +81,102 @@ public sealed class ResetWorkflowTests : IDisposable
         // Verify DB was reset to the initial V5 operation bands.
         Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(session.ItemStates);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+        session.ShowInitialReadyGate();
+        var copyContext = PracticeCopyContext.FromSession(
+            session,
+            "de",
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal(PracticeCopyTrigger.InitialReady, copyContext.Trigger);
 
         // Verify UI preferences and onboarding were PRESERVED
         Assert.True(prefs.GetOnboardingCompleted());
         Assert.Equal("de", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.Dark, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
+    }
+
+    [Fact]
+    public async Task ResetWorkflow_ResetLearningProgress_InvalidatesCachedReturnCopyAcrossLearnerGenerations()
+    {
+        var dbPath = Path.Combine(_testDbDir, "reset_copy_identity.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: false);
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        session.ShowInitialReadyGate();
+
+        var oldGeneration = session.LearnerStateGenerationRevision;
+        var gateRevision = session.PracticeGateActivationRevision;
+        var oldContext = PracticeCopyContext.FromSession(
+            session,
+            "en",
+            session.LatestAcceptedPracticeAt!.Value.AddDays(4));
+        Assert.Equal(PracticeCopyTrigger.ReturnLongAbsence, oldContext.Trigger);
+
+        var copyState = new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary()));
+        copyState.Synchronize(
+            new PracticeGatePresentationIdentity(oldGeneration, gateRevision),
+            oldContext,
+            "Ready");
+        var oldMessageId = copyState.Current!.MessageId;
+        Assert.StartsWith("ReturnLongAbsence.", oldMessageId, StringComparison.Ordinal);
+
+        await session.ResetLearningProgressAsync(startTiming: false);
+
+        Assert.Equal(PracticeGateState.InitialReadyGate, session.PracticeGate);
+        Assert.Equal(gateRevision, session.PracticeGateActivationRevision);
+        Assert.True(session.LearnerStateGenerationRevision > oldGeneration);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+
+        var resetContext = PracticeCopyContext.FromSession(
+            session,
+            "en",
+            new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal(PracticeCopyTrigger.InitialReady, resetContext.Trigger);
+
+        copyState.Synchronize(
+            new PracticeGatePresentationIdentity(
+                session.LearnerStateGenerationRevision,
+                session.PracticeGateActivationRevision),
+            resetContext,
+            "Ready");
+
+        Assert.NotEqual(oldMessageId, copyState.Current!.MessageId);
+        Assert.Equal(PracticeCopyTrigger.InitialReady, copyState.Current.Trigger);
+        Assert.Contains(
+            copyState.Current.MessageId,
+            new PracticeCopyLibrary().GetMessageIds(PracticeCopyTrigger.InitialReady, "en"));
+    }
+
+    [Fact]
+    public async Task LearnerStateGeneration_ChangesOnlyWhenAuthoritativeLearnerStateIsReplaced()
+    {
+        var dbPath = Path.Combine(_testDbDir, "learner_generation.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: false);
+        var initializedGeneration = session.LearnerStateGenerationRevision;
+
+        session.SetPracticeSurfaceActive(false);
+        session.SetPracticeSurfaceActive(true);
+        session.ShowInitialReadyGate();
+        Assert.Equal(initializedGeneration, session.LearnerStateGenerationRevision);
+
+        session.StartOrResumePractice();
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.Equal(initializedGeneration, session.LearnerStateGenerationRevision);
+
+        await session.ResetLearningProgressAsync(startTiming: false);
+        var resetGeneration = session.LearnerStateGenerationRevision;
+        Assert.True(resetGeneration > initializedGeneration);
+
+        await session.InitializeAsync(startTiming: false);
+        Assert.True(session.LearnerStateGenerationRevision > resetGeneration);
     }
 
     [Fact]
@@ -102,6 +194,7 @@ public sealed class ResetWorkflowTests : IDisposable
 
         var session = new TrainingSession(store);
         await session.InitializeAsync();
+        var learnerGeneration = session.LearnerStateGenerationRevision;
 
         // Advance and submit
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
@@ -113,6 +206,8 @@ public sealed class ResetWorkflowTests : IDisposable
         prefs.SetThemePreference(ThemePreference.System);
         prefs.SetNumericKeypadLayout(NumericKeypadLayout.Phone);
 
+        Assert.Equal(learnerGeneration, session.LearnerStateGenerationRevision);
+
         // Verify UI prefs reset
         Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
@@ -123,6 +218,14 @@ public sealed class ResetWorkflowTests : IDisposable
         var snapshot = await store.LoadSnapshotAsync();
         Assert.Equal(2, snapshot.Revision);
         Assert.Single(snapshot.ItemStates);
+
+        var localizer = new LocalizationService();
+        foreach (var language in new[] { "en", "de", "ru" })
+        {
+            localizer.ApplyLanguagePreference(language);
+            Assert.DoesNotContain(language == "en" ? "first" : language == "de" ? "erste" : "Первый",
+                localizer["Onboarding_StepReady_Desc"], StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
@@ -140,6 +243,7 @@ public sealed class ResetWorkflowTests : IDisposable
 
         var session = new TrainingSession(store);
         await session.InitializeAsync();
+        var learnerGeneration = session.LearnerStateGenerationRevision;
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
 
@@ -147,9 +251,18 @@ public sealed class ResetWorkflowTests : IDisposable
         await session.ResetLearningProgressAsync();
         prefs.ResetAllPreferences();
 
+        Assert.True(session.LearnerStateGenerationRevision > learnerGeneration);
+
         // Verify DB reset
         Assert.All(session.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(session.ItemStates);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+        session.ShowInitialReadyGate();
+        var copyContext = PracticeCopyContext.FromSession(
+            session,
+            "en",
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal(PracticeCopyTrigger.InitialReady, copyContext.Trigger);
 
         // Verify Prefs reset
         Assert.False(prefs.GetOnboardingCompleted());

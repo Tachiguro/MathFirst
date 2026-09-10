@@ -54,7 +54,14 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 
 ---
 
-## 5. Durable Delivery Evidence
+## 5. Review-Approved Candidate Delivery State
+
+- MF-UX-002, **Deterministic Practice Personality and Contextual Copy**, is implemented and `REVIEW_APPROVED` on candidate branch `feat/mf-ux-002-contextual-copy`; its final implementation baseline before the documentation commit was `27e8fb6db511bc5875c8ca16feb6e800b84bc8b0`, based on `main` commit `97bd5476eff12858068119a7e84880c9c92be3dd`. Documentation reconciliation is also `REVIEW_APPROVED`. The branch is unpushed, has no Pull Request, and MF-UX-002 is not yet in `main`.
+- The candidate replaces static practice-gate titles with deterministic contextual localized copy. It uses the latest durably accepted-practice timestamp from `attempt_history` through `SqliteLearnerStore`, `LearnerSnapshot.LatestAcceptedPracticeAt`, and `TrainingSession.LatestAcceptedPracticeAt` to form presentation context; this timestamp loads on cold startup, advances only after successful persistence, and is cleared with its history on reset.
+- The candidate retains Schema V5. Contextual-copy message IDs and presentation identity are transient and are not persisted; they do not affect fact identity, curriculum generation, Practice Position, advancement, evidence, FSRS, remediation, cooldowns, operation scheduling, answer evaluation, or accepted-attempt semantics.
+- Final implementation-review evidence recorded 497 Core tests passed with 0 failed and 0 skipped, a Windows build with 0 warnings and 0 errors, and a passing `git diff --check`. This is review evidence, not the later governed `FULL_VALIDATION` lifecycle result.
+
+## 6. Durable Delivery Evidence
 
 - MF-AND-001 was merged to `main` through GitHub Pull Request #7 on 2026-09-08, adding the Android V1 runtime and native SQLite layer while preserving Windows behavior.
 - Repository history records 178 passing automated unit and simulation tests before the Android V1 package; the merged Android package adds deterministic lifecycle, input, responsive-layout, localization, and SQLite architecture coverage.
@@ -63,7 +70,7 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 
 ---
 
-## 6. Durable Product Boundaries
+## 7. Durable Product Boundaries
 
 - Core practice is offline-first and requires no account.
 - Correctness and response latency are separate learning evidence.
