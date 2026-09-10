@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using System.Runtime.CompilerServices;
+using System.Xml;
 using System.Xml.Linq;
 using MathFirst.Application;
 
@@ -24,31 +25,47 @@ public sealed class NativeVisualIdentityContractTests
     [Fact]
     public void ActiveIconAndSplashSources_UseTheCleanGeometricMathFirstMark()
     {
-        var sources = new[]
+        var assets = new[]
         {
-            File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Resources", "AppIcon", "appicon.svg")),
-            File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Resources", "AppIcon", "appiconfg.svg")),
-            File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Resources", "Splash", "splash.svg"))
+            LoadSafeXml("Resources", "AppIcon", "appicon.svg"),
+            LoadSafeXml("Resources", "AppIcon", "appiconfg.svg"),
+            LoadSafeXml("Resources", "Splash", "splash.svg")
         };
 
-        foreach (var source in sources)
+        foreach (var asset in assets)
         {
-            Assert.Contains("viewBox=\"0 0 256 256\"", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("<!DOCTYPE", source, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("serif", source, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("dotnet", source, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("<text", source, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("font", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("svg", asset.Root!.Name.LocalName);
+            Assert.Equal("http://www.w3.org/2000/svg", asset.Root.Name.NamespaceName);
+            Assert.Equal("0 0 256 256", asset.Root.Attribute("viewBox")!.Value);
+
+            Assert.All(asset.Root.DescendantsAndSelf(), element =>
+                Assert.Contains(element.Name.LocalName, new[] { "svg", "rect", "g", "path" }));
+
+            var attributeValues = asset.Root
+                .DescendantsAndSelf()
+                .Attributes()
+                .Where(attribute => !attribute.IsNamespaceDeclaration)
+                .Select(attribute => attribute.Value)
+                .ToArray();
+
+            Assert.DoesNotContain(attributeValues, value => ContainsExternalResourceReference(value));
+            Assert.DoesNotContain(attributeValues, value => value.Contains("dotnet", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(asset.Root.DescendantsAndSelf(), element =>
+                element.Name.LocalName is "script" or "text" or "image" or "foreignObject" or "use" or "style" or "linearGradient" or "radialGradient" or "pattern" or "filter");
         }
 
-        foreach (var source in sources.Skip(1))
+        foreach (var asset in assets.Skip(1))
         {
-            Assert.Contains("id=\"mathfirst-mf-mark\"", source, StringComparison.Ordinal);
-            Assert.Contains("fill=\"#FFFFFF\"", source, StringComparison.Ordinal);
-            Assert.Contains("<path", source, StringComparison.Ordinal);
+            var mark = asset.Root!
+                .Descendants("{http://www.w3.org/2000/svg}g")
+                .Single(element => string.Equals(element.Attribute("id")?.Value, "mathfirst-mf-mark", StringComparison.Ordinal));
+
+            var paths = mark.Descendants("{http://www.w3.org/2000/svg}path").ToArray();
+            Assert.NotEmpty(paths);
+            Assert.All(paths, path => Assert.Equal("#FFFFFF", GetEffectiveFill(path)));
         }
 
-        Assert.Contains("fill=\"#176B4D\"", sources[0], StringComparison.Ordinal);
+        Assert.Equal("#176B4D", assets[0].Root!.Element("{http://www.w3.org/2000/svg}rect")!.Attribute("fill")!.Value);
     }
 
     [Fact]
@@ -56,8 +73,8 @@ public sealed class NativeVisualIdentityContractTests
     {
         var colors = XDocument.Load(GetRepositoryPath("src", "MathFirst.App", "Platforms", "Android", "Resources", "values", "colors.xml"));
         var values = colors.Root!.Elements("color").ToDictionary(element => element.Attribute("name")!.Value, element => element.Value, StringComparer.Ordinal);
-        var app = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "App.xaml"));
-        var mainPage = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "MainPage.xaml"));
+        var app = XDocument.Load(GetRepositoryPath("src", "MathFirst.App", "App.xaml"));
+        var mainPage = XDocument.Load(GetRepositoryPath("src", "MathFirst.App", "MainPage.xaml"));
 
         Assert.Equal("#176B4D", values["colorPrimary"]);
         Assert.Equal("#0F523A", values["colorPrimaryDark"]);
@@ -65,12 +82,19 @@ public sealed class NativeVisualIdentityContractTests
         Assert.DoesNotContain("#512BD4", colors.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("#2B0B98", colors.ToString(), StringComparison.OrdinalIgnoreCase);
 
-        Assert.Contains("NativeHostBackgroundLight", app, StringComparison.Ordinal);
-        Assert.Contains("#F4F7F5", app, StringComparison.Ordinal);
-        Assert.Contains("NativeHostBackgroundDark", app, StringComparison.Ordinal);
-        Assert.Contains("#121916", app, StringComparison.Ordinal);
-        Assert.Contains("AppThemeBinding", mainPage, StringComparison.Ordinal);
-        Assert.Contains("BackgroundColor", mainPage, StringComparison.Ordinal);
+        var nativeBackgrounds = app.Descendants()
+            .Where(element => element.Name.LocalName == "Color")
+            .ToDictionary(
+                element => element.Attributes().Single(attribute => attribute.Name.LocalName == "Key").Value,
+                element => element.Value,
+                StringComparer.Ordinal);
+        Assert.Equal("#F4F7F5", nativeBackgrounds["NativeHostBackgroundLight"]);
+        Assert.Equal("#121916", nativeBackgrounds["NativeHostBackgroundDark"]);
+
+        Assert.Equal("ContentPage", mainPage.Root!.Name.LocalName);
+        var blazorWebView = mainPage.Root.Descendants().Single(element => element.Name.LocalName == "BlazorWebView");
+        AssertNativeBackgroundBinding(mainPage.Root);
+        AssertNativeBackgroundBinding(blazorWebView);
     }
 
     [Fact]
@@ -113,4 +137,40 @@ public sealed class NativeVisualIdentityContractTests
 
     private static string GetRepositoryRoot([CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
+
+    private static XDocument LoadSafeXml(params string[] assetSegments)
+    {
+        using var reader = XmlReader.Create(
+            Path.Combine([GetRepositoryRoot(), "src", "MathFirst.App", .. assetSegments]),
+            new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            });
+
+        return XDocument.Load(reader);
+    }
+
+    private static bool ContainsExternalResourceReference(string value) =>
+        new[] { "http:", "https:", "file:", "data:", "javascript:", "url(" }
+            .Any(forbiddenValue => value.Contains(forbiddenValue, StringComparison.OrdinalIgnoreCase));
+
+    private static string? GetEffectiveFill(XElement element)
+    {
+        for (var current = element; current is not null; current = current.Parent)
+        {
+            var fill = current.Attribute("fill")?.Value;
+            if (fill is not null)
+            {
+                return fill;
+            }
+        }
+
+        return null;
+    }
+
+    private static void AssertNativeBackgroundBinding(XElement element) =>
+        Assert.Equal(
+            "{AppThemeBinding Light={StaticResource NativeHostBackgroundLight}, Dark={StaticResource NativeHostBackgroundDark}}",
+            element.Attribute("BackgroundColor")!.Value);
 }

@@ -19,8 +19,10 @@ public sealed class NativeIdentityContractTests
         Assert.Equal("24.0", project.Descendants("SupportedOSPlatformVersion").Single(element => element.Attribute("Condition")!.Value.Contains("android", StringComparison.Ordinal)).Value);
 
         Assert.Equal("Tachiguro", GetProperty(project, "Company"));
-        Assert.Equal("MathFirst", GetProperty(project, "Product"));
-        Assert.Equal("MathFirst", GetProperty(project, "AssemblyTitle"));
+        Assert.Equal("$(ApplicationTitle)", GetProperty(project, "Product"));
+        Assert.Equal("$(ApplicationTitle)", GetProperty(project, "AssemblyTitle"));
+        Assert.NotEqual("MathFirst", GetProperty(project, "Product"));
+        Assert.NotEqual("MathFirst", GetProperty(project, "AssemblyTitle"));
         Assert.False(string.IsNullOrWhiteSpace(GetProperty(project, "Description")));
     }
 
@@ -40,17 +42,13 @@ public sealed class NativeIdentityContractTests
     }
 
     [Fact]
-    public void AppBuildInfo_UsesGeneratedAssemblyMetadataAndValidatesRequiredValues()
+    public void AppBuildInfo_UsesGeneratedAssemblyMetadataAndDelegatesValidationToTheSharedParser()
     {
         var source = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "AppBuildInfo.cs"));
 
         Assert.Contains("AssemblyMetadataAttribute", source, StringComparison.Ordinal);
         Assert.Contains("typeof(AppBuildInfo).Assembly", source, StringComparison.Ordinal);
-        Assert.Contains("MathFirst.ApplicationTitle", source, StringComparison.Ordinal);
-        Assert.Contains("MathFirst.ApplicationDisplayVersion", source, StringComparison.Ordinal);
-        Assert.Contains("MathFirst.ApplicationVersion", source, StringComparison.Ordinal);
-        Assert.Contains("Version.TryParse", source, StringComparison.Ordinal);
-        Assert.Contains("int.TryParse", source, StringComparison.Ordinal);
+        Assert.Contains("AppBuildInfoMetadataParser.Parse(metadata)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("= \"MathFirst\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("= \"1.0\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("= \"1\"", source, StringComparison.Ordinal);
