@@ -78,9 +78,10 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         AssertEquivalentAdvancementRun(continuous, restartedAfter);
         Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(continuous.Trigger.PracticePosition, continuous.State.Progressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
-        Assert.All(
-            Enum.GetValues<ArithmeticOperation>().Where(operation => operation != ArithmeticOperation.Addition),
-            operation => Assert.Equal(0, continuous.State.Progressions[operation].BandIndex));
+        // Under MF-STAB-001 bootstrap thresholds, the 156-attempt fixture sequence satisfies Multiplication BandIndex 0 advancement.
+        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Subtraction].BandIndex);
+        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Division].BandIndex);
 
         using var reloadedStore = new SqliteLearnerStore(afterRestartPath);
         await reloadedStore.InitializeAsync();
