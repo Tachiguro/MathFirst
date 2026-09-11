@@ -171,9 +171,9 @@ public sealed class NumericInputAndKeypadTests : IDisposable
     [Theory]
     [InlineData(0, NumericKeypadLayout.Phone)]
     [InlineData(1, NumericKeypadLayout.Numpad)]
-    [InlineData(-1, NumericKeypadLayout.Phone)]
-    [InlineData(99, NumericKeypadLayout.Phone)]
-    public void KeypadPreference_DefaultsAndNormalizesToPhone(int rawValue, NumericKeypadLayout expected)
+    [InlineData(-1, NumericKeypadLayout.Numpad)]
+    [InlineData(99, NumericKeypadLayout.Numpad)]
+    public void KeypadPreference_DefaultsAndNormalizesToNumpad(int rawValue, NumericKeypadLayout expected)
     {
         Assert.Equal(expected, NumericKeypadLayoutPolicy.Normalize(rawValue));
     }

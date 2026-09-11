@@ -8,7 +8,7 @@ public static class NumericKeypadLayoutPolicy
     public static NumericKeypadLayout Normalize(int value) =>
         Enum.IsDefined(typeof(NumericKeypadLayout), value)
             ? (NumericKeypadLayout)value
-            : NumericKeypadLayout.Phone;
+            : NumericKeypadLayout.Numpad;
 
     public static IReadOnlyList<string> GetPrimaryDigits(NumericKeypadLayout layout) =>
         Normalize((int)layout) == NumericKeypadLayout.Numpad ? NumpadDigits : PhoneDigits;

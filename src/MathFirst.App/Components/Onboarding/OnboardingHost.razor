@@ -78,19 +78,19 @@
 
                     <div class="keypad-choice-grid">
                         <button type="button"
-                                class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Phone ? "active" : null)"
-                                aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Phone)"
-                                @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Phone)">
-                            <span class="keypad-choice-title">@Localizer["Keypad_Phone"]</span>
-                            <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Phone"
-                                                                                     DecimalSeparator="@DecimalSeparator" />
-                        </button>
-                        <button type="button"
                                 class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Numpad ? "active" : null)"
                                 aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Numpad)"
                                 @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Numpad)">
                             <span class="keypad-choice-title">@Localizer["Keypad_Numpad"]</span>
                             <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Numpad"
+                                                                                     DecimalSeparator="@DecimalSeparator" />
+                        </button>
+                        <button type="button"
+                                class="keypad-choice-card @(_selectedKeypadLayout == NumericKeypadLayout.Phone ? "active" : null)"
+                                aria-pressed="@(_selectedKeypadLayout == NumericKeypadLayout.Phone)"
+                                @onclick="() => SelectKeypadLayout(NumericKeypadLayout.Phone)">
+                            <span class="keypad-choice-title">@Localizer["Keypad_Phone"]</span>
+                            <MathFirst.App.Components.Shared.NumericKeypadPreview Layout="NumericKeypadLayout.Phone"
                                                                                      DecimalSeparator="@DecimalSeparator" />
                         </button>
                     </div>
@@ -170,7 +170,7 @@
     private int _currentStep = 1;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
-    private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Phone;
+    private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
 
     private bool IsSystemLanguageSelected =>
         LanguagePreferencePolicy.IsExplicitSystemSelector(_selectedLanguage);
