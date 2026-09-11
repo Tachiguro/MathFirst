@@ -36,3 +36,21 @@ TestResults/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Android and Release Artifacts
+artifacts/
+*.aab
+*.apk
+*.apks
+*.idsig
+
+# Keystores, Certificates, and Secrets
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.publishsettings
+signing.properties
+.env
+.env.*
+
