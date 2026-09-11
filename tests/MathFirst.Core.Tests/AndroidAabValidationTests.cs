@@ -618,8 +618,10 @@ public sealed class AndroidAabValidationTests
             var outputArg = publishInvocation.Arguments.SkipWhile(arg => arg != "--output").Skip(1).FirstOrDefault();
             if (outputArg is not null && Directory.Exists(outputArg))
             {
-                var targetAab = Path.Combine(outputArg, "app.aab");
+                var targetAab = Path.Combine(outputArg, "com.tachiguro.mathfirst-Signed.aab");
                 File.Copy(fixture.AabPath, targetAab);
+                var intermediateAab = Path.Combine(outputArg, "com.tachiguro.mathfirst.aab");
+                File.WriteAllText(intermediateAab, "synthetic-intermediate");
             }
         };
 
@@ -632,6 +634,157 @@ public sealed class AndroidAabValidationTests
         // Ensure no promoted artifact directory exists
         var finalDir = Path.Combine(fixture.Root, "artifacts", "android", "source-candidate");
         Assert.False(Directory.Exists(finalDir));
+    }
+
+    [Fact]
+    public void PackagingIntegration_SourceCandidate_DoesNotPromoteUnsignedIntermediate()
+    {
+        using var fixture = new ValidationTestFixture();
+        var packageRequest = new PackageRequest(
+            ReleaseProfile.SourceCandidate,
+            FullSha,
+            new VersionOverrides(null, null),
+            null);
+
+        // Configure git inspection
+        fixture.ConfigureProcess("git", ["rev-parse", "--show-toplevel"], exitCode: 0, standardOutput: fixture.Root + "\n");
+        fixture.ConfigureProcess("git", ["rev-parse", "HEAD"], exitCode: 0, standardOutput: FullSha + "\n");
+        fixture.ConfigureProcess("git", ["branch", "--show-current"], exitCode: 0, standardOutput: ReleaseConstants.SourceCandidateBranch + "\n");
+        fixture.ConfigureProcess("git", ["rev-parse", "refs/heads/main"], exitCode: 0, standardOutput: FullSha + "\n");
+        fixture.ConfigureProcess("git", ["rev-parse", "refs/remotes/origin/main"], exitCode: 0, standardOutput: FullSha + "\n");
+        fixture.ConfigureProcess("git", ["status", "--porcelain=v2", "--untracked-files=all"], exitCode: 0, standardOutput: "");
+
+        // Configure msbuild metadata evaluation
+        const string metadataJson = """
+            {
+              "Properties": {
+                "ApplicationTitle": "MathFirst",
+                "ApplicationId": "com.tachiguro.mathfirst",
+                "ApplicationDisplayVersion": "1.0",
+                "ApplicationVersion": "1",
+                "TargetFramework": "net10.0-android36.0",
+                "SupportedOSPlatformVersion": "24.0",
+                "TargetPlatformVersion": "36.0",
+                "AndroidNETSdkVersion": "36.1.69"
+              }
+            }
+            """;
+        fixture.ProcessRunner.SetPrefixResult("dotnet msbuild", new ProcessResult(0, metadataJson, ""));
+        fixture.ConfigureProcess("dotnet", ["--version"], exitCode: 0, standardOutput: "10.0.401\n");
+        fixture.ConfigureProcess("dotnet", ["msbuild", "-version", "-nologo"], exitCode: 0, standardOutput: "17.12.0\n");
+
+        // Custom publish handler that creates both signed AAB and unsigned intermediate
+        fixture.ProcessRunner.OnPublish = (publishInvocation) =>
+        {
+            var outputArg = publishInvocation.Arguments.SkipWhile(arg => arg != "--output").Skip(1).FirstOrDefault();
+            if (outputArg is not null && Directory.Exists(outputArg))
+            {
+                var targetAab = Path.Combine(outputArg, "com.tachiguro.mathfirst-Signed.aab");
+                File.Copy(fixture.AabPath, targetAab);
+                var intermediateAab = Path.Combine(outputArg, "com.tachiguro.mathfirst.aab");
+                File.WriteAllText(intermediateAab, "synthetic-intermediate");
+            }
+        };
+
+        var command = new AndroidPackageCommand(fixture.ProcessRunner);
+        var finalDir = command.Execute(packageRequest, fixture.Root);
+
+        Assert.True(Directory.Exists(finalDir));
+        var promotedFiles = Directory.GetFiles(finalDir);
+        Assert.Equal(2, promotedFiles.Length);
+        Assert.Contains(promotedFiles, f => f.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) && !f.EndsWith("com.tachiguro.mathfirst.aab", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(promotedFiles, f => f.EndsWith(".provenance.json", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(promotedFiles, f => Path.GetFileName(f) == "com.tachiguro.mathfirst.aab");
+    }
+
+    [Fact]
+    public void PackagingIntegration_Distributable_DoesNotPromoteUnsignedIntermediate()
+    {
+        using var fixture = new ValidationTestFixture();
+        var certPem = fixture.GenerateSelfSignedCertPem("CN=MathFirst Release, O=Tachiguro");
+        var (certSha, _) = fixture.ConfigureKeytoolCert(certPem);
+
+        var externalDir = Path.Combine(Path.GetTempPath(), $"mathfirst-ext-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(externalDir);
+        try
+        {
+            var keyStorePath = Path.Combine(externalDir, "release.keystore");
+            File.WriteAllText(keyStorePath, "keystore-content");
+            var storePassFile = Path.Combine(externalDir, "store.pass");
+            File.WriteAllText(storePassFile, "storepass");
+            var keyPassFile = Path.Combine(externalDir, "key.pass");
+            File.WriteAllText(keyPassFile, "keypass");
+
+            var signingInputs = new SigningInputs(
+                keyStorePath,
+                "release-alias",
+                storePassFile,
+                keyPassFile,
+                certSha);
+
+            var packageRequest = new PackageRequest(
+                ReleaseProfile.Distributable,
+                FullSha,
+                new VersionOverrides(null, null),
+                signingInputs);
+
+            // Configure git inspection
+            fixture.ConfigureProcess("git", ["rev-parse", "--show-toplevel"], exitCode: 0, standardOutput: fixture.Root + "\n");
+            fixture.ConfigureProcess("git", ["rev-parse", "HEAD"], exitCode: 0, standardOutput: FullSha + "\n");
+            fixture.ConfigureProcess("git", ["branch", "--show-current"], exitCode: 0, standardOutput: "main\n");
+            fixture.ConfigureProcess("git", ["rev-parse", "refs/heads/main"], exitCode: 0, standardOutput: FullSha + "\n");
+            fixture.ConfigureProcess("git", ["rev-parse", "refs/remotes/origin/main"], exitCode: 0, standardOutput: FullSha + "\n");
+            fixture.ConfigureProcess("git", ["status", "--porcelain=v2", "--untracked-files=all"], exitCode: 0, standardOutput: "");
+
+            // Configure msbuild metadata evaluation
+            const string metadataJson = """
+                {
+                  "Properties": {
+                    "ApplicationTitle": "MathFirst",
+                    "ApplicationId": "com.tachiguro.mathfirst",
+                    "ApplicationDisplayVersion": "1.0",
+                    "ApplicationVersion": "1",
+                    "TargetFramework": "net10.0-android36.0",
+                    "SupportedOSPlatformVersion": "24.0",
+                    "TargetPlatformVersion": "36.0",
+                    "AndroidNETSdkVersion": "36.1.69"
+                  }
+                }
+                """;
+            fixture.ProcessRunner.SetPrefixResult("dotnet msbuild", new ProcessResult(0, metadataJson, ""));
+            fixture.ConfigureProcess("dotnet", ["--version"], exitCode: 0, standardOutput: "10.0.401\n");
+            fixture.ConfigureProcess("dotnet", ["msbuild", "-version", "-nologo"], exitCode: 0, standardOutput: "17.12.0\n");
+
+            // Custom publish handler that creates both signed AAB and unsigned intermediate
+            fixture.ProcessRunner.OnPublish = (publishInvocation) =>
+            {
+                var outputArg = publishInvocation.Arguments.SkipWhile(arg => arg != "--output").Skip(1).FirstOrDefault();
+                if (outputArg is not null && Directory.Exists(outputArg))
+                {
+                    var targetAab = Path.Combine(outputArg, "com.tachiguro.mathfirst-Signed.aab");
+                    File.Copy(fixture.AabPath, targetAab);
+                    var intermediateAab = Path.Combine(outputArg, "com.tachiguro.mathfirst.aab");
+                    File.WriteAllText(intermediateAab, "synthetic-intermediate");
+                }
+            };
+
+            var command = new AndroidPackageCommand(fixture.ProcessRunner);
+            var finalDir = command.Execute(packageRequest, fixture.Root);
+
+            Assert.True(Directory.Exists(finalDir));
+            var promotedFiles = Directory.GetFiles(finalDir);
+            Assert.Equal(2, promotedFiles.Length);
+            Assert.Contains(promotedFiles, f => f.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) && !f.EndsWith("com.tachiguro.mathfirst.aab", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(promotedFiles, f => f.EndsWith(".provenance.json", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(promotedFiles, f => Path.GetFileName(f) == "com.tachiguro.mathfirst.aab");
+        }
+        finally
+        {
+            if (Directory.Exists(externalDir))
+            {
+                Directory.Delete(externalDir, recursive: true);
+            }
+        }
     }
 
     private sealed class ValidationTestFixture : IDisposable
@@ -715,6 +868,7 @@ public sealed class AndroidAabValidationTests
             var sha256 = Convert.ToHexString(SHA256.HashData(cert.RawData)).ToLowerInvariant();
 
             var output = $"Signer #1:\n\nCertificate #1:\nCertificate owner: {cert.Subject}\n\n{pem}\n";
+            ProcessRunner.DefaultKeytoolResult = new ProcessResult(0, output, "");
             ConfigureProcess(Tools.ResolveKeytool(), ["-printcert", "-jarfile", AabPath, "-rfc"],
                 exitCode: 0, standardOutput: output);
             return (sha256, pem);
@@ -894,6 +1048,7 @@ public sealed class AndroidAabValidationTests
         private readonly List<(string Prefix, ProcessResult Result)> prefixResults = [];
         public ProcessResult DefaultDexdumpResult { get; set; } = new(0, "DEX header", "");
         public ProcessResult? DefaultBundletoolValidateResult { get; set; }
+        public ProcessResult? DefaultKeytoolResult { get; set; }
         public Action<ProcessInvocation>? OnPublish { get; set; }
 
         public void SetResult(string fileName, IReadOnlyList<string> arguments, ProcessResult result)
@@ -911,6 +1066,19 @@ public sealed class AndroidAabValidationTests
         {
             var fullCmd = MakeKey(invocation.FileName, invocation.Arguments);
 
+            if (results.TryGetValue(fullCmd, out var result))
+            {
+                return result;
+            }
+
+            foreach (var (prefix, res) in prefixResults)
+            {
+                if (fullCmd.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return res;
+                }
+            }
+
             if (invocation.Arguments.Contains("publish"))
             {
                 OnPublish?.Invoke(invocation);
@@ -922,21 +1090,46 @@ public sealed class AndroidAabValidationTests
                 return DefaultDexdumpResult;
             }
 
-            if (DefaultBundletoolValidateResult is not null && invocation.Arguments.Contains("validate"))
+            if (invocation.Arguments.Contains("validate"))
             {
-                return DefaultBundletoolValidateResult;
+                return DefaultBundletoolValidateResult ?? new ProcessResult(0, "Bundle is valid.\n", "");
             }
 
-            if (results.TryGetValue(fullCmd, out var result))
+            if (invocation.Arguments.Contains("manifest") && invocation.Arguments.Contains("dump"))
             {
-                return result;
+                return new ProcessResult(0, """
+                    <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.tachiguro.mathfirst" android:versionCode="1" android:versionName="1.0">
+                      <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
+                      <application android:allowBackup="true" android:fullBackupContent="@xml/backup_rules" android:dataExtractionRules="@xml/data_extraction_rules" android:debuggable="false">
+                      </application>
+                    </manifest>
+                    """, "");
             }
 
-            foreach (var (prefix, res) in prefixResults)
+            if (invocation.Arguments.Contains("resources") && invocation.Arguments.Contains("dump"))
             {
-                if (fullCmd.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return new ProcessResult(0, "Package 'com.tachiguro.mathfirst':\n  Type 'xml':\n    Resource 'backup_rules':\n      (default) - res/xml/backup_rules.xml\n      v28 - res/xml-v28/backup_rules.xml\n    Resource 'data_extraction_rules':\n      (default) - res/xml/data_extraction_rules.xml\n", "");
+            }
+
+            if (invocation.Arguments.Contains("-verify"))
+            {
+                return new ProcessResult(0, """
+                    jar verified.
+
+                    Warning:
+                    This jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                    This jar contains entries whose signer certificate is self-signed.
+                    This jar contains signatures that do not include a timestamp. Without a timestamp, users may not be able to validate this jar after any of the signer certificates expire (as early as 2056-07-07).
+
+                    Re-run with the -verbose and -certs options for more details.
+                    """, "");
+            }
+
+            if (invocation.Arguments.Contains("-printcert"))
+            {
+                if (DefaultKeytoolResult is not null)
                 {
-                    return res;
+                    return DefaultKeytoolResult;
                 }
             }
 

@@ -156,14 +156,14 @@ public sealed class AndroidPackagingContractTests
     }
 
     [Fact]
-    public void Adr0006_RemainsProposedDuringCorrectiveImplementation()
+    public void Adr0006_IsAcceptedAfterSuccessfulConsolidatedReview()
     {
         var adr = File.ReadAllText(GetRepositoryPath(
             "docs", "decisions", "ADR-0006-android-packaging-signing-and-manifest-release-security.md"));
         var status = Regex.Match(adr, "(?ms)^## Status\\s*\\r?\\n(?<status>.*?)(?=^## )");
 
         Assert.True(status.Success, "ADR-0006 status section was not found.");
-        Assert.Equal("Proposed", status.Groups["status"].Value.Trim());
+        Assert.Equal("Accepted", status.Groups["status"].Value.Trim());
     }
 
     [Fact]

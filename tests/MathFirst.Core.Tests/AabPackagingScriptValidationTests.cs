@@ -449,29 +449,80 @@ public sealed class AabPackagingScriptValidationTests
     }
 
     [Fact]
-    public void ArtifactWorkspace_RequiresExactlyOneTopLevelAab()
+    public void ArtifactWorkspace_SelectsSignedAabWhenCoexistingWithMatchingUnsignedIntermediate()
     {
         using var repository = new TemporaryDirectory("mathfirst-single-aab");
         var workspace = new ArtifactWorkspace(repository.Path, "single");
-        var expected = Path.Combine(workspace.PublishRoot, "app.aab");
-        File.WriteAllText(expected, "synthetic-aab");
+        var expectedSigned = Path.Combine(workspace.PublishRoot, "app-Signed.aab");
+        var intermediate = Path.Combine(workspace.PublishRoot, "app.aab");
+        File.WriteAllText(expectedSigned, "synthetic-signed-aab");
+        File.WriteAllText(intermediate, "synthetic-unsigned-intermediate");
         var nested = Directory.CreateDirectory(Path.Combine(workspace.PublishRoot, "old"));
         File.WriteAllText(Path.Combine(nested.FullName, "old.aab"), "ignored");
 
-        Assert.Equal(expected, workspace.FindSingleAab());
+        Assert.Equal(expectedSigned, workspace.FindSingleAab());
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(2)]
-    public void ArtifactWorkspace_RejectsZeroOrMultipleTopLevelAabs(int count)
+    [Fact]
+    public void ArtifactWorkspace_SelectsSignedAabWhenOnlySignedAabPresent()
     {
-        using var repository = new TemporaryDirectory("mathfirst-aab-count");
-        var workspace = new ArtifactWorkspace(repository.Path, "count");
-        for (var index = 0; index < count; index++)
-        {
-            File.WriteAllText(Path.Combine(workspace.PublishRoot, $"app-{index}.aab"), "synthetic");
-        }
+        using var repository = new TemporaryDirectory("mathfirst-signed-only");
+        var workspace = new ArtifactWorkspace(repository.Path, "signed-only");
+        var expectedSigned = Path.Combine(workspace.PublishRoot, "app-Signed.aab");
+        File.WriteAllText(expectedSigned, "synthetic-signed-aab");
+
+        Assert.Equal(expectedSigned, workspace.FindSingleAab());
+    }
+
+    [Fact]
+    public void ArtifactWorkspace_RejectsOnlyUnsignedIntermediate()
+    {
+        using var repository = new TemporaryDirectory("mathfirst-unsigned-only");
+        var workspace = new ArtifactWorkspace(repository.Path, "unsigned-only");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "app.aab"), "synthetic-intermediate");
+
+        Assert.Throws<ReleaseToolException>(() => workspace.FindSingleAab());
+    }
+
+    [Fact]
+    public void ArtifactWorkspace_RejectsMultipleSignedCandidates()
+    {
+        using var repository = new TemporaryDirectory("mathfirst-multi-signed");
+        var workspace = new ArtifactWorkspace(repository.Path, "multi-signed");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "app1-Signed.aab"), "synthetic-1");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "app2-Signed.aab"), "synthetic-2");
+
+        Assert.Throws<ReleaseToolException>(() => workspace.FindSingleAab());
+    }
+
+    [Fact]
+    public void ArtifactWorkspace_RejectsUnexpectedUnrelatedAabAlongsideSignedCandidate()
+    {
+        using var repository = new TemporaryDirectory("mathfirst-unrelated-aab");
+        var workspace = new ArtifactWorkspace(repository.Path, "unrelated-aab");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "app1-Signed.aab"), "synthetic-signed");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "other.aab"), "unrelated-intermediate");
+
+        Assert.Throws<ReleaseToolException>(() => workspace.FindSingleAab());
+    }
+
+    [Fact]
+    public void ArtifactWorkspace_RejectsMultipleUnsignedIntermediatesAlongsideSignedCandidate()
+    {
+        using var repository = new TemporaryDirectory("mathfirst-multi-unsigned");
+        var workspace = new ArtifactWorkspace(repository.Path, "multi-unsigned");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "app1-Signed.aab"), "synthetic-signed");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "app1.aab"), "expected-intermediate");
+        File.WriteAllText(Path.Combine(workspace.PublishRoot, "extra.aab"), "extra-intermediate");
+
+        Assert.Throws<ReleaseToolException>(() => workspace.FindSingleAab());
+    }
+
+    [Fact]
+    public void ArtifactWorkspace_RejectsEmptyPublishOutput()
+    {
+        using var repository = new TemporaryDirectory("mathfirst-empty-publish");
+        var workspace = new ArtifactWorkspace(repository.Path, "empty-publish");
 
         Assert.Throws<ReleaseToolException>(() => workspace.FindSingleAab());
     }

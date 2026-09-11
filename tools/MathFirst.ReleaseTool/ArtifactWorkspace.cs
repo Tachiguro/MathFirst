@@ -67,17 +67,68 @@ public sealed class ArtifactWorkspace
         return normalizedCandidate;
     }
 
+    private const string SignedAabSuffix = "-Signed.aab";
+
     public string FindSingleAab()
     {
         RejectExistingReparsePoints(ArtifactsRoot, PublishRoot);
         var aabs = Directory.GetFiles(PublishRoot, "*.aab", SearchOption.TopDirectoryOnly);
-        if (aabs.Length != 1)
+        if (aabs.Length == 0)
         {
-            throw new ReleaseToolException(
-                $"Expected exactly one AAB in the invocation publish output, but found {aabs.Length}.");
+            throw new ReleaseToolException("No AAB files found in the invocation publish output.");
         }
 
-        return aabs[0];
+        var signedCandidates = new List<string>();
+        var unsignedCandidates = new List<string>();
+
+        foreach (var aab in aabs)
+        {
+            var normalized = EnsureContained(PublishRoot, aab);
+            var fileName = Path.GetFileName(normalized);
+            if (fileName.EndsWith(SignedAabSuffix, StringComparison.OrdinalIgnoreCase) &&
+                fileName.Length > SignedAabSuffix.Length)
+            {
+                signedCandidates.Add(normalized);
+            }
+            else
+            {
+                unsignedCandidates.Add(normalized);
+            }
+        }
+
+        if (signedCandidates.Count == 0)
+        {
+            throw new ReleaseToolException(
+                $"Expected exactly one signed AAB candidate in the invocation publish output, but found 0 (found {aabs.Length} total AAB files).");
+        }
+
+        if (signedCandidates.Count > 1)
+        {
+            throw new ReleaseToolException(
+                $"Expected exactly one signed AAB candidate in the invocation publish output, but found {signedCandidates.Count}.");
+        }
+
+        var selectedSignedAab = signedCandidates[0];
+        var selectedFileName = Path.GetFileName(selectedSignedAab);
+        var expectedIntermediateFileName = selectedFileName[..^SignedAabSuffix.Length] + ".aab";
+
+        if (unsignedCandidates.Count > 1)
+        {
+            throw new ReleaseToolException(
+                $"Found multiple unsigned AAB files in the invocation publish output ({unsignedCandidates.Count}). Expected at most one matching intermediate.");
+        }
+
+        if (unsignedCandidates.Count == 1)
+        {
+            var intermediateFileName = Path.GetFileName(unsignedCandidates[0]);
+            if (!string.Equals(intermediateFileName, expectedIntermediateFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ReleaseToolException(
+                    $"Found unexpected or ambiguous AAB file '{intermediateFileName}' alongside signed candidate '{selectedFileName}'. Expected '{expectedIntermediateFileName}'.");
+            }
+        }
+
+        return EnsureContained(PublishRoot, selectedSignedAab);
     }
 
     public string GetFinalDirectory(ReleaseProfile profile, string artifactId)
