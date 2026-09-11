@@ -91,19 +91,34 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-`main` / `origin/main`: `30580ce7788466e6524668a4a7f479eb76274b5c`
+`main` / `origin/main`: `45ef623f44df87c0da97460d38dbb797c2aa18bf`
 
-The active task is MF-STAB-001, **Practice Progression and HUD Stabilization**, on `feat/mf-stab-001-practice-stabilization`. Its current local implementation candidate is `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264`, six commits ahead of `main` and zero behind before documentation reconciliation:
+### Baseline Reconciliation
+- `MF-STAB-001` (**Practice Progression and HUD Stabilization**) is **COMPLETE** and merged into `main` via Pull Request #13 at `45ef623f44df87c0da97460d38dbb797c2aa18bf`.
+- Final validated feature candidate: `f54d0b1c5c8884ff1d4871abca667582759d5be1` (Core: 546 passed, 0 failed, 0 skipped; Windows/Android Release: 0 warnings, 0 errors).
 
-1. `243008d5134600f93066c637dd7014cbbc8edd26` — multiplication bootstrap advancement
-2. `29cf40b9764ecdb57a28aaa91f1c719c9a0b253b` — fixed answer deadline
-3. `8b75d701026ef5b7a45fd6844c13eef735167460` — practice-header progress HUD
-4. `3fc1605174843638a2d03efeef31e22ec4bc3f25` — review remediation
-5. `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` — documentation reconciliation (docs commit between checkpoints 4 and 5)
-6. `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264` — validation test remediation
+### Active Documentation Task
+- Active Task: `MF-DOC-002`, **Adaptive Learning System and Next Lifecycle Handoff Documentation**, on `docs/mf-doc-002-adaptive-learning-handoff`.
+- Operation Mode: `DOCUMENT_ONLY`.
+- Status: Documentation changes authored locally (unstaged/uncommitted), recording the accepted `MF-LEARN-002` product direction in [docs/BACKLOG.md](BACKLOG.md) and updating strategic sequencing in [docs/ROADMAP.md](ROADMAP.md).
+- Immediate next documentation lifecycle: `REVIEW_ONLY — MF-DOC-002` → `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
 
-Implementation and test remediation are complete and `REVIEW_APPROVED` with no findings. The first `FULL_VALIDATION` attempt on `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` failed solely due to a stale legacy integration expectation; post-remediation Core tests passed 546/546. Narrow documentation reconciliation is the current `DOCUMENT_ONLY` lifecycle step and remains local and uncommitted. After documentation is committed, `FULL_VALIDATION` must target the newly created documentation-inclusive SHA; no push, Pull Request, or merge has occurred. MF-UX-003 is complete and merged through Pull Request #12 at `30580ce7788466e6524668a4a7f479eb76274b5c`. MF-REL-001 remains not started.
-
-After successful documentation reconciliation with changes, the exact next lifecycle is `COMMIT_ONLY — MF-STAB-001 — Validation Remediation Documentation Commit`.
+### Next Behavioral Package & Handoff Summary
+- **Package**: `MF-LEARN-002` — **Adaptive Pace, Fast Acquisition, and Practice Interventions** (Status: `Accepted` in [docs/BACKLOG.md](BACKLOG.md)).
+- **Intended Sequencing**: `MF-LEARN-002` is explicitly scheduled **before** `MF-REL-001` (Android Internal AAB Packaging and Release Automation). `MF-REL-001` remains not started.
+- **Next Lifecycle Phase**: Begins with `PLAN_ONLY — MF-LEARN-002`.
+- **Approved Product Direction to Preserve**:
+  1. *Dual Goal*: Optimize both correctness and retrieval speed; push strong learners rapidly toward challenging material while weak facts recur more often.
+  2. *Single Adaptive Timer*: One visible countdown bar serving as the actual answer deadline (no dual timers), adapting between a sensible minimum (~3s candidate) and 30s maximum (initial deadline in ~8–10s candidate region). The 5% fixed tightening step was considered too slow and is rejected.
+  3. *Multi-Dimensional Pace*: Adaptation combines learner pace, operation, band difficulty, exact-fact history, latency, and stability.
+  4. *FSRS Preservation*: Preserves `FSRS.Core` 1.0.7 with Practice Position virtual time, 0.95 desired retention, and deterministic per-FactId cards as the central spaced-repetition queue.
+  5. *Adaptive Rating & Fluency*: Replace fixed latency thresholds (1000/2500ms) with ratings and fluency relative to adaptive expected pace.
+  6. *Fast Acquisition*: Rapid advancement through small dense bands (e.g. `0 + 0 = 0`) upon confident demonstration without requiring 40 artificial repetitions.
+  7. *Avoid Non-Due Repetition*: Prevent mastered non-due facts from filling empty selector pools.
+  8. *Repeated-Error Intervention*: Repeated mistakes on a fact trigger a non-scored teaching pause / echo acknowledgement (`7 × 8 = 56`) before returning later via normal scheduling.
+  9. *Minimalist Practice UI*: Keep practice distraction-free; evaluate transient session score vs. periodic check-ins/breaks in planning.
+  10. *UI Corrections*: Investigate and fix the Pause button appearing blue in live rendering (must match intended red/danger style). The timer bar visual itself is approved and not a defect.
+  11. *Safety & Hard Stop*: Checked arithmetic prevents `Int32` overflow at the end of curriculum. Endgame achievement ("Math God") is deferred gamification.
+- **Open Items for Planning**: All exact numerical calibration values, timing formulas, scaling steps, time windows, and advancement gates remain unresolved and must be researched and justified during `PLAN_ONLY`.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
