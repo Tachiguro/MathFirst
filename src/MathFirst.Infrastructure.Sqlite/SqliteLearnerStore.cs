@@ -150,7 +150,6 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
             var defaultProgression = LearnerProgression.CreateFresh();
             await SaveProgressionAsync(defaultProgression, cancellationToken).ConfigureAwait(false);
-            await CreateV6IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 1)
         {
@@ -184,12 +183,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
         }
         else if (version == LearnerProgression.DefaultSchemaVersion)
         {
-            await CreateV6IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
+            // Already at default V6
         }
         else if (version > LearnerProgression.DefaultSchemaVersion)
         {
             throw new InvalidOperationException($"Unsupported database schema version {version}. Maximum supported version is {LearnerProgression.DefaultSchemaVersion}.");
         }
+
+        await CreateV6IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
 
         lock (_lock)
         {
@@ -248,6 +249,157 @@ public sealed class SqliteLearnerStore : ILearnerStore
             version,
             operationProgressions,
             latestAcceptedPracticeAt);
+    }
+
+    public async Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+        ArithmeticOperation operation,
+        long bandStartedPracticePosition,
+        IReadOnlyList<string> frontierFactIds,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (!Enum.IsDefined(operation))
+        {
+            throw new ArgumentOutOfRangeException(nameof(operation), operation, "A valid arithmetic operation is required.");
+        }
+
+        if (bandStartedPracticePosition < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(bandStartedPracticePosition),
+                bandStartedPracticePosition,
+                "Band started practice position must be non-negative.");
+        }
+
+        ArgumentNullException.ThrowIfNull(frontierFactIds);
+
+        if (frontierFactIds.Count > 25)
+        {
+            throw new ArgumentException(
+                $"Frontier fact count ({frontierFactIds.Count}) exceeds maximum supported dense frontier size (25).",
+                nameof(frontierFactIds));
+        }
+
+        if (frontierFactIds.Count == 0)
+        {
+            return [];
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < frontierFactIds.Count; i++)
+        {
+            var factId = frontierFactIds[i];
+            if (string.IsNullOrWhiteSpace(factId))
+            {
+                throw new ArgumentException("Frontier fact ID must not be null or blank.", nameof(frontierFactIds));
+            }
+
+            if (!seen.Add(factId))
+            {
+                throw new ArgumentException($"Duplicate frontier fact ID '{factId}' is not allowed.", nameof(frontierFactIds));
+            }
+        }
+
+        if (_connection is null)
+        {
+            return [];
+        }
+
+        var paramNames = new string[frontierFactIds.Count];
+        for (var i = 0; i < frontierFactIds.Count; i++)
+        {
+            paramNames[i] = $"@fact_{i}";
+        }
+
+        var inClause = string.Join(", ", paramNames);
+
+        var query = $@"
+            WITH ranked_attempts AS (
+                SELECT
+                    submission_id,
+                    fact_id,
+                    operation,
+                    left_operand,
+                    right_operand,
+                    submitted_answer,
+                    correct_answer,
+                    is_correct,
+                    is_fluent,
+                    outcome,
+                    response_latency_ms,
+                    timestamp,
+                    practice_position,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY fact_id
+                        ORDER BY practice_position DESC
+                    ) AS rn
+                FROM attempt_history
+                WHERE operation = @operation
+                  AND practice_position IS NOT NULL
+                  AND practice_position > @band_start
+                  AND fact_id IN ({inClause})
+            )
+            SELECT
+                submission_id,
+                fact_id,
+                operation,
+                left_operand,
+                right_operand,
+                submitted_answer,
+                correct_answer,
+                is_correct,
+                is_fluent,
+                outcome,
+                response_latency_ms,
+                timestamp,
+                practice_position
+            FROM ranked_attempts
+            WHERE rn = 1
+            ORDER BY fact_id ASC;";
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = query;
+        command.Parameters.AddWithValue("@operation", operation.ToString());
+        command.Parameters.AddWithValue("@band_start", bandStartedPracticePosition);
+
+        for (var i = 0; i < frontierFactIds.Count; i++)
+        {
+            command.Parameters.AddWithValue(paramNames[i], frontierFactIds[i]);
+        }
+
+        var results = new List<AttemptRecord>(frontierFactIds.Count);
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var op = Enum.Parse<ArithmeticOperation>(reader.GetString(2));
+            int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+            var correct = reader.GetInt32(7) == 1;
+            var isFluent = reader.GetInt32(8) == 1;
+            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
+            var latency = reader.GetInt64(10);
+            var timestamp = DateTimeOffset.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            var practicePosition = reader.GetInt64(12);
+
+            var attempt = new AttemptRecord(
+                reader.GetString(0),
+                reader.GetString(1),
+                op,
+                reader.GetInt32(3),
+                reader.GetInt32(4),
+                submitted,
+                reader.GetInt32(6),
+                correct,
+                isFluent,
+                latency,
+                timestamp,
+                outcome,
+                practicePosition);
+
+            results.Add(attempt);
+        }
+
+        return results;
     }
 
     public async Task<PracticeSelectionEvidence> LoadPracticeSelectionEvidenceAsync(
@@ -841,6 +993,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 ON attempt_history(practice_position) WHERE practice_position IS NOT NULL;
             CREATE INDEX IF NOT EXISTS ix_attempt_history_operation_practice_position
                 ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS ix_attempt_history_operation_fact_position
+                ON attempt_history(operation, fact_id, practice_position DESC) WHERE practice_position IS NOT NULL;
             CREATE INDEX IF NOT EXISTS ix_item_learning_state_operation_fact
                 ON item_learning_state(operation, fact_id);
             CREATE INDEX IF NOT EXISTS ix_item_learning_state_operation_remediation_order_fact
@@ -1653,7 +1807,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
                     CREATE UNIQUE INDEX ux_attempt_history_practice_position
                         ON attempt_history(practice_position) WHERE practice_position IS NOT NULL;
                     CREATE INDEX ix_attempt_history_operation_practice_position
-                        ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;";
+                        ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;
+                    CREATE INDEX IF NOT EXISTS ix_attempt_history_operation_fact_position
+                        ON attempt_history(operation, fact_id, practice_position DESC) WHERE practice_position IS NOT NULL;";
                 await replace.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 

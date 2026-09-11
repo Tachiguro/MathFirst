@@ -2,6 +2,7 @@ namespace MathFirst.Core.Tests;
 
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 public sealed class SqlitePersistenceConformanceTests : IDisposable
@@ -282,5 +283,345 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
                 Enum.GetValues<ArithmeticOperation>().Where(operation => operation != ArithmeticOperation.Addition),
                 operation => Assert.Equal(0, snapshot.Progression.OperationProgressions[operation].BandIndex));
         }
+    }
+
+    [Fact]
+    public async Task Conformance_10_LoadLatestFrontierAttempts_SelectsLatestAttemptPerFact_RespectingStrictBandStart()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        // Insert attempts directly via SQL
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                VALUES
+                    ('sub-0-10', 'add:0+0', 'Addition', 0, 0, 1, 0, 0, 0, 'Incorrect', 2000, @ts, 10),
+                    ('sub-0-11', 'add:0+0', 'Addition', 0, 0, 0, 0, 1, 1, 'Correct', 1200, @ts, 11),
+                    ('sub-0-20', 'add:0+0', 'Addition', 0, 0, 0, 0, 1, 0, 'Correct', 3500, @ts, 20),
+                    ('sub-1-15', 'add:0+1', 'Addition', 0, 1, 1, 1, 1, 1, 'Correct', 1100, @ts, 15),
+                    ('sub-2-8',  'add:0+2', 'Addition', 0, 2, 2, 2, 1, 1, 'Correct', 1000, @ts, 8),
+                    ('sub-2-9',  'add:0+2', 'Addition', 0, 2, 2, 2, 1, 1, 'Correct', 1000, @ts, 9);";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Band start position is 10. Position 10 must NOT count.
+        var results = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 10,
+            frontierFactIds: ["add:0+0", "add:0+1", "add:0+2"]);
+
+        // add:0+0 has latest > 10 at pos 20
+        // add:0+1 has latest > 10 at pos 15
+        // add:0+2 has no attempts > 10 (only 8 and 10), so excluded
+        Assert.Equal(2, results.Count);
+
+        // Deterministic ordering by FactId ordinal
+        Assert.Equal("add:0+0", results[0].FactId);
+        Assert.Equal(20, results[0].PracticePosition);
+        Assert.Equal("sub-0-20", results[0].SubmissionId);
+        Assert.Equal(ArithmeticOperation.Addition, results[0].Operation);
+        Assert.Equal(0, results[0].LeftOperand);
+        Assert.Equal(0, results[0].RightOperand);
+        Assert.Equal(0, results[0].SubmittedAnswer);
+        Assert.Equal(0, results[0].CorrectAnswer);
+        Assert.True(results[0].IsCorrect);
+        Assert.False(results[0].IsFluent);
+        Assert.Equal(AttemptOutcome.Correct, results[0].Outcome);
+        Assert.Equal(3500, results[0].ResponseLatencyMs);
+        Assert.Equal(dt, results[0].Timestamp);
+
+        Assert.Equal("add:0+1", results[1].FactId);
+        Assert.Equal(15, results[1].PracticePosition);
+        Assert.Equal("sub-1-15", results[1].SubmissionId);
+        Assert.True(results[1].IsFluent);
+    }
+
+    [Fact]
+    public async Task Conformance_11_LoadLatestFrontierAttempts_AuthoritativeBeyondRecent40Window()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+
+            // Attempt at position 1 for target fact
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                VALUES ('sub-target-1', 'add:0+0', 'Addition', 0, 0, 0, 0, 1, 1, 'Correct', 1000, @ts, 1);";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+
+            // Insert 45 newer attempts for other facts (positions 2..46)
+            for (var i = 2; i <= 46; i++)
+            {
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                    VALUES ('sub-other-{i}', 'add:1+{i % 10}', 'Addition', 1, {i % 10}, {1 + (i % 10)}, {1 + (i % 10)}, 1, 1, 'Correct', 1000, @ts, {i});";
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Bounded recent attempts window contains only the latest 40 attempts for Addition (positions 7..46)
+        var snapshot = await store.LoadSnapshotAsync();
+        Assert.DoesNotContain(snapshot.RecentAttempts, a => a.FactId == "add:0+0");
+
+        // The authoritative latest-per-frontier query still finds the attempt at position 1
+        var frontierAttempts = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: ["add:0+0"]);
+
+        Assert.Single(frontierAttempts);
+        Assert.Equal("add:0+0", frontierAttempts[0].FactId);
+        Assert.Equal(1, frontierAttempts[0].PracticePosition);
+        Assert.Equal("sub-target-1", frontierAttempts[0].SubmissionId);
+    }
+
+    [Fact]
+    public async Task Conformance_12_LoadLatestFrontierAttempts_LaterRepair_ReturnsLatestCorrect()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                VALUES
+                    ('sub-repair-21', 'add:2+2', 'Addition', 2, 2, 5, 4, 0, 0, 'Incorrect', 2000, @ts, 21),
+                    ('sub-repair-25', 'add:2+2', 'Addition', 2, 2, 4, 4, 1, 1, 'Correct', 1000, @ts, 25);";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var results = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 20,
+            frontierFactIds: ["add:2+2"]);
+
+        Assert.Single(results);
+        Assert.Equal("sub-repair-25", results[0].SubmissionId);
+        Assert.True(results[0].IsCorrect);
+        Assert.Equal(25, results[0].PracticePosition);
+    }
+
+    [Fact]
+    public async Task Conformance_13_LoadLatestFrontierAttempts_LaterFailure_ReturnsLatestFailure()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                VALUES
+                    ('sub-fail-21', 'add:2+2', 'Addition', 2, 2, 4, 4, 1, 1, 'Correct', 1000, @ts, 21),
+                    ('sub-fail-25', 'add:2+2', 'Addition', 2, 2, NULL, 4, 0, 0, 'Timeout', 9000, @ts, 25);";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var results = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 20,
+            frontierFactIds: ["add:2+2"]);
+
+        Assert.Single(results);
+        Assert.Equal("sub-fail-25", results[0].SubmissionId);
+        Assert.False(results[0].IsCorrect);
+        Assert.Equal(AttemptOutcome.Timeout, results[0].Outcome);
+        Assert.Null(results[0].SubmittedAnswer);
+        Assert.Equal(25, results[0].PracticePosition);
+    }
+
+    [Fact]
+    public async Task Conformance_14_LoadLatestFrontierAttempts_IgnoresNullPracticePositionLegacyAttempts()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                VALUES
+                    ('sub-legacy', 'add:3+3', 'Addition', 3, 3, 6, 6, 1, 1, 'Correct', 1000, @ts, NULL);";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var results = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: ["add:3+3"]);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task Conformance_15_LoadLatestFrontierAttempts_IgnoresOtherOperationsAndUnrequestedFacts()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                VALUES
+                    ('sub-sub-5', 'sub:4-2', 'Subtraction', 4, 2, 2, 2, 1, 1, 'Correct', 1000, @ts, 5),
+                    ('sub-add-6', 'add:5+5', 'Addition', 5, 5, 10, 10, 1, 1, 'Correct', 1000, @ts, 6);";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Query Addition for fact not attempted
+        var additionResults = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: ["add:1+1"]);
+        Assert.Empty(additionResults);
+
+        // Query Addition requesting the subtraction fact ID
+        var mismatchedResults = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: ["sub:4-2"]);
+        Assert.Empty(mismatchedResults);
+
+        // Query Subtraction for sub:4-2
+        var subtractionResults = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Subtraction,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: ["sub:4-2"]);
+        Assert.Single(subtractionResults);
+        Assert.Equal("sub-sub-5", subtractionResults[0].SubmissionId);
+    }
+
+    [Fact]
+    public async Task Conformance_16_LoadLatestFrontierAttempts_EmptyFrontier_ReturnsEmpty()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var results = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Addition,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: []);
+
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task Conformance_17_LoadLatestFrontierAttempts_BoundedToMaxDenseFrontier25_ReturnsAtMostOnePerRow()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        var factIds = Enumerable.Range(0, 25).Select(i => $"mul:0*{i}").ToArray();
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+
+            // Insert 2 attempts per fact (50 attempts total)
+            var position = 1;
+            for (var i = 0; i < 25; i++)
+            {
+                var factId = factIds[i];
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position)
+                    VALUES
+                        ('sub-{i}-first', '{factId}', 'Multiplication', 0, {i}, 0, 0, 1, 0, 'Correct', 3000, @ts, {position++}),
+                        ('sub-{i}-second', '{factId}', 'Multiplication', 0, {i}, 0, 0, 1, 1, 'Correct', 1000, @ts, {position++});";
+                cmd.Parameters.Clear();
+                cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        var results = await store.LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation.Multiplication,
+            bandStartedPracticePosition: 0,
+            frontierFactIds: factIds);
+
+        Assert.Equal(25, results.Count);
+        Assert.Equal(factIds.Length, results.Select(r => r.FactId).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(results, r => Assert.EndsWith("-second", r.SubmissionId, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Conformance_18_LoadLatestFrontierAttempts_InputValidation_RejectsInvalidArguments()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Invalid operation
+        await Assert.ThrowsAnyAsync<ArgumentException>(() =>
+            store.LoadLatestFrontierAttemptsAsync((ArithmeticOperation)999, 0, ["add:0+0"]));
+
+        // Negative band start position
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, -1, ["add:0+0"]));
+
+        // Null frontier list
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, null!));
+
+        // Blank fact ID
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, ["add:0+0", ""]));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, ["   "]));
+
+        // Frontier exceeding max 25
+        var twentySixFacts = Enumerable.Range(0, 26).Select(i => $"add:0+{i}").ToArray();
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, twentySixFacts));
+
+        // Duplicate fact IDs
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, ["add:0+0", "add:0+0"]));
     }
 }
