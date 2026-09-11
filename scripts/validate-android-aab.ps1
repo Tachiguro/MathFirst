@@ -60,7 +60,7 @@ try {
 
     # Assert base/dex/ contains DEX bytecode
     $dexEntries = $entryNames | Where-Object { $_ -like "base/dex/*.dex" }
-    if (-not $dexEntries or $dexEntries.Count -eq 0) {
+    if (-not $dexEntries -or $dexEntries.Count -eq 0) {
         throw "AAB bundle is invalid: missing DEX bytecode in 'base/dex/'."
     }
     Write-Host "  [OK] DEX bytecode present ($($dexEntries.Count) dex file(s))." -ForegroundColor Green
