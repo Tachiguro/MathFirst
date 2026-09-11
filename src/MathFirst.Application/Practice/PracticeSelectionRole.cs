@@ -7,7 +7,8 @@ public enum PracticeSelectionRole
     Maintenance = 3,
     Frontier = 4,
     AnyMaterialized = 5,
-    Remediation = 6
+    Remediation = 6,
+    EarlyReview = 7
 }
 
 public enum PracticeCooldownRelaxation

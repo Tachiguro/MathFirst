@@ -260,30 +260,46 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var currentBand = await ReadCurrentBandCandidatesAsync(request, cancellationToken).ConfigureAwait(false);
         var due = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
+              AND card.fact_id IS NOT NULL
               AND card.due_practice_position <= @practice_position
-            ORDER BY card.due_practice_position ASC, item.fact_id ASC
+              AND NOT (item.needs_remediation = 1 AND card.last_review_practice_position IS NOT NULL AND @practice_position >= card.last_review_practice_position + 4)
+            ORDER BY card.due_practice_position ASC,
+                     CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
+                     card.last_review_practice_position ASC,
+                     item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
         var maintenance = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 0
-              AND (card.fact_id IS NULL OR card.due_practice_position > @practice_position)
-            ORDER BY item.last_practiced_order ASC,
-                     CASE WHEN card.fact_id IS NULL THEN 1 ELSE 0 END ASC,
+              AND card.fact_id IS NOT NULL
+              AND card.due_practice_position > @practice_position
+              AND card.last_review_practice_position IS NOT NULL
+              AND @practice_position >= card.last_review_practice_position + 40
+            ORDER BY card.last_review_practice_position ASC,
                      card.due_practice_position ASC,
                      item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
         var remediation = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 1
-              AND item.remediation_due_order <= @session_order
-            ORDER BY item.remediation_due_order ASC, item.fact_id ASC
+              AND card.fact_id IS NOT NULL
+              AND card.last_review_practice_position IS NOT NULL
+              AND @practice_position >= card.last_review_practice_position + 4
+            ORDER BY card.last_review_practice_position ASC,
+                     item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
-        var anyMaterialized = await ReadCandidatesAsync(@"
+        var earlyReview = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
-            ORDER BY item.fact_id ASC
+              AND item.needs_remediation = 0
+              AND card.fact_id IS NOT NULL
+              AND card.due_practice_position > @practice_position
+            ORDER BY CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
+                     card.last_review_practice_position ASC,
+                     card.due_practice_position ASC,
+                     item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
 
-        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, anyMaterialized);
+        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, earlyReview);
     }
 
     public async Task<PersistenceResult> CommitSubmissionAsync(

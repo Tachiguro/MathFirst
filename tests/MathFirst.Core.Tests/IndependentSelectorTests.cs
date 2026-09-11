@@ -91,18 +91,18 @@ public sealed class IndependentSelectorTests
     }
 
     [Fact]
-    public void DueSameSessionRemediation_OverridesNormalRoleDeterministically()
+    public void DueRemediation_OverridesNormalRoleDeterministically()
     {
         var curriculum = new ArithmeticCurriculum();
         var remediationFact = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0)[0];
         var state = ItemLearningState.CreateNew(remediationFact);
         state.NeedsRemediation = true;
-        state.RemediationDueOrder = 7;
+        var card = new FsrsCardState(remediationFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Again);
         var materialized = new MaterializedState(
             new[] { remediationFact },
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [remediationFact.Id] = state },
-            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal));
-        var context = CreateContext(1, curriculum, materialized, currentSessionOrder: 7);
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [remediationFact.Id] = card });
+        var context = CreateContext(5, curriculum, materialized);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -116,19 +116,19 @@ public sealed class IndependentSelectorTests
     [InlineData(1, "frontier", PracticeSelectionRole.Frontier)]
     [InlineData(1, "due", PracticeSelectionRole.Due)]
     [InlineData(1, "maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(1, "any", PracticeSelectionRole.AnyMaterialized)]
+    [InlineData(1, "early_review", PracticeSelectionRole.EarlyReview)]
     [InlineData(5, "due", PracticeSelectionRole.Due)]
     [InlineData(5, "frontier", PracticeSelectionRole.Frontier)]
     [InlineData(5, "maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(5, "any", PracticeSelectionRole.AnyMaterialized)]
+    [InlineData(5, "early_review", PracticeSelectionRole.EarlyReview)]
     [InlineData(13, "maintenance", PracticeSelectionRole.Maintenance)]
     [InlineData(13, "frontier", PracticeSelectionRole.Frontier)]
     [InlineData(13, "due", PracticeSelectionRole.Due)]
-    [InlineData(13, "any", PracticeSelectionRole.AnyMaterialized)]
+    [InlineData(13, "early_review", PracticeSelectionRole.EarlyReview)]
     [InlineData(17, "frontier", PracticeSelectionRole.Frontier)]
     [InlineData(17, "due", PracticeSelectionRole.Due)]
     [InlineData(17, "maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(17, "any", PracticeSelectionRole.AnyMaterialized)]
+    [InlineData(17, "early_review", PracticeSelectionRole.EarlyReview)]
     public void EveryFallbackTransition_UsesTheFirstNonEmptyPoolWithoutSwitchingOperation(
         long position,
         string availablePool,
@@ -262,9 +262,8 @@ public sealed class IndependentSelectorTests
         var materialized = Materialize(new[] { remediationFact }, state =>
         {
             state.NeedsRemediation = true;
-            state.RemediationDueOrder = 4;
-        });
-        var context = CreateContext(position, curriculum, materialized, currentSessionOrder: 4);
+        }, fsrsDuePosition: 100, lastReviewPosition: -3);
+        var context = CreateContext(position, curriculum, materialized);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -283,11 +282,10 @@ public sealed class IndependentSelectorTests
         var materialized = Materialize(new[] { addition }, state =>
         {
             state.NeedsRemediation = true;
-            state.RemediationDueOrder = 1;
-        });
+        }, fsrsDuePosition: 100, lastReviewPosition: -3);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(2, curriculum, materialized, currentSessionOrder: 5));
+            CreateContext(2, curriculum, materialized));
 
         Assert.Equal(ArithmeticOperation.Subtraction, result.ScheduledOperation);
         Assert.NotEqual(PracticeSelectionRole.Remediation, result.ResolvedRole);
@@ -295,31 +293,37 @@ public sealed class IndependentSelectorTests
     }
 
     [Fact]
-    public void Remediation_UsesEarliestDueOrderThenDeterministicDueRanking()
+    public void Remediation_OrdersByLastReviewPracticePositionThenFactId()
     {
         var curriculum = new ArithmeticCurriculum();
-        var facts = curriculum.Addition.Bands[0].Frontier.Take(3).ToArray();
-        var materialized = Materialize(facts, state =>
-        {
-            state.NeedsRemediation = true;
-            state.RemediationDueOrder = state.FactId == facts[2].Id ? 6 : 5;
-        });
-        var expected = DeterministicFactRanker.Order(
-            facts.Take(2),
-            ArithmeticOperation.Addition,
-            curriculum.Addition.Bands[0].Id,
-            FactSelectionRole.Due,
-            1)[0];
+        var f1 = curriculum.Addition.Bands[0].Frontier[0];
+        var f2 = curriculum.Addition.Bands[0].Frontier[1];
+        var f3 = curriculum.Addition.Bands[0].Frontier[2];
 
+        var states = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal)
+        {
+            [f1.Id] = ItemLearningState.CreateNew(f1),
+            [f2.Id] = ItemLearningState.CreateNew(f2),
+            [f3.Id] = ItemLearningState.CreateNew(f3)
+        };
+        foreach (var s in states.Values) { s.NeedsRemediation = true; }
+
+        var cards = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal)
+        {
+            [f1.Id] = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 2, FsrsRating.Again),
+            [f2.Id] = new FsrsCardState(f2.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Again),
+            [f3.Id] = new FsrsCardState(f3.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Again)
+        };
+
+        var materialized = new MaterializedState(new[] { f1, f2, f3 }, states, cards);
         var first = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(1, curriculum, materialized, currentSessionOrder: 7));
+            CreateContext(13, curriculum, materialized));
         var reversed = ReverseMaterialized(materialized);
         var second = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(1, new ArithmeticCurriculum(), reversed, currentSessionOrder: 7));
+            CreateContext(13, new ArithmeticCurriculum(), reversed));
 
-        Assert.Equal(expected.Id, first.Fact.Id);
+        Assert.Equal(f2.Id, first.Fact.Id);
         Assert.Equal(first.Fact.Id, second.Fact.Id);
-        Assert.NotEqual(facts[2].Id, first.Fact.Id);
     }
 
     [Fact]
@@ -339,12 +343,7 @@ public sealed class IndependentSelectorTests
     {
         var curriculum = new ArithmeticCurriculum();
         var frontier = curriculum.Addition.Bands[0].Frontier;
-        var rankedFirst = DeterministicFactRanker.Order(
-            frontier,
-            ArithmeticOperation.Addition,
-            curriculum.Addition.Bands[0].Id,
-            FactSelectionRole.Frontier,
-            17)[0];
+        var topCandidate = frontier.OrderBy(fact => fact.Id, StringComparer.Ordinal).First();
         var otherHistory = new ArithmeticFact[]
         {
             new(ArithmeticOperation.Subtraction, 0, 0),
@@ -356,15 +355,15 @@ public sealed class IndependentSelectorTests
             17,
             curriculum,
             Materialize(frontier),
-            recentFacts: new[] { rankedFirst }.Concat(otherHistory)));
+            recentFacts: new[] { topCandidate }.Concat(otherHistory)));
         var inside = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(
             17,
             curriculum,
             Materialize(frontier),
-            recentFacts: otherHistory.Concat(new[] { rankedFirst })));
+            recentFacts: otherHistory.Concat(new[] { topCandidate })));
 
-        Assert.Equal(rankedFirst.Id, outside.Fact.Id);
-        Assert.NotEqual(rankedFirst.Id, inside.Fact.Id);
+        Assert.Equal(topCandidate.Id, outside.Fact.Id);
+        Assert.NotEqual(topCandidate.Id, inside.Fact.Id);
     }
 
     [Fact]
@@ -539,6 +538,7 @@ public sealed class IndependentSelectorTests
         IEnumerable<ArithmeticFact> facts,
         Action<ItemLearningState>? configureState = null,
         long? fsrsDuePosition = null,
+        long? lastReviewPosition = null,
         string? dueOnlyFactId = null)
     {
         var factArray = facts.ToArray();
@@ -548,11 +548,11 @@ public sealed class IndependentSelectorTests
             configureState?.Invoke(state);
         }
         var cards = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
-        if (fsrsDuePosition.HasValue)
+        if (fsrsDuePosition.HasValue || lastReviewPosition.HasValue)
         {
             foreach (var fact in factArray.Where(fact => dueOnlyFactId is null || fact.Id == dueOnlyFactId))
             {
-                cards[fact.Id] = CreateCard(fact, fsrsDuePosition.Value);
+                cards[fact.Id] = CreateCard(fact, fsrsDuePosition ?? 1000, lastReviewPosition);
             }
         }
         return new MaterializedState(
@@ -568,7 +568,7 @@ public sealed class IndependentSelectorTests
             "frontier" => CreateFrontierFallbackContext(position),
             "due" => CreateEmptyOwnedContext(position, "due"),
             "maintenance" => CreateEmptyOwnedContext(position, "maintenance"),
-            "any" => CreateEmptyOwnedContext(position, "any"),
+            "early_review" => CreateEmptyOwnedContext(position, "early_review"),
             _ => throw new ArgumentOutOfRangeException(nameof(availablePool), availablePool, null)
         };
 
@@ -578,8 +578,7 @@ public sealed class IndependentSelectorTests
         var frontierOnly = Materialize(curriculum.Addition.Bands[0].Frontier, state =>
         {
             state.NeedsRemediation = true;
-            state.RemediationDueOrder = 100;
-        });
+        }, fsrsDuePosition: 1000, lastReviewPosition: position - 1);
         return CreateContext(position, curriculum, frontierOnly);
     }
 
@@ -606,6 +605,7 @@ public sealed class IndependentSelectorTests
                 pair => pair.Key,
                 pair => pair.Value,
                 StringComparer.Ordinal);
+            cards[maintenance.Id] = CreateCard(maintenance, position + 100, position - 40);
             cards[due.Id] = CreateCard(due, 1);
             return CreateContext(
                 position,
@@ -618,12 +618,8 @@ public sealed class IndependentSelectorTests
         var materialized = stateKind switch
         {
             "due" => Materialize(new[] { earlier }, fsrsDuePosition: 1),
-            "maintenance" => Materialize(new[] { earlier }),
-            "any" => Materialize(new[] { earlier }, state =>
-            {
-                state.NeedsRemediation = true;
-                state.RemediationDueOrder = 100;
-            }),
+            "maintenance" => Materialize(new[] { earlier }, fsrsDuePosition: position + 100, lastReviewPosition: position - 40),
+            "early_review" => Materialize(new[] { earlier }, fsrsDuePosition: position + 100, lastReviewPosition: position - 1),
             _ => throw new ArgumentOutOfRangeException(nameof(stateKind), stateKind, null)
         };
         return CreateContext(
@@ -702,8 +698,8 @@ public sealed class IndependentSelectorTests
             source.FsrsStates.Reverse().ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
     }
 
-    private static FsrsCardState CreateCard(ArithmeticFact fact, long duePosition) =>
-        new(fact.Id, Guid.Empty, 1, null, 1, 1, duePosition, null, FsrsRating.Good);
+    private static FsrsCardState CreateCard(ArithmeticFact fact, long duePosition, long? lastReviewPosition = null) =>
+        new(fact.Id, Guid.Empty, 1, null, 1, 1, duePosition, lastReviewPosition, FsrsRating.Good);
 
     private static CurriculumBand GetBand(OperationCurriculum curriculum, int bandIndex)
     {

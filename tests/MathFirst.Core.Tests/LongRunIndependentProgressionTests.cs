@@ -64,7 +64,7 @@ public sealed class LongRunIndependentProgressionTests
             Assert.Equal(64, evidence.DueCandidates.Count);
             Assert.Equal(64, evidence.MaintenanceCandidates.Count);
             Assert.Equal(64, evidence.RemediationCandidates.Count);
-            Assert.Equal(64, evidence.AnyMaterializedCandidates.Count);
+            Assert.Equal(64, evidence.EarlyReviewCandidates.Count);
         }
         finally
         {

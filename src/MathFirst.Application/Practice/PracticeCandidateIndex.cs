@@ -13,8 +13,8 @@ public sealed class PracticeCandidateIndex
     public IReadOnlyList<ArithmeticFact> CurrentBandMaterializedFacts { get; }
     public IReadOnlyList<ArithmeticFact> DueFacts { get; }
     public IReadOnlyList<ArithmeticFact> MaintenanceFacts { get; }
-    internal IReadOnlyList<IndexedPracticeCandidate> RemediationCandidates { get; }
-    public IReadOnlyList<ArithmeticFact> AnyMaterializedFacts { get; }
+    public IReadOnlyList<ArithmeticFact> EarlyReviewFacts { get; }
+    public IReadOnlyList<IndexedPracticeCandidate> RemediationCandidates { get; }
     public bool HasBoundedSemanticPools { get; }
 
     internal IEnumerable<IndexedPracticeCandidate> Candidates => _candidates.Values;
@@ -78,10 +78,8 @@ public sealed class PracticeCandidateIndex
                 factId,
                 new IndexedPracticeCandidate(
                     fact,
-                    itemState?.NeedsRemediation ?? false,
-                    itemState?.RemediationDueOrder ?? 0,
-                    itemState?.LastPracticedOrder ?? 0,
-                    fsrsState?.DuePracticePosition));
+                    itemState,
+                    fsrsState));
         }
 
         _candidates = candidates.ToFrozenDictionary(StringComparer.Ordinal);
@@ -91,24 +89,31 @@ public sealed class PracticeCandidateIndex
             .ToArray());
         CurrentBandMaterializedFacts = MaterializedFacts;
         DueFacts = candidates.Values
-            .Where(candidate => candidate.DuePracticePosition is not null)
-            .OrderBy(candidate => candidate.DuePracticePosition)
+            .Where(candidate => candidate.FsrsState is not null)
+            .OrderBy(candidate => candidate.FsrsState!.DuePracticePosition)
+            .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
             .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
             .Select(candidate => candidate.Fact)
             .ToArray();
         MaintenanceFacts = candidates.Values
-            .Where(candidate => !candidate.NeedsRemediation)
-            .OrderBy(candidate => candidate.LastPracticedOrder)
-            .ThenBy(candidate => candidate.DuePracticePosition ?? long.MaxValue)
+            .Where(candidate => candidate.ItemState?.NeedsRemediation != true && candidate.FsrsState?.LastReviewPracticePosition is not null)
+            .OrderBy(candidate => candidate.FsrsState!.LastReviewPracticePosition!.Value)
+            .ThenBy(candidate => candidate.FsrsState?.DuePracticePosition ?? long.MaxValue)
             .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
             .Select(candidate => candidate.Fact)
             .ToArray();
         RemediationCandidates = candidates.Values
-            .Where(candidate => candidate.NeedsRemediation)
-            .OrderBy(candidate => candidate.RemediationDueOrder)
+            .Where(candidate => candidate.ItemState?.NeedsRemediation == true && candidate.FsrsState?.LastReviewPracticePosition is not null)
+            .OrderBy(candidate => candidate.FsrsState!.LastReviewPracticePosition!.Value)
             .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
             .ToArray();
-        AnyMaterializedFacts = MaterializedFacts;
+        EarlyReviewFacts = candidates.Values
+            .Where(candidate => candidate.ItemState?.NeedsRemediation != true && candidate.FsrsState is not null)
+            .OrderBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
+            .ThenBy(candidate => candidate.FsrsState?.DuePracticePosition ?? long.MaxValue)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
         HasBoundedSemanticPools = false;
     }
 
@@ -127,12 +132,10 @@ public sealed class PracticeCandidateIndex
         RemediationCandidates = evidence.RemediationCandidates
             .Select(candidate => new IndexedPracticeCandidate(
                 candidate.Fact,
-                candidate.ItemState.NeedsRemediation,
-                candidate.ItemState.RemediationDueOrder,
-                candidate.ItemState.LastPracticedOrder,
-                candidate.FsrsState?.DuePracticePosition))
+                candidate.ItemState,
+                candidate.FsrsState))
             .ToArray();
-        AnyMaterializedFacts = evidence.AnyMaterializedCandidates.Select(candidate => candidate.Fact).ToArray();
+        EarlyReviewFacts = evidence.EarlyReviewCandidates.Select(candidate => candidate.Fact).ToArray();
         HasBoundedSemanticPools = true;
     }
 
@@ -141,11 +144,15 @@ public sealed class PracticeCandidateIndex
         ArgumentException.ThrowIfNullOrWhiteSpace(factId);
         return _candidates.ContainsKey(factId);
     }
+
+    public IndexedPracticeCandidate GetCandidate(string factId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(factId);
+        return _candidates[factId];
+    }
 }
 
-internal sealed record IndexedPracticeCandidate(
+public sealed record IndexedPracticeCandidate(
     ArithmeticFact Fact,
-    bool NeedsRemediation,
-    int RemediationDueOrder,
-    int LastPracticedOrder,
-    long? DuePracticePosition);
+    ItemLearningState? ItemState,
+    FsrsCardState? FsrsState);
