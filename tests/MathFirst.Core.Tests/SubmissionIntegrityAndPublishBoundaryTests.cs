@@ -407,6 +407,13 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
 
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(_snapshot);
 
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(_snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
+
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
             CancellationToken cancellationToken = default)

@@ -519,6 +519,229 @@ public sealed class IndependentSelectorTests
         Assert.All(counts.Values, count => Assert.Equal(20, count));
     }
 
+    [Theory]
+    [InlineData(1, PracticeSelectionRole.New)]
+    [InlineData(5, PracticeSelectionRole.Due)]
+    [InlineData(13, PracticeSelectionRole.Maintenance)]
+    [InlineData(17, PracticeSelectionRole.Frontier)]
+    public void DenseBand_UnseenFacts_RequestedRolesOverrideToNewIntroduction(
+        long position,
+        PracticeSelectionRole expectedRequestedRole)
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var firstFact = curriculum.Addition.Bands[0].Frontier[0];
+        var materialized = Materialize([firstFact]);
+        var context = CreateContext(position, curriculum, materialized);
+
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+
+        Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
+        Assert.Equal(expectedRequestedRole, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.False(result.IsMaterialized);
+        Assert.True(result.IsNewIntroduction);
+        Assert.NotEqual(firstFact.Id, result.Fact.Id);
+        Assert.Contains(result.Fact.Id, curriculum.Addition.Bands[0].Frontier.Select(f => f.Id));
+    }
+
+    [Fact]
+    public void DenseFirstPassCoverage_InitialDenseBands_ExposeAllOwnedFrontierFactsBeforeReview()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var selector = new AdaptivePracticeSelector();
+
+        // 1. Addition (ADD-D01: 4 facts)
+        var addFrontier = curriculum.Addition.Bands[0].Frontier;
+        var addSeen = new List<ArithmeticFact>();
+        var addPositions = new long[] { 1, 5, 9, 13 };
+        foreach (var pos in addPositions)
+        {
+            var ctx = CreateContext(pos, curriculum, Materialize(addSeen));
+            var res = selector.SelectTargetFact(ctx);
+            Assert.Equal(ArithmeticOperation.Addition, res.ScheduledOperation);
+            Assert.Equal(PracticeSelectionRole.New, res.ResolvedRole);
+            Assert.True(res.IsNewIntroduction);
+            Assert.False(res.IsMaterialized);
+            Assert.DoesNotContain(res.Fact.Id, addSeen.Select(f => f.Id));
+            addSeen.Add(res.Fact);
+        }
+        Assert.Equal(4, addSeen.Count);
+        Assert.Equal(addFrontier.Select(f => f.Id).ToHashSet(), addSeen.Select(f => f.Id).ToHashSet());
+
+        // 5th turn: position 17 (requested Frontier) -> all 4 materialized -> resolved is Frontier
+        var add5thCtx = CreateContext(17, curriculum, Materialize(addSeen));
+        var add5thRes = selector.SelectTargetFact(add5thCtx);
+        Assert.NotEqual(PracticeSelectionRole.New, add5thRes.ResolvedRole);
+        Assert.True(add5thRes.IsMaterialized);
+        Assert.False(add5thRes.IsNewIntroduction);
+
+        // 2. Subtraction (SUB-D01: 3 facts)
+        var subFrontier = curriculum.Subtraction.Bands[0].Frontier;
+        var subSeen = new List<ArithmeticFact>();
+        var subPositions = new long[] { 2, 6, 10 };
+        foreach (var pos in subPositions)
+        {
+            var ctx = CreateContext(pos, curriculum, Materialize(subSeen));
+            var res = selector.SelectTargetFact(ctx);
+            Assert.Equal(ArithmeticOperation.Subtraction, res.ScheduledOperation);
+            Assert.Equal(PracticeSelectionRole.New, res.ResolvedRole);
+            Assert.True(res.IsNewIntroduction);
+            Assert.False(res.IsMaterialized);
+            Assert.DoesNotContain(res.Fact.Id, subSeen.Select(f => f.Id));
+            subSeen.Add(res.Fact);
+        }
+        Assert.Equal(3, subSeen.Count);
+        Assert.Equal(subFrontier.Select(f => f.Id).ToHashSet(), subSeen.Select(f => f.Id).ToHashSet());
+
+        // 3. Multiplication (MUL-D01: 4 facts)
+        var mulFrontier = curriculum.Multiplication.Bands[0].Frontier;
+        var mulSeen = new List<ArithmeticFact>();
+        var mulPositions = new long[] { 3, 7, 11, 15 };
+        foreach (var pos in mulPositions)
+        {
+            var ctx = CreateContext(pos, curriculum, Materialize(mulSeen));
+            var res = selector.SelectTargetFact(ctx);
+            Assert.Equal(ArithmeticOperation.Multiplication, res.ScheduledOperation);
+            Assert.Equal(PracticeSelectionRole.New, res.ResolvedRole);
+            Assert.True(res.IsNewIntroduction);
+            Assert.False(res.IsMaterialized);
+            Assert.DoesNotContain(res.Fact.Id, mulSeen.Select(f => f.Id));
+            mulSeen.Add(res.Fact);
+        }
+        Assert.Equal(4, mulSeen.Count);
+        Assert.Equal(mulFrontier.Select(f => f.Id).ToHashSet(), mulSeen.Select(f => f.Id).ToHashSet());
+
+        // 4. Division (DIV-D01: 2 facts: 0/1, 1/1)
+        var divFrontier = curriculum.Division.Bands[0].Frontier;
+        var divSeen = new List<ArithmeticFact>();
+        var divPositions = new long[] { 4, 8 };
+        foreach (var pos in divPositions)
+        {
+            var ctx = CreateContext(pos, curriculum, Materialize(divSeen));
+            var res = selector.SelectTargetFact(ctx);
+            Assert.Equal(ArithmeticOperation.Division, res.ScheduledOperation);
+            Assert.Equal(PracticeSelectionRole.New, res.ResolvedRole);
+            Assert.True(res.IsNewIntroduction);
+            Assert.False(res.IsMaterialized);
+            Assert.DoesNotContain(res.Fact.Id, divSeen.Select(f => f.Id));
+            divSeen.Add(res.Fact);
+        }
+        Assert.Equal(2, divSeen.Count);
+        Assert.Equal(divFrontier.Select(f => f.Id).ToHashSet(), divSeen.Select(f => f.Id).ToHashSet());
+    }
+
+    [Fact]
+    public void Remediation_PrecedesCoverageFirstDenseNew_WhenEligible()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var f1 = curriculum.Addition.Bands[0].Frontier[0];
+        var state = ItemLearningState.CreateNew(f1);
+        state.NeedsRemediation = true;
+        // LastReview = 1. At prospective position 5 (5 >= 1 + 4): eligible!
+        var card = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Again);
+        var materialized = new MaterializedState(
+            [f1],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = card });
+
+        var contextEligible = CreateContext(5, curriculum, materialized);
+        var resEligible = new AdaptivePracticeSelector().SelectTargetFact(contextEligible);
+
+        Assert.Equal(PracticeSelectionRole.Remediation, resEligible.ResolvedRole);
+        Assert.Equal(f1.Id, resEligible.Fact.Id);
+        Assert.True(resEligible.IsMaterialized);
+        Assert.False(resEligible.IsNewIntroduction);
+
+        // If not yet eligible (LastReview = 2, prospective = 5 => 5 < 2 + 4):
+        var cardNotYet = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 2, FsrsRating.Again);
+        var materializedNotYet = new MaterializedState(
+            [f1],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = cardNotYet });
+
+        var contextNotYet = CreateContext(5, curriculum, materializedNotYet);
+        var resNotYet = new AdaptivePracticeSelector().SelectTargetFact(contextNotYet);
+
+        Assert.Equal(PracticeSelectionRole.New, resNotYet.ResolvedRole);
+        Assert.NotEqual(f1.Id, resNotYet.Fact.Id);
+        Assert.False(resNotYet.IsMaterialized);
+        Assert.True(resNotYet.IsNewIntroduction);
+    }
+
+    [Theory]
+    [InlineData(5, PracticeSelectionRole.Due)]
+    [InlineData(13, PracticeSelectionRole.Maintenance)]
+    [InlineData(17, PracticeSelectionRole.Frontier)]
+    public void StructuredBands_DoNotUseCoverageFirst_NonNewRolesFailClosedWhenNoMaterializedFacts(
+        long position,
+        PracticeSelectionRole requestedRole)
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
+        var context = CreateContext(
+            position,
+            curriculum,
+            EmptyMaterialized(),
+            operationProgressions: structuredProgressions);
+
+        Assert.Equal(requestedRole, AdaptivePracticeSelector.GetRequestedRole(position));
+        var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
+        Assert.Contains("Addition", ex.Message);
+    }
+
+    [Fact]
+    public void StructuredBands_NormalRequestedNew_StillIntroducesSample()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
+        var context = CreateContext(
+            1,
+            curriculum,
+            EmptyMaterialized(),
+            operationProgressions: structuredProgressions);
+
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+    }
+
+    [Fact]
+    public void DeterministicCadenceSimulation_FirstPassCoverageCadence_InterleavedOperations()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var selector = new AdaptivePracticeSelector();
+
+        var materializedFacts = new Dictionary<ArithmeticOperation, HashSet<string>>
+        {
+            [ArithmeticOperation.Addition] = new(StringComparer.Ordinal),
+            [ArithmeticOperation.Subtraction] = new(StringComparer.Ordinal),
+            [ArithmeticOperation.Multiplication] = new(StringComparer.Ordinal),
+            [ArithmeticOperation.Division] = new(StringComparer.Ordinal)
+        };
+
+        var allMaterialized = new List<ArithmeticFact>();
+
+        for (var position = 1L; position <= 16; position++)
+        {
+            var op = AdaptivePracticeSelector.GetScheduledOperation(position);
+            var ctx = CreateContext(position, curriculum, Materialize(allMaterialized));
+            var result = selector.SelectTargetFact(ctx);
+
+            Assert.Equal(op, result.ScheduledOperation);
+            if (result.IsNewIntroduction)
+            {
+                materializedFacts[op].Add(result.Fact.Id);
+                allMaterialized.Add(result.Fact);
+            }
+        }
+
+        Assert.Equal(4, materializedFacts[ArithmeticOperation.Addition].Count);
+        Assert.Equal(3, materializedFacts[ArithmeticOperation.Subtraction].Count);
+        Assert.Equal(4, materializedFacts[ArithmeticOperation.Multiplication].Count);
+        Assert.Equal(2, materializedFacts[ArithmeticOperation.Division].Count);
+    }
+
     private static PracticeSelectionContext CreateContext(
         long position,
         ArithmeticCurriculum curriculum,

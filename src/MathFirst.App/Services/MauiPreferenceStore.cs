@@ -29,7 +29,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore
 
     public NumericKeypadLayout GetNumericKeypadLayout()
     {
-        var raw = Preferences.Default.Get(NumericKeypadLayoutKey, (int)NumericKeypadLayout.Phone);
+        var raw = Preferences.Default.Get(NumericKeypadLayoutKey, (int)NumericKeypadLayout.Numpad);
         return NumericKeypadLayoutPolicy.Normalize(raw);
     }
 

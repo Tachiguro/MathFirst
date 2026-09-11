@@ -9,14 +9,14 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-LEARN-002`
-- **Title**: Adaptive Pace, Fast Acquisition, and Practice Interventions
-- **Active Task Branch**: `feat/mf-learn-002-adaptive-pace`
-- **Base Branch / Commit**: `main` at `8983bee7d4a3cc0a4201ab2b2d208e7692de6a5f`
-- **HEAD Commit**: `b9a886290e8e5497b96af4a4b6a1eb8961b2a34f` (Checkpoint 6/6 `take-break-zero-timing-fix`)
+- **Active Package ID**: `MF-LEARN-003`
+- **Title**: Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults
+- **Active Task Branch**: `feat/mf-learn-003-acclimation-rapid-dense`
+- **Base Branch / Commit**: `main` at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
+- **Current Implementation Candidate**: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`)
 - **Operation Mode**: `DOCUMENT_ONLY`
-- **Status**: Reconciling repository documentation to the final, implemented, independently reviewed `MF-LEARN-002` package state (`REVIEW_PASS`).
-- **Implementation & Review State**: Implementation completed across 6 checkpoint commits. Post-correction independent review approved (`REVIEW_PASS`). Core test suite (`MathFirst.Core.Tests`): 708 passed, 0 failed, 0 skipped. `FULL_VALIDATION`, release builds, and PR integration remain pending.
+- **Status**: Narrow corrective documentation reconciliation completed locally for editable multi-digit input behavior.
+- **Implementation & Review State**: 5 planned implementation slices plus corrective editable multi-digit input completed. Independent review approved (`REVIEW_PASS`). Core test suite (`MathFirst.Core.Tests`): 790 passed, 0 failed, 0 skipped. Feature branch is local only / not pushed. Open Pull Requests: 0. `FULL_VALIDATION` has not yet run for the final corrective candidate.
 
 ---
 
@@ -31,5 +31,5 @@ This document provides operational context for the package currently in flight.
 ## 3. Current Lifecycle Position
 
 - **Immediate Next Lifecycle Step**: `COMMIT_ONLY` staging and commit creation for the reconciled documentation.
-- **Subsequent Delivery**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Subsequent Delivery Sequence**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
 - **Deferred Work**: `MF-REL-001` (Android Internal AAB Packaging and Release Automation) remains deferred and not started.

@@ -122,13 +122,49 @@ public sealed class WindowsUxContractTests
     }
 
     [Fact]
-    public void MauiPreferences_PersistsKeypadOutsideLearnerDatabaseWithPhoneDefault()
+    public void Settings_PresentsNumpadBeforePhoneInKeypadChoiceGrid()
+    {
+        var settings = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor"));
+
+        var gridMatch = Regex.Match(settings, "<div class=\"keypad-choice-grid\">(?<grid>.*?)</div>", RegexOptions.Singleline);
+        Assert.True(gridMatch.Success, "Keypad choice grid markup was not found in Settings.razor.");
+
+        var grid = gridMatch.Groups["grid"].Value;
+        var numpadIndex = grid.IndexOf("NumericKeypadLayout.Numpad", StringComparison.Ordinal);
+        var phoneIndex = grid.IndexOf("NumericKeypadLayout.Phone", StringComparison.Ordinal);
+
+        Assert.True(numpadIndex >= 0, "Numpad layout choice must exist in Settings keypad choice grid.");
+        Assert.True(phoneIndex >= 0, "Phone layout choice must exist in Settings keypad choice grid.");
+        Assert.True(numpadIndex < phoneIndex, "Settings must present Numpad layout before Phone layout.");
+        Assert.Matches("private\\s+NumericKeypadLayout\\s+_selectedKeypadLayout\\s*=\\s*NumericKeypadLayout\\.Numpad;", settings);
+    }
+
+    [Fact]
+    public void Onboarding_PresentsNumpadBeforePhoneInKeypadChoiceGrid()
+    {
+        var onboarding = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
+
+        var gridMatch = Regex.Match(onboarding, "<div class=\"keypad-choice-grid\">(?<grid>.*?)</div>", RegexOptions.Singleline);
+        Assert.True(gridMatch.Success, "Keypad choice grid markup was not found in OnboardingHost.razor.");
+
+        var grid = gridMatch.Groups["grid"].Value;
+        var numpadIndex = grid.IndexOf("NumericKeypadLayout.Numpad", StringComparison.Ordinal);
+        var phoneIndex = grid.IndexOf("NumericKeypadLayout.Phone", StringComparison.Ordinal);
+
+        Assert.True(numpadIndex >= 0, "Numpad layout choice must exist in Onboarding keypad choice grid.");
+        Assert.True(phoneIndex >= 0, "Phone layout choice must exist in Onboarding keypad choice grid.");
+        Assert.True(numpadIndex < phoneIndex, "Onboarding must present Numpad layout before Phone layout.");
+        Assert.Matches("private\\s+NumericKeypadLayout\\s+_selectedKeypadLayout\\s*=\\s*NumericKeypadLayout\\.Numpad;", onboarding);
+    }
+
+    [Fact]
+    public void MauiPreferences_PersistsKeypadOutsideLearnerDatabaseWithNumpadDefault()
     {
         var preferences = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "MauiPreferenceStore.cs"));
         var learnerStore = File.ReadAllText(GetRepositoryPath("src", "MathFirst.Infrastructure.Sqlite", "SqliteLearnerStore.cs"));
 
         Assert.Contains("mathfirst.numeric_keypad_layout", preferences, StringComparison.Ordinal);
-        Assert.Contains("Preferences.Default.Get(NumericKeypadLayoutKey, (int)NumericKeypadLayout.Phone)", preferences, StringComparison.Ordinal);
+        Assert.Contains("Preferences.Default.Get(NumericKeypadLayoutKey, (int)NumericKeypadLayout.Numpad)", preferences, StringComparison.Ordinal);
         Assert.Contains("Preferences.Default.Set(NumericKeypadLayoutKey", preferences, StringComparison.Ordinal);
         Assert.DoesNotContain("numeric_keypad_layout", learnerStore, StringComparison.Ordinal);
     }

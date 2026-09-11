@@ -95,23 +95,33 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-`main` / `origin/main`: `8983bee7d4a3cc0a4201ab2b2d208e7692de6a5f`
+`main` / `origin/main`: `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1` (MF-LEARN-002 merged via PR #15)
+Worktrees: Exactly one normal worktree
 
 ### Active Feature Candidate
-- Active Task Branch: `feat/mf-learn-002-adaptive-pace`
-- HEAD Commit: `b9a886290e8e5497b96af4a4b6a1eb8961b2a34f` (Checkpoint 6/6 `take-break-zero-timing-fix`)
-- Package: `MF-LEARN-002` — **Adaptive Pace, Fast Acquisition, and Practice Interventions**
-- Operation Mode: `DOCUMENT_ONLY` (reconciling repository documentation to implementation and `REVIEW_PASS` state)
-- Behavioral Implementation & Test Suite: Complete with 708 passing Core tests (0 failed, 0 skipped) in `MathFirst.Core.Tests`. Independent post-correction review approved (`REVIEW_PASS`). `FULL_VALIDATION` remains pending.
+- Active Task Branch: `feat/mf-learn-003-acclimation-rapid-dense`
+- HEAD Commit: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`)
+- Package: `MF-LEARN-003` — **Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults**
+- Operation Mode: `DOCUMENT_ONLY` (reconciling repository documentation for corrective editable multi-digit input)
+- Behavioral Implementation & Test Suite: Complete across 5 checkpoint slices and corrective editable multi-digit input with 790 passing Core tests (790/790 passed, 0 failed, 0 skipped) in `MathFirst.Core.Tests`. Corrective independent review approved (`REVIEW_PASS`). Feature branch is local only / not pushed. Open PRs: 0. `FULL_VALIDATION` remains pending.
 
-### Implemented Architecture Summary (MF-LEARN-002)
-1. **Adaptive Pace & Deadlines**: Multi-level hierarchical shrinkage ($P_0=4500$, learner, operation, band, fact), instability allowance (+1000ms Incorrect, +1500ms Timeout), adaptive deadline clamped to 3000..30000ms (cold baseline 9000ms).
-2. **Adaptive Fluency & Ratings**: Ratings mapped to fact pace (Easy $\le 0.85 P_{\text{fact}}$, Good $\le 1.25 P_{\text{fact}}$, Hard $> \text{FluencyThreshold}$, Again on error/timeout). Persisted `is_fluent` in Schema V6.
-3. **Fast Acquisition**: Dense bands ($N \in [1, 12]$) advance upon 100% correct first-encounter latency $\le 2000\text{ ms}$ with clean prefix within phase-aware requested-New horizon.
-4. **Selector Model**: Role-specific selector chains (`Requested New`, `Requested Due`, `Requested Maintenance`, `Requested Frontier`), removal of `AnyMaterialized`, early review liveness bridge, strict in-pool cooldown relaxation, remediation priority override.
-5. **Teaching Interventions**: Session-local 2nd consecutive error on same fact triggers non-mutating canonical equation teaching overlay.
-6. **Session Check-ins**: Checkpoint every 20 accepted attempts (correct count + median latency of correct attempts only) with Keep Going vs Take a Break zero-timing flow.
-7. **Clean Practice HUD**: Distraction-free practice screen with transient session score and progress indicators removed; danger-styled Pause button.
+### Checkpoint Commit Chain (MF-LEARN-003)
+- Base: `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
+- Slice 1: `b1a466bc01d5a5ef968eb711fa88f1a792864b51` (`answer-length-deadlines-proof-policy`)
+- Slice 2: `9953308f079b968731bc68b13a993c97b3292308` (`numpad-default-order`)
+- Slice 3: `ae4051b7d1d6c883be19ba977972358b29dd86a6` (`coverage-first-dense-selection`)
+- Slice 4: `269636fab2cae0974cbec9e6085ec5420c6aa66a` (`bounded-frontier-evidence`)
+- Slice 5: `9e07ec34e42a688847e23e53e47adb728fbec428` (`rapid-dense-progression`)
+- Prior Docs: `a06535c0f5c46d0d3ec655540778d2d666aebfc9` (`acclimation-rapid-dense-reconciliation`)
+- Corrective Checkpoint: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (`editable-multidigit-input`)
+
+### Implemented Architecture Summary (MF-LEARN-003)
+1. **Answer-Length Acclimation Deadlines & Proof**: Unproven facts (`CorrectAttempts == 0`) receive digit-aware novelty floors (15s/20s/25s/30s for 1/2/3/4+ digits) and entry allowances (+1000ms per extra digit) while maintaining strict decoupling from response latency measurement, adaptive fluency thresholds, `IsFluent`, and FSRS ratings.
+2. **Keypad Defaults & Ordering**: Numpad layout is the default/fallback across Onboarding, Settings, and default UI state with Numpad presented first/left and Phone second/right in visual options.
+3. **Coverage-First Dense Selection**: Scheduled turns for Dense bands select unmaterialized owned-frontier facts as `PracticeSelectionRole.New` across nominal Due/Maintenance/Frontier turns until first-pass coverage is complete, subordinate only to eligible Remediation ($\ge 4$ distance).
+4. **Authoritative Latest-per-Frontier Persistence**: `LoadLatestFrontierAttemptsAsync` queries latest positioned attempts per frontier fact (`PracticePosition > BandStartedPracticePosition`), supported by Schema V6 partial index `ix_attempt_history_operation_fact_position`.
+5. **Correctness-Driven Dense Progression**: Dense bands advance when complete frontier coverage is met and latest votes satisfy $C \cdot 10 \ge N \cdot 9$ using in-memory candidate overlay and recoverable error/timeout votes. Fast Acquisition and the `MUL-D01` special bootstrap are retired; Structured bands retain standard 40-attempt rolling-window progression.
+6. **Editable Incomplete Multi-Digit Input**: Incomplete multi-digit answers remain editable until the expected canonical digit count is reached, allowing mistyped partial answers to be corrected with Backspace/Delete before auto-submission without mutating learning state; single-digit immediate auto-submission is preserved.
 
 ### Immediate Next Lifecycle Steps
 - Complete `DOCUMENT_ONLY` reconciliation.

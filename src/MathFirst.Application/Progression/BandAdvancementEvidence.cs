@@ -7,11 +7,13 @@ public sealed class BandAdvancementEvidence
     public IReadOnlyList<BandAttemptEvidence> AcceptedAttempts { get; }
     public IReadOnlySet<string> LifetimeAttemptedFactIds { get; }
     public IReadOnlySet<string> CurrentBandIntroducedFactIds { get; }
+    public IReadOnlyList<BandAttemptEvidence> LatestCurrentBandFrontierAttempts { get; }
 
     public BandAdvancementEvidence(
         IEnumerable<BandAttemptEvidence> acceptedAttempts,
         IEnumerable<string> lifetimeAttemptedFactIds,
-        IEnumerable<string> currentBandIntroducedFactIds)
+        IEnumerable<string> currentBandIntroducedFactIds,
+        IEnumerable<BandAttemptEvidence>? latestCurrentBandFrontierAttempts = null)
     {
         ArgumentNullException.ThrowIfNull(acceptedAttempts);
         ArgumentNullException.ThrowIfNull(lifetimeAttemptedFactIds);
@@ -26,6 +28,21 @@ public sealed class BandAdvancementEvidence
         AcceptedAttempts = Array.AsReadOnly(attempts);
         LifetimeAttemptedFactIds = CopyFactIds(lifetimeAttemptedFactIds, nameof(lifetimeAttemptedFactIds));
         CurrentBandIntroducedFactIds = CopyFactIds(currentBandIntroducedFactIds, nameof(currentBandIntroducedFactIds));
+
+        if (latestCurrentBandFrontierAttempts is not null)
+        {
+            var frontierAttempts = latestCurrentBandFrontierAttempts.ToArray();
+            if (frontierAttempts.Any(attempt => attempt is null))
+            {
+                throw new ArgumentException("Frontier attempt evidence cannot contain null entries.", nameof(latestCurrentBandFrontierAttempts));
+            }
+
+            LatestCurrentBandFrontierAttempts = Array.AsReadOnly(frontierAttempts);
+        }
+        else
+        {
+            LatestCurrentBandFrontierAttempts = AcceptedAttempts;
+        }
     }
 
     private static IReadOnlySet<string> CopyFactIds(IEnumerable<string> factIds, string parameterName)

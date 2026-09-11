@@ -111,6 +111,16 @@ public sealed class AdaptivePracticeSelector
         var newPool = introductionFrontier
             .Where(fact => !context.CandidateIndex.IsMaterialized(fact.Id))
             .ToArray();
+        if (band.Kind == CurriculumBandKind.Dense && newPool.Length > 0)
+        {
+            return CreateTargetResult(
+                context,
+                band,
+                operation,
+                requestedRole,
+                PracticeSelectionRole.New,
+                newPool);
+        }
         var frontierPool = context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.CurrentBandMaterializedFacts
             : ownedFrontier

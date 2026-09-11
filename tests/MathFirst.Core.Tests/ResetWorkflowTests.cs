@@ -35,7 +35,7 @@ public sealed class ResetWorkflowTests : IDisposable
         public bool OnboardingCompleted { get; set; }
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
-        public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Phone;
+        public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
 
         public bool GetOnboardingCompleted() => OnboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
@@ -50,7 +50,7 @@ public sealed class ResetWorkflowTests : IDisposable
             OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
-            KeypadLayout = NumericKeypadLayout.Phone;
+            KeypadLayout = NumericKeypadLayout.Numpad;
         }
     }
 
@@ -204,7 +204,7 @@ public sealed class ResetWorkflowTests : IDisposable
         prefs.SetOnboardingCompleted(false);
         prefs.SetLanguagePreference("system");
         prefs.SetThemePreference(ThemePreference.System);
-        prefs.SetNumericKeypadLayout(NumericKeypadLayout.Phone);
+        prefs.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
 
         Assert.Equal(learnerGeneration, session.LearnerStateGenerationRevision);
 
@@ -212,7 +212,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
-        Assert.Equal(NumericKeypadLayout.Phone, prefs.GetNumericKeypadLayout());
+        Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
 
         // Verify DB still holds committed progress
         var snapshot = await store.LoadSnapshotAsync();
@@ -268,6 +268,6 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
-        Assert.Equal(NumericKeypadLayout.Phone, prefs.GetNumericKeypadLayout());
+        Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
     }
 }
