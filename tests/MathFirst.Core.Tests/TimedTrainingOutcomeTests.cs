@@ -83,16 +83,12 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         fakeClock.Elapsed = TimeSpan.FromSeconds(0);
         Assert.False(session.IsCurrentItemTimedOut());
 
-        // 10s: not timed out
-        fakeClock.Elapsed = TimeSpan.FromSeconds(10);
+        // Just before the cold learner's 9s deadline: not timed out
+        fakeClock.Elapsed = TimeSpan.FromSeconds(8.999);
         Assert.False(session.IsCurrentItemTimedOut());
 
-        // 29.999s: not timed out
-        fakeClock.Elapsed = TimeSpan.FromSeconds(29.999);
-        Assert.False(session.IsCurrentItemTimedOut());
-
-        // 30.0s: timed out
-        fakeClock.Elapsed = TimeSpan.FromSeconds(30.0);
+        // Exactly at the deadline: timed out
+        fakeClock.Elapsed = TimeSpan.FromSeconds(9.0);
         Assert.True(session.IsCurrentItemTimedOut());
 
         // 35.0s: timed out
@@ -108,13 +104,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         var session = new TrainingSession(store, fakeClock);
         await session.InitializeAsync();
 
-        // Answer submitted at 12.5s
-        fakeClock.Elapsed = TimeSpan.FromSeconds(12.5);
+        // Answer submitted before the cold learner's 9s deadline
+        fakeClock.Elapsed = TimeSpan.FromSeconds(8.5);
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
 
         Assert.Equal(AttemptOutcome.Correct, eval.Outcome);
         Assert.True(eval.IsCorrect);
-        Assert.Equal(12500, eval.LatencyMs);
+        Assert.Equal(8500, eval.LatencyMs);
         Assert.NotNull(session.LastEvaluation);
     }
 
@@ -154,16 +150,16 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     }
 
     [Theory]
-    [InlineData(0, 29999, false)]
-    [InlineData(0, 30000, true)]
-    [InlineData(1, 29999, false)]
-    [InlineData(1, 30000, true)]
-    [InlineData(2, 29999, false)]
-    [InlineData(2, 30000, true)]
-    [InlineData(3, 29999, false)]
-    [InlineData(3, 30000, true)]
-    [InlineData(99, 29999, false)]
-    [InlineData(99, 30000, true)]
+    [InlineData(0, 8999, false)]
+    [InlineData(0, 9000, true)]
+    [InlineData(1, 8999, false)]
+    [InlineData(1, 9000, true)]
+    [InlineData(2, 8999, false)]
+    [InlineData(2, 9000, true)]
+    [InlineData(3, 8999, false)]
+    [InlineData(3, 9000, true)]
+    [InlineData(99, 8999, false)]
+    [InlineData(99, 9000, true)]
     public async Task Timer_ExactTimeoutBoundaries_EvaluatedAccurately(int streak, long elapsedMs, bool expectedTimedOut)
     {
         var fakeClock = new FakeClock();
@@ -210,7 +206,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     }
 
     [Fact]
-    public async Task FailureReset_IncorrectAnswer_ResetsStreakAndRestores30sDeadline()
+    public async Task FailureReset_IncorrectAnswer_ResetsStreakAndKeepsPresentationDeadlineFixed()
     {
         var fakeClock = new FakeClock();
         var store = new InMemoryStore();
@@ -224,7 +220,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ResetItemReadyTiming();
 
         // 1. Historical streak does not shorten the current presentation deadline.
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
 
         // 2. Incorrect submission resets streak to 0
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(1500);
@@ -234,13 +230,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         await session.CommitCurrentEvaluationAsync();
         Assert.Equal(0, session.ItemStates[fact.Id].ConsecutiveCorrectStreak);
 
-        // 3. Next presentation of this fact gets 30s deadline
+        // 3. Resetting timing for the same presentation does not recalculate its deadline.
         session.ResetItemReadyTiming();
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
     }
 
     [Fact]
-    public async Task FailureReset_Timeout_ResetsStreakAndRestores30sDeadline()
+    public async Task FailureReset_Timeout_ResetsStreakAndKeepsPresentationDeadlineFixed()
     {
         var fakeClock = new FakeClock();
         var store = new InMemoryStore();
@@ -254,7 +250,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ResetItemReadyTiming();
 
         // 1. Historical streak does not shorten the current presentation deadline.
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
 
         // 2. Timeout resets streak to 0
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(30050);
@@ -264,13 +260,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         await session.CommitCurrentEvaluationAsync();
         Assert.Equal(0, session.ItemStates[fact.Id].ConsecutiveCorrectStreak);
 
-        // 3. Next presentation of this fact gets 30s deadline
+        // 3. Resetting timing for the same presentation does not recalculate its deadline.
         session.ResetItemReadyTiming();
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
     }
 
     [Fact]
-    public async Task ResponseLatency_SeparateFromFixedDeadline_PreservesActualLatencyAndFsrs()
+    public async Task ResponseLatency_SeparateFromAdaptiveDeadline_PreservesActualLatencyAndFsrs()
     {
         var fakeClock = new FakeClock();
         var store = new InMemoryStore();
@@ -283,7 +279,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ItemStates[fact.Id] = itemState;
         session.ResetItemReadyTiming();
 
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
 
         // Learner answers after 1,842 ms
         fakeClock.Elapsed = TimeSpan.FromMilliseconds(1842);
@@ -304,7 +300,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
     }
 
     [Fact]
-    public async Task HistoricalHighStreak_StillUsesThirtySecondDeadlineAndSlowCorrectAnswerIsHard()
+    public async Task HistoricalHighStreak_DoesNotDriveDeadlineAndSlowerCorrectAnswerIsHard()
     {
         var fakeClock = new FakeClock();
         var store = new InMemoryStore();
@@ -319,13 +315,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ItemStates[fact.Id] = itemState;
         session.ResetItemReadyTiming();
 
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
-        fakeClock.Elapsed = TimeSpan.FromMilliseconds(15000);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
+        fakeClock.Elapsed = TimeSpan.FromMilliseconds(5000);
         Assert.False(session.IsCurrentItemTimedOut());
 
         var evaluation = session.SubmitAnswer(fact.CorrectResult);
         Assert.True(evaluation.IsCorrect);
-        Assert.Equal(15000, evaluation.LatencyMs);
+        Assert.Equal(5000, evaluation.LatencyMs);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
         Assert.Equal(FsrsRating.Hard, session.FsrsStates[fact.Id].LastRating);
     }
@@ -704,7 +700,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Empty(store.CommittedChangeSets);
 
         session.ResumeItemTiming();
-        clock.AdvanceMs(30000);
+        clock.AdvanceMs(9000);
 
         Assert.True(session.IsCurrentItemTimedOut());
     }
@@ -722,7 +718,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         Assert.False(session.IsTimingActive);
         Assert.Equal(0, session.GetCurrentActiveElapsedMs());
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
 
         clock.AdvanceMs(180000);
 
@@ -733,7 +729,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.Empty(store.CommittedChangeSets);
 
         session.ResumeItemTiming();
-        clock.AdvanceMs(29999);
+        clock.AdvanceMs(8999);
         Assert.False(session.IsCurrentItemTimedOut());
 
         clock.AdvanceMs(1);
@@ -748,31 +744,31 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         var session = new TrainingSession(store, clock);
         await session.InitializeAsync();
 
-        // 30s deadline
-        Assert.Equal(30000, session.CurrentFactDeadlineMs);
+        // Cold learner presentation has a 9s adaptive deadline.
+        Assert.Equal(9000, session.CurrentFactDeadlineMs);
 
-        // Active for 20s
-        clock.AdvanceMs(20000);
+        // Active for 5s
+        clock.AdvanceMs(5000);
         Assert.False(session.IsCurrentItemTimedOut());
 
         // Paused for 120s in Settings
         session.PauseItemTiming();
         clock.AdvanceMs(120000);
         Assert.False(session.IsCurrentItemTimedOut());
-        Assert.Equal(20000, session.GetCurrentActiveElapsedMs());
+        Assert.Equal(5000, session.GetCurrentActiveElapsedMs());
 
-        // Resume and advance 9.9s (active total = 29.9s)
+        // Resume and advance 3.9s (active total = 8.9s)
         session.ResumeItemTiming();
-        clock.AdvanceMs(9900);
+        clock.AdvanceMs(3900);
         Assert.False(session.IsCurrentItemTimedOut());
 
-        // Advance 200ms more (active total = 30.1s)
+        // Advance 200ms more (active total = 9.1s)
         clock.AdvanceMs(200);
         Assert.True(session.IsCurrentItemTimedOut());
 
         var eval = session.RecordTimeout();
         Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
-        Assert.Equal(30100, eval.LatencyMs);
+        Assert.Equal(9100, eval.LatencyMs);
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
     }
 

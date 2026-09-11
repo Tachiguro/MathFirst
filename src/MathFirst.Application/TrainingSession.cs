@@ -42,6 +42,7 @@ public sealed class TrainingSession
     public int SessionTotalCount { get; private set; }
     public ArithmeticFact CurrentFact { get; private set; } = null!;
     public long ItemReadyTimestamp { get; private set; }
+    public long CurrentFactExpectedPaceMs { get; private set; } = AdaptivePacePolicy.StaticPriorMs;
     public long CurrentFactDeadlineMs { get; private set; } = LearningPolicy.DeadlineStreak0Ms;
     public double CurrentFactDeadlineSeconds => CurrentFactDeadlineMs / 1000.0;
     public long LastResponseLatencyMs { get; private set; }
@@ -105,12 +106,6 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = 0;
         _isTimingActive = false;
         InteractionState = SessionInteractionState.AwaitingAnswer;
-
-        if (CurrentFact is not null)
-        {
-            ItemStates.TryGetValue(CurrentFact.Id, out var state);
-            CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
-        }
 
         ReconcileTimingState();
     }
@@ -294,6 +289,12 @@ public sealed class TrainingSession
         var elapsedMs = (long)Math.Max(1, GetCurrentActiveElapsedMs());
         _accumulatedActiveElapsedMs = elapsedMs;
         _isTimingActive = false;
+
+        if (elapsedMs >= CurrentFactDeadlineMs)
+        {
+            InteractionState = SessionInteractionState.TimeoutFeedback;
+            return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs, null);
+        }
 
         var isCorrect = submittedAnswer == CurrentFact.CorrectResult;
         var outcome = isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect;
@@ -556,6 +557,14 @@ public sealed class TrainingSession
             new PracticeCandidateIndex(_selectionEvidence),
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)));
         CurrentFact = _selector.SelectTargetFact(context).Fact;
+        var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
+        var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
+            .GetOwnedFrontier(currentProgression.BandIndex)
+            .Select(fact => fact.Id);
+        var adaptivePace = AdaptivePacePolicy.Calculate(CurrentFact, ownedFrontierFactIds, _recentAttempts);
+        CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
+        CurrentFactDeadlineMs = adaptivePace.DeadlineMs;
+
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
         _accumulatedActiveElapsedMs = 0;
@@ -571,8 +580,6 @@ public sealed class TrainingSession
             _requiresBackgroundResumeAfterAdvance = false;
         }
 
-        ItemStates.TryGetValue(CurrentFact.Id, out var state);
-        CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
         ReconcileTimingState();
     }
 
