@@ -243,6 +243,7 @@ public sealed class PracticeCopySelectorTests
             18,
             18,
             true,
+            true,
             900,
             latestAcceptedAt,
             practicePosition: 1);

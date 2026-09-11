@@ -5,12 +5,14 @@ public sealed record BandAttemptEvidence
     public long PracticePosition { get; }
     public string FactId { get; }
     public bool IsCorrect { get; }
+    public bool IsFluent { get; }
     public long ResponseLatencyMs { get; }
 
     public BandAttemptEvidence(
         long practicePosition,
         string factId,
         bool isCorrect,
+        bool isFluent,
         long responseLatencyMs)
     {
         if (practicePosition <= 0)
@@ -33,6 +35,11 @@ public sealed record BandAttemptEvidence
         PracticePosition = practicePosition;
         FactId = factId;
         IsCorrect = isCorrect;
+        if (isFluent && !isCorrect)
+        {
+            throw new ArgumentException("Only correct advancement evidence may be fluent.", nameof(isFluent));
+        }
+        IsFluent = isFluent;
         ResponseLatencyMs = responseLatencyMs;
     }
 }

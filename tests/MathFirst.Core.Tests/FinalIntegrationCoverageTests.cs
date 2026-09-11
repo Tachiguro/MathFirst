@@ -107,7 +107,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         {
             await migrationStore.InitializeAsync();
             var snapshot = await migrationStore.LoadSnapshotAsync();
-            Assert.Equal(5, snapshot.SchemaVersion);
+            Assert.Equal(6, snapshot.SchemaVersion);
             Assert.Equal(MigrationPracticePosition, snapshot.Progression.PracticePosition);
             Assert.Equal(MigrationRevision, snapshot.Revision);
             Assert.Equal(fixture.OperationMaximums.Select(pair => new OperationProgression(pair.Key, pair.Value - 1, MigrationPracticePosition)).OrderBy(value => value.Operation),

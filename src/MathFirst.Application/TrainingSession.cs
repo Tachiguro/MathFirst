@@ -13,7 +13,6 @@ public sealed class TrainingSession
     private readonly IClock _clock;
     private readonly AdaptivePracticeSelector _selector;
     private readonly IFsrsScheduler _fsrsScheduler;
-    private readonly long _fluentThresholdMs;
     private Dictionary<string, FsrsCardState> _fsrsStates = new(StringComparer.Ordinal);
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
@@ -43,6 +42,8 @@ public sealed class TrainingSession
     public ArithmeticFact CurrentFact { get; private set; } = null!;
     public long ItemReadyTimestamp { get; private set; }
     public long CurrentFactExpectedPaceMs { get; private set; } = AdaptivePacePolicy.StaticPriorMs;
+    public long CurrentFactEasyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumEasyThresholdMs;
+    public long CurrentFactFluencyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumFluencyThresholdMs;
     public long CurrentFactDeadlineMs { get; private set; } = LearningPolicy.DeadlineStreak0Ms;
     public double CurrentFactDeadlineSeconds => CurrentFactDeadlineMs / 1000.0;
     public long LastResponseLatencyMs { get; private set; }
@@ -70,14 +71,12 @@ public sealed class TrainingSession
         ILearnerStore store,
         IClock? clock = null,
         AdaptivePracticeSelector? selector = null,
-        IFsrsScheduler? fsrsScheduler = null,
-        long fluentThresholdMs = LearningPolicy.DefaultFluentResponseThresholdMs)
+        IFsrsScheduler? fsrsScheduler = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _clock = clock ?? MonotonicClock.Instance;
         _selector = selector ?? new AdaptivePracticeSelector();
         _fsrsScheduler = fsrsScheduler ?? new FsrsSchedulerAdapter();
-        _fluentThresholdMs = fluentThresholdMs;
     }
 
     public async Task InitializeAsync(
@@ -341,18 +340,23 @@ public sealed class TrainingSession
         LastPersistenceResult = null;
         LastResponseLatencyMs = elapsedMs;
         var isCorrect = (outcome == AttemptOutcome.Correct);
+        var classification = AdaptiveAttemptClassifier.Classify(
+            outcome,
+            elapsedMs,
+            CurrentFactEasyThresholdMs,
+            CurrentFactFluencyThresholdMs);
+        var isFluent = classification.IsFluent;
 
         var candidateProgression = CloneProgression(Progression);
         var practicePosition = checked(candidateProgression.PracticePosition + 1);
         candidateProgression.PracticePosition = practicePosition;
 
         // 3. Update FSRS card state
-        var rating = FsrsRatingMapper.MapRating(outcome, elapsedMs, LearningPolicy.DefaultEasyResponseThresholdMs, _fluentThresholdMs);
         _fsrsStates.TryGetValue(CurrentFact.Id, out var existingFsrsState);
         var updatedFsrsState = _fsrsScheduler.ReviewCard(
             existingFsrsState,
             CurrentFact.Id,
-            rating,
+            classification.Rating,
             practicePosition,
             elapsedMs);
 
@@ -373,7 +377,7 @@ public sealed class TrainingSession
         {
             itemState.CorrectAttempts++;
             itemState.ConsecutiveCorrectStreak++;
-            if (elapsedMs <= _fluentThresholdMs)
+            if (isFluent)
             {
                 itemState.FluentStreak++;
             }
@@ -396,15 +400,20 @@ public sealed class TrainingSession
             itemState.RemediationDueOrder = SessionOrderCounter + LearningPolicy.RemediationInterveningCount;
         }
 
-        itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, _fluentThresholdMs);
+        itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, isFluent);
 
         // Evaluate only the scheduled operation from bounded positioned evidence.
         var operationProgressions = candidateProgression.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var currentOperationProgression = operationProgressions[CurrentFact.Operation];
         var operationAttempts = _recentAttempts
             .Where(existing => existing.Operation == CurrentFact.Operation)
-            .Select(existing => new BandAttemptEvidence(existing.PracticePosition!.Value, existing.FactId, existing.IsCorrect, existing.ResponseLatencyMs))
-            .Append(new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, elapsedMs));
+            .Select(existing => new BandAttemptEvidence(
+                existing.PracticePosition!.Value,
+                existing.FactId,
+                existing.IsCorrect,
+                existing.IsFluent,
+                existing.ResponseLatencyMs))
+            .Append(new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, isFluent, elapsedMs));
         var operationCurriculum = _curriculum.GetCurriculum(CurrentFact.Operation);
         var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
         var ownedFactIds = ownership.GetOwnedFrontier(currentOperationProgression.BandIndex)
@@ -439,6 +448,7 @@ public sealed class TrainingSession
             submittedAnswer,
             CurrentFact.CorrectResult,
             isCorrect,
+            isFluent,
             elapsedMs,
             DateTimeOffset.UtcNow,
             outcome,
@@ -563,6 +573,8 @@ public sealed class TrainingSession
             .Select(fact => fact.Id);
         var adaptivePace = AdaptivePacePolicy.Calculate(CurrentFact, ownedFrontierFactIds, _recentAttempts);
         CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
+        CurrentFactEasyThresholdMs = adaptivePace.EasyThresholdMs;
+        CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;
         CurrentFactDeadlineMs = adaptivePace.DeadlineMs;
 
         ItemReadyTimestamp = _clock.GetTimestamp();

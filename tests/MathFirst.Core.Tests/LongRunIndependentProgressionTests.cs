@@ -365,6 +365,7 @@ public sealed class LongRunIndependentProgressionTests
                     isCorrect ? fact.CorrectResult : fact.CorrectResult + 1,
                     fact.CorrectResult,
                     isCorrect,
+                    isCorrect,
                     isCorrect ? 800 : 3_000,
                     DateTimeOffset.UnixEpoch.AddMinutes(index),
                     practicePosition: 3 + (index * 4));

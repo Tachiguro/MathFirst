@@ -319,6 +319,7 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
             outcome == AttemptOutcome.Timeout ? null : fact.CorrectResult,
             fact.CorrectResult,
             outcome == AttemptOutcome.Correct,
+            outcome == AttemptOutcome.Correct && latencyMs <= 2500,
             latencyMs,
             DateTimeOffset.UnixEpoch.AddSeconds(practicePosition ?? 0),
             outcome,

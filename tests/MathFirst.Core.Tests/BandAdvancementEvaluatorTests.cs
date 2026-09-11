@@ -30,9 +30,9 @@ public sealed class BandAdvancementEvaluatorTests
     public void AttemptEvidence_RequiresPositivePositionAndNonNegativeLatency()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new BandAttemptEvidence(0, "add:1+1", true, 1000));
+            new BandAttemptEvidence(0, "add:1+1", true, true, 1000));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new BandAttemptEvidence(1, "add:1+1", true, -1));
+            new BandAttemptEvidence(1, "add:1+1", true, true, -1));
     }
 
     [Fact]
@@ -247,6 +247,7 @@ public sealed class BandAdvancementEvaluatorTests
                 attempt.PracticePosition - 1,
                 attempt.FactId,
                 attempt.IsCorrect,
+                attempt.IsFluent,
                 attempt.ResponseLatencyMs));
         var equalityIncluded = new BandAdvancementEvidence(
             shiftedAttempts,
@@ -262,7 +263,7 @@ public sealed class BandAdvancementEvaluatorTests
     {
         var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0);
         var oldFailures = Enumerable.Range(101, 10)
-            .Select(position => new BandAttemptEvidence(position, "add:999+999", false, 5000));
+            .Select(position => new BandAttemptEvidence(position, "add:999+999", false, false, 5000));
         var shiftedPassing = ShiftAttempts(passing.Evidence.AcceptedAttempts, 10);
         var withOldFailures = ReplaceAttempts(passing, oldFailures.Concat(shiftedPassing));
 
@@ -277,7 +278,7 @@ public sealed class BandAdvancementEvaluatorTests
             correctCount: 37,
             fluentCount: 34);
         var oldSuccesses = Enumerable.Range(101, 10)
-            .Select(position => new BandAttemptEvidence(position, "add:0+0", true, 1000));
+            .Select(position => new BandAttemptEvidence(position, "add:0+0", true, true, 1000));
         var shiftedFailing = ShiftAttempts(failing.Evidence.AcceptedAttempts, 10);
         var withOldSuccesses = ReplaceAttempts(failing, oldSuccesses.Concat(shiftedFailing));
 
@@ -305,7 +306,7 @@ public sealed class BandAdvancementEvaluatorTests
     {
         var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 0);
         var duplicate = testCase.Evidence.AcceptedAttempts
-            .Append(new BandAttemptEvidence(140, "add:999+999", true, 1000));
+            .Append(new BandAttemptEvidence(140, "add:999+999", true, true, 1000));
         var invalid = ReplaceAttempts(testCase, duplicate);
 
         Assert.Throws<ArgumentException>(() =>
@@ -598,7 +599,12 @@ public sealed class BandAdvancementEvaluatorTests
                     : nonFrontierId;
                 var isCorrect = index < correctCount;
                 var latency = isCorrect && index < fluentCount ? 2500 : 2501;
-                return new BandAttemptEvidence(bandStart + index + 1, factId, isCorrect, latency);
+                return new BandAttemptEvidence(
+                    bandStart + index + 1,
+                    factId,
+                    isCorrect,
+                    isCorrect && index < fluentCount,
+                    latency);
             })
             .ToArray();
 
@@ -635,6 +641,7 @@ public sealed class BandAdvancementEvaluatorTests
             attempt.PracticePosition + offset,
             attempt.FactId,
             attempt.IsCorrect,
+            attempt.IsFluent,
             attempt.ResponseLatencyMs));
 
     private static CurriculumBand GetBand(OperationCurriculum curriculum, int bandIndex)

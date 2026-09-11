@@ -24,14 +24,14 @@ public sealed class SchemaV5MigrationTests : IDisposable
     }
 
     [Fact]
-    public async Task Fresh_store_creates_schema_v5_operation_progression_rows()
+    public async Task Fresh_store_creates_schema_v6_operation_progression_rows()
     {
         var path = Path.Combine(_directory, "fresh.db");
         using var store = new SqliteLearnerStore(path);
         await store.InitializeAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(5, snapshot.SchemaVersion);
+        Assert.Equal(6, snapshot.SchemaVersion);
         Assert.Null(snapshot.LatestAcceptedPracticeAt);
         await store.CloseAsync();
 
@@ -53,7 +53,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
     }
 
     [Fact]
-    public async Task V4_store_migrates_to_v5_without_assigning_historical_positions()
+    public async Task V4_store_migrates_through_v5_to_v6_without_assigning_historical_positions()
     {
         var path = Path.Combine(_directory, "v4.db");
         await CreateV4DatabaseAsync(path);
@@ -62,7 +62,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         await store.InitializeAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(5, snapshot.SchemaVersion);
+        Assert.Equal(6, snapshot.SchemaVersion);
         Assert.Equal(17, snapshot.Progression.PracticePosition);
         Assert.Equal(
             new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero),
@@ -72,8 +72,13 @@ public sealed class SchemaV5MigrationTests : IDisposable
         await using var connection = new SqliteConnection($"Data Source={path}");
         await connection.OpenAsync();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT practice_position FROM attempt_history WHERE submission_id = 'legacy';";
-        Assert.IsType<DBNull>(await command.ExecuteScalarAsync());
+        command.CommandText = "SELECT practice_position, is_fluent FROM attempt_history WHERE submission_id = 'legacy';";
+        using (var attemptReader = await command.ExecuteReaderAsync())
+        {
+            Assert.True(await attemptReader.ReadAsync());
+            Assert.True(attemptReader.IsDBNull(0));
+            Assert.Equal(1L, attemptReader.GetInt64(1));
+        }
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'ix_item_learning_state_operation_%';";
         Assert.Equal(3L, (long)(await command.ExecuteScalarAsync())!);
     }

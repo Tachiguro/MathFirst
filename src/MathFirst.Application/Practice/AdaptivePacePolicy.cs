@@ -8,6 +8,8 @@ public sealed record AdaptivePaceResult(
     long OperationPaceMs,
     long BandPaceMs,
     long FactPaceMs,
+    long EasyThresholdMs,
+    long FluencyThresholdMs,
     long InstabilityAllowanceMs,
     long DeadlineMs);
 
@@ -18,6 +20,10 @@ public static class AdaptivePacePolicy
     public const long MaximumSampleMs = 12000;
     public const long MinimumDeadlineMs = 3000;
     public const long MaximumDeadlineMs = 30000;
+    public const long MinimumEasyThresholdMs = 600;
+    public const long MaximumEasyThresholdMs = 2000;
+    public const long MinimumFluencyThresholdMs = 1500;
+    public const long MaximumFluencyThresholdMs = 4000;
 
     private const int LearnerSampleLimit = 30;
     private const int OperationSampleLimit = 20;
@@ -73,6 +79,8 @@ public static class AdaptivePacePolicy
         var incorrectCount = latestFactOutcomes.Count(attempt => attempt.Outcome == AttemptOutcome.Incorrect);
         var timeoutCount = latestFactOutcomes.Count(attempt => attempt.Outcome == AttemptOutcome.Timeout);
         var allowance = Math.Min(3000L, checked(1000L * incorrectCount + 1500L * timeoutCount));
+        var easyThreshold = CalculateEasyThresholdMs(factPace);
+        var fluencyThreshold = CalculateFluencyThresholdMs(factPace);
         var deadline = CalculateDeadline(factPace, allowance);
 
         return new AdaptivePaceResult(
@@ -80,8 +88,32 @@ public static class AdaptivePacePolicy
             operationPace,
             bandPace,
             factPace,
+            easyThreshold,
+            fluencyThreshold,
             allowance,
             deadline);
+    }
+
+    public static long CalculateEasyThresholdMs(long factPaceMs)
+    {
+        if (factPaceMs < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(factPaceMs));
+        }
+
+        var threshold = DivideRoundHalfUp(checked(85 * factPaceMs), 100);
+        return Math.Clamp(threshold, MinimumEasyThresholdMs, MaximumEasyThresholdMs);
+    }
+
+    public static long CalculateFluencyThresholdMs(long factPaceMs)
+    {
+        if (factPaceMs < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(factPaceMs));
+        }
+
+        var threshold = DivideRoundHalfUp(checked(125 * factPaceMs), 100);
+        return Math.Clamp(threshold, MinimumFluencyThresholdMs, MaximumFluencyThresholdMs);
     }
 
     public static long ClampLatencySample(long responseLatencyMs) =>

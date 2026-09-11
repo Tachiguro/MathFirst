@@ -38,7 +38,7 @@ public static class LearningPolicy
 
     public static bool EvaluateItemMastery(
         ItemLearningState state,
-        long fluentThresholdMs = DefaultFluentResponseThresholdMs)
+        bool isCurrentAttemptFluent)
     {
         if (state.NeedsRemediation)
         {
@@ -47,7 +47,6 @@ public static class LearningPolicy
 
         return state.TotalAttempts >= MinMasteryAttempts
             && state.ConsecutiveCorrectStreak >= MinConsecutiveCorrectForMastery
-            && state.LastLatencyMs > 0
-            && state.LastLatencyMs <= fluentThresholdMs;
+            && isCurrentAttemptFluent;
     }
 }
