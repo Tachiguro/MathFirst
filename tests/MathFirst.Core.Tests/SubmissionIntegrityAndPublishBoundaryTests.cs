@@ -32,7 +32,7 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         var submissionId = Guid.NewGuid().ToString("N");
         var attempt = new AttemptRecord(
             submissionId, fact.Id, fact.Operation, fact.LeftOperand, fact.RightOperand,
-            submittedAnswer: 1, correctAnswer: 1, isCorrect: true, responseLatencyMs: 900,
+            submittedAnswer: 1, correctAnswer: 1, isCorrect: true, isFluent: true, responseLatencyMs: 900,
             timestamp: DateTimeOffset.UtcNow, practicePosition: 5);
         var changeSet = new SubmissionChangeSet(submissionId, before.Revision, attempt, itemState, progression);
 
@@ -208,7 +208,7 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         var item = ItemLearningState.CreateNew(fact);
         var changeSet = new SubmissionChangeSet(
             "defensive-copy", 1,
-            new AttemptRecord("defensive-copy", fact.Id, fact.Operation, 0, 1, 1, 1, true, 900, DateTimeOffset.UtcNow, practicePosition: 1),
+            new AttemptRecord("defensive-copy", fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 900, DateTimeOffset.UtcNow, practicePosition: 1),
             item,
             candidate);
 
@@ -322,7 +322,7 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         return new SubmissionChangeSet(
             submissionId,
             expectedRevision,
-            new AttemptRecord(submissionId, fact.Id, operation, fact.LeftOperand, fact.RightOperand, 1, fact.CorrectResult, true, 900, DateTimeOffset.UtcNow, practicePosition: practicePosition),
+            new AttemptRecord(submissionId, fact.Id, operation, fact.LeftOperand, fact.RightOperand, 1, fact.CorrectResult, true, true, 900, DateTimeOffset.UtcNow, practicePosition: practicePosition),
             item,
             progression,
             operationProgressions: progression.OperationProgressions);
@@ -370,7 +370,7 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
                 var position = 1L + (index * 4L);
                 return new AttemptRecord(
                     $"advancement-ready-{position}", fact.Id, fact.Operation, fact.LeftOperand, fact.RightOperand,
-                    fact.CorrectResult, fact.CorrectResult, true, 900, DateTimeOffset.UtcNow,
+                    fact.CorrectResult, fact.CorrectResult, true, true, 900, DateTimeOffset.UtcNow,
                     practicePosition: position);
             })
             .ToArray();

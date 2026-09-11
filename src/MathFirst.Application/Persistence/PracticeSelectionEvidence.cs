@@ -66,18 +66,18 @@ public sealed class PracticeSelectionEvidence
         IEnumerable<PracticeSelectionCandidate> dueCandidates,
         IEnumerable<PracticeSelectionCandidate> maintenanceCandidates,
         IEnumerable<PracticeSelectionCandidate> remediationCandidates,
-        IEnumerable<PracticeSelectionCandidate> anyMaterializedCandidates)
+        IEnumerable<PracticeSelectionCandidate> earlyReviewCandidates)
     {
         CurrentBandCandidates = Copy(currentBandCandidates, nameof(currentBandCandidates));
         DueCandidates = Copy(dueCandidates, nameof(dueCandidates));
         MaintenanceCandidates = Copy(maintenanceCandidates, nameof(maintenanceCandidates));
         RemediationCandidates = Copy(remediationCandidates, nameof(remediationCandidates));
-        AnyMaterializedCandidates = Copy(anyMaterializedCandidates, nameof(anyMaterializedCandidates));
+        EarlyReviewCandidates = Copy(earlyReviewCandidates, nameof(earlyReviewCandidates));
 
         if (DueCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
             || MaintenanceCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
             || RemediationCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
-            || AnyMaterializedCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            || EarlyReviewCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize)
         {
             throw new ArgumentException("Open-ended practice-selection candidate windows must be bounded.");
         }
@@ -87,7 +87,7 @@ public sealed class PracticeSelectionEvidence
     public IReadOnlyList<PracticeSelectionCandidate> DueCandidates { get; }
     public IReadOnlyList<PracticeSelectionCandidate> MaintenanceCandidates { get; }
     public IReadOnlyList<PracticeSelectionCandidate> RemediationCandidates { get; }
-    public IReadOnlyList<PracticeSelectionCandidate> AnyMaterializedCandidates { get; }
+    public IReadOnlyList<PracticeSelectionCandidate> EarlyReviewCandidates { get; }
 
     public IReadOnlyDictionary<string, ItemLearningState> ItemStates => AllCandidates()
         .GroupBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
@@ -102,7 +102,7 @@ public sealed class PracticeSelectionEvidence
         .Concat(DueCandidates)
         .Concat(MaintenanceCandidates)
         .Concat(RemediationCandidates)
-        .Concat(AnyMaterializedCandidates);
+        .Concat(EarlyReviewCandidates);
 
     public static PracticeSelectionEvidence FromSnapshot(
         LearnerSnapshot snapshot,
@@ -120,23 +120,65 @@ public sealed class PracticeSelectionEvidence
             .ToArray();
         var byId = candidates.ToDictionary(candidate => candidate.Fact.Id, StringComparer.Ordinal);
 
+        var remediationCandidates = candidates
+            .Where(candidate => candidate.ItemState.NeedsRemediation
+                && candidate.FsrsState?.LastReviewPracticePosition is not null
+                && request.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
+            .OrderBy(candidate => candidate.FsrsState!.LastReviewPracticePosition!.Value)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            .ToArray();
+
+        var remediationEligibleFactIds = remediationCandidates.Select(c => c.Fact.Id).ToHashSet(StringComparer.Ordinal);
+
+        var dueCandidates = candidates
+            .Where(candidate => candidate.FsrsState is not null
+                && candidate.FsrsState.DuePracticePosition <= request.ProspectivePracticePosition
+                && !remediationEligibleFactIds.Contains(candidate.Fact.Id))
+            .OrderBy(candidate => candidate.FsrsState!.DuePracticePosition)
+            .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            .ToArray();
+
+        var maintenanceCandidates = candidates
+            .Where(candidate => !candidate.ItemState.NeedsRemediation
+                && candidate.FsrsState is not null
+                && candidate.FsrsState.DuePracticePosition > request.ProspectivePracticePosition
+                && candidate.FsrsState.LastReviewPracticePosition is not null
+                && request.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 40)
+            .OrderBy(candidate => candidate.FsrsState!.LastReviewPracticePosition!.Value)
+            .ThenBy(candidate => candidate.FsrsState!.DuePracticePosition)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            .ToArray();
+
+        var earlyReviewCandidates = candidates
+            .Where(candidate => !candidate.ItemState.NeedsRemediation
+                && candidate.FsrsState is not null
+                && candidate.FsrsState.DuePracticePosition > request.ProspectivePracticePosition)
+            .OrderBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
+            .ThenBy(candidate => candidate.FsrsState!.DuePracticePosition)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            .ToArray();
+
+        var currentBandCandidates = request.CurrentBandOwnedFrontier
+            .Where(fact => byId.ContainsKey(fact.Id) && !remediationEligibleFactIds.Contains(fact.Id))
+            .Select(fact => byId[fact.Id])
+            .OrderBy(candidate => candidate.ItemState.IsProvisionallyMastered ? 1 : 0)
+            .ThenBy(candidate => candidate.ItemState.TotalAttempts)
+            .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
+            .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
+            .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            .ToArray();
+
         return new PracticeSelectionEvidence(
-            request.CurrentBandOwnedFrontier.Where(fact => byId.ContainsKey(fact.Id)).Select(fact => byId[fact.Id]),
-            candidates.Where(candidate => candidate.FsrsState?.DuePracticePosition <= request.ProspectivePracticePosition)
-                .OrderBy(candidate => candidate.FsrsState!.DuePracticePosition).ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-                .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize),
-            candidates.Where(candidate => !candidate.ItemState.NeedsRemediation
-                    && (candidate.FsrsState is null || candidate.FsrsState.DuePracticePosition > request.ProspectivePracticePosition))
-                .OrderBy(candidate => candidate.ItemState.LastPracticedOrder)
-                .ThenBy(candidate => candidate.FsrsState?.DuePracticePosition ?? long.MaxValue)
-                .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-                .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize),
-            candidates.Where(candidate => candidate.ItemState.NeedsRemediation
-                    && request.CurrentSessionOrder >= candidate.ItemState.RemediationDueOrder)
-                .OrderBy(candidate => candidate.ItemState.RemediationDueOrder).ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-                .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize),
-            candidates.OrderBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-                .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize));
+            currentBandCandidates,
+            dueCandidates,
+            maintenanceCandidates,
+            remediationCandidates,
+            earlyReviewCandidates);
     }
 
     private static IReadOnlyList<PracticeSelectionCandidate> Copy(

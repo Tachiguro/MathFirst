@@ -9,6 +9,7 @@ public sealed record ArithmeticFact
     public int CorrectResult { get; }
     public string DisplaySymbol { get; }
     public string ExpressionText { get; }
+    public string EquationText => $"{ExpressionText} = {CorrectResult}";
 
     public ArithmeticFact(ArithmeticOperation operation, int leftOperand, int rightOperand)
     {

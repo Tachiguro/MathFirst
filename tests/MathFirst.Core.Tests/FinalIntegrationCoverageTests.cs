@@ -78,10 +78,9 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         AssertEquivalentAdvancementRun(continuous, restartedAfter);
         Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(continuous.Trigger.PracticePosition, continuous.State.Progressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
-        // Under MF-STAB-001 bootstrap thresholds, the 156-attempt fixture sequence satisfies Multiplication BandIndex 0 advancement.
-        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Multiplication].BandIndex);
-        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Subtraction].BandIndex);
-        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Division].BandIndex);
+        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Subtraction].BandIndex);
+        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Division].BandIndex);
 
         using var reloadedStore = new SqliteLearnerStore(afterRestartPath);
         await reloadedStore.InitializeAsync();
@@ -107,7 +106,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         {
             await migrationStore.InitializeAsync();
             var snapshot = await migrationStore.LoadSnapshotAsync();
-            Assert.Equal(5, snapshot.SchemaVersion);
+            Assert.Equal(6, snapshot.SchemaVersion);
             Assert.Equal(MigrationPracticePosition, snapshot.Progression.PracticePosition);
             Assert.Equal(MigrationRevision, snapshot.Revision);
             Assert.Equal(fixture.OperationMaximums.Select(pair => new OperationProgression(pair.Key, pair.Value - 1, MigrationPracticePosition)).OrderBy(value => value.Operation),
@@ -192,12 +191,12 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, new ScriptedClock());
         await session.InitializeAsync(startTiming: false);
-        for (var position = 1L; position <= 156; position++)
+        for (var position = 1L; position <= 28; position++)
         {
             await SubmitFluentAndAdvanceAsync(session, position);
         }
 
-        Assert.Equal(156, session.Progression.PracticePosition);
+        Assert.Equal(28, session.Progression.PracticePosition);
         Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
     }
@@ -209,7 +208,11 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
         Assert.Equal(expectedPosition, session.Progression.PracticePosition);
-        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+        {
+            Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+            session.ContinuePractice(startTiming: false);
+        }
     }
 
     private static async Task<AdvancementRun> CommitAdvancementTriggerAsync(TrainingSession session)
@@ -218,7 +221,11 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         var before = session.Progression.OperationProgressions[ArithmeticOperation.Addition];
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+        {
+            Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+            session.ContinuePractice(startTiming: false);
+        }
         var run = new AdvancementRun(trigger, CaptureState(session), trigger.PracticePosition);
         Assert.Equal(before.BandIndex + 1, run.State.Progressions[ArithmeticOperation.Addition].BandIndex);
         return run;

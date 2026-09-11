@@ -18,7 +18,6 @@ public sealed class BandAdvancementEvaluator
         RequiredFluentAttempts: 11,
         RequiredFrontierAttempts: 8,
         MaximumRequiredDistinctFrontierFacts: 4);
-    private const long FluentLatencyThresholdMs = 2500;
 
     public BandAdvancementDecision Evaluate(
         OperationProgression currentProgression,
@@ -43,8 +42,18 @@ public sealed class BandAdvancementEvaluator
                 nameof(currentProgression));
         }
 
-        var requirements = ResolveRequirements(currentProgression);
         ValidateUniquePracticePositions(evidence.AcceptedAttempts);
+
+        if (FastAcquisitionEvaluator.TryEvaluate(
+            currentProgression,
+            curriculum,
+            evidence,
+            out var fastAdvancedProgression))
+        {
+            return new BandAdvancementDecision(true, fastAdvancedProgression);
+        }
+
+        var requirements = ResolveRequirements(currentProgression);
 
         var qualifyingAttempts = evidence.AcceptedAttempts
             .Where(attempt => attempt.PracticePosition > currentProgression.BandStartedPracticePosition)
@@ -57,7 +66,7 @@ public sealed class BandAdvancementEvaluator
 
         var latestWindow = qualifyingAttempts[^requirements.WindowSize..];
         if (latestWindow.Count(attempt => attempt.IsCorrect) < requirements.RequiredCorrectAttempts
-            || latestWindow.Count(IsFluent) < requirements.RequiredFluentAttempts)
+            || latestWindow.Count(attempt => attempt.IsFluent) < requirements.RequiredFluentAttempts)
         {
             return Stay(currentProgression);
         }
@@ -105,9 +114,6 @@ public sealed class BandAdvancementEvaluator
         progression.Operation == ArithmeticOperation.Multiplication && progression.BandIndex == 0
             ? InitialMultiplicationRequirements
             : StandardRequirements;
-
-    private static bool IsFluent(BandAttemptEvidence attempt) =>
-        attempt.IsCorrect && attempt.ResponseLatencyMs <= FluentLatencyThresholdMs;
 
     private static bool HasRequiredCoverage(
         CurriculumBand currentBand,

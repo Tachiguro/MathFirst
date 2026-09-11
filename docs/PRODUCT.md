@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression and hybrid curriculum in Sections 4–8 are the accepted and implemented MF-LEARN-001 product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md). The current native applications implement learner Schema V5, independent operation progression, deterministic bounded selection, and transactional V4-to-V5 migration. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, and adaptive learning model in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) and [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md) (`MF-LEARN-002`). The current native applications implement learner Schema V6, hierarchical adaptive pace, dynamic answer deadlines, adaptive FSRS ratings and fluency, deterministic fast acquisition, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, periodic check-ins, and transactional V5-to-V6 migration. Web runtime implementation remains deferred.
 
 ---
 
@@ -94,22 +94,46 @@ The detailed canonical band order, pure generation formulas, candidate counts, a
 
 Dense advancement means complete lifetime exposure to the band's owned frontier plus recent operation-specific evidence of readiness. Structured advancement means representative fluency sufficient to begin the next arithmetic family; it does not claim exhaustive mastery of every candidate or arbitrary arithmetic at that magnitude.
 
-The standard advancement profile applies to Addition, Subtraction, Division, and Multiplication BandIndex 1 and later. An operation advances only on the atomic accepted submission that completes all of these requirements:
+Advancement evaluates two paths:
 
-1. At least 40 accepted attempts for that operation after its current band began.
-2. In its latest 40 qualifying attempts: at least 38 correct, at least 34 fluent, at least 20 from the current acquisition frontier, and at least `min(16, owned-frontier-size)` distinct current-frontier facts.
-3. Dense coverage includes a lifetime accepted attempt for every owned-frontier fact; structured coverage includes at least 16 distinct owned-frontier introductions during the band.
+#### 1. Fast Acquisition (Dense Bands Only)
+For small dense bands with an owned frontier size $N$ between 1 and 12 facts inclusive, an operation advances immediately when the learner demonstrates instant recall:
+- The band kind must be `Dense` with $1 \le N \le 12$;
+- Evaluated on positioned accepted attempts within the current band instance ($PracticePosition > \text{BandStartedPracticePosition}$);
+- All $N$ owned frontier facts must be encountered;
+- The **first positioned encounter** for every owned fact must be `Correct` with raw $\text{ResponseLatencyMs} \le 2000\text{ ms}$;
+- Any `Incorrect` or `Timeout` in the same-operation qualifying band prefix permanently disqualifies Fast Acquisition for that band instance;
+- All $N$ owned facts must be completed within the phase-aware $N$-th requested-New role horizon derived from operation scheduling and role cycles;
+- Prefix completeness must be provable from bounded evidence without gaps;
+- A complete successor band must exist and remain safe in `Int32`.
 
-The sole exception is the initial Multiplication band: Multiplication BandIndex 0 (`MUL-D01`) advances after 12 qualifying accepted multiplication attempts following `BandStartedPracticePosition`, with at least 11 correct, 11 fluent, 8 owned-frontier attempts, all four owned `MUL-D01` facts represented distinctly, and complete dense lifetime coverage of `0 × 0`, `0 × 1`, `1 × 0`, and `1 × 1`. After advancement, `MUL-D02` becomes active and factor-2 facts enter only through the existing deterministic selector; no factor-2 injection bypasses normal selection.
+Fast Acquisition uses raw absolute latency ($\le 2000\text{ ms}$) rather than adaptive `IsFluent`. Subsequent repetitions cannot repair a failed first encounter. If Fast Acquisition is not met, the operation continues seamlessly under ordinary rolling-window advancement.
 
-Fluent means Correct with response latency at or below 2500 ms. Incorrect and Timeout are incorrect and non-fluent; a slower correct response is correct but non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window, while weak facts remain active through remediation and FSRS.
+#### 2. Ordinary Rolling-Window Advancement
+If Fast Acquisition is not met, standard rolling-window requirements apply:
+- **Standard Profile** (Addition, Subtraction, Division, and Multiplication BandIndex 1 and later):
+  1. At least 40 accepted attempts for that operation after its current band began.
+  2. In its latest 40 qualifying attempts: at least 38 correct, at least 34 fluent (`IsFluent == true`), at least 20 from the current acquisition frontier, and at least `min(16, owned-frontier-size)` distinct current-frontier facts.
+  3. Dense coverage includes a lifetime accepted attempt for every owned-frontier fact; structured coverage includes at least 16 distinct owned-frontier introductions during the band.
+- **Multiplication Bootstrap Profile** (`MUL-D01`):
+  Multiplication BandIndex 0 advances after 12 qualifying accepted multiplication attempts following `BandStartedPracticePosition`, with at least 11 correct, 11 fluent, 8 owned-frontier attempts, all four owned `MUL-D01` facts represented distinctly, and complete dense lifetime coverage of `0 × 0`, `0 × 1`, `1 × 0`, and `1 × 1`. After advancement, `MUL-D02` becomes active through normal deterministic selection.
 
-### Open-Ended Arithmetic Scope
+`IsFluent` consumes durable `AttemptRecord.IsFluent`, which is evaluated adaptively against expected fact pace $P_{\text{fact}}$ at presentation time (or historical $\le 2500\text{ ms}$ backfill for legacy V5 rows). Incorrect and Timeout are non-fluent; correct responses slower than the adaptive fluency threshold are correct but non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window, while weak facts remain active through remediation and FSRS.
 
-There is no artificial fixed catalog or level-10 ceiling. Bands continue procedurally while the next complete band is safe in `Int32`; when it is not, that operation remains in maintenance. Generation must use checked arithmetic. Addition requires a checked result, Subtraction remains non-negative, Multiplication requires a checked product, and Division requires a positive divisor and exact non-negative integer result.
+### Open-Ended Arithmetic Scope and Terminal Safety
+
+There is no artificial fixed catalog or level-10 ceiling. Bands continue procedurally while the entire next defined band is safe in `Int32`; when it is not, that operation remains in maintenance at its safe terminal band. Generation must use checked arithmetic. Addition requires a checked result, Subtraction remains non-negative, Multiplication requires a checked product, and Division requires a positive divisor and exact non-negative integer result.
+
+The reviewed complete safe final band indices are:
+- **Addition**: BandIndex 125 (`ADD-P8-D0`)
+- **Subtraction**: BandIndex 135 (`SUB-P8-D0`)
+- **Multiplication**: BandIndex 32 (`MUL-P7-SCALED`)
+- **Division**: BandIndex 32 (`DIV-P7-SCALED`)
+
+Terminal learner state continues through materialized semantic pools (`Due`, `Stale Maintenance`, `Early Review`, `Remediation`) without unsafe successor-band advancement.
 
 ### Initial MVP Arithmetic Boundary
-Negative subtraction, division with remainders, decimal-result arithmetic, and division by zero remain outside the current product boundary. `long` and `BigInteger` expansion are not part of MF-LEARN-001.
+Negative subtraction, division with remainders, decimal-result arithmetic, and division by zero remain outside the current product boundary. `long` and `BigInteger` expansion are deferred.
 
 ---
 
@@ -121,95 +145,143 @@ For next accepted global Practice Position `p`, the scheduled operation is `(p -
 New, Due, New, Maintenance, Frontier, New, Due, New, Due, Frontier
 ```
 
-Normal proportions are 40% New, 30% Due FSRS, 20% explicit Frontier reinforcement, and 10% Maintenance. The semantic candidate pools are:
+Normal proportions are 40% New, 30% Due FSRS, 20% explicit Frontier reinforcement, and 10% Maintenance.
 
-- **New**: an unmaterialized exact fact owned by the scheduled operation's current band.
-- **Frontier**: a materialized exact fact owned by the scheduled operation's current band.
-- **Due**: a materialized exact fact for the scheduled operation that is due under FSRS.
-- **Maintenance**: a materialized exact fact for the scheduled operation eligible for non-due maintenance under the existing practice policy.
-- **AnyMaterialized**: any eligible materialized exact fact for the scheduled operation.
+### Semantic Candidate Pools
+The practice selector resolves candidates from five semantic pools:
 
-A due same-session remediation for the scheduled operation overrides that operation's normal role. It does not override operation scheduling, so a weak operation cannot globally starve stronger operations. After that override is considered, the scheduled role uses the first non-empty pool in its exact fallback chain:
+1. **`New`**: an unmaterialized exact fact whose acquisition owner is the scheduled operation's current band (structured bands use the deterministic 16-fact sample).
+2. **`Useful Frontier`**: a materialized exact fact owned by the scheduled operation's current band, prioritized by:
+   1. Unmastered first (`IsProvisionallyMastered == false`);
+   2. Fewer `TotalAttempts` ascending;
+   3. Older `LastReviewPracticePosition` ascending (nulls first);
+   4. `FactId` ordinal ascending.
+3. **`Due`**: a materialized exact fact for the scheduled operation with a valid FSRS card where $\text{DuePracticePosition} \le \text{ProspectivePosition}$, ordered by `DuePracticePosition`, `LastReviewPracticePosition`, `FactId`.
+4. **`Stale Maintenance`**: a materialized exact fact for the scheduled operation that is not in remediation, has a future FSRS due position, and has $\text{ProspectivePosition} \ge \text{LastReviewPracticePosition} + 40$, ordered by `LastReviewPracticePosition`, `DuePracticePosition`, `FactId`.
+5. **`Early Review`**: a materialized exact fact for the scheduled operation with a valid FSRS card, not in remediation, and with a future due position ($\text{DuePracticePosition} > \text{ProspectivePosition}$), ordered by `LastReviewPracticePosition` (nulls first), `DuePracticePosition`, `FactId`.
+
+### Remediation Priority Override
+A due same-session remediation for the scheduled operation overrides that operation's normal role when a fact has `NeedsRemediation == true` with $\text{ProspectivePosition} \ge \text{LastReviewPracticePosition} + 4$. It does not override operation scheduling, so a weak operation cannot globally starve stronger operations.
+
+### Role-Specific Fallback Chains
+After the remediation override is considered, the scheduled role resolves through the first non-empty semantic pool in its dedicated chain:
 
 ```text
-New role:        New -> Frontier -> Due -> Maintenance -> AnyMaterialized
-Due role:        Due -> Frontier -> Maintenance -> AnyMaterialized
-Maintenance role: Maintenance -> Frontier -> Due -> AnyMaterialized
-Frontier role:   Frontier -> Due -> Maintenance -> AnyMaterialized
+New role:         New -> Useful Frontier -> Due -> Stale Maintenance -> Early Review
+Due role:         Due -> Useful Frontier -> Stale Maintenance -> Early Review
+Maintenance role: Stale Maintenance -> Useful Frontier -> Due -> Early Review
+Frontier role:    Useful Frontier -> Due -> Stale Maintenance -> Early Review
 ```
 
-The selector never changes the scheduled operation because a preferred pool is empty. Only a scheduled New role may select an unmaterialized fact. Due, Maintenance, Frontier, remediation, and AnyMaterialized paths never introduce a new exact fact. Earlier-owned review facts receive no acquisition or current-band coverage credit. Normal introduction therefore remains capped at four opportunities per ten accepted attempts for an operation.
+The selector never changes the scheduled operation because a preferred pool is empty. Only the first `New` entry of a scheduled `New` role may select and materialize an unmaterialized fact. Due, Maintenance, Frontier, remediation, and Early Review paths never materialize a new exact fact. Earlier-owned review facts receive no acquisition or current-band coverage credit.
 
-In a dense band, New selects unmaterialized owned-frontier facts until the frontier is fully materialized, then falls back to Frontier. In a structured band, New falls back to Frontier after 16 distinct owned-frontier introductions. A fresh operation's first role is New and its initial acquisition frontier is non-empty; after its first accepted attempt, at least one materialized fact exists. Migrated learners retain their materialized facts and select New or Frontier according to migration state. This makes the fallback system total without a persisted candidate cursor.
+`Early Review` serves as the essential liveness bridge: when an operation has exhausted its frontier and has only future-due reviews, Early Review selects the oldest-reviewed future fact to keep PracticePosition advancing deterministically without stalling or entering an artificial Caught Up state.
 
-Within a non-empty semantic pool, normal cooldowns apply first. If every candidate is excluded, the commutative-mirror cooldown relaxes first, then the exact-fact cooldown, after which selection proceeds deterministically from that pool. Soft cooldowns cannot make selection non-total.
+Within a non-empty semantic pool, normal cooldowns apply first. If every candidate is excluded:
+1. The commutative-mirror cooldown relaxes within that semantic pool;
+2. The exact-fact cooldown relaxes within that semantic pool;
+3. Selection proceeds deterministically from that pool.
 
-Without remediation overrides, four New roles and two explicit Frontier roles per ten operation attempts provide at least six current-frontier opportunities. An exhausted New pool falls back to Frontier and remains a current-frontier attempt, so a normal 40-attempt operation window provides at least 24 frontier opportunities and 16 New opportunities. Due and Maintenance fallback to Frontier can only increase frontier exposure. The 20-frontier and 16-distinct structured gates are therefore mechanically reachable.
-
-Forty attempts are the minimum evidence-window size, not a guarantee of advancement exactly at attempt 40. Same-session remediation or weak-fact obligations may delay simultaneous satisfaction of all gates. A stable learner can advance once those obligations clear, and no operation is permanently blocked by an empty role pool.
-
-The selector is deterministic: identical durable learner state yields the same operation, and identical operation/band/role/state yields the same candidate. Candidate ordering cannot depend on dictionary/hash iteration or `Random.Shared`. Presentation without accepted submission changes no durable progression.
+Cooldown relaxation occurs strictly inside the already selected semantic pool and never changes fallback-pool priority. An empty candidate state under supported transitions is an integrity failure and fails closed.
 
 ### Repetition Density & Diversity Constraints
 - **Exact Fact Cooldown**: The selector avoids repeating the same `FactId` within the last 3 presented facts when alternative candidates exist (`ExactFactCooldownDistance = 3`).
 - **Commutative Mirror Cooldown**: For Addition and Multiplication, adjacent and near-adjacent mirror pairs (e.g., `6 × 0` and `0 × 6`, `3 + 4` and `4 + 3`) are avoided within 3 positions (`MirrorFactCooldownDistance = 3`), while maintaining distinct item entities and separate FSRS states. Non-commutative Subtraction and Division are strictly exempt.
 - **Operation Streak Diversity**: Limits consecutive questions of the same arithmetic operation to a maximum of 2 when alternative candidates exist (`MaxPreferredOperationStreak = 2`).
-- **Soft Constraint Relaxation**: Diversity constraints relax in a fixed deterministic order so selection cannot deadlock.
 
 ### Task Distance Virtual Time Model
-MathFirst schedules arithmetic reviews not by real-world calendar days, but by **Practice Position** (the monotonic count of accepted arithmetic attempts). One practice position corresponds to one virtual day from epoch `2000-01-01T00:00:00Z`, making review intervals independent of wall-clock manipulation, timezone shifts, or gaps between study days. Responses are automatically rated (`Again`, `Hard`, `Good`, `Easy`) via deterministic latency mapping without manual self-rating buttons.
+MathFirst schedules arithmetic reviews not by real-world calendar days, but by **Practice Position** (the monotonic count of accepted arithmetic attempts). One practice position corresponds to one virtual day from epoch `2000-01-01T00:00:00Z`, making review intervals independent of wall-clock manipulation, timezone shifts, or gaps between study days.
 
-Exact-fact review preserves `FSRS.Core` 1.0.7, 95% desired retention, the existing 21 parameters, disabled fuzzing, and deterministic per-`FactId` cards. Operation advancement consumes raw correctness and latency evidence and does not depend directly on FSRS stability, difficulty, or interval values. Advancement never deletes or suspends a card.
+Exact-fact review preserves `FSRS.Core` 1.0.7, 95% desired retention, 21 default parameters, disabled fuzzing, and deterministic per-`FactId` cards. Responses are rated (`Again`, `Hard`, `Good`, `Easy`) via adaptive pace mapping without manual self-rating buttons. Operation advancement consumes durable attempt correctness and fluency and does not depend directly on FSRS stability, difficulty, or interval values. Advancement never deletes or suspends a card.
 
 ---
 
-## 7. Response Evaluation, Timing, and Fluency
+## 7. Response Evaluation, Adaptive Pace, and Fluency
 
-True arithmetic fluency requires evaluating both correctness and speed against distinct timing boundaries:
+True arithmetic fluency requires evaluating both correctness and speed against adaptive timing boundaries:
 
 1. **Correctness**: Whether the submitted numeric answer is mathematically correct.
-2. **Response Latency**: The elapsed monotonic time between item presentation (`ITEM_READY`) and answer submission.
-3. **Answer Deadline & Visible Countdown**:
-   - Every newly presented arithmetic fact receives a fixed **30,000 ms** answer deadline, independent of `ConsecutiveCorrectStreak`, operation, BandIndex, FactId, FSRS state, and prior latency. The timeout boundary is based on that fixed deadline; historical `ConsecutiveCorrectStreak` remains stored and maintained where already required.
-   - A visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
-   - Timer text features a direct black glyph contour/outline (`-webkit-text-stroke: 2px #000`) for crystal-clear readability directly over all dynamic fill colors without needing an enclosing dark badge.
-   - Practice timing is active only while the application is foreground/interactable, the Practice/Home surface is visible, the transient Practice gate is `Running`, and the session is awaiting an answer. Settings, onboarding, Ready/Pause/Resume gates, and feedback states keep the active item paused. Paused time does not affect response latency, deadlines, semantic attempt history, Practice Position, or session score.
-   - The onboarding **Get Started** action is the authoritative transition into active arithmetic practice. A fresh first fact starts with its full 30-second deadline only after that action; an existing paused fact resumes with its unchanged remaining time after onboarding triggered by restoring defaults.
-   - Completed feedback states (`TimeoutFeedback`, `IncorrectFeedback`, `CorrectFeedback`) survive Settings or onboarding navigation without restarting the timer or generating duplicate attempt records.
-   - Visual UI refresh (~50 ms cadence) is presentation-only; monotonic time is authoritative and immune to UI rendering drift.
-   - Response latency and FSRS scheduling remain strictly separate: the fixed deadline determines only when a timeout occurs, while actual response latency is measured independently and rated deterministically (`Easy` $\le 1000\text{ ms}$, `Good` $1001..2500\text{ ms}$, `Hard` $> 2500\text{ ms}$, `Again` on Incorrect/Timeout). A correct answer at 15,000 ms is still `Hard`; the progression fluency threshold remains 2500 ms.
+2. **Response Latency**: The elapsed monotonic active time between item readiness (`ITEM_READY`) and answer submission.
+3. **Hierarchical Adaptive Pace Runtime**:
+   Expected response latency ($P_{\text{fact}}$) is computed dynamically from positioned, accepted, mathematically correct attempt evidence ($PracticePosition > 0$). Latency samples are clamped to $[600\text{ ms}, 12000\text{ ms}]$.
+
+   The estimator shrinks empirically across four hierarchical layers:
+   - **Static Prior Baseline ($P_0$)**: $4500\text{ ms}$
+   - **Learner Pace ($P_{\text{learner}}$)**: $\text{Shrink}(P_0, 12, \text{latest 30 learner Correct latencies})$
+   - **Operation Pace ($P_{\text{operation}}$)**: $\text{Shrink}(P_{\text{learner}}, 8, \text{latest 20 operation Correct latencies})$
+   - **Band Pace ($P_{\text{band}}$)**: $\text{Shrink}(P_{\text{operation}}, 6, \text{latest 15 band-frontier Correct latencies})$
+   - **Exact Fact Pace ($P_{\text{fact}}$)**: $\text{Shrink}(P_{\text{band}}, 4, \text{latest 5 exact-fact Correct latencies})$
+
+   $$\text{Shrink}(P_{\text{parent}}, W, \text{samples}) = \begin{cases} P_{\text{parent}} & \text{if samples is empty} \\ \left\lfloor \frac{W \cdot P_{\text{parent}} + |\text{samples}| \cdot \text{Median}(\text{samples}) + \frac{W + |\text{samples}|}{2}}{W + |\text{samples}|} \right\rfloor & \text{otherwise} \end{cases}$$
+
+   Empty samples return the parent pace estimate. Legacy unpositioned attempts ($PracticePosition = \text{NULL}$) and `ItemLearningState.RollingLatencyMs` do not drive adaptive pace.
+
+4. **Single Visible Adaptive Deadline & Countdown**:
+   - Every newly presented arithmetic fact receives an adaptive answer deadline calculated and fixed before timing begins:
+     - **Exact-Fact Instability Allowance**: evaluated over the latest 5 positioned attempts for that FactId (+1000 ms per Incorrect, +1500 ms per Timeout, capped at 3000 ms):
+       $$\text{Allowance} = \min(3000, 1000 \cdot N_{\text{incorrect}} + 1500 \cdot N_{\text{timeout}})$$
+     - **Deadline Formula**:
+       $$\text{DeadlineMs} = \text{clamp}\left(\left\lceil \frac{2 \cdot P_{\text{fact}} + \text{Allowance}}{100} \right\rceil \cdot 100, 3000, 30000\right)$$
+     - **Cold Baseline**: A fresh fact for a new learner ($P_{\text{fact}} = 4500\text{ ms}$, $\text{Allowance} = 0$) has an initial deadline of $9000\text{ ms}$.
+   - A single visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
+   - Timer text features a direct black glyph contour/outline (`-webkit-text-stroke: 2px #000`) for high-contrast readability across themes.
+   - Practice timing is active only while the application is foreground/interactable, the Practice surface is visible, the Practice gate is `Running`, and the session is awaiting an answer. Settings, onboarding, Ready/Pause/Resume gates, and feedback states keep the active item paused without consuming deadline or creating timeout attempts.
+   - **Semantic Timeout Rule**: If elapsed active time reaches or exceeds `DeadlineMs`, the attempt is recorded as `AttemptOutcome.Timeout`. A correct numeric entry submitted at or after the deadline remains a Timeout.
+
+5. **Adaptive FSRS Rating & Fluency Classification**:
+   - Thresholds derive from expected pace $P_{\text{fact}}$:
+     $$\text{EasyThresholdMs} = \text{clamp}\left(\left\lfloor \frac{85 \cdot P_{\text{fact}} + 50}{100} \right\rfloor, 600, 2000\right)$$
+     $$\text{FluencyThresholdMs} = \text{clamp}\left(\left\lfloor \frac{125 \cdot P_{\text{fact}} + 50}{100} \right\rfloor, 1500, 4000\right)$$
+   - **Classification Rules**:
+     - `Incorrect` $\implies$ Rating `Again`, `IsFluent = false`
+     - `Timeout` $\implies$ Rating `Again`, `IsFluent = false`
+     - `Correct` $\le \text{EasyThresholdMs} \implies$ Rating `Easy`, `IsFluent = true`
+     - `Correct` in $(\text{EasyThresholdMs}, \text{FluencyThresholdMs}] \implies$ Rating `Good`, `IsFluent = true`
+     - `Correct` $> \text{FluencyThresholdMs} \implies$ Rating `Hard`, `IsFluent = false`
+   - `IsFluent` is persisted on `AttemptRecord.IsFluent` and `attempt_history.is_fluent` in Schema V6. Historical rolling-window progression evaluates this persisted boolean directly.
 
 ### Behavioral Requirement
-- The system must distinguish between:
-  - **Automated Recall**: Fast, accurate responses indicating memorized mastery.
-  - **Conscious Calculation**: Correct responses that required noticeable calculation time.
-  - **Incorrect Answer**: Submitted wrong numeric integer.
-  - **Timeout**: Elapsed fixed 30-second answer-deadline window without valid submission.
-- A slowly calculated correct answer must not be treated as equivalent to an automated recall; it must remain active in practice until retrieval is fluid.
-
-> [!NOTE]
-> **Future Target Behavior (`MF-LEARN-002`)**: Under accepted backlog item `MF-LEARN-002`, the timing model will evolve from the current fixed 30-second deadline and fixed latency mapping to a single visible adaptive deadline (bounded strictly between an absolute 30s maximum and a sensible minimum) with adaptive FSRS ratings and adaptive fluency. The exact mathematical calibration, scaling formulas, and adaptation windows remain unresolved and subject to `PLAN_ONLY` research.
+- The system distinguishes between:
+  - **Automated Recall**: Fast, accurate responses at or below the adaptive fluency threshold (`IsFluent = true`).
+  - **Conscious Calculation**: Correct responses requiring extended time beyond the adaptive fluency threshold (`IsFluent = false`).
+  - **Incorrect Answer**: Submitted wrong numeric integer (`Outcome = Incorrect`, `IsFluent = false`).
+  - **Timeout**: Elapsed adaptive deadline window without valid submission (`Outcome = Timeout`, `IsFluent = false`).
+- Slowly calculated correct answers remain active in practice until retrieval is fluid.
 
 
 ---
 
-## 8. Session Behavior and Error Feedback
+## 8. Session Behavior, Check-Ins, and Error Interventions
 
 ### Queue Composition
-Training sessions are automatically generated by blending items across learning categories (new items, weak items, due reviews, and items requiring remediation).
+Training sessions are automatically generated by blending items across learning categories (new items, weak items, due reviews, and items requiring remediation) under deterministic operation and role scheduling.
 
-### Session Score and Progress HUD
-
-- The transient session score is `SessionCorrectCount / SessionTotalCount`. It is hidden in Initial Ready before first Start, then shown once in the top-right header/action region after Start, during manual Pause, Resume, relevant background-resume states, feedback, and persistence recovery according to retained session context. It is neither learner persistence nor a mastery metric.
+### Progress HUD and Practice Cleanliness
 - The compact progression HUD presents Addition, Subtraction, Multiplication, and Division in that visible order with `+`, `−`, `×`, and `÷`. Its numeric value is `BandIndex + 1`: an independent progression stage, not a maximum operand, mastery percentage, global arithmetic level, or session score. Valid BandIndex 0 and 1 display stages 1 and 2; unavailable or malformed bands fail closed as presentation unavailable rather than displaying a false stage. Internal curriculum band IDs are not learner-facing.
-- Ordinary widths use four bounded HUD columns; below approximately 480 px, the layout deterministically becomes two columns. Symbols are visual, while accessible labels identify operation and progression stage (including unavailable state). English, German, and Russian progression labels are complete; no broad keypad or training-card redesign is implied.
-- Home practice owns or reuses one stable `ArithmeticCurriculum` for the component lifetime. HUD diagnostics are cached by authoritative learner-state generation and Practice Position, so timer-only approximately 50 ms presentation refreshes do not reconstruct the curriculum or regenerate the full diagnostic snapshot. Authoritative progression, reload, recovery, and reset changes refresh the presentation. This is an architectural regression-prevention contract, not a performance benchmark.
+- Ordinary widths use four bounded HUD columns; below approximately 480 px, the layout deterministically becomes two columns. Symbols are visual, while accessible labels identify operation and progression stage (including unavailable state). English, German, and Russian progression labels are complete.
+- **Distraction-Free Practice Header**: The permanent score HUD display has been removed from normal active practice. Session counts are retained internally for periodic check-ins rather than cluttering active arithmetic recall.
+- Home practice owns or reuses one stable `ArithmeticCurriculum` for the component lifetime. HUD diagnostics are cached by authoritative learner-state generation and Practice Position, so timer-only approximately 50 ms presentation refreshes do not reconstruct the curriculum or regenerate the full diagnostic snapshot.
+
+### Repeated-Error Teaching Intervention
+When a learner struggles repeatedly with a specific fact in the active session:
+1. **Trigger**: After the **second consecutive persisted error** (`Incorrect` or `Timeout`) for the exact same `FactId`, a non-scored teaching intervention overlay is presented.
+2. **Instructional Display**: A blocking modal displays the canonical equation and correct result (e.g. `7 × 8 = 56`) with concise instruction to notice the equation and result before continuing.
+3. **Strict Non-Mutation**: Acknowledging the teaching overlay creates **zero learning mutations**: no attempt record, no PracticePosition increment, no score mutation, no item state mutation, no FSRS card mutation, and no store revision.
+4. **Lifecycle**: The session error counter for that FactId resets to zero upon trigger (continuing mistakes trigger in pairs: 2nd, 4th, etc.), and a Correct answer resets it to zero. Error counters are session-local and clear on cold restart or reset.
+
+### Session Check-Ins & Break Flow
+To provide encouraging feedback without breaking active focus:
+1. **Cadence**: Triggered every 20 accepted attempts in the active training session ($20, 40, 60, \dots$). Cadence is session-local only.
+2. **Summary**: Displays correct count out of 20 and the deterministic median response latency of **Correct attempts only** (Incorrect and Timeout latencies are excluded; if 0 correct, median is unavailable).
+3. **Actions**:
+   - **`Keep Going`**: Prepares the next deterministic fact and resumes active practice with its full adaptive deadline starting from zero.
+   - **`Take a Break`**: Transitions the practice gate to `ManualPause` **before** next-fact preparation, guaranteeing that accumulated active elapsed time remains exactly zero while paused. The prepared fact receives its full adaptive deadline upon explicit learner Resume.
 
 ### Explicit Error Feedback and In-Session Remediation
-When a learner provides an incorrect answer or times out during a session:
-1. **Explicit Error Feedback**: The outcome must prominently show the original arithmetic expression, clearly indicate the mistake with error styling, display the learner's submitted answer (for incorrect attempts) or a time-expired notice (for timeouts), and show the mathematically correct result.
-2. **Explicit Acknowledgement**: A blocking in-Practice dialog replaces the answer controls and requires deliberate learner acknowledgement (via Enter key or Continue action) before advancing to the next fact. Incorrect or timed-out items never automatically skip forward.
-3. **Same-Session Remediation**: The missed fact is scheduled for recurrence later within the **same training session** to solidify memory before session conclusion, avoiding immediate lock-step retries on the exact same screen.
+When a learner provides an incorrect answer or times out:
+1. **Explicit Error Feedback**: Prominently shows the arithmetic expression, highlights the mistake, shows the submitted answer (for incorrect attempts) or a time-expired notice (for timeouts), and displays the correct result.
+2. **Deliberate Acknowledgement**: Requires deliberate acknowledgement (via Enter key or Continue action) before advancing.
+3. **Same-Session Remediation**: The missed fact is scheduled for recurrence via the selector's remediation priority override ($\ge 4$ positions later) within the same session.
 
 ---
 
@@ -242,7 +314,7 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
 - **Practice Flow and Readiness Gates**:
   - After a correct answer is accepted and persisted exactly once, Practice immediately prepares the next fact without visual delay or acknowledgement. Incorrect answers and timeouts pause timing and show a blocking dialog containing the original arithmetic expression, the submitted answer when applicable, the correct answer, and a Continue action that is also activated by Enter.
   - A cold application session with onboarding already complete starts behind an opaque Ready to practice dialog. No problem, keypad, semantic timing, attempt, score, or Practice Position change is exposed before Start. Onboarding Get Started itself satisfies this gate and does not lead to a redundant second dialog.
-  - Manual Pause is available beside Settings only during active answer entry. It is presented with the danger action treatment (red in the current theme), freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice. Start and Resume remain normal primary (green) actions whenever the Pause action is absent.
+  - Manual Pause is available beside Settings only during active answer entry. It uses an accessible CSS-drawn two-bar icon with danger action treatment (red in the current theme, `button-danger`), freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice. Start and Resume remain normal primary (green) actions whenever the Pause action is absent.
   - Leaving the application foreground converts a running awaiting-answer item to a Background Resume gate. Foreground return does not restart timing; explicit Resume is required, including after returning from Settings to an interrupted Practice item. These transient gates require no learner SQLite schema change.
 
 ### Contextual Practice-Gate Personality
@@ -255,7 +327,7 @@ The physical contextual corpus supports English, German, and Russian with 55 mes
 
 Tone is concise, respectful, age-neutral, and secondary to arithmetic interaction. Neutral, welcoming, semantically supported progress-aware, dry-humorous, and occasional lightly cheeky wording is allowed. The product avoids insults, humiliation, guilt, patronizing or manipulative language, exaggerated praise, false achievement claims, and assumptions about a learner’s personal circumstances. Onboarding readiness is history-neutral: “Your arithmetic practice is ready,” because restored UI preferences can replay onboarding while learning history remains.
 
-Contextual copy is presentation behavior only. It does not change FactId, curriculum generation, Practice Position, BandIndex progression, advancement gates, evidence windows, FSRS, remediation, cooldowns, operation scheduling, answer deadlines, answer evaluation, accepted-attempt semantics, or Schema V5.
+Contextual copy is presentation behavior only. It does not change FactId, curriculum generation, Practice Position, BandIndex progression, advancement gates, evidence windows, FSRS, remediation, cooldowns, operation scheduling, answer deadlines, answer evaluation, accepted-attempt semantics, or Schema V6.
 - **Windows Settings Confirmations**:
   - Restore Defaults, Reset Learning Progress, and Full Local Reset remain explicit two-step actions. After an inline confirmation is rendered, it receives programmatic focus and is scrolled into view with nearest-block behavior; reduced-motion preferences disable smooth scrolling.
 
@@ -273,9 +345,10 @@ Contextual copy is presentation behavior only. It does not change FactId, curric
 
 ### Local Persistence
 - Learning state, item histories, and progression milestones must persist reliably in local device storage.
-- MF-STAB-001 retains Schema V5 and introduces no migration, learner reset, card deletion, FactId change, band reindexing, FSRS reset, persisted session score, or persisted HUD cache. Existing Multiplication BandIndex-0 learners can advance under the bootstrap profile if their retained valid evidence satisfies it; BandIndex-1-or-later learners retain the standard profile, and no learner is intentionally moved backward.
+- The current learner persistence format is **Schema V6** (established by [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). It introduces `AttemptRecord.IsFluent` / SQLite `attempt_history.is_fluent`.
+- Transactional migration from V5 to V6 backfills historical attempts with the fixed rule (Correct with `ResponseLatencyMs <= 2500` $\implies \text{fluent}$; otherwise non-fluent), preserving all PracticePosition, store revision, item learning states, FSRS card states, and operation progression rows without reset. Rollback leaves V5 intact upon failure.
 - Local persistence must survive application restarts, browser refreshes, and device reboots.
-- The shared Application layer owns persistence contracts and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V5 store and is registered by the native app through dependency injection.
+- The shared Application layer owns persistence contracts and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V6 store and is registered by the native app through dependency injection.
 
 ### Android Runtime and App-Data Location
 - The native MAUI application targets Android and Windows (`net10.0-android` and `net10.0-windows10.0.19041.0`); Web, iOS, and Mac Catalyst are not activated by the Android V1 runtime package.
@@ -364,15 +437,15 @@ The following register contains both resolved and unresolved product decisions. 
 | **Scheduler Mathematics** | FSRS-6 exact-fact scheduling with Practice Position virtual time, 95% desired retention, existing 21 parameters, and disabled fuzzing. | `RESOLVED` |
 | **Fact Catalog Strategy** | Hybrid dense/structured curriculum, deterministic procedural generation, unique acquisition ownership, stable identities, and lazy materialization. | `RESOLVED` |
 | **Telemetry, Analytics, and Crash Diagnostics** | Whether and how telemetry, analytics, and crash diagnostics should operate. | `UNRESOLVED` |
-| **Exact Fluency Thresholds & Rating Mapping** | Current baseline is Correct at `<= 2500 ms` with fixed Easy/Good/Hard thresholds. Transitioning to an adaptive pace model is accepted under `MF-LEARN-002`, with exact mathematical formulas and ratios unresolved. | `UNRESOLVED` |
-| **Adaptive Answer Deadline & Pace Model** | Single visible countdown adapting to learner performance (max 30s, candidate min ~3s, candidate initial ~8–10s) accepted under `MF-LEARN-002`; exact scaling and smoothing algorithms unresolved. | `UNRESOLVED` |
-| **Fast Acquisition for Dense Bands** | Fast progression through small dense bands upon confident demonstration accepted under `MF-LEARN-002`; exact band-size thresholds and safety criteria unresolved. | `UNRESOLVED` |
-| **Repeated-Error Learning Interventions** | Non-scored teaching pause / echo acknowledgement for repeated errors accepted under `MF-LEARN-002`; exact trigger count and copy unresolved. | `UNRESOLVED` |
-| **Exact Range Expansion Increments** | Independent canonical bands and the 40-attempt correctness/fluency/frontier/coverage advancement gate defined by ADR-0003 (with MUL-D01 bootstrap exception). | `RESOLVED` |
+| **Exact Fluency Thresholds & Rating Mapping** | Adaptive expected pace $P_{\text{fact}}$ with Easy $\le 0.85 \cdot P_{\text{fact}}$ (clamp 600..2000 ms), Fluency $\le 1.25 \cdot P_{\text{fact}}$ (clamp 1500..4000 ms), Hard $> \text{FluencyThreshold}$, and persisted `IsFluent` in Schema V6 ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
+| **Adaptive Answer Deadline & Pace Model** | Hierarchical shrinkage pace estimation ($P_0=4500$, $P_{\text{learner}}$, $P_{\text{operation}}$, $P_{\text{band}}$, $P_{\text{fact}}$), exact-fact instability allowance, ceil to 100 ms, clamped 3000..30000 ms, cold baseline 9000 ms ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
+| **Fast Acquisition for Dense Bands** | Fast progression through small dense bands (1..12 facts) on 100% correct $\le 2000\text{ ms}$ first encounters within phase-aware requested-New horizon ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
+| **Repeated-Error Learning Interventions** | Non-scored teaching overlay for second consecutive session error on exact FactId, displaying canonical equation and result without learning mutations ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
+| **Exact Range Expansion Increments** | Independent canonical bands and the 40-attempt correctness/fluency/frontier/coverage advancement gate defined by ADR-0003 (with MUL-D01 bootstrap exception and Fast Acquisition). | `RESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
 | **Multi-Operation Range Sequencing** | Deterministic Addition/Subtraction/Multiplication/Division scheduling interleave with fully independent per-operation band advancement and no global checkpoint. | `RESOLVED` |
 | **Manual Operation Control** | Whether users should be able to manually enable, disable, or override operation progression. | `UNRESOLVED` |
-| **Session Length & Bounding** | Exact rules determining when a training session concludes (e.g. dynamic item count, queue exhaustion, or time limits). | `UNRESOLVED` |
+| **Session Length & Bounding** | Periodic session check-in cadence every 20 accepted attempts with correctness/median-speed summary and Keep Going vs. Take a Break flow ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
 | **Answer Submission Trigger** | Deterministic smart auto-submit for complete canonical integer answers, with Enter as a valid explicit force-submit path and no permanent Submit action. | `RESOLVED` |
 | **Progress Visualization Details** | Specific dashboard widgets, charts, and mastery visual indicators. | `UNRESOLVED` |
 | **Launch Languages & Localization** | Target launch languages and string resource management structure. | `UNRESOLVED` |

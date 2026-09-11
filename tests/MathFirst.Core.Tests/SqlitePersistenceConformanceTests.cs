@@ -60,7 +60,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
         var acceptedAt = new DateTimeOffset(2026, 9, 9, 10, 15, 0, TimeSpan.Zero);
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, acceptedAt, practicePosition: 1);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1200, acceptedAt, practicePosition: 1);
 
         var itemState = ItemLearningState.CreateNew(fact);
         itemState.TotalAttempts = 1;
@@ -85,6 +85,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.Equal(1200, snapshot.ItemStates[fact.Id].LastLatencyMs);
         Assert.Single(snapshot.RecentAttempts);
         Assert.Equal(subId, snapshot.RecentAttempts[0].SubmissionId);
+        Assert.True(snapshot.RecentAttempts[0].IsFluent);
         Assert.Equal(acceptedAt, snapshot.LatestAcceptedPracticeAt);
 
         var runtimeSnapshot = await store.LoadRuntimeSnapshotAsync();
@@ -101,7 +102,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId1 = Guid.NewGuid().ToString("N");
-        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
+        var attempt1 = new AttemptRecord(subId1, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState1 = ItemLearningState.CreateNew(fact);
         var prog1 = LearnerProgression.CreateFresh();
         prog1.PracticePosition = 1;
@@ -113,7 +114,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         // Attempt second submission with stale revision 1 (when DB is now at revision 2)
         var subId2 = Guid.NewGuid().ToString("N");
-        var attempt2 = new AttemptRecord(subId2, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1100, DateTimeOffset.UtcNow);
+        var attempt2 = new AttemptRecord(subId2, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1100, DateTimeOffset.UtcNow);
         var changeSet2 = new SubmissionChangeSet(subId2, ExpectedRevision: 1, attempt2, itemState1, prog1);
 
         var res2 = await store.CommitSubmissionAsync(changeSet2);
@@ -130,7 +131,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState = ItemLearningState.CreateNew(fact);
         var prog = LearnerProgression.CreateFresh();
         prog.PracticePosition = 1;
@@ -190,7 +191,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         using (var store = new SqliteLearnerStore(dbPath))
         {
             await store.InitializeAsync();
-            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1300, DateTimeOffset.UtcNow, practicePosition: 1);
+            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1300, DateTimeOffset.UtcNow, practicePosition: 1);
             var itemState = ItemLearningState.CreateNew(fact);
             itemState.TotalAttempts = 5;
             itemState.CorrectAttempts = 5;
@@ -229,7 +230,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var subId = Guid.NewGuid().ToString("N");
-        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1200, DateTimeOffset.UtcNow, practicePosition: 1);
         var itemState = ItemLearningState.CreateNew(fact);
         var prog = LearnerProgression.CreateFresh();
         prog.PracticePosition = 1;
@@ -262,7 +263,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
 
             var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
             var subId = Guid.NewGuid().ToString("N");
-            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
+            var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 800, DateTimeOffset.UtcNow, practicePosition: 1);
             var itemState = ItemLearningState.CreateNew(fact);
 
             var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, prog);

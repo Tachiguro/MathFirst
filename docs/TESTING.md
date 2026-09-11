@@ -80,6 +80,8 @@ The corpus contract verifies English, German, and Russian physical-ID and placeh
 
 Persistence/lifecycle coverage verifies the authoritative latest-accepted-practice read model across cold startup, successful persistence, reset, and recovery, plus contextual Background Resume selection for immediate and deferred final gate transitions. These tests also preserve learning-state isolation: contextual copy must not alter curriculum, progression, learning evidence, FSRS, answer semantics, or Schema V5. The final implementation review recorded 497 Core tests passed, 0 failed, 0 skipped, a Windows build with 0 warnings and 0 errors, and passing `git diff --check`; this evidence does not claim the separate `FULL_VALIDATION` lifecycle step.
 
+---
+
 ## 8. MF-UX-003 Identity, Version, and Native-Visual Contracts
 
 MF-UX-003 contract coverage verifies canonical identity project properties, `ApplicationTitle` projection into Product and AssemblyTitle metadata, and canonical `ApplicationDisplayVersion`/`ApplicationVersion` inputs. `AppBuildInfoMetadataParser` coverage verifies complete valid metadata and fail-closed behavior for missing, blank, invalid display-version, and non-positive or non-invariant build values; `AppBuildInfo` must delegate to that shared parser.
@@ -87,6 +89,8 @@ MF-UX-003 contract coverage verifies canonical identity project properties, `App
 Presentation and asset contracts verify localization parity; localized Settings version/build display; structural SVG safety; native-host XAML structure and light/dark backgrounds; Android palette, application identity, adaptive icon, and splash identity; Windows unpackaged identity; absence of removed template payloads; localized Not Found content; and the language-neutral startup placeholder. These checks are source/contract verification and do not replace device validation.
 
 Focused implementation evidence recorded 50 passed tests after slice 1 and 64 passed, 0 failed, and 0 skipped after slice 2. Targeted Windows builds recorded 0 warnings and 0 errors for both slices; the second slice also recorded an Android build with 0 warnings and 0 errors. Review remediation began with 2 failing and 8 passing tests, then finished with 26 passed, 0 failed, and 0 skipped, plus targeted Windows and Android builds with 0 warnings and 0 errors. The documentation-inclusive candidate has not undergone formal `FULL_VALIDATION`; no release build, AAB packaging, or real-device validation is claimed.
+
+---
 
 ## 9. MF-STAB-001 Practice Progression and HUD Stabilization Contracts
 
@@ -96,8 +100,40 @@ Selector contracts preserve ten-slot operation/role scheduling, deterministic ra
 
 Presentation coverage verifies red danger Pause semantics; hidden pre-Start score; exactly one transient score after Start; four independent HUD stages in Addition/Subtraction/Multiplication/Division order; fail-closed unavailable stages; stable curriculum and cached diagnostics on timer-only render refreshes; responsive four-column/two-column HUD structure; accessible labels; and English, German, and Russian localization parity. It does not imply a broad keypad or training-card redesign.
 
-Recorded focused implementation-time evidence is: Slice 1, 87 passed / 0 failed / 0 skipped; Slice 2, 84 / 0 / 0; Slice 3, 81 / 0 / 0; review-remediation focused suite, 33 / 0 / 0; and expanded affected suite after remediation, 168 / 0 / 0. These overlapping focused or affected suites must not be summed and are not `FULL_VALIDATION`.
+---
 
-The initial documentation-inclusive candidate `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` underwent `FULL_VALIDATION`: Windows Release build (`net10.0-windows10.0.19041.0`) passed with 0 warnings and 0 errors, Android Release build (`net10.0-android`) passed with 0 warnings and 0 errors, and the complete Core test suite reported 545 passed, 1 failed (`FinalIntegrationCoverageTests.RestartAroundAdvancement_PreservesCommittedStateAndExcludesTheTriggerFromTheNewBandWindow` due to a legacy assertion expecting Multiplication BandIndex 0 instead of bootstrap BandIndex 1), and 0 skipped.
+## 10. MF-LEARN-002 Adaptive Pace, Fast Acquisition, and Practice Interventions Contracts
 
-Validation test remediation `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264` resolved the assertion mismatch without product code changes: targeted RED reproduction returned 0 passed / 1 failed / 0 skipped, targeted GREEN verification returned 1 passed / 0 failed / 0 skipped, and full Core suite verification returned 546 passed / 0 failed / 0 skipped. This 546/546 result is remediation evidence, not `FULL_VALIDATION`. The full validation matrix (Core tests, Windows Release build, and Android Release build) must be rerun against the future documentation-inclusive exact candidate.
+MF-LEARN-002 contract and regression coverage validates the complete adaptive learning loop, Schema V6 persistence, and practice interaction architecture across 708 automated tests in `MathFirst.Core.Tests`:
+
+1. **Adaptive Pace & Deadlines**:
+   - Multi-level hierarchical shrinkage pace estimation ($P_0=4500\text{ ms}$; learner $W=12, N=30$; operation $W=8, N=20$; band $W=6, N=15$; fact $W=4, N=5$) clamped to $[600, 12000]\text{ ms}$.
+   - Exact-fact instability allowance: $+1000\text{ ms}$ for Incorrect, $+1500\text{ ms}$ for Timeout across the last 5 attempts, clamped to $[0, 3000]\text{ ms}$.
+   - Answer deadline: $\lceil (2 \cdot P_{\text{fact}} + \text{Allowance}) / 100 \rceil \cdot 100\text{ ms}$, clamped to $[3000, 30000]\text{ ms}$, with cold baseline $9000\text{ ms}$.
+2. **Adaptive Fluency & Rating Mapping**:
+   - FSRS ratings adapt dynamically to fact pace: Easy $\le \text{clamp}(\lfloor 0.85 \cdot P_{\text{fact}} \rceil, 600, 2000)\text{ ms}$, Good $\le \text{clamp}(\lfloor 1.25 \cdot P_{\text{fact}} \rceil, 1500, 4000)\text{ ms}$, Hard $> \text{FluencyThreshold}$, and Again on error or timeout.
+   - Schema V6 stores persisted `attempt_history.is_fluent` (`CHECK (is_fluent IN (0, 1)) CHECK (is_fluent = 0 OR (is_correct = 1 AND outcome = 'Correct'))`).
+   - Lossless migration backfills valid attempts with `ResponseLatencyMs <= 2500` and `Outcome == 'Correct'` as `is_fluent = 1`, preserving `NULL` PracticePosition for migrated V4 attempts.
+3. **Fast Acquisition for Dense Bands**:
+   - Dense bands with owned frontier size $N \in [1, 12]$ advance immediately upon 100% Correct and raw response latency $\le 2000\text{ ms}$ on the first positioned encounter of all $N$ owned facts.
+   - Clean qualifying prefix rule requires no intervening errors or timeouts in the same-operation qualifying prefix.
+   - Horizon rule completes within the phase-aware $N$-th requested-New role horizon derived from operation/role scheduling.
+4. **Role-Specific Selector Chains**:
+   - Explicit chains for `Requested New`, `Requested Due`, `Requested Maintenance`, and `Requested Frontier` eliminate `AnyMaterialized`.
+   - `Early Review` ($\text{DuePracticePosition} > \text{prospectivePosition}$, not in remediation) acts as a strictly bounded liveness bridge.
+   - Cooldown relaxation (mirror then exact) occurs strictly within the selected semantic pool.
+   - Remediation priority override triggers for scheduled operations with `NeedsRemediation == true` when $\text{prospectivePosition} \ge \text{LastReviewPracticePosition} + 4$.
+5. **Repeated-Error Teaching Overlay**:
+   - Session-local 2nd consecutive error on the same exact `FactId` displays canonical equation teaching overlay.
+   - Deliberate acknowledgement ("I understand") resumes practice without generating attempt records, incrementing Practice Position, or mutating FSRS card state.
+6. **Session Check-ins & Zero-Timing Pause**:
+   - Checkpoint triggers every 20 accepted attempts, presenting correct count and median latency of correct attempts only.
+   - "Keep Going" resumes immediately; "Take a Break" engages the Pause state with guaranteed zero-timing measurement on resume.
+7. **Clean Practice HUD**:
+   - Practice screen removes transient session score and progress indicators for distraction-free practice.
+   - Pause button is styled in danger red.
+
+### Verification Evidence
+- **Automated Test Suite**: 708 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Independent Review**: Package-wide post-correction independent review approved (`REVIEW_PASS`).
+- **Lifecycle Status**: The documentation-inclusive candidate has not yet undergone the separate `FULL_VALIDATION` lifecycle step. Windows and Android Release build checks, release packaging, and device validation are not claimed as current evidence and remain scheduled for `FULL_VALIDATION` following `COMMIT_ONLY`.

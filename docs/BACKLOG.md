@@ -35,23 +35,31 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-LEARN-002`
 - **Title**: Adaptive Pace, Fast Acquisition, and Practice Interventions
 - **Type**: `Feature`
-- **Status**: `Accepted`
+- **Status**: `Implemented` (REVIEW_PASS on `feat/mf-learn-002-adaptive-pace`; `FULL_VALIDATION`, PR, and merge pending)
 - **Dependencies**: `MF-STAB-001` complete (merged through PR #13)
 - **Description**:
   Comprehensive adaptive learning model enhancement focusing on dual optimization of arithmetic correctness and retrieval speed:
-  1. **Primary Learning Goal**: Improve both correctness and recall speed. Ensure strong learners move rapidly past trivial or already-known facts to reach genuinely challenging material without artificial repetition, while weak or forgotten facts recur more frequently.
-  2. **One Adaptive Visible Timer**: A single visible countdown bar serving as the actual answer deadline for each presentation (no dual timers). The deadline dynamically adapts to learner performance: tightening upon consistent fast correctness and loosening upon slow/incorrect/unstable responses, bounded strictly between a sensible minimum (e.g. ~3s candidate) and an absolute maximum of 30 seconds (initial deadline roughly in the 8–10s candidate region).
-  3. **Multi-Dimensional Adaptation**: Calibration incorporates learner performance, operation-specific pace, curriculum-band difficulty, exact-fact history, latency, and recent stability so different facts can receive appropriate deadlines.
-  4. **FSRS Core Preservation**: Preserves real `FSRS.Core` 1.0.7 integration (0.95 desired retention, Practice Position virtual time, deterministic per-FactId cards, disabled fuzzing) as the spaced-repetition due-distance scheduler (learning queue) without exposing internal mechanics in the UI.
-  5. **Adaptive Rating & Fluency**: Replaces fixed latency thresholds (1000/2500ms) with adaptive FSRS ratings (`Again` on timeout/error, `Hard`/`Good`/`Easy` relative to expected adaptive pace) and reconciles adaptive fluency with band advancement gates.
-  6. **Fast Acquisition for Dense Bands**: Generalizes fast progression through small dense bands (e.g. `0 + 0 = 0`, factor-0/1 multiplication) upon confident first-pass demonstration without requiring fixed 40-attempt minimums.
-  7. **Prevention of Boring Non-Due Repetition**: Refines selector fallback behavior to prevent fully mastered facts from reappearing as repetitive filler when candidate pools are empty. Mastered facts appear only via legitimate FSRS due review or maintenance.
-  8. **Repeated-Error Learning Intervention**: Repeated mistakes on the same fact trigger a focused teaching pause / corrective echo (e.g. displaying `7 × 8 = 56` with direct/encouraging copy and requiring deliberate acknowledgement) that is strictly non-scored (does not increment Practice Position, affect session score, or generate false advancement evidence) before returning later via normal scheduling.
-  9. **Minimalist Practice UI & Periodic Summaries**: Maintains a distraction-free arithmetic practice surface (operation progress HUD, expression, answer input, timer bar). Permanent transient score visibility vs. periodic check-ins (accuracy summaries, pace recognition, break suggestions) will be evaluated in planning.
-  10. **UI Defect Correction**: Reconciles the Pause button rendering defect (reported as appearing blue in live application) with intended danger/red semantics. The existing timer bar visual itself is approved and not the defect.
-  11. **Onboarding Communication**: Adds concise, human-oriented onboarding copy explaining the adaptive time and recall dynamics.
-  12. **Curriculum Hard Stop & Safety**: Enforces checked arithmetic boundaries preventing `Int32` overflow, ensuring fail-closed stability at the end of curriculum. Endgame achievement ("Math God") is recognized as a deferred gamification concept.
-  13. **Open Planning & Calibration Requirement**: All exact numerical parameters, formulas, time windows, scaling steps (5% fixed step was rejected as too slow), and thresholds remain unresolved and must be researched and justified during `PLAN_ONLY`.
+  1. **Adaptive Pace & Deadlines**: Hierarchical shrinkage pace estimation ($P_0 = 4500\text{ ms}$; learner $W=12, N=30$; operation $W=8, N=20$; band $W=6, N=15$; fact $W=4, N=5$) clamped to $[600, 12000]\text{ ms}$. Exact-fact instability allowance adds $+1000\text{ ms}$ for Incorrect and $+1500\text{ ms}$ for Timeout across the last 5 attempts (clamped to $[0, 3000]\text{ ms}$). Answer deadlines are calculated as $\lceil (2 \cdot P_{\text{fact}} + \text{Allowance}) / 100 \rceil \cdot 100\text{ ms}$, clamped to $[3000, 30000]\text{ ms}$, with a cold baseline of $9000\text{ ms}$.
+  2. **Adaptive Fluency & Ratings**: FSRS ratings adapt to fact pace: Easy $\le \text{clamp}(\lfloor 0.85 \cdot P_{\text{fact}} \rceil, 600, 2000)\text{ ms}$, Good $\le \text{clamp}(\lfloor 1.25 \cdot P_{\text{fact}} \rceil, 1500, 4000)\text{ ms}$, Hard $> \text{FluencyThreshold}$, and Again on error or timeout. Persisted `is_fluent` in Schema V6.
+  3. **Fast Acquisition**: Dense bands with owned frontier size $N \in [1, 12]$ advance immediately when all $N$ facts achieve 100% Correct and raw response latency $\le 2000\text{ ms}$ on their first positioned encounter after band start, with a clean qualifying prefix within the phase-aware $N$-th requested-New role horizon.
+  4. **Selector Model**: Role-specific selector chains (`Requested New`, `Requested Due`, `Requested Maintenance`, `Requested Frontier`) eliminate `AnyMaterialized`. `Early Review` ($\text{DuePracticePosition} > \text{prospectivePosition}$, not in remediation) acts as a strictly bounded liveness bridge. Cooldown relaxation occurs strictly within the selected semantic pool. Remediation priority override triggers when `NeedsRemediation == true` and $\text{prospectivePosition} \ge \text{LastReviewPracticePosition} + 4$.
+  5. **Teaching Interventions**: Non-mutating canonical equation teaching overlay triggers on a second consecutive session error on the same exact `FactId`, requiring deliberate acknowledgement without generating attempt records, advancing Practice Position, or mutating FSRS card state.
+  6. **Session Check-ins**: Periodic checkpoint occurs every 20 accepted attempts, presenting correct count and median latency of correct attempts only, offering "Keep Going" and "Take a Break" choices with guaranteed zero-timing pause semantics.
+  7. **Clean Practice HUD**: Distraction-free practice screen with transient session score and progress indicators removed; danger-styled Pause button in red.
+
+---
+
+### MF-REL-001: Android Internal AAB Packaging and Release Automation
+
+- **ID**: `MF-REL-001`
+- **Title**: Android Internal AAB Packaging and Release Automation
+- **Type**: `Feature`
+- **Status**: `Deferred`
+- **Dependencies**: `MF-LEARN-002` complete and merged to `main`
+- **Description**:
+  Establish repeatable Android App Bundle (AAB) packaging, release build automation, keystore management protocols, and local packaging validation scripts for internal distribution and eventual Google Play testing. Packaging and signing remain isolated from publishing; actual store uploads require separate explicit authorization. This package remains deferred and not started until `MF-LEARN-002` completes its entire lifecycle.
+
+---
 
 > [!NOTE]
-> Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md). MF-LEARN-002 is intentionally sequenced before MF-REL-001.
+> Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).

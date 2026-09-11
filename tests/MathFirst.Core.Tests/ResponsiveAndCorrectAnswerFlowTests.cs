@@ -287,7 +287,7 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
     }
 
     [Fact]
-    public void PracticeHeader_UsesDangerPauseAndShowsTheOnlyScoreBesideBoundedOperationProgress()
+    public void PracticeHeader_UsesDangerPauseAndRemovesPermanentScoreFromHud()
     {
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
@@ -296,29 +296,14 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         Assert.Contains("class=\"button button-danger pause-practice-btn\"", header, StringComparison.Ordinal);
         Assert.DoesNotContain("button button-secondary pause-practice-btn", home, StringComparison.Ordinal);
         Assert.Contains("class=\"button button-primary practice-overlay-action\"", home, StringComparison.Ordinal);
-        Assert.Contains("@Localizer[\"Training_Score\", Session.SessionCorrectCount, Session.SessionTotalCount]", header, StringComparison.Ordinal);
-        Assert.Equal(1, home.Split("Training_Score", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("Training_Score", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("header-session-score", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsSessionScoreVisible", home, StringComparison.Ordinal);
         Assert.Contains("class=\"operation-progress-hud\"", home, StringComparison.Ordinal);
         Assert.Contains("GetOperationSymbol(progress.Operation)", home, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr));", styles, StringComparison.Ordinal);
         Assert.Contains(".operation-progress-hud", styles, StringComparison.Ordinal);
         Assert.Contains("@media (max-width: 480px)", styles, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void PracticeHeader_HidesScoreOnlyUntilTheInitialReadyGateHasBeenStarted()
-    {
-        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
-        var header = home[..home.IndexOf("</header>", StringComparison.Ordinal)];
-
-        Assert.Contains("@if (IsSessionScoreVisible)", header, StringComparison.Ordinal);
-        Assert.Contains("private bool IsSessionScoreVisible =>", home, StringComparison.Ordinal);
-        Assert.Contains("Session.IsInitialized &&", home, StringComparison.Ordinal);
-        Assert.Contains("Session.PracticeGate != PracticeGateState.InitialReadyGate", home, StringComparison.Ordinal);
-        var predicateStart = home.IndexOf("private bool IsSessionScoreVisible =>", StringComparison.Ordinal);
-        var predicate = home[predicateStart..(home.IndexOf(';', predicateStart) + 1)];
-        Assert.DoesNotContain("Session.PracticeGate == PracticeGateState.Running", predicate, StringComparison.Ordinal);
-        Assert.Equal(1, home.Split("Training_Score", StringSplitOptions.None).Length - 1);
     }
 
     [Fact]

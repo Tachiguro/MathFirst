@@ -114,6 +114,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 submitted_answer INTEGER,
                 correct_answer INTEGER NOT NULL,
                 is_correct INTEGER NOT NULL,
+                is_fluent INTEGER NOT NULL CHECK (is_fluent IN (0, 1))
+                    CHECK (is_fluent = 0 OR (is_correct = 1 AND outcome = 'Correct')),
                 outcome TEXT NOT NULL DEFAULT 'Incorrect',
                 response_latency_ms INTEGER NOT NULL,
                 timestamp TEXT NOT NULL,
@@ -148,7 +150,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
             var defaultProgression = LearnerProgression.CreateFresh();
             await SaveProgressionAsync(defaultProgression, cancellationToken).ConfigureAwait(false);
-            await CreateV5IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
+            await CreateV6IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 1)
         {
@@ -156,25 +158,33 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV2ToV3Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
             await MigrateV2ToV3Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 5)
+        {
+            await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == LearnerProgression.DefaultSchemaVersion)
         {
-            await CreateV5IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
+            await CreateV6IndexesAsync(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version > LearnerProgression.DefaultSchemaVersion)
         {
@@ -250,30 +260,46 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var currentBand = await ReadCurrentBandCandidatesAsync(request, cancellationToken).ConfigureAwait(false);
         var due = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
+              AND card.fact_id IS NOT NULL
               AND card.due_practice_position <= @practice_position
-            ORDER BY card.due_practice_position ASC, item.fact_id ASC
+              AND NOT (item.needs_remediation = 1 AND card.last_review_practice_position IS NOT NULL AND @practice_position >= card.last_review_practice_position + 4)
+            ORDER BY card.due_practice_position ASC,
+                     CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
+                     card.last_review_practice_position ASC,
+                     item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
         var maintenance = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 0
-              AND (card.fact_id IS NULL OR card.due_practice_position > @practice_position)
-            ORDER BY item.last_practiced_order ASC,
-                     CASE WHEN card.fact_id IS NULL THEN 1 ELSE 0 END ASC,
+              AND card.fact_id IS NOT NULL
+              AND card.due_practice_position > @practice_position
+              AND card.last_review_practice_position IS NOT NULL
+              AND @practice_position >= card.last_review_practice_position + 40
+            ORDER BY card.last_review_practice_position ASC,
                      card.due_practice_position ASC,
                      item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
         var remediation = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 1
-              AND item.remediation_due_order <= @session_order
-            ORDER BY item.remediation_due_order ASC, item.fact_id ASC
+              AND card.fact_id IS NOT NULL
+              AND card.last_review_practice_position IS NOT NULL
+              AND @practice_position >= card.last_review_practice_position + 4
+            ORDER BY card.last_review_practice_position ASC,
+                     item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
-        var anyMaterialized = await ReadCandidatesAsync(@"
+        var earlyReview = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
-            ORDER BY item.fact_id ASC
+              AND item.needs_remediation = 0
+              AND card.fact_id IS NOT NULL
+              AND card.due_practice_position > @practice_position
+            ORDER BY CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
+                     card.last_review_practice_position ASC,
+                     card.due_practice_position ASC,
+                     item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
 
-        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, anyMaterialized);
+        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, earlyReview);
     }
 
     public async Task<PersistenceResult> CommitSubmissionAsync(
@@ -337,10 +363,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 attCmd.CommandText = @"
                     INSERT INTO attempt_history (
                         submission_id, fact_id, operation, left_operand, right_operand,
-                        submitted_answer, correct_answer, is_correct, outcome, response_latency_ms, timestamp, practice_position
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position
                     ) VALUES (
                         @submission_id, @fact_id, @operation, @left_operand, @right_operand,
-                        @submitted_answer, @correct_answer, @is_correct, @outcome, @response_latency_ms, @timestamp, @practice_position
+                        @submitted_answer, @correct_answer, @is_correct, @is_fluent, @outcome, @response_latency_ms, @timestamp, @practice_position
                     );
                 ";
                 attCmd.Parameters.AddWithValue("@submission_id", changeSet.Attempt.SubmissionId);
@@ -351,6 +377,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 attCmd.Parameters.AddWithValue("@submitted_answer", (object?)changeSet.Attempt.SubmittedAnswer ?? DBNull.Value);
                 attCmd.Parameters.AddWithValue("@correct_answer", changeSet.Attempt.CorrectAnswer);
                 attCmd.Parameters.AddWithValue("@is_correct", changeSet.Attempt.IsCorrect ? 1 : 0);
+                attCmd.Parameters.AddWithValue("@is_fluent", changeSet.Attempt.IsFluent ? 1 : 0);
                 attCmd.Parameters.AddWithValue("@outcome", changeSet.Attempt.Outcome.ToString());
                 attCmd.Parameters.AddWithValue("@response_latency_ms", changeSet.Attempt.ResponseLatencyMs);
                 attCmd.Parameters.AddWithValue("@timestamp", changeSet.Attempt.Timestamp.ToString("O"));
@@ -709,8 +736,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
         long storedPracticePosition,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression> storedOperationProgressions)
     {
+        if (changeSet.Attempt.IsCorrect != (changeSet.Attempt.Outcome == AttemptOutcome.Correct)
+            || (changeSet.Attempt.IsFluent && !changeSet.Attempt.IsCorrect))
+        {
+            throw new InvalidOperationException("Accepted attempt outcome, correctness, and fluency must be consistent.");
+        }
+
         var attemptPracticePosition = changeSet.Attempt.PracticePosition
-            ?? throw new InvalidOperationException("New Schema V5 submissions require a practice position.");
+            ?? throw new InvalidOperationException("New Schema V6 submissions require a practice position.");
         var requiredPracticePosition = checked(storedPracticePosition + 1);
         if (attemptPracticePosition != requiredPracticePosition)
         {
@@ -786,7 +819,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         if (progressions.Count != expected.Length || expected.Any(operation =>
                 !progressions.TryGetValue(operation, out var progression) || progression.Operation != operation))
         {
-            throw new InvalidOperationException("Schema V5 requires exactly one valid progression row for every arithmetic operation.");
+            throw new InvalidOperationException("The learner schema requires exactly one valid progression row for every arithmetic operation.");
         }
 
         if (practicePosition is > 0 && progressions[attemptOperation].BandStartedPracticePosition > practicePosition)
@@ -800,7 +833,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         return changeSet.OperationProgressions;
     }
 
-    private static async Task CreateV5IndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    private static async Task CreateV6IndexesAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
         using var command = connection.CreateCommand();
         command.CommandText = @"
@@ -1092,7 +1125,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             if (!Enum.TryParse<ArithmeticOperation>(reader.GetString(0), out var operation)
                 || !result.TryAdd(operation, new OperationProgression(operation, reader.GetInt32(1), reader.GetInt64(2))))
             {
-                throw new InvalidOperationException("Schema V5 operation progression contains an unknown or duplicate operation.");
+                throw new InvalidOperationException("Stored operation progression contains an unknown or duplicate operation.");
             }
         }
 
@@ -1147,14 +1180,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
     private async Task ReadLegacyAttemptsAsync(int limit, IDictionary<string, AttemptRecord> destination, CancellationToken cancellationToken)
     {
         using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = @"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, outcome, response_latency_ms, timestamp FROM attempt_history WHERE practice_position IS NULL ORDER BY timestamp DESC LIMIT @limit;";
+        cmd.CommandText = @"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp FROM attempt_history WHERE practice_position IS NULL ORDER BY timestamp DESC LIMIT @limit;";
         cmd.Parameters.AddWithValue("@limit", limit);
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
-            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(8));
-            var attempt = new AttemptRecord(reader.GetString(0), reader.GetString(1), Enum.Parse<ArithmeticOperation>(reader.GetString(2)), reader.GetInt32(3), reader.GetInt32(4), submitted, reader.GetInt32(6), reader.GetInt32(7) == 1, reader.GetInt64(9), DateTimeOffset.Parse(reader.GetString(10)), outcome);
+            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
+            var attempt = new AttemptRecord(reader.GetString(0), reader.GetString(1), Enum.Parse<ArithmeticOperation>(reader.GetString(2)), reader.GetInt32(3), reader.GetInt32(4), submitted, reader.GetInt32(6), reader.GetInt32(7) == 1, reader.GetInt32(8) == 1, reader.GetInt64(10), DateTimeOffset.Parse(reader.GetString(11)), outcome);
             destination.TryAdd(attempt.SubmissionId, attempt);
         }
     }
@@ -1162,7 +1195,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
     private async Task ReadAttemptsAsync(string predicate, string? parameter, string? value, int limit, IDictionary<string, AttemptRecord> destination, CancellationToken cancellationToken)
     {
         using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = $@"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, outcome, response_latency_ms, timestamp, practice_position FROM attempt_history WHERE practice_position IS NOT NULL AND {predicate} ORDER BY practice_position DESC LIMIT @limit;";
+        cmd.CommandText = $@"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position FROM attempt_history WHERE practice_position IS NOT NULL AND {predicate} ORDER BY practice_position DESC LIMIT @limit;";
         if (parameter is not null) cmd.Parameters.AddWithValue(parameter, value!);
         cmd.Parameters.AddWithValue("@limit", limit);
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -1171,8 +1204,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
             var op = Enum.Parse<ArithmeticOperation>(reader.GetString(2));
             int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
             var correct = reader.GetInt32(7) == 1;
-            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(8));
-            var attempt = new AttemptRecord(reader.GetString(0), reader.GetString(1), op, reader.GetInt32(3), reader.GetInt32(4), submitted, reader.GetInt32(6), correct, reader.GetInt64(9), DateTimeOffset.Parse(reader.GetString(10)), outcome, reader.GetInt64(11));
+            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
+            var attempt = new AttemptRecord(reader.GetString(0), reader.GetString(1), op, reader.GetInt32(3), reader.GetInt32(4), submitted, reader.GetInt32(6), correct, reader.GetInt32(8) == 1, reader.GetInt64(10), DateTimeOffset.Parse(reader.GetString(11)), outcome, reader.GetInt64(12));
             destination.TryAdd(attempt.SubmissionId, attempt);
         }
     }
@@ -1526,6 +1559,117 @@ public sealed class SqliteLearnerStore : ILearnerStore
                     UPDATE schema_info SET value = '5' WHERE key = 'schema_version';";
                 await indexes.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV5ToV6Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            using (var version = connection.CreateCommand())
+            {
+                version.Transaction = transaction;
+                version.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
+                var value = await version.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+                if (value is not string text
+                    || !int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var schemaVersion)
+                    || schemaVersion != 5)
+                {
+                    throw new InvalidOperationException("V5 to V6 migration requires Schema V5.");
+                }
+            }
+
+            long sourceCount;
+            using (var count = connection.CreateCommand())
+            {
+                count.Transaction = transaction;
+                count.CommandText = "SELECT COUNT(*) FROM attempt_history;";
+                sourceCount = (long)(await count.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("V5 attempt count is unavailable."));
+            }
+
+            using (var schema = connection.CreateCommand())
+            {
+                schema.Transaction = transaction;
+                schema.CommandText = @"
+                    CREATE TABLE attempt_history_v6 (
+                        submission_id TEXT PRIMARY KEY,
+                        fact_id TEXT NOT NULL,
+                        operation TEXT NOT NULL,
+                        left_operand INTEGER NOT NULL,
+                        right_operand INTEGER NOT NULL,
+                        submitted_answer INTEGER,
+                        correct_answer INTEGER NOT NULL,
+                        is_correct INTEGER NOT NULL,
+                        is_fluent INTEGER NOT NULL CHECK (is_fluent IN (0, 1))
+                            CHECK (is_fluent = 0 OR (is_correct = 1 AND outcome = 'Correct')),
+                        outcome TEXT NOT NULL DEFAULT 'Incorrect',
+                        response_latency_ms INTEGER NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0)
+                    );
+
+                    INSERT INTO attempt_history_v6 (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                        response_latency_ms, timestamp, practice_position)
+                    SELECT
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct,
+                        CASE
+                            WHEN is_correct = 1 AND outcome = 'Correct' AND response_latency_ms <= 2500 THEN 1
+                            ELSE 0
+                        END,
+                        outcome, response_latency_ms, timestamp, practice_position
+                    FROM attempt_history;";
+                await schema.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            using (var count = connection.CreateCommand())
+            {
+                count.Transaction = transaction;
+                count.CommandText = "SELECT COUNT(*) FROM attempt_history_v6;";
+                var copiedCount = (long)(await count.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("V6 attempt count is unavailable."));
+                if (copiedCount != sourceCount)
+                {
+                    throw new InvalidOperationException($"V5 to V6 migration copied {copiedCount} of {sourceCount} attempts.");
+                }
+            }
+
+            using (var replace = connection.CreateCommand())
+            {
+                replace.Transaction = transaction;
+                replace.CommandText = @"
+                    DROP TABLE attempt_history;
+                    ALTER TABLE attempt_history_v6 RENAME TO attempt_history;
+                    CREATE UNIQUE INDEX ux_attempt_history_practice_position
+                        ON attempt_history(practice_position) WHERE practice_position IS NOT NULL;
+                    CREATE INDEX ix_attempt_history_operation_practice_position
+                        ON attempt_history(operation, practice_position DESC) WHERE practice_position IS NOT NULL;";
+                await replace.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            using (var version = connection.CreateCommand())
+            {
+                version.Transaction = transaction;
+                version.CommandText = @"
+                    UPDATE schema_info
+                    SET value = '6'
+                    WHERE key = 'schema_version' AND value = '5';";
+                if (await version.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+                {
+                    throw new InvalidOperationException("V5 to V6 migration did not update the expected schema-version row.");
+                }
+            }
+
             transaction.Commit();
         }
         catch

@@ -6,5 +6,7 @@ public enum SessionInteractionState
     CorrectFeedback,
     PersistenceFailure,
     IncorrectFeedback,
-    TimeoutFeedback
+    TimeoutFeedback,
+    TeachingIntervention,
+    SessionCheckIn
 }

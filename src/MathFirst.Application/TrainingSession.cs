@@ -13,7 +13,6 @@ public sealed class TrainingSession
     private readonly IClock _clock;
     private readonly AdaptivePracticeSelector _selector;
     private readonly IFsrsScheduler _fsrsScheduler;
-    private readonly long _fluentThresholdMs;
     private Dictionary<string, FsrsCardState> _fsrsStates = new(StringComparer.Ordinal);
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
@@ -29,6 +28,8 @@ public sealed class TrainingSession
     private long _lastResponseLatencyBeforePendingEvaluation;
     private readonly ArithmeticCurriculum _curriculum = new();
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
+    private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
+    private readonly List<AttemptRecord> _sessionCheckInAttempts = [];
     private List<AttemptRecord> _recentAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
 
@@ -37,11 +38,15 @@ public sealed class TrainingSession
     public LearnerProgression Progression { get; private set; } = LearnerProgression.CreateFresh();
     public Dictionary<string, ItemLearningState> ItemStates { get; private set; } = new(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, FsrsCardState> FsrsStates => _fsrsStates;
+    public PracticeCheckInSummary? PendingCheckIn { get; private set; }
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
     public int SessionTotalCount { get; private set; }
     public ArithmeticFact CurrentFact { get; private set; } = null!;
     public long ItemReadyTimestamp { get; private set; }
+    public long CurrentFactExpectedPaceMs { get; private set; } = AdaptivePacePolicy.StaticPriorMs;
+    public long CurrentFactEasyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumEasyThresholdMs;
+    public long CurrentFactFluencyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumFluencyThresholdMs;
     public long CurrentFactDeadlineMs { get; private set; } = LearningPolicy.DeadlineStreak0Ms;
     public double CurrentFactDeadlineSeconds => CurrentFactDeadlineMs / 1000.0;
     public long LastResponseLatencyMs { get; private set; }
@@ -65,18 +70,85 @@ public sealed class TrainingSession
     public bool IsInitialized { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
+    public int GetConsecutiveErrorCount(string factId)
+    {
+        ArgumentNullException.ThrowIfNull(factId);
+        return _sessionConsecutiveErrors.GetValueOrDefault(factId, 0);
+    }
+
+    public bool AcknowledgeTeachingIntervention(bool startTiming = true)
+    {
+        if (InteractionState != SessionInteractionState.TeachingIntervention)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        AdvanceToNextFact(startTiming);
+        return true;
+    }
+
+    public bool AcknowledgeFeedback(bool startTiming = true)
+    {
+        if (InteractionState is not SessionInteractionState.IncorrectFeedback and not SessionInteractionState.TimeoutFeedback)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        AdvanceToNextFact(startTiming);
+        return true;
+    }
+
+    public void ContinuePractice(bool startTiming = true)
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        AdvanceToNextFact(startTiming);
+    }
+
+    public void TakeBreak()
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        TransitionPracticeGate(PracticeGateState.ManualPause);
+        AdvanceToNextFact(startTiming: true);
+    }
+
     public TrainingSession(
         ILearnerStore store,
         IClock? clock = null,
         AdaptivePracticeSelector? selector = null,
-        IFsrsScheduler? fsrsScheduler = null,
-        long fluentThresholdMs = LearningPolicy.DefaultFluentResponseThresholdMs)
+        IFsrsScheduler? fsrsScheduler = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _clock = clock ?? MonotonicClock.Instance;
         _selector = selector ?? new AdaptivePracticeSelector();
         _fsrsScheduler = fsrsScheduler ?? new FsrsSchedulerAdapter();
-        _fluentThresholdMs = fluentThresholdMs;
     }
 
     public async Task InitializeAsync(
@@ -86,6 +158,9 @@ public sealed class TrainingSession
         await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
+        _sessionConsecutiveErrors.Clear();
+        _sessionCheckInAttempts.Clear();
+        PendingCheckIn = null;
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
@@ -105,12 +180,6 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = 0;
         _isTimingActive = false;
         InteractionState = SessionInteractionState.AwaitingAnswer;
-
-        if (CurrentFact is not null)
-        {
-            ItemStates.TryGetValue(CurrentFact.Id, out var state);
-            CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
-        }
 
         ReconcileTimingState();
     }
@@ -295,6 +364,12 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = elapsedMs;
         _isTimingActive = false;
 
+        if (elapsedMs >= CurrentFactDeadlineMs)
+        {
+            InteractionState = SessionInteractionState.TimeoutFeedback;
+            return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs, null);
+        }
+
         var isCorrect = submittedAnswer == CurrentFact.CorrectResult;
         var outcome = isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect;
         InteractionState = isCorrect ? SessionInteractionState.CorrectFeedback : SessionInteractionState.IncorrectFeedback;
@@ -340,18 +415,23 @@ public sealed class TrainingSession
         LastPersistenceResult = null;
         LastResponseLatencyMs = elapsedMs;
         var isCorrect = (outcome == AttemptOutcome.Correct);
+        var classification = AdaptiveAttemptClassifier.Classify(
+            outcome,
+            elapsedMs,
+            CurrentFactEasyThresholdMs,
+            CurrentFactFluencyThresholdMs);
+        var isFluent = classification.IsFluent;
 
         var candidateProgression = CloneProgression(Progression);
         var practicePosition = checked(candidateProgression.PracticePosition + 1);
         candidateProgression.PracticePosition = practicePosition;
 
         // 3. Update FSRS card state
-        var rating = FsrsRatingMapper.MapRating(outcome, elapsedMs, LearningPolicy.DefaultEasyResponseThresholdMs, _fluentThresholdMs);
         _fsrsStates.TryGetValue(CurrentFact.Id, out var existingFsrsState);
         var updatedFsrsState = _fsrsScheduler.ReviewCard(
             existingFsrsState,
             CurrentFact.Id,
-            rating,
+            classification.Rating,
             practicePosition,
             elapsedMs);
 
@@ -372,7 +452,7 @@ public sealed class TrainingSession
         {
             itemState.CorrectAttempts++;
             itemState.ConsecutiveCorrectStreak++;
-            if (elapsedMs <= _fluentThresholdMs)
+            if (isFluent)
             {
                 itemState.FluentStreak++;
             }
@@ -395,15 +475,20 @@ public sealed class TrainingSession
             itemState.RemediationDueOrder = SessionOrderCounter + LearningPolicy.RemediationInterveningCount;
         }
 
-        itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, _fluentThresholdMs);
+        itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, isFluent);
 
         // Evaluate only the scheduled operation from bounded positioned evidence.
         var operationProgressions = candidateProgression.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var currentOperationProgression = operationProgressions[CurrentFact.Operation];
         var operationAttempts = _recentAttempts
             .Where(existing => existing.Operation == CurrentFact.Operation)
-            .Select(existing => new BandAttemptEvidence(existing.PracticePosition!.Value, existing.FactId, existing.IsCorrect, existing.ResponseLatencyMs))
-            .Append(new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, elapsedMs));
+            .Select(existing => new BandAttemptEvidence(
+                existing.PracticePosition!.Value,
+                existing.FactId,
+                existing.IsCorrect,
+                existing.IsFluent,
+                existing.ResponseLatencyMs))
+            .Append(new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, isFluent, elapsedMs));
         var operationCurriculum = _curriculum.GetCurriculum(CurrentFact.Operation);
         var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
         var ownedFactIds = ownership.GetOwnedFrontier(currentOperationProgression.BandIndex)
@@ -438,6 +523,7 @@ public sealed class TrainingSession
             submittedAnswer,
             CurrentFact.CorrectResult,
             isCorrect,
+            isFluent,
             elapsedMs,
             DateTimeOffset.UtcNow,
             outcome,
@@ -491,13 +577,45 @@ public sealed class TrainingSession
             Progression.StoreRevision = result.NewRevision.Value;
             LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
             _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
-            await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
-            InteractionState = LastEvaluation.Outcome switch
+            _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
+            if (_sessionCheckInAttempts.Count == 20)
             {
-                AttemptOutcome.Correct => SessionInteractionState.CorrectFeedback,
-                AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
-                _ => SessionInteractionState.IncorrectFeedback
-            };
+                var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
+                long? medianLatency = correctAttempts.Count > 0
+                    ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
+                    : null;
+                PendingCheckIn = new PracticeCheckInSummary(
+                    correctAttempts.Count,
+                    _sessionCheckInAttempts.Count,
+                    medianLatency);
+                _sessionCheckInAttempts.Clear();
+            }
+
+            await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+
+            if (LastEvaluation.Outcome == AttemptOutcome.Correct)
+            {
+                _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                InteractionState = SessionInteractionState.CorrectFeedback;
+            }
+            else
+            {
+                var errorCount = _sessionConsecutiveErrors.GetValueOrDefault(CurrentFact.Id, 0) + 1;
+                if (errorCount >= 2)
+                {
+                    _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                    InteractionState = SessionInteractionState.TeachingIntervention;
+                }
+                else
+                {
+                    _sessionConsecutiveErrors[CurrentFact.Id] = errorCount;
+                    InteractionState = LastEvaluation.Outcome switch
+                    {
+                        AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
+                        _ => SessionInteractionState.IncorrectFeedback
+                    };
+                }
+            }
         }
         else
         {
@@ -556,6 +674,16 @@ public sealed class TrainingSession
             new PracticeCandidateIndex(_selectionEvidence),
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)));
         CurrentFact = _selector.SelectTargetFact(context).Fact;
+        var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
+        var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
+            .GetOwnedFrontier(currentProgression.BandIndex)
+            .Select(fact => fact.Id);
+        var adaptivePace = AdaptivePacePolicy.Calculate(CurrentFact, ownedFrontierFactIds, _recentAttempts);
+        CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
+        CurrentFactEasyThresholdMs = adaptivePace.EasyThresholdMs;
+        CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;
+        CurrentFactDeadlineMs = adaptivePace.DeadlineMs;
+
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
         _accumulatedActiveElapsedMs = 0;
@@ -571,8 +699,6 @@ public sealed class TrainingSession
             _requiresBackgroundResumeAfterAdvance = false;
         }
 
-        ItemStates.TryGetValue(CurrentFact.Id, out var state);
-        CurrentFactDeadlineMs = LearningPolicy.GetAnswerDeadlineMs(state?.ConsecutiveCorrectStreak ?? 0);
         ReconcileTimingState();
     }
 
@@ -581,6 +707,15 @@ public sealed class TrainingSession
         if (InteractionState != SessionInteractionState.CorrectFeedback ||
             LastEvaluation?.Outcome != AttemptOutcome.Correct)
         {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
             return false;
         }
 
@@ -596,6 +731,9 @@ public sealed class TrainingSession
         await _store.ResetLearningProgressAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
+        _sessionConsecutiveErrors.Clear();
+        _sessionCheckInAttempts.Clear();
+        PendingCheckIn = null;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         SessionOrderCounter = 0;

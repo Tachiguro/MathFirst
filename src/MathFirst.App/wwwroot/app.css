@@ -858,15 +858,37 @@ select:disabled {
     gap: clamp(0.35rem, 1vw, 0.6rem);
 }
 
-.header-session-score {
-    white-space: nowrap;
-}
-
 .pause-practice-btn {
     min-width: clamp(2.25rem, 4vw, 2.75rem);
     min-height: clamp(2rem, 3.2vh, 2.4rem);
     padding: 0.2rem 0.55rem;
     font-size: clamp(1rem, 1.6vw, 1.25rem);
+}
+
+.pause-practice-btn.button-danger {
+    background: var(--color-danger);
+    color: var(--color-danger-contrast);
+    border-color: transparent;
+}
+
+.pause-practice-btn.button-danger:not(:disabled):hover {
+    background: var(--color-danger-hover);
+}
+
+.pause-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(3px, 0.5vw, 4px);
+    width: clamp(12px, 1.6vw, 14px);
+    height: clamp(14px, 1.8vw, 16px);
+}
+
+.pause-icon-bar {
+    width: clamp(3px, 0.4vw, 4px);
+    height: 100%;
+    background-color: currentColor;
+    border-radius: 1px;
 }
 
 @media (max-height: 500px) {
@@ -996,6 +1018,59 @@ select:disabled {
     margin: 0;
     font-size: clamp(1.45rem, 4vw, 2.4rem);
     font-weight: 800;
+}
+
+.teaching-dialog {
+    border: 2px solid var(--color-border-strong);
+    background: var(--color-surface);
+}
+
+.teaching-dialog .teaching-explanation {
+    margin: 0;
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    color: var(--color-muted);
+}
+
+.teaching-dialog .teaching-equation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.35rem, 1.8vw, 0.9rem);
+    margin: 0;
+    font-size: clamp(2.2rem, 6.5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.checkin-dialog {
+    border: 2px solid var(--color-border-strong);
+    background: var(--color-surface);
+}
+
+.checkin-stats {
+    display: grid;
+    gap: clamp(0.4rem, 1vh, 0.75rem);
+    width: 100%;
+    margin: clamp(0.5rem, 1.5vh, 1rem) 0;
+}
+
+.checkin-stat {
+    margin: 0;
+    font-size: clamp(1.15rem, 2.8vw, 1.6rem);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.checkin-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(0.5rem, 1.2vh, 0.75rem);
+    width: min(100%, 20rem);
+}
+
+.checkin-actions .practice-overlay-action {
+    width: 100%;
 }
 
 .practice-layout {

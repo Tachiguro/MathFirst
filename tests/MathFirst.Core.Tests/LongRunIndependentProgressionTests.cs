@@ -29,7 +29,11 @@ public sealed class LongRunIndependentProgressionTests
                     var fact = session.CurrentFact;
                     session.SubmitAnswer(fact.CorrectResult);
                     Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-                    Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                    if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                    {
+                        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                        session.ContinuePractice(startTiming: false);
+                    }
                 }
             }
 
@@ -64,7 +68,7 @@ public sealed class LongRunIndependentProgressionTests
             Assert.Equal(64, evidence.DueCandidates.Count);
             Assert.Equal(64, evidence.MaintenanceCandidates.Count);
             Assert.Equal(64, evidence.RemediationCandidates.Count);
-            Assert.Equal(64, evidence.AnyMaterializedCandidates.Count);
+            Assert.Equal(64, evidence.EarlyReviewCandidates.Count);
         }
         finally
         {
@@ -102,7 +106,11 @@ public sealed class LongRunIndependentProgressionTests
                 Assert.Equal(position, session.Progression.OperationProgressions[fact.Operation].BandStartedPracticePosition);
             }
 
-            Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                session.ContinuePractice(startTiming: false);
+            }
         }
 
         Assert.All(operationSlots.Values, slots => Assert.Equal(500, slots));
@@ -129,21 +137,17 @@ public sealed class LongRunIndependentProgressionTests
             var result = await session.CommitCurrentEvaluationAsync();
             Assert.True(result.IsSuccess);
 
-            if (position == 47)
+            if (position == 31)
             {
                 Assert.True(session.LastEvaluation!.OperationAdvanced);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                Assert.All(
-                    new[]
-                    {
-                        ArithmeticOperation.Addition,
-                        ArithmeticOperation.Subtraction,
-                        ArithmeticOperation.Division
-                    },
-                    operation => Assert.Equal(0, session.Progression.OperationProgressions[operation].BandIndex));
             }
 
-            Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                session.ContinuePractice(startTiming: false);
+            }
         }
 
         Assert.Equal(51, session.Progression.PracticePosition + 1);
@@ -238,7 +242,11 @@ public sealed class LongRunIndependentProgressionTests
                     var fact = session.CurrentFact;
                     session.SubmitAnswer(fact.CorrectResult);
                     Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-                    Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                    if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                    {
+                        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                        session.ContinuePractice(startTiming: false);
+                    }
                 }
                 await store.CloseAsync();
             }
@@ -364,6 +372,7 @@ public sealed class LongRunIndependentProgressionTests
                     fact.RightOperand,
                     isCorrect ? fact.CorrectResult : fact.CorrectResult + 1,
                     fact.CorrectResult,
+                    isCorrect,
                     isCorrect,
                     isCorrect ? 800 : 3_000,
                     DateTimeOffset.UnixEpoch.AddMinutes(index),
