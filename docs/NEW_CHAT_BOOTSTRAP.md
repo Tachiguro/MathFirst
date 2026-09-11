@@ -77,6 +77,8 @@ To determine what package is currently in flight or what should happen next, eva
   > **"There is currently no clearly determined next work item."**
 - **Strict Prohibition**: Agents must NEVER autonomously pick an item from [docs/BACKLOG.md](BACKLOG.md) or [docs/ROADMAP.md](ROADMAP.md) without explicit user instruction and prompt dispatch.
 
+---
+
 ## 5. Explicitly Authorized Next Package Context
 
 Use the live-state discovery rules above to distinguish the following cases:
@@ -87,38 +89,33 @@ Use the live-state discovery rules above to distinguish the following cases:
 
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
 
+---
+
 ## 6. Current Verified Candidate Snapshot
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-`main` / `origin/main`: `45ef623f44df87c0da97460d38dbb797c2aa18bf`
+`main` / `origin/main`: `8983bee7d4a3cc0a4201ab2b2d208e7692de6a5f`
 
-### Baseline Reconciliation
-- `MF-STAB-001` (**Practice Progression and HUD Stabilization**) is **COMPLETE** and merged into `main` via Pull Request #13 at `45ef623f44df87c0da97460d38dbb797c2aa18bf`.
-- Final validated feature candidate: `f54d0b1c5c8884ff1d4871abca667582759d5be1` (Core: 546 passed, 0 failed, 0 skipped; Windows/Android Release: 0 warnings, 0 errors).
+### Active Feature Candidate
+- Active Task Branch: `feat/mf-learn-002-adaptive-pace`
+- HEAD Commit: `b9a886290e8e5497b96af4a4b6a1eb8961b2a34f` (Checkpoint 6/6 `take-break-zero-timing-fix`)
+- Package: `MF-LEARN-002` — **Adaptive Pace, Fast Acquisition, and Practice Interventions**
+- Operation Mode: `DOCUMENT_ONLY` (reconciling repository documentation to implementation and `REVIEW_PASS` state)
+- Behavioral Implementation & Test Suite: Complete with 708 passing Core tests (0 failed, 0 skipped) in `MathFirst.Core.Tests`. Independent post-correction review approved (`REVIEW_PASS`). `FULL_VALIDATION` remains pending.
 
-### Active Documentation Task
-- Active Task: `MF-DOC-002`, **Adaptive Learning System and Next Lifecycle Handoff Documentation**, on `docs/mf-doc-002-adaptive-learning-handoff`.
-- Operation Mode: `DOCUMENT_ONLY`.
-- Status: Documentation changes authored locally (unstaged/uncommitted), recording the accepted `MF-LEARN-002` product direction in [docs/BACKLOG.md](BACKLOG.md) and updating strategic sequencing in [docs/ROADMAP.md](ROADMAP.md).
-- Immediate next documentation lifecycle: `REVIEW_ONLY — MF-DOC-002` → `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+### Implemented Architecture Summary (MF-LEARN-002)
+1. **Adaptive Pace & Deadlines**: Multi-level hierarchical shrinkage ($P_0=4500$, learner, operation, band, fact), instability allowance (+1000ms Incorrect, +1500ms Timeout), adaptive deadline clamped to 3000..30000ms (cold baseline 9000ms).
+2. **Adaptive Fluency & Ratings**: Ratings mapped to fact pace (Easy $\le 0.85 P_{\text{fact}}$, Good $\le 1.25 P_{\text{fact}}$, Hard $> \text{FluencyThreshold}$, Again on error/timeout). Persisted `is_fluent` in Schema V6.
+3. **Fast Acquisition**: Dense bands ($N \in [1, 12]$) advance upon 100% correct first-encounter latency $\le 2000\text{ ms}$ with clean prefix within phase-aware requested-New horizon.
+4. **Selector Model**: Role-specific selector chains (`Requested New`, `Requested Due`, `Requested Maintenance`, `Requested Frontier`), removal of `AnyMaterialized`, early review liveness bridge, strict in-pool cooldown relaxation, remediation priority override.
+5. **Teaching Interventions**: Session-local 2nd consecutive error on same fact triggers non-mutating canonical equation teaching overlay.
+6. **Session Check-ins**: Checkpoint every 20 accepted attempts (correct count + median latency of correct attempts only) with Keep Going vs Take a Break zero-timing flow.
+7. **Clean Practice HUD**: Distraction-free practice screen with transient session score and progress indicators removed; danger-styled Pause button.
 
-### Next Behavioral Package & Handoff Summary
-- **Package**: `MF-LEARN-002` — **Adaptive Pace, Fast Acquisition, and Practice Interventions** (Status: `Accepted` in [docs/BACKLOG.md](BACKLOG.md)).
-- **Intended Sequencing**: `MF-LEARN-002` is explicitly scheduled **before** `MF-REL-001` (Android Internal AAB Packaging and Release Automation). `MF-REL-001` remains not started.
-- **Next Lifecycle Phase**: Begins with `PLAN_ONLY — MF-LEARN-002`.
-- **Approved Product Direction to Preserve**:
-  1. *Dual Goal*: Optimize both correctness and retrieval speed; push strong learners rapidly toward challenging material while weak facts recur more often.
-  2. *Single Adaptive Timer*: One visible countdown bar serving as the actual answer deadline (no dual timers), adapting between a sensible minimum (~3s candidate) and 30s maximum (initial deadline in ~8–10s candidate region). The 5% fixed tightening step was considered too slow and is rejected.
-  3. *Multi-Dimensional Pace*: Adaptation combines learner pace, operation, band difficulty, exact-fact history, latency, and stability.
-  4. *FSRS Preservation*: Preserves `FSRS.Core` 1.0.7 with Practice Position virtual time, 0.95 desired retention, and deterministic per-FactId cards as the central spaced-repetition queue.
-  5. *Adaptive Rating & Fluency*: Replace fixed latency thresholds (1000/2500ms) with ratings and fluency relative to adaptive expected pace.
-  6. *Fast Acquisition*: Rapid advancement through small dense bands (e.g. `0 + 0 = 0`) upon confident demonstration without requiring 40 artificial repetitions.
-  7. *Avoid Non-Due Repetition*: Prevent mastered non-due facts from filling empty selector pools.
-  8. *Repeated-Error Intervention*: Repeated mistakes on a fact trigger a non-scored teaching pause / echo acknowledgement (`7 × 8 = 56`) before returning later via normal scheduling.
-  9. *Minimalist Practice UI*: Keep practice distraction-free; evaluate transient session score vs. periodic check-ins/breaks in planning.
-  10. *UI Corrections*: Investigate and fix the Pause button appearing blue in live rendering (must match intended red/danger style). The timer bar visual itself is approved and not a defect.
-  11. *Safety & Hard Stop*: Checked arithmetic prevents `Int32` overflow at the end of curriculum. Endgame achievement ("Math God") is deferred gamification.
-- **Open Items for Planning**: All exact numerical calibration values, timing formulas, scaling steps, time windows, and advancement gates remain unresolved and must be researched and justified during `PLAN_ONLY`.
+### Immediate Next Lifecycle Steps
+- Complete `DOCUMENT_ONLY` reconciliation.
+- `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- Deferred Work: `MF-REL-001` (Android Internal AAB Packaging and Release Automation) remains deferred and not started.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

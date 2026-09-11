@@ -67,8 +67,8 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — complete and merged through Pull Request #11.
 3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — complete and merged through Pull Request #12.
 4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) — complete and merged through Pull Request #13.
-5. Capture adaptive learning product direction and repository handoff (`MF-DOC-002`) — active documentation package.
-6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) — accepted next behavioral package, starting with `PLAN_ONLY` and sequenced before packaging/release.
+5. Capture adaptive learning product direction and repository handoff (`MF-DOC-002`) — complete and merged through Pull Request #14.
+6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) — implemented, verified (708 Core tests in `MathFirst.Core.Tests`), and independently reviewed (`REVIEW_PASS`); `FULL_VALIDATION` and PR integration pending.
 7. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — deferred until `MF-LEARN-002` completes its entire lifecycle; not started.
 8. Complete final exact-candidate Native V1 validation.
 9. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
