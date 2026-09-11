@@ -68,6 +68,13 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
             CancellationToken cancellationToken = default) =>
             _inner.LoadPracticeSelectionEvidenceAsync(request, cancellationToken);
 
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            _inner.LoadLatestFrontierAttemptsAsync(operation, bandStartedPracticePosition, frontierFactIds, cancellationToken);
+
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
             CancellationToken cancellationToken = default)

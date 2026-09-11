@@ -36,201 +36,44 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void FullyQualifyingFortyAttemptLearner_Advances()
+    public void StructuredBand_FullyQualifyingFortyAttemptLearner_Advances()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 0);
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
 
         Assert.True(decision.Advances);
+        Assert.Equal(11, decision.ResultingProgression.BandIndex);
     }
 
     [Fact]
-    public void InitialMultiplicationBootstrap_AdvancesAfterTwelveQualifyingAttempts()
+    public void StructuredBand_CorrectnessThreshold_DistinguishesThirtyEightFromThirtySeven()
     {
-        var testCase = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
+        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, correctCount: 38, fluentCount: 34);
+        var failing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, correctCount: 37, fluentCount: 34);
+
+        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
+        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
+    }
+
+    [Fact]
+    public void StructuredBand_Advancement_CreatesExactlyTheNextIndependentStateAtTheTriggeringPosition()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 10, bandStart: 400);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
 
-        Assert.True(decision.Advances);
-        Assert.Equal(1, decision.ResultingProgression.BandIndex);
-        Assert.Equal(112, decision.ResultingProgression.BandStartedPracticePosition);
-    }
-
-    [Fact]
-    public void InitialMultiplicationBootstrap_RequiresElevenCorrectAttempts()
-    {
-        var passing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
-        var failing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 10,
-            fluentCount: 10,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
-
-        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
-    }
-
-    [Fact]
-    public void InitialMultiplicationBootstrap_RequiresElevenFluentAttempts()
-    {
-        var passing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 12,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
-        var failing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 12,
-            fluentCount: 10,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
-
-        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
-    }
-
-    [Fact]
-    public void InitialMultiplicationBootstrap_RequiresEightFrontierAttempts()
-    {
-        var passing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
-        var failing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 7,
-            distinctFrontierCount: 4);
-
-        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
-    }
-
-    [Fact]
-    public void InitialMultiplicationBootstrap_RequiresAllFourFactsForCoverageAndDistinctEvidence()
-    {
-        var passing = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4);
-        var missingCoverage = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 4,
-            completeCoverage: false);
-        var insufficientDistinctEvidence = CreateCase(
-            ArithmeticOperation.Multiplication,
-            bandIndex: 0,
-            attemptCount: 12,
-            correctCount: 11,
-            fluentCount: 11,
-            frontierAttemptCount: 8,
-            distinctFrontierCount: 3);
-
-        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(
-            missingCoverage.Progression,
-            missingCoverage.Curriculum,
-            missingCoverage.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(
-            insufficientDistinctEvidence.Progression,
-            insufficientDistinctEvidence.Curriculum,
-            insufficientDistinctEvidence.Evidence).Advances);
-    }
-
-    [Theory]
-    [InlineData(ArithmeticOperation.Multiplication, 1)]
-    [InlineData(ArithmeticOperation.Addition, 0)]
-    [InlineData(ArithmeticOperation.Division, 0)]
-    public void BootstrapThresholds_DoNotApplyOutsideInitialMultiplication(
-        ArithmeticOperation operation,
-        int bandIndex)
-    {
-        var twelveAttempts = CreateCase(
-            operation,
-            bandIndex,
-            attemptCount: 12,
-            correctCount: 12,
-            fluentCount: 12,
-            frontierAttemptCount: 12);
-        var fortyAttempts = CreateCase(operation, bandIndex);
-
-        Assert.False(_evaluator.Evaluate(
-            twelveAttempts.Progression,
-            twelveAttempts.Curriculum,
-            twelveAttempts.Evidence).Advances);
-        Assert.True(_evaluator.Evaluate(
-            fortyAttempts.Progression,
-            fortyAttempts.Curriculum,
-            fortyAttempts.Evidence).Advances);
-    }
-
-    [Fact]
-    public void CorrectnessThreshold_DistinguishesThirtyEightFromThirtySeven()
-    {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, correctCount: 38, fluentCount: 34);
-        var failing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, correctCount: 37, fluentCount: 34);
-
-        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
-    }
-
-    [Fact]
-    public void Advancement_CreatesExactlyTheNextIndependentStateAtTheTriggeringPosition()
-    {
-        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 0, bandStart: 400);
-
-        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
-
-        Assert.Equal(1, decision.ResultingProgression.BandIndex);
+        Assert.Equal(11, decision.ResultingProgression.BandIndex);
         Assert.Equal(440, decision.ResultingProgression.BandStartedPracticePosition);
         Assert.Equal(testCase.Progression.Operation, decision.ResultingProgression.Operation);
-        Assert.Equal(0, testCase.Progression.BandIndex);
+        Assert.Equal(10, testCase.Progression.BandIndex);
         Assert.Equal(400, testCase.Progression.BandStartedPracticePosition);
     }
 
     [Fact]
-    public void FewerThanFortyPostStartAttempts_DoNotAdvance()
+    public void StructuredBand_FewerThanFortyPostStartAttempts_DoNotAdvance()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, attemptCount: 39);
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 39);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
 
@@ -239,9 +82,9 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void AttemptsAtBandStartAreExcludedAndAttemptsAfterBandStartAreIncluded()
+    public void StructuredBand_AttemptsAtBandStartAreExcludedAndAttemptsAfterBandStartAreIncluded()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, bandStart: 100);
+        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, bandStart: 100);
         var shiftedAttempts = passing.Evidence.AcceptedAttempts
             .Select(attempt => new BandAttemptEvidence(
                 attempt.PracticePosition - 1,
@@ -259,9 +102,9 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void MoreThanFortyAttempts_UseOnlyTheLatestFortyByPracticePosition()
+    public void StructuredBand_MoreThanFortyAttempts_UseOnlyTheLatestFortyByPracticePosition()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0);
+        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
         var oldFailures = Enumerable.Range(101, 10)
             .Select(position => new BandAttemptEvidence(position, "add:999+999", false, false, 5000));
         var shiftedPassing = ShiftAttempts(passing.Evidence.AcceptedAttempts, 10);
@@ -274,11 +117,11 @@ public sealed class BandAdvancementEvaluatorTests
 
         var failing = CreateCase(
             ArithmeticOperation.Addition,
-            bandIndex: 0,
+            bandIndex: 10,
             correctCount: 37,
             fluentCount: 34);
         var oldSuccesses = Enumerable.Range(101, 10)
-            .Select(position => new BandAttemptEvidence(position, "add:0+0", true, true, 1000));
+            .Select(position => new BandAttemptEvidence(position, "add:10+10", true, true, 1000));
         var shiftedFailing = ShiftAttempts(failing.Evidence.AcceptedAttempts, 10);
         var withOldSuccesses = ReplaceAttempts(failing, oldSuccesses.Concat(shiftedFailing));
 
@@ -289,9 +132,9 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void UnorderedInput_IsNormalizedByPracticePosition()
+    public void StructuredBand_UnorderedInput_IsNormalizedByPracticePosition()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 0);
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
         var reversed = ReplaceAttempts(testCase, testCase.Evidence.AcceptedAttempts.Reverse());
 
         Assert.True(_evaluator.Evaluate(reversed.Progression, reversed.Curriculum, reversed.Evidence).Advances);
@@ -304,7 +147,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void DuplicatePositivePracticePositions_AreRejected()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 0);
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
         var duplicate = testCase.Evidence.AcceptedAttempts
             .Append(new BandAttemptEvidence(140, "add:999+999", true, true, 1000));
         var invalid = ReplaceAttempts(testCase, duplicate);
@@ -314,26 +157,26 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void FluencyThreshold_DistinguishesThirtyFourFromThirtyThree()
+    public void StructuredBand_FluencyThreshold_DistinguishesThirtyFourFromThirtyThree()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, fluentCount: 34);
-        var failing = CreateCase(ArithmeticOperation.Addition, bandIndex: 0, fluentCount: 33);
+        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, fluentCount: 34);
+        var failing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, fluentCount: 33);
 
         Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
         Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
     }
 
     [Fact]
-    public void SlowCorrectAnswers_CountAsCorrectButNotFluent()
+    public void StructuredBand_SlowCorrectAnswers_CountAsCorrectButNotFluent()
     {
         var passing = CreateCase(
             ArithmeticOperation.Addition,
-            bandIndex: 0,
+            bandIndex: 10,
             correctCount: 38,
             fluentCount: 34);
         var tooSlow = CreateCase(
             ArithmeticOperation.Addition,
-            bandIndex: 0,
+            bandIndex: 10,
             correctCount: 38,
             fluentCount: 33);
 
@@ -343,7 +186,7 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void FrontierAttemptThreshold_DistinguishesTwentyFromNineteenAndRejectsEarlierOwnership()
+    public void StructuredBand_FrontierAttemptThreshold_DistinguishesTwentyFromNineteen()
     {
         const int structuredBandIndex = 10;
         var passing = CreateCase(
@@ -363,7 +206,7 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void DistinctFrontierThreshold_DistinguishesSixteenFromFifteen()
+    public void StructuredBand_DistinctFrontierThreshold_DistinguishesSixteenFromFifteen()
     {
         const int structuredBandIndex = 10;
         var passing = CreateCase(
@@ -380,61 +223,7 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void SmallFrontier_RequiresAllAvailableDistinctFactsAndAllowsRepeatedAttempts()
-    {
-        var passing = CreateCase(
-            ArithmeticOperation.Addition,
-            bandIndex: 0,
-            frontierAttemptCount: 20,
-            distinctFrontierCount: 4);
-        var missingOne = CreateCase(
-            ArithmeticOperation.Addition,
-            bandIndex: 0,
-            frontierAttemptCount: 40,
-            distinctFrontierCount: 3);
-
-        Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(missingOne.Progression, missingOne.Curriculum, missingOne.Evidence).Advances);
-    }
-
-    [Fact]
-    public void DenseCoverage_UsesPositionlessLifetimeExactFactEvidence()
-    {
-        const int denseBandIndex = 9;
-        var complete = CreateCase(
-            ArithmeticOperation.Addition,
-            denseBandIndex,
-            distinctFrontierCount: 16);
-        var missingOne = CreateCase(
-            ArithmeticOperation.Addition,
-            denseBandIndex,
-            distinctFrontierCount: 16,
-            completeCoverage: false);
-
-        Assert.Equal(21, complete.Evidence.LifetimeAttemptedFactIds.Count);
-        Assert.True(_evaluator.Evaluate(complete.Progression, complete.Curriculum, complete.Evidence).Advances);
-        Assert.False(_evaluator.Evaluate(missingOne.Progression, missingOne.Curriculum, missingOne.Evidence).Advances);
-    }
-
-    [Fact]
-    public void UnrelatedLifetimeFacts_DoNotCompleteDenseCoverage()
-    {
-        const int denseBandIndex = 9;
-        var testCase = CreateCase(
-            ArithmeticOperation.Addition,
-            denseBandIndex,
-            completeCoverage: false);
-        var unrelatedCoverage = testCase.Evidence.LifetimeAttemptedFactIds.Append("add:999+999");
-        var evidence = new BandAdvancementEvidence(
-            testCase.Evidence.AcceptedAttempts,
-            unrelatedCoverage,
-            testCase.Evidence.CurrentBandIntroducedFactIds);
-
-        Assert.False(_evaluator.Evaluate(testCase.Progression, testCase.Curriculum, evidence).Advances);
-    }
-
-    [Fact]
-    public void StructuredCoverage_RequiresTheDeterministicRepresentativeSample()
+    public void StructuredBand_Coverage_RequiresTheDeterministicRepresentativeSample()
     {
         const int structuredBandIndex = 10;
         var passing = CreateCase(ArithmeticOperation.Addition, structuredBandIndex);
@@ -457,7 +246,7 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void EarlierOwnedOrUnrelatedIntroductions_DoNotReplaceAStructuredSampleFact()
+    public void StructuredBand_EarlierOwnedOrUnrelatedIntroductions_DoNotReplaceAStructuredSampleFact()
     {
         const int structuredBandIndex = 10;
         var testCase = CreateCase(
@@ -473,7 +262,7 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void UnseenNonRequiredStructuredCandidates_AreNotAdvancementDebt()
+    public void StructuredBand_UnseenNonRequiredStructuredCandidates_AreNotAdvancementDebt()
     {
         const int structuredBandIndex = 10;
         var testCase = CreateCase(ArithmeticOperation.Addition, structuredBandIndex);
@@ -502,7 +291,7 @@ public sealed class BandAdvancementEvaluatorTests
     public void InvalidOrMismatchedCurrentCurriculumState_IsRejected()
     {
         var curriculum = new ArithmeticCurriculum();
-        var evidence = CreateCase(ArithmeticOperation.Addition, bandIndex: 0).Evidence;
+        var evidence = CreateCase(ArithmeticOperation.Addition, bandIndex: 10).Evidence;
 
         Assert.Throws<ArgumentException>(() => _evaluator.Evaluate(
             new OperationProgression(ArithmeticOperation.Addition, int.MaxValue, 0),
@@ -515,14 +304,21 @@ public sealed class BandAdvancementEvaluatorTests
     }
 
     [Fact]
-    public void WeakOperation_DoesNotBlockThreeIndependentStrongOperations()
+    public void WeakStructuredOperation_DoesNotBlockThreeIndependentStrongOperations()
     {
         var cases = Enum.GetValues<ArithmeticOperation>()
             .ToDictionary(
                 operation => operation,
                 operation => CreateCase(
                     operation,
-                    bandIndex: 0,
+                    bandIndex: operation switch
+                    {
+                        ArithmeticOperation.Addition => 10,
+                        ArithmeticOperation.Subtraction => 10,
+                        ArithmeticOperation.Multiplication => 12,
+                        ArithmeticOperation.Division => 12,
+                        _ => 10
+                    },
                     attemptCount: operation == ArithmeticOperation.Addition ? 39 : 40));
 
         var decisions = cases.ToDictionary(
@@ -533,7 +329,7 @@ public sealed class BandAdvancementEvaluatorTests
                 pair.Value.Evidence));
 
         Assert.False(decisions[ArithmeticOperation.Addition].Advances);
-        Assert.Equal(0, decisions[ArithmeticOperation.Addition].ResultingProgression.BandIndex);
+        Assert.Equal(10, decisions[ArithmeticOperation.Addition].ResultingProgression.BandIndex);
         Assert.All(
             new[]
             {
@@ -543,8 +339,15 @@ public sealed class BandAdvancementEvaluatorTests
             },
             operation =>
             {
+                var expectedBand = operation switch
+                {
+                    ArithmeticOperation.Subtraction => 11,
+                    ArithmeticOperation.Multiplication => 13,
+                    ArithmeticOperation.Division => 13,
+                    _ => 11
+                };
                 Assert.True(decisions[operation].Advances);
-                Assert.Equal(1, decisions[operation].ResultingProgression.BandIndex);
+                Assert.Equal(expectedBand, decisions[operation].ResultingProgression.BandIndex);
             });
     }
 
@@ -553,7 +356,7 @@ public sealed class BandAdvancementEvaluatorTests
     {
         var testCase = CreateCase(
             ArithmeticOperation.Addition,
-            bandIndex: 5,
+            bandIndex: 10,
             bandStart: 900,
             attemptCount: 39);
 
@@ -561,7 +364,7 @@ public sealed class BandAdvancementEvaluatorTests
 
         Assert.False(decision.Advances);
         Assert.Same(testCase.Progression, decision.ResultingProgression);
-        Assert.Equal(5, decision.ResultingProgression.BandIndex);
+        Assert.Equal(10, decision.ResultingProgression.BandIndex);
         Assert.Equal(900, decision.ResultingProgression.BandStartedPracticePosition);
     }
 
@@ -654,6 +457,7 @@ public sealed class BandAdvancementEvaluatorTests
         (operation, bandIndex) switch
         {
             (ArithmeticOperation.Addition, 10) => "add:10+10",
+            (ArithmeticOperation.Subtraction, 10) => "sub:11-1",
             (ArithmeticOperation.Subtraction, 20) => "sub:20-10",
             (ArithmeticOperation.Multiplication, 12) => "mul:10*10",
             (ArithmeticOperation.Division, 12) => "div:20/10",

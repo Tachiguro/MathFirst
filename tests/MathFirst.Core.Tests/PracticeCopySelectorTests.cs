@@ -610,6 +610,13 @@ public sealed class PracticeCopySelectorTests
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(snapshot);
 
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
+
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
             CancellationToken cancellationToken = default) =>

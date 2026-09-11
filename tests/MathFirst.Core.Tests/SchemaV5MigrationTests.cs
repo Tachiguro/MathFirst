@@ -373,6 +373,12 @@ public sealed class SchemaV5MigrationTests : IDisposable
         public string StoragePath => "inmemory://failure";
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(new LearnerSnapshot(LearnerProgression.CreateFresh(), new Dictionary<string, ItemLearningState>(), [], 1, LearnerProgression.DefaultSchemaVersion));
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AttemptRecord>>([]);
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default) => Task.FromResult(PersistenceResult.Unavailable("synthetic failure"));
         public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

@@ -50,6 +50,13 @@ public sealed class PersistenceRecoveryAndLifecycleTests
                 LearnerProgression.DefaultSchemaVersion));
         }
 
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AttemptRecord>>([]);
+
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
             CancellationToken cancellationToken = default)

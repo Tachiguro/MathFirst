@@ -12,12 +12,6 @@ public sealed class BandAdvancementEvaluator
         RequiredFluentAttempts: 34,
         RequiredFrontierAttempts: 20,
         MaximumRequiredDistinctFrontierFacts: 16);
-    private static readonly AdvancementRequirements InitialMultiplicationRequirements = new(
-        WindowSize: 12,
-        RequiredCorrectAttempts: 11,
-        RequiredFluentAttempts: 11,
-        RequiredFrontierAttempts: 8,
-        MaximumRequiredDistinctFrontierFacts: 4);
 
     public BandAdvancementDecision Evaluate(
         OperationProgression currentProgression,
@@ -35,7 +29,7 @@ public sealed class BandAdvancementEvaluator
                 nameof(curriculum));
         }
 
-        if (!curriculum.TryGetBand(currentProgression.BandIndex, out var currentBand))
+        if (!curriculum.TryGetBand(currentProgression.BandIndex, out var currentBand) || currentBand is null)
         {
             throw new ArgumentException(
                 "The current progression band must resolve to a complete curriculum band.",
@@ -44,16 +38,20 @@ public sealed class BandAdvancementEvaluator
 
         ValidateUniquePracticePositions(evidence.AcceptedAttempts);
 
-        if (FastAcquisitionEvaluator.TryEvaluate(
-            currentProgression,
-            curriculum,
-            evidence,
-            out var fastAdvancedProgression))
+        if (currentBand.Kind == CurriculumBandKind.Dense)
         {
-            return new BandAdvancementDecision(true, fastAdvancedProgression);
+            return DenseProgressionEvaluator.Evaluate(
+                currentProgression,
+                curriculum,
+                evidence.LatestCurrentBandFrontierAttempts);
         }
 
-        var requirements = ResolveRequirements(currentProgression);
+        if (currentBand.Kind != CurriculumBandKind.Structured)
+        {
+            throw new InvalidOperationException("The current curriculum band has an unknown kind.");
+        }
+
+        var requirements = StandardRequirements;
 
         var qualifyingAttempts = evidence.AcceptedAttempts
             .Where(attempt => attempt.PracticePosition > currentProgression.BandStartedPracticePosition)
@@ -92,7 +90,7 @@ public sealed class BandAdvancementEvaluator
             return Stay(currentProgression);
         }
 
-        if (!HasRequiredCoverage(currentBand!, ownedFrontier, ownedFactIds, evidence))
+        if (!HasRequiredStructuredCoverage(currentBand, ownedFrontier, evidence))
         {
             return Stay(currentProgression);
         }
@@ -110,25 +108,15 @@ public sealed class BandAdvancementEvaluator
         return new BandAdvancementDecision(true, advanced);
     }
 
-    private static AdvancementRequirements ResolveRequirements(OperationProgression progression) =>
-        progression.Operation == ArithmeticOperation.Multiplication && progression.BandIndex == 0
-            ? InitialMultiplicationRequirements
-            : StandardRequirements;
-
-    private static bool HasRequiredCoverage(
+    private static bool HasRequiredStructuredCoverage(
         CurriculumBand currentBand,
         IReadOnlyList<ArithmeticFact> ownedFrontier,
-        IReadOnlySet<string> ownedFactIds,
-        BandAdvancementEvidence evidence) => currentBand.Kind switch
-    {
-        CurriculumBandKind.Dense => ownedFactIds.All(evidence.LifetimeAttemptedFactIds.Contains),
-        CurriculumBandKind.Structured => DeterministicFactRanker.SelectStructuredSample(
+        BandAdvancementEvidence evidence) =>
+        DeterministicFactRanker.SelectStructuredSample(
                 ownedFrontier,
                 currentBand.Operation,
                 currentBand.Id)
-            .All(fact => evidence.CurrentBandIntroducedFactIds.Contains(fact.Id)),
-        _ => throw new InvalidOperationException("The current curriculum band has an unknown kind.")
-    };
+            .All(fact => evidence.CurrentBandIntroducedFactIds.Contains(fact.Id));
 
     private static void ValidateUniquePracticePositions(IReadOnlyList<BandAttemptEvidence> attempts)
     {

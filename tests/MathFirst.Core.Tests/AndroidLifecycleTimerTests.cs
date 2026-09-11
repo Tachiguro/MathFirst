@@ -53,6 +53,12 @@ public sealed class AndroidLifecycleTimerTests
         public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken ct = default) =>
             Task.FromResult(_snapshot);
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(_snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet, CancellationToken ct = default) =>
             Task.FromResult(PersistenceResult.Success(changeSet.ExpectedRevision + 1));

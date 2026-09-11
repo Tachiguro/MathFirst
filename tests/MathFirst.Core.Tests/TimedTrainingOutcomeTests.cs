@@ -57,6 +57,12 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(Snapshot);
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(Snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default)
         {
             CommittedChangeSets.Add(changeSet);

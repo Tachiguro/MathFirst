@@ -28,6 +28,12 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
                 new List<AttemptRecord>(),
                 1,
                 LearnerProgression.DefaultSchemaVersion));
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AttemptRecord>>([]);
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
             CancellationToken cancellationToken = default)

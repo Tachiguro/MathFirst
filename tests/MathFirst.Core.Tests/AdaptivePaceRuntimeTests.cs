@@ -710,6 +710,12 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         public string StoragePath => "inmemory.db";
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(snapshot);
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default) =>
             Task.FromResult(PersistenceResult.Success(changeSet.ExpectedRevision + 1));
         public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -722,6 +728,12 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         public string StoragePath => "failing.db";
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(snapshot);
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default) =>
             Task.FromResult(PersistenceResult.Unavailable("Simulated disk write failure."));
         public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

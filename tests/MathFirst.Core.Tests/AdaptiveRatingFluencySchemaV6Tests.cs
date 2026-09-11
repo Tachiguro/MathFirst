@@ -258,18 +258,22 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     public async Task StandardAdvancement_UsesPersistedMixedFluencyAtExactThirtyFourBoundaryAfterReload()
     {
         var curriculum = new ArithmeticCurriculum().Addition;
-        var frontier = new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(0);
+        Assert.True(curriculum.TryGetBand(10, out var band));
+        var frontier = DeterministicFactRanker.SelectStructuredSample(
+            new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(10),
+            ArithmeticOperation.Addition,
+            band!.Id);
         var mixed = CreateMixedStandardAttempts(frontier, adaptiveFluentCount: 14);
         using var store = new SnapshotStore(FreshSnapshot(mixed));
 
         var reloaded = await store.LoadSnapshotAsync();
         var passing = Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 0, 0),
+            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
             curriculum,
             reloaded.RecentAttempts,
             frontier.Select(fact => fact.Id));
         var failing = Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 0, 0),
+            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
             curriculum,
             CreateMixedStandardAttempts(frontier, adaptiveFluentCount: 13),
             frontier.Select(fact => fact.Id));
@@ -283,7 +287,11 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     {
         var path = Path.Combine(_directory, "mixed-advancement.db");
         var curriculum = new ArithmeticCurriculum().Addition;
-        var frontier = new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(0);
+        Assert.True(curriculum.TryGetBand(10, out var band));
+        var frontier = DeterministicFactRanker.SelectStructuredSample(
+            new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(10),
+            ArithmeticOperation.Addition,
+            band!.Id);
         await CreateV5DatabaseAsync(path, installBlockingTrigger: false);
         await ReplaceV5AttemptsWithHistoricalAdvancementEvidenceAsync(path, frontier);
 
@@ -308,7 +316,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
                     && attempt.ResponseLatencyMs == 3000
                     && attempt.IsFluent);
             Assert.True(Evaluate(
-                new OperationProgression(ArithmeticOperation.Addition, 0, 0),
+                new OperationProgression(ArithmeticOperation.Addition, 10, 0),
                 curriculum,
                 snapshot.RecentAttempts,
                 frontier.Select(fact => fact.Id)).Advances);
@@ -326,33 +334,10 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         var belowBoundary = await secondRestart.LoadSnapshotAsync();
         Assert.Equal(33, belowBoundary.RecentAttempts.Count(attempt => attempt.IsFluent));
         Assert.False(Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 0, 0),
+            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
             curriculum,
             belowBoundary.RecentAttempts,
             frontier.Select(fact => fact.Id)).Advances);
-    }
-
-    [Fact]
-    public void InitialMultiplicationAdvancement_UsesPersistedMixedFluencyAtExactElevenBoundary()
-    {
-        var curriculum = new ArithmeticCurriculum().Multiplication;
-        var frontier = new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(0);
-        var passingAttempts = CreateMixedMultiplicationAttempts(frontier, adaptiveFluentCount: 5);
-        var failingAttempts = CreateMixedMultiplicationAttempts(frontier, adaptiveFluentCount: 4);
-
-        var passing = Evaluate(
-            new OperationProgression(ArithmeticOperation.Multiplication, 0, 0),
-            curriculum,
-            passingAttempts,
-            frontier.Select(fact => fact.Id));
-        var failing = Evaluate(
-            new OperationProgression(ArithmeticOperation.Multiplication, 0, 0),
-            curriculum,
-            failingAttempts,
-            frontier.Select(fact => fact.Id));
-
-        Assert.True(passing.Advances);
-        Assert.False(failing.Advances);
     }
 
     [Fact]
@@ -495,27 +480,6 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         })
         .ToArray();
 
-    private static AttemptRecord[] CreateMixedMultiplicationAttempts(
-        IReadOnlyList<ArithmeticFact> frontier,
-        int adaptiveFluentCount) => Enumerable.Range(0, 12)
-        .Select(index =>
-        {
-            var isHistorical = index < 6;
-            var isCorrect = index < 11;
-            var isFluent = isCorrect && (isHistorical || index - 6 < adaptiveFluentCount);
-            var factId = index < 8 ? frontier[index % frontier.Count].Id : "mul:2*2";
-            var latency = isHistorical ? 2500 : isFluent ? 3000 : 1000;
-            return Attempt(
-                $"{(isHistorical ? "historical-v5" : "adaptive-v6")}-mul-{index}",
-                index + 1,
-                factId,
-                isCorrect,
-                isFluent,
-                latency,
-                isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect);
-        })
-        .ToArray();
-
     private static BandAdvancementDecision Evaluate(
         OperationProgression progression,
         OperationCurriculum curriculum,
@@ -527,11 +491,11 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
             attempt.FactId,
             attempt.IsCorrect,
             attempt.IsFluent,
-            attempt.ResponseLatencyMs));
+            attempt.ResponseLatencyMs)).ToArray();
         return new BandAdvancementEvaluator().Evaluate(
             progression,
             curriculum,
-            new BandAdvancementEvidence(evidence, lifetimeAttemptedFactIds, []));
+            new BandAdvancementEvidence(evidence, lifetimeAttemptedFactIds, evidence.Select(item => item.FactId)));
     }
 
     private static async Task CreateV5DatabaseAsync(string path, bool installBlockingTrigger)
@@ -674,6 +638,12 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         public string StoragePath => "inmemory://slice2";
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(snapshot);
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(snapshot.RecentAttempts, operation, bandStartedPracticePosition, frontierFactIds));
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default) =>
             Task.FromResult(PersistenceResult.Success(changeSet.ExpectedRevision + 1));
         public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

@@ -161,8 +161,8 @@ public sealed class LongRunIndependentProgressionTests
     {
         using var store = new InMemoryLearnerStore(CreatePersistedMultiplicationSnapshot(
             bandIndex: 0,
-            historicalAttemptCount: 11,
-            historicalCorrectCount: 10));
+            historicalAttemptCount: 7,
+            historicalCorrectCount: 7));
         var originalSnapshot = store.Snapshot;
         var originalFactIds = originalSnapshot.ItemStates.Keys.ToHashSet(StringComparer.Ordinal);
         var originalFsrs = originalSnapshot.FsrsStates;
@@ -191,8 +191,8 @@ public sealed class LongRunIndependentProgressionTests
     {
         using var store = new InMemoryLearnerStore(CreatePersistedMultiplicationSnapshot(
             bandIndex: 0,
-            historicalAttemptCount: 11,
-            historicalCorrectCount: 9));
+            historicalAttemptCount: 7,
+            historicalCorrectCount: 6));
         var originalFactIds = store.Snapshot.ItemStates.Keys.ToHashSet(StringComparer.Ordinal);
         var session = new TrainingSession(store);
 
@@ -206,23 +206,23 @@ public sealed class LongRunIndependentProgressionTests
     }
 
     [Fact]
-    public async Task RehydratedMultiplicationBandOneLearner_UsesTheStandardFortyAttemptProfile()
+    public async Task RehydratedMultiplicationStructuredBandLearner_UsesTheStandardFortyAttemptProfile()
     {
         using var store = new InMemoryLearnerStore(CreatePersistedMultiplicationSnapshot(
-            bandIndex: 1,
+            bandIndex: 12,
             historicalAttemptCount: 39,
             historicalCorrectCount: 39));
         var session = new TrainingSession(store);
 
         await session.InitializeAsync(startTiming: false);
-        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(12, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
 
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
 
         Assert.True(session.LastEvaluation!.OperationAdvanced);
-        Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(13, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
     }
 
     [Fact]
@@ -320,6 +320,13 @@ public sealed class LongRunIndependentProgressionTests
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(
             new LearnerSnapshot(_progression, _items, _fsrs, _attempts, _revision, LearnerProgression.DefaultSchemaVersion, _progression.OperationProgressions));
 
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(_attempts, operation, bandStartedPracticePosition, frontierFactIds));
+
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default)
         {
             if (_submissionIds.Contains(changeSet.SubmissionId))
@@ -352,6 +359,9 @@ public sealed class LongRunIndependentProgressionTests
         var curriculum = new ArithmeticCurriculum().Multiplication;
         Assert.True(curriculum.TryGetBand(bandIndex, out var band));
         var frontier = band!.Frontier;
+        var evaluatedFacts = band.Kind == CurriculumBandKind.Structured
+            ? DeterministicFactRanker.SelectStructuredSample(frontier, band.Operation, band.Id)
+            : frontier;
         var practicePosition = checked((historicalAttemptCount * 4) + 2);
         var progression = LearnerProgression.CreateFresh();
         progression.PracticePosition = practicePosition;
@@ -362,7 +372,7 @@ public sealed class LongRunIndependentProgressionTests
         var attempts = Enumerable.Range(0, historicalAttemptCount)
             .Select(index =>
             {
-                var fact = frontier[index % frontier.Count];
+                var fact = evaluatedFacts[index % evaluatedFacts.Count];
                 var isCorrect = index < historicalCorrectCount;
                 return new AttemptRecord(
                     $"persisted-{bandIndex}-{index}",
@@ -379,7 +389,7 @@ public sealed class LongRunIndependentProgressionTests
                     practicePosition: 3 + (index * 4));
             })
             .ToArray();
-        var itemStates = frontier.ToDictionary(
+        var itemStates = evaluatedFacts.ToDictionary(
             fact => fact.Id,
             fact => new ItemLearningState
             {
@@ -397,7 +407,7 @@ public sealed class LongRunIndependentProgressionTests
                 LastPracticedOrder = checked((int)attempts.Where(attempt => attempt.FactId == fact.Id).Select(attempt => attempt.PracticePosition!.Value).DefaultIfEmpty().Max())
             },
             StringComparer.Ordinal);
-        var fsrsStates = frontier.ToDictionary(
+        var fsrsStates = evaluatedFacts.ToDictionary(
             fact => fact.Id,
             fact => new FsrsCardState(fact.Id, Guid.NewGuid(), 2, null, 1, 1, practicePosition + 10, practicePosition - 1, FsrsRating.Good),
             StringComparer.Ordinal);

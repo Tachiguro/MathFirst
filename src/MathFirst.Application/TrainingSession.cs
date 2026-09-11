@@ -31,6 +31,7 @@ public sealed class TrainingSession
     private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
     private readonly List<AttemptRecord> _sessionCheckInAttempts = [];
     private List<AttemptRecord> _recentAttempts = [];
+    private IReadOnlyList<AttemptRecord> _currentDenseFrontierAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
 
     public event EventHandler? AppForegroundStateChanged;
@@ -480,35 +481,93 @@ public sealed class TrainingSession
         // Evaluate only the scheduled operation from bounded positioned evidence.
         var operationProgressions = candidateProgression.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var currentOperationProgression = operationProgressions[CurrentFact.Operation];
-        var operationAttempts = _recentAttempts
-            .Where(existing => existing.Operation == CurrentFact.Operation)
-            .Select(existing => new BandAttemptEvidence(
-                existing.PracticePosition!.Value,
-                existing.FactId,
-                existing.IsCorrect,
-                existing.IsFluent,
-                existing.ResponseLatencyMs))
-            .Append(new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, isFluent, elapsedMs));
         var operationCurriculum = _curriculum.GetCurriculum(CurrentFact.Operation);
-        var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
-        var ownedFactIds = ownership.GetOwnedFrontier(currentOperationProgression.BandIndex)
-            .Select(fact => fact.Id).ToHashSet(StringComparer.Ordinal);
-        var currentBandIntroductions = operationAttempts
-            .Where(evidence => evidence.PracticePosition > currentOperationProgression.BandStartedPracticePosition && ownedFactIds.Contains(evidence.FactId))
-            .Select(evidence => evidence.FactId);
-        var lifetimeAttemptedFactIds = _selectionEvidence?.CurrentBandCandidates
-            .Where(candidate => candidate.ItemState.TotalAttempts > 0)
-            .Select(candidate => candidate.Fact.Id)
-            .Append(itemState.TotalAttempts > 0 ? itemState.FactId : string.Empty)
-            .Where(factId => !string.IsNullOrEmpty(factId))
-            ?? [];
+        if (!operationCurriculum.TryGetBand(currentOperationProgression.BandIndex, out var currentBand) || currentBand is null)
+        {
+            throw new InvalidOperationException("The current target curriculum band is unavailable.");
+        }
+
+        var candidateAttempt = new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, isFluent, elapsedMs);
+
+        BandAdvancementEvidence advancementEvidence;
+        if (currentBand.Kind == CurriculumBandKind.Dense)
+        {
+            var combinedDenseAttempts = new List<BandAttemptEvidence>();
+            var candidateOverlaid = false;
+            foreach (var existing in _currentDenseFrontierAttempts)
+            {
+                if (string.Equals(existing.FactId, CurrentFact.Id, StringComparison.Ordinal))
+                {
+                    combinedDenseAttempts.Add(candidateAttempt);
+                    candidateOverlaid = true;
+                }
+                else
+                {
+                    combinedDenseAttempts.Add(new BandAttemptEvidence(
+                        existing.PracticePosition!.Value,
+                        existing.FactId,
+                        existing.IsCorrect,
+                        existing.IsFluent,
+                        existing.ResponseLatencyMs));
+                }
+            }
+
+            if (!candidateOverlaid)
+            {
+                var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
+                var ownedFactIds = ownership.GetOwnedFrontier(currentOperationProgression.BandIndex)
+                    .Select(fact => fact.Id)
+                    .ToHashSet(StringComparer.Ordinal);
+                if (ownedFactIds.Contains(CurrentFact.Id))
+                {
+                    combinedDenseAttempts.Add(candidateAttempt);
+                }
+            }
+
+            advancementEvidence = new BandAdvancementEvidence(
+                combinedDenseAttempts,
+                [],
+                [],
+                combinedDenseAttempts);
+        }
+        else
+        {
+            var operationAttempts = _recentAttempts
+                .Where(existing => existing.Operation == CurrentFact.Operation)
+                .Select(existing => new BandAttemptEvidence(
+                    existing.PracticePosition!.Value,
+                    existing.FactId,
+                    existing.IsCorrect,
+                    existing.IsFluent,
+                    existing.ResponseLatencyMs))
+                .Append(candidateAttempt);
+
+            var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
+            var ownedFactIds = ownership.GetOwnedFrontier(currentOperationProgression.BandIndex)
+                .Select(fact => fact.Id)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var currentBandIntroductions = operationAttempts
+                .Where(evidence => evidence.PracticePosition > currentOperationProgression.BandStartedPracticePosition && ownedFactIds.Contains(evidence.FactId))
+                .Select(evidence => evidence.FactId);
+
+            var lifetimeAttemptedFactIds = _selectionEvidence?.CurrentBandCandidates
+                .Where(candidate => candidate.ItemState.TotalAttempts > 0)
+                .Select(candidate => candidate.Fact.Id)
+                .Append(itemState.TotalAttempts > 0 ? itemState.FactId : string.Empty)
+                .Where(factId => !string.IsNullOrEmpty(factId))
+                ?? [];
+
+            advancementEvidence = new BandAdvancementEvidence(
+                operationAttempts,
+                lifetimeAttemptedFactIds,
+                currentBandIntroductions);
+        }
+
         var advancement = _bandAdvancementEvaluator.Evaluate(
             currentOperationProgression,
             operationCurriculum,
-            new BandAdvancementEvidence(
-                operationAttempts,
-                lifetimeAttemptedFactIds,
-                currentBandIntroductions));
+            advancementEvidence);
         operationProgressions[CurrentFact.Operation] = advancement.ResultingProgression;
         candidateProgression.OperationProgressions = operationProgressions;
         candidateProgression.UpdatedAt = DateTimeOffset.UtcNow;
@@ -754,6 +813,7 @@ public sealed class TrainingSession
         Progression.OperationProgressions = (snapshot.OperationProgressions ?? Progression.OperationProgressions)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
+        _currentDenseFrontierAttempts = [];
         _selectionEvidence = null;
         LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
     }
@@ -764,14 +824,14 @@ public sealed class TrainingSession
         var operation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition);
         var progression = Progression.OperationProgressions[operation];
         var curriculum = _curriculum.GetCurriculum(operation);
-        if (!curriculum.TryGetBand(progression.BandIndex, out var band))
+        if (!curriculum.TryGetBand(progression.BandIndex, out var band) || band is null)
         {
             throw new InvalidOperationException("The current target curriculum band is unavailable.");
         }
 
         var ownership = new AcquisitionOwnershipResolver(curriculum);
         var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
-        var introductionFrontier = band!.Kind == CurriculumBandKind.Structured
+        var introductionFrontier = band.Kind == CurriculumBandKind.Structured
             ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
             : ownedFrontier;
         var request = new PracticeSelectionEvidenceRequest(
@@ -789,6 +849,20 @@ public sealed class TrainingSession
         foreach (var (factId, state) in _selectionEvidence.FsrsStates)
         {
             _fsrsStates[factId] = state;
+        }
+
+        if (band.Kind == CurriculumBandKind.Dense)
+        {
+            var frontierFactIds = ownedFrontier.Select(fact => fact.Id).ToArray();
+            _currentDenseFrontierAttempts = await _store.LoadLatestFrontierAttemptsAsync(
+                operation,
+                progression.BandStartedPracticePosition,
+                frontierFactIds,
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            _currentDenseFrontierAttempts = [];
         }
     }
 
