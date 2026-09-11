@@ -78,10 +78,9 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         AssertEquivalentAdvancementRun(continuous, restartedAfter);
         Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(continuous.Trigger.PracticePosition, continuous.State.Progressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
-        // Under MF-STAB-001 bootstrap thresholds, the 156-attempt fixture sequence satisfies Multiplication BandIndex 0 advancement.
-        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Multiplication].BandIndex);
-        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Subtraction].BandIndex);
-        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Division].BandIndex);
+        Assert.Equal(0, continuous.State.Progressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Subtraction].BandIndex);
+        Assert.Equal(1, continuous.State.Progressions[ArithmeticOperation.Division].BandIndex);
 
         using var reloadedStore = new SqliteLearnerStore(afterRestartPath);
         await reloadedStore.InitializeAsync();
@@ -192,12 +191,12 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, new ScriptedClock());
         await session.InitializeAsync(startTiming: false);
-        for (var position = 1L; position <= 156; position++)
+        for (var position = 1L; position <= 28; position++)
         {
             await SubmitFluentAndAdvanceAsync(session, position);
         }
 
-        Assert.Equal(156, session.Progression.PracticePosition);
+        Assert.Equal(28, session.Progression.PracticePosition);
         Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
     }

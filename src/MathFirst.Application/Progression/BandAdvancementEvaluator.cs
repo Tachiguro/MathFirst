@@ -42,8 +42,18 @@ public sealed class BandAdvancementEvaluator
                 nameof(currentProgression));
         }
 
-        var requirements = ResolveRequirements(currentProgression);
         ValidateUniquePracticePositions(evidence.AcceptedAttempts);
+
+        if (FastAcquisitionEvaluator.TryEvaluate(
+            currentProgression,
+            curriculum,
+            evidence,
+            out var fastAdvancedProgression))
+        {
+            return new BandAdvancementDecision(true, fastAdvancedProgression);
+        }
+
+        var requirements = ResolveRequirements(currentProgression);
 
         var qualifyingAttempts = evidence.AcceptedAttempts
             .Where(attempt => attempt.PracticePosition > currentProgression.BandStartedPracticePosition)

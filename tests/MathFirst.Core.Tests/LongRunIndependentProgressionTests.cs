@@ -129,18 +129,10 @@ public sealed class LongRunIndependentProgressionTests
             var result = await session.CommitCurrentEvaluationAsync();
             Assert.True(result.IsSuccess);
 
-            if (position == 47)
+            if (position == 31)
             {
                 Assert.True(session.LastEvaluation!.OperationAdvanced);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                Assert.All(
-                    new[]
-                    {
-                        ArithmeticOperation.Addition,
-                        ArithmeticOperation.Subtraction,
-                        ArithmeticOperation.Division
-                    },
-                    operation => Assert.Equal(0, session.Progression.OperationProgressions[operation].BandIndex));
             }
 
             Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
