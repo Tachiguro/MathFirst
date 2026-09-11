@@ -100,10 +100,10 @@ Worktrees: Exactly one normal worktree
 
 ### Active Feature Candidate
 - Active Task Branch: `feat/mf-learn-003-acclimation-rapid-dense`
-- HEAD Commit: `9e07ec34e42a688847e23e53e47adb728fbec428` (Checkpoint 5/5 `rapid-dense-progression`)
+- HEAD Commit: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`)
 - Package: `MF-LEARN-003` — **Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults**
-- Operation Mode: `DOCUMENT_ONLY` (reconciling repository documentation to implementation and `REVIEW_PASS` state)
-- Behavioral Implementation & Test Suite: Complete across 5 checkpoint slices with 769 passing Core tests (471 focused package tests, 0 failed, 0 skipped) in `MathFirst.Core.Tests`. Independent review approved (`REVIEW_PASS`). Feature branch is local only / not pushed. Open PRs: 0. `FULL_VALIDATION` remains pending.
+- Operation Mode: `DOCUMENT_ONLY` (reconciling repository documentation for corrective editable multi-digit input)
+- Behavioral Implementation & Test Suite: Complete across 5 checkpoint slices and corrective editable multi-digit input with 790 passing Core tests (790/790 passed, 0 failed, 0 skipped) in `MathFirst.Core.Tests`. Corrective independent review approved (`REVIEW_PASS`). Feature branch is local only / not pushed. Open PRs: 0. `FULL_VALIDATION` remains pending.
 
 ### Checkpoint Commit Chain (MF-LEARN-003)
 - Base: `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
@@ -112,6 +112,8 @@ Worktrees: Exactly one normal worktree
 - Slice 3: `ae4051b7d1d6c883be19ba977972358b29dd86a6` (`coverage-first-dense-selection`)
 - Slice 4: `269636fab2cae0974cbec9e6085ec5420c6aa66a` (`bounded-frontier-evidence`)
 - Slice 5: `9e07ec34e42a688847e23e53e47adb728fbec428` (`rapid-dense-progression`)
+- Prior Docs: `a06535c0f5c46d0d3ec655540778d2d666aebfc9` (`acclimation-rapid-dense-reconciliation`)
+- Corrective Checkpoint: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (`editable-multidigit-input`)
 
 ### Implemented Architecture Summary (MF-LEARN-003)
 1. **Answer-Length Acclimation Deadlines & Proof**: Unproven facts (`CorrectAttempts == 0`) receive digit-aware novelty floors (15s/20s/25s/30s for 1/2/3/4+ digits) and entry allowances (+1000ms per extra digit) while maintaining strict decoupling from response latency measurement, adaptive fluency thresholds, `IsFluent`, and FSRS ratings.
@@ -119,6 +121,7 @@ Worktrees: Exactly one normal worktree
 3. **Coverage-First Dense Selection**: Scheduled turns for Dense bands select unmaterialized owned-frontier facts as `PracticeSelectionRole.New` across nominal Due/Maintenance/Frontier turns until first-pass coverage is complete, subordinate only to eligible Remediation ($\ge 4$ distance).
 4. **Authoritative Latest-per-Frontier Persistence**: `LoadLatestFrontierAttemptsAsync` queries latest positioned attempts per frontier fact (`PracticePosition > BandStartedPracticePosition`), supported by Schema V6 partial index `ix_attempt_history_operation_fact_position`.
 5. **Correctness-Driven Dense Progression**: Dense bands advance when complete frontier coverage is met and latest votes satisfy $C \cdot 10 \ge N \cdot 9$ using in-memory candidate overlay and recoverable error/timeout votes. Fast Acquisition and the `MUL-D01` special bootstrap are retired; Structured bands retain standard 40-attempt rolling-window progression.
+6. **Editable Incomplete Multi-Digit Input**: Incomplete multi-digit answers remain editable until the expected canonical digit count is reached, allowing mistyped partial answers to be corrected with Backspace/Delete before auto-submission without mutating learning state; single-digit immediate auto-submission is preserved.
 
 ### Immediate Next Lifecycle Steps
 - Complete `DOCUMENT_ONLY` reconciliation.

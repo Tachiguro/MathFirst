@@ -63,6 +63,11 @@ To provide learners adequate opportunity to mentally calculate and enter answers
    - Adaptive fluency thresholds (`EasyThresholdMs`, `FluencyThresholdMs`);
    - Fluency classification (`IsFluent`);
    - FSRS rating mapping (`Again`, `Hard`, `Good`, `Easy`).
+8. **Incomplete Multi-Digit Editability & Auto-Submission Authority**:
+   - Answer-length acclimation encompasses learner-controlled editing of incomplete multi-digit inputs.
+   - When the entered buffer length is strictly less than the expected canonical digit count ($D$), the input remains pending and editable via Backspace/Delete without premature evaluation, attempt recording, or learning-state mutation.
+   - Automatic submission occurs when the expected digit count is reached ($|validInput| \ge D$) or upon exact numeric equality. Prefix mismatch alone does not trigger early submission.
+   - Single-digit expected answers ($D = 1$) preserve immediate auto-submission upon first digit entry.
 
 ---
 

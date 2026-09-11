@@ -142,7 +142,7 @@ MF-LEARN-002 contract and regression coverage validates the complete adaptive le
 
 ## 11. MF-LEARN-003 Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults Contracts
 
-MF-LEARN-003 contract, regression, and simulation coverage validates the acclimation timing model, keypad preferences, Coverage-First selection, bounded latest-per-frontier persistence, and correctness-driven Dense progression across 769 automated tests in `MathFirst.Core.Tests` (including 471 focused package tests):
+MF-LEARN-003 contract, regression, and simulation coverage validates the acclimation timing model, keypad preferences, Coverage-First selection, bounded latest-per-frontier persistence, correctness-driven Dense progression, and editable multi-digit input handling across 790 automated tests in `MathFirst.Core.Tests`:
 
 1. **Answer-Length Acclimation Deadlines & Durable Proof**:
    - Durable fact proof: Fact is proven iff `ItemLearningState.CorrectAttempts > 0`.
@@ -183,9 +183,26 @@ MF-LEARN-003 contract, regression, and simulation coverage validates the acclima
 7. **Deterministic Progression Simulations**:
    - Ideal all-Correct simulation validates early expansion: DIV-D01 $\to$ D02 at position 8, SUB-D01 $\to$ D02 at position 10, ADD-D01 $\to$ D02 at position 13, MUL-D01 $\to$ D02 at position 15 (all 4 initial bands advanced by position 15).
    - Validated positions: Position 20 (all D02), Position 50 (ADD-D03, SUB-D04, MUL-D03, DIV-D04), Position 100 (ADD-D05, SUB-D06, MUL-D05, DIV-D05).
+8. **Editable Incomplete Multi-Digit Input and Auto-Submission Coverage**:
+   - Multi-digit pending editability: Wrong first digit of a multi-digit answer (e.g. entering `1` for `6 × 6 = 36`) keeps the partial buffer editable and pending without submitting or mutating learning state.
+   - Backspace / Delete correction: Backspace removes the trailing digit from an incomplete buffer; empty-buffer Backspace is a safe no-op.
+   - Full wrong digit count submission: Typing the full expected digit count (e.g. `12` for `36`) auto-submits exactly once as Incorrect without post-submission editing.
+   - Single-digit immediate submission: One-digit expected answers auto-submit immediately on the first digit for both correct and incorrect inputs.
+   - Multi-digit (3/4-digit) partial editability: Intermediate lengths (e.g. entering `1` then `14` for `144`) remain pending and editable until full length is reached.
+   - Timer continuity through edits: Partial entry, pauses, and Backspace deletions do not reset the active response timer; measured `ResponseLatencyMs` spans the full active duration.
+   - Partial-input timeout semantics: If the deadline expires while a partial buffer exists, it is recorded as `AttemptOutcome.Timeout` without creating an Incorrect attempt or submitting partial buffer digits.
+   - Input-path parity: Physical keyboard number row, physical Numpad, and on-screen keypad share identical buffering and auto-submission semantics.
+   - Learning-state boundary: Incomplete buffers do not mutate `PracticePosition`, `ItemLearningState`, attempt history, FSRS state, or progression counters.
 
 ### Verification Evidence (MF-LEARN-003)
-- **Focused Package Test Suites**: 471 passed, 0 failed, 0 skipped.
-- **Full Core Test Suite**: 769 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
-- **Independent Review**: Package-wide independent review approved (`REVIEW_PASS`).
+- **Targeted Reviewed Test Suites**:
+  - `ResponsiveAndCorrectAnswerFlowTests`: 42 passed
+  - `NumericInputAndKeypadTests`: 65 passed
+  - `TimedTrainingOutcomeTests`: 46 passed
+  - `AdaptivePaceRuntimeTests`: 66 passed
+  - `AndroidInputContractTests`: 14 passed
+  - `WindowsUxContractTests`: 11 passed
+  - `AdaptiveLearningUxCompletionTests`: 17 passed
+- **Full Core Test Suite**: 790 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Independent Review**: Package-wide corrective independent review approved (`REVIEW_PASS`).
 - **Lifecycle Status**: These are Core and review results; they do not constitute formal `FULL_VALIDATION`. Windows/Android Release builds, release packaging, and PR integration remain scheduled for future lifecycle steps.
