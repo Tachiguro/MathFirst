@@ -10,7 +10,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
 - **Default Branch**: `main`
 - **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: MF-LEARN-001, MF-UX-002, and MF-UX-003 are complete and merged into `main`; MF-UX-003 merged through Pull Request #12 at `30580ce7788466e6524668a4a7f479eb76274b5c`. MF-STAB-001 is implementation-complete and review-approved locally; its delivery lifecycle remains outstanding.
+- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, and `MF-STAB-001` are complete and merged into `main`. `MF-STAB-001` merged through Pull Request #13 at `45ef623f44df87c0da97460d38dbb797c2aa18bf`. Active work is `MF-DOC-002` (documentation and handoff capture). Next behavioral package in backlog is `MF-LEARN-002`.
 
 ---
 
@@ -33,6 +33,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - The current learner persistence format is **Schema V5**. It stores global Practice Position and StoreRevision, per-operation progression rows, positioned V5 attempts, item learning state, FSRS card state, and durable history. Valid migrated V4 attempts retain NULL Practice Position.
 - `MathFirst.Infrastructure.Sqlite` owns the concrete native `SqliteLearnerStore` and `Microsoft.Data.Sqlite`; the Application layer owns persistence contracts. Accepted submissions commit attempt, item, FSRS, and progression changes atomically with revision checks, idempotent SubmissionId replay, and publish-after-successful-persistence session semantics.
 - Reset Learning Progress clears learner attempts, item state, FSRS state, and progression while preserving UI/onboarding preferences. Full Local Reset additionally restores applicable UI and onboarding preferences. Ready, Pause, and Background-Resume gates are transient and are not stored in the learner schema.
+- Practice UI includes a fixed 30-second answer deadline with a smooth countdown bar, a compact 4-operation progression HUD (`+`, `−`, `×`, `÷`), a transient session score after Start, and a danger-styled Pause button (with a live blue rendering defect pending correction under MF-LEARN-002).
 
 ---
 
@@ -50,7 +51,9 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - atomic preservation of valid V4 learner evidence without automatic reset;
 - removal of the global Mixed Checkpoint and fixed level-10/418-fact acquisition ceiling.
 
-MF-LEARN-001 implementation and review completed, its full validation passed, and the feature branch was merged into `main` through Pull Request #9. Post-merge synchronization completed successfully; Native V1 release-readiness work remains separate.
+MF-LEARN-001 implementation and review completed, its full validation passed, and the feature branch was merged into `main` through Pull Request #9. Post-merge synchronization completed successfully.
+
+Future learning enhancements are accepted in [docs/BACKLOG.md](BACKLOG.md) under `MF-LEARN-002` (Adaptive Pace, Fast Acquisition, and Practice Interventions), which will undergo `PLAN_ONLY` research and architecture before implementation.
 
 ---
 
@@ -63,14 +66,16 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 - Native Not Found content is localized in English, German, and Russian; the pre-Blazor host placeholder is the language-neutral `MathFirst`. The former unused template image/raw payloads were removed.
 - Contract coverage verifies canonical project properties and MSBuild projection, metadata parsing including fail-closed invalid inputs, localization and version display, SVG and native-host XAML structure, Android palette/identity, Windows unpackaged identity, removed template payloads, Not Found localization, and the startup identity.
 
+---
+
 ## 6. Current Feature Candidate State
 
-- MF-STAB-001, **Practice Progression and HUD Stabilization**, is implementation-complete and consolidated-review `REVIEW_APPROVED` at local candidate `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264`, based on `main` commit `30580ce7788466e6524668a4a7f479eb76274b5c`. It is six commits ahead and zero behind before documentation reconciliation.
-- The initial documentation-inclusive candidate `cac7f1f5d03336ba8e84c65dc8ced33f6e4ee292` underwent `FULL_VALIDATION`; Windows and Android Release builds passed with 0 warnings and 0 errors, while the Core test suite uncovered 1 failure due to a legacy integration assertion assuming Multiplication BandIndex 0. Validation test remediation `eed6e66481fc40f60ffdf4fdb98f6c6ba55bb264` updated the assertion to match the approved bootstrap contract, achieved 546/546 passing Core tests, and was `REVIEW_APPROVED`.
-- Narrow documentation reconciliation is in progress locally; final `FULL_VALIDATION` against the upcoming documentation-inclusive exact candidate, push, Pull Request, and merge remain pending.
-- The candidate introduces a narrow Multiplication BandIndex-0/MUL-D01 bootstrap advancement profile, while every other operation and band retains the standard 40-attempt advancement policy. Every new fact has a fixed 30-second answer deadline; latency classification and FSRS ratings remain independent. It also makes Pause a red danger action while running, shows a transient session score after Start, and presents independent stages for all four operations in a compact HUD.
-- Schema V5 remains unchanged: no migration, learner reset, card deletion, FactId change, band reindexing, FSRS reset, persisted score, or persisted HUD cache occurs. Existing retained MUL-D01 evidence may satisfy the bootstrap profile without intentionally moving a learner backward.
-- Focused implementation evidence is recorded in [docs/TESTING.md](TESTING.md); it is not formal exact-candidate `FULL_VALIDATION` evidence and does not establish release readiness.
+- No behavioral feature candidate is currently in flight on `main`.
+- `MF-STAB-001` completed its delivery lifecycle and was merged into `main` at `45ef623f44df87c0da97460d38dbb797c2aa18bf`.
+- Active work is `MF-DOC-002`, an unstaged documentation-only package preparing the repository baseline and registering `MF-LEARN-002` in [docs/BACKLOG.md](BACKLOG.md).
+- The next behavioral package is `MF-LEARN-002` (`PLAN_ONLY`), which intentionally precedes `MF-REL-001`.
+
+---
 
 ## 7. Durable Delivery Evidence
 
@@ -78,6 +83,9 @@ MF-LEARN-001 implementation and review completed, its full validation passed, an
 - Repository history records 178 passing automated unit and simulation tests before the Android V1 package; the merged Android package adds deterministic lifecycle, input, responsive-layout, localization, and SQLite architecture coverage.
 - Repository release notes record a completed real-device Android spot-check for responsive layout, keypad/native IME behavior, Ready/Pause/Resume, smart auto-submit, and Incorrect/Timeout feedback context.
 - MF-LEARN-001 completed with `REVIEW_APPROVED`, a full Core suite of 409 passed, 0 failed, and 0 skipped, Windows and Android Release builds with 0 warnings and 0 errors, clean vulnerability and static-regression audits, Pull Request #9 merge, and successful post-merge synchronization.
+- MF-UX-002 was merged to `main` through Pull Request #11 on 2026-09-10, adding deterministic contextual practice copy.
+- MF-UX-003 was merged to `main` through Pull Request #12 on 2026-09-10, reconciling native identity, versioning, and visual assets.
+- MF-STAB-001 was merged to `main` through Pull Request #13 on 2026-09-10 at `45ef623f44df87c0da97460d38dbb797c2aa18bf` (final candidate `f54d0b1c5c8884ff1d4871abca667582759d5be1`), stabilizing practice progression (MUL-D01 bootstrap profile), 30-second countdown bar, compact progress HUD, transient session score, and danger Pause action, with 546 passing Core tests and 0 warnings/errors on Windows/Android Release builds.
 
 ---
 

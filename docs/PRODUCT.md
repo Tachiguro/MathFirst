@@ -187,6 +187,10 @@ True arithmetic fluency requires evaluating both correctness and speed against d
   - **Timeout**: Elapsed fixed 30-second answer-deadline window without valid submission.
 - A slowly calculated correct answer must not be treated as equivalent to an automated recall; it must remain active in practice until retrieval is fluid.
 
+> [!NOTE]
+> **Future Target Behavior (`MF-LEARN-002`)**: Under accepted backlog item `MF-LEARN-002`, the timing model will evolve from the current fixed 30-second deadline and fixed latency mapping to a single visible adaptive deadline (bounded strictly between an absolute 30s maximum and a sensible minimum) with adaptive FSRS ratings and adaptive fluency. The exact mathematical calibration, scaling formulas, and adaptation windows remain unresolved and subject to `PLAN_ONLY` research.
+
+
 ---
 
 ## 8. Session Behavior and Error Feedback
@@ -360,8 +364,11 @@ The following register contains both resolved and unresolved product decisions. 
 | **Scheduler Mathematics** | FSRS-6 exact-fact scheduling with Practice Position virtual time, 95% desired retention, existing 21 parameters, and disabled fuzzing. | `RESOLVED` |
 | **Fact Catalog Strategy** | Hybrid dense/structured curriculum, deterministic procedural generation, unique acquisition ownership, stable identities, and lazy materialization. | `RESOLVED` |
 | **Telemetry, Analytics, and Crash Diagnostics** | Whether and how telemetry, analytics, and crash diagnostics should operate. | `UNRESOLVED` |
-| **Exact Fluency Thresholds** | Advancement fluency is Correct at `<= 2500 ms`; FSRS retains its current Easy/Good/Hard latency mapping. | `RESOLVED` |
-| **Exact Range Expansion Increments** | Independent canonical bands and the 40-attempt correctness/fluency/frontier/coverage advancement gate defined by ADR-0003. | `RESOLVED` |
+| **Exact Fluency Thresholds & Rating Mapping** | Current baseline is Correct at `<= 2500 ms` with fixed Easy/Good/Hard thresholds. Transitioning to an adaptive pace model is accepted under `MF-LEARN-002`, with exact mathematical formulas and ratios unresolved. | `UNRESOLVED` |
+| **Adaptive Answer Deadline & Pace Model** | Single visible countdown adapting to learner performance (max 30s, candidate min ~3s, candidate initial ~8–10s) accepted under `MF-LEARN-002`; exact scaling and smoothing algorithms unresolved. | `UNRESOLVED` |
+| **Fast Acquisition for Dense Bands** | Fast progression through small dense bands upon confident demonstration accepted under `MF-LEARN-002`; exact band-size thresholds and safety criteria unresolved. | `UNRESOLVED` |
+| **Repeated-Error Learning Interventions** | Non-scored teaching pause / echo acknowledgement for repeated errors accepted under `MF-LEARN-002`; exact trigger count and copy unresolved. | `UNRESOLVED` |
+| **Exact Range Expansion Increments** | Independent canonical bands and the 40-attempt correctness/fluency/frontier/coverage advancement gate defined by ADR-0003 (with MUL-D01 bootstrap exception). | `RESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
 | **Multi-Operation Range Sequencing** | Deterministic Addition/Subtraction/Multiplication/Division scheduling interleave with fully independent per-operation band advancement and no global checkpoint. | `RESOLVED` |
 | **Manual Operation Control** | Whether users should be able to manually enable, disable, or override operation progression. | `UNRESOLVED` |
@@ -375,6 +382,7 @@ The following register contains both resolved and unresolved product decisions. 
 | **Export/Import Specification** | Exact schema, file format, and migration rules for manual data transfer. | `UNRESOLVED` |
 
 ---
+
 
 ## 16. Durable Architecture Constraints
 

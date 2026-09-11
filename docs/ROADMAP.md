@@ -61,13 +61,16 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 - **Review and validation**: `REVIEW_APPROVED`; full validation passed.
 - **Delivery status**: Merged into `main` through Pull Request #9. Web implementation remains deferred.
 
-### Phase 6: Native V1 Release Readiness
-1. Reconcile post-merge current-state documentation (`MF-DOC-001`) — complete and merged.
-2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — complete and merged.
+### Phase 6: Native V1 Release Readiness & Adaptive Learning
+
+1. Reconcile post-merge current-state documentation (`MF-DOC-001`) — complete and merged through Pull Request #10.
+2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — complete and merged through Pull Request #11.
 3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — complete and merged through Pull Request #12.
-4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) — active pre-release stabilization package; implementation is review-approved locally, but `FULL_VALIDATION`, push, Pull Request, merge, and post-merge synchronization remain outstanding.
-5. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — next only after MF-STAB-001 completes its full lifecycle; not started.
-6. Complete final exact-candidate Native V1 validation.
-7. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
-8. Perform separately authorized final real-device verification.
-9. Make a separate later decision about Google Play upload.
+4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) — complete and merged through Pull Request #13.
+5. Capture adaptive learning product direction and repository handoff (`MF-DOC-002`) — active documentation package.
+6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) — accepted next behavioral package, starting with `PLAN_ONLY` and sequenced before packaging/release.
+7. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — deferred until `MF-LEARN-002` completes its entire lifecycle; not started.
+8. Complete final exact-candidate Native V1 validation.
+9. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
+10. Perform separately authorized final real-device verification.
+11. Make a separate later decision about Google Play upload.
