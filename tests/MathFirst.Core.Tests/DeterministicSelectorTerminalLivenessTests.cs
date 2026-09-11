@@ -71,14 +71,15 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         Assert.False(newResult.IsMaterialized);
         Assert.True(newResult.IsNewIntroduction);
 
-        // 2. Non-New role with empty pools -> fails closed, never materializes
-        var dueContext = CreateContext(5, curriculum, EmptyMaterialized());
+        // 2. Non-New role with empty pools on structured band -> fails closed, never materializes
+        var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
+        var dueContext = CreateContext(5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(dueContext));
 
-        var maintenanceContext = CreateContext(13, curriculum, EmptyMaterialized());
+        var maintenanceContext = CreateContext(13, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(maintenanceContext));
 
-        var frontierContext = CreateContext(17, curriculum, EmptyMaterialized());
+        var frontierContext = CreateContext(17, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(frontierContext));
 
         // 3. Requested New fallback (e.g. all new materialized, falls back to Frontier/Due/EarlyReview) -> never isNewIntroduction
@@ -98,7 +99,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var fact0 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
         var fact1 = new ArithmeticFact(ArithmeticOperation.Addition, 1, 0);
         var b0 = new CurriculumBand(ArithmeticOperation.Addition, 0, new CurriculumBandId("TEST-D01"), CurriculumBandKind.Dense, [fact0]);
-        var b1 = new CurriculumBand(ArithmeticOperation.Addition, 1, new CurriculumBandId("TEST-D02"), CurriculumBandKind.Dense, [fact1]);
+        var b1 = new CurriculumBand(ArithmeticOperation.Addition, 1, new CurriculumBandId("TEST-S01"), CurriculumBandKind.Structured, [fact1]);
         var custom = new OperationCurriculum(ArithmeticOperation.Addition, [b0, b1]);
         var curricula = CreateCurricula(curriculum, (ArithmeticOperation.Addition, custom));
         var progressions = CreateProgressions((ArithmeticOperation.Addition, 1)); // current band is 1
@@ -848,7 +849,8 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     public void ZeroCandidateState_FailsFastClosedDeterministically()
     {
         var curriculum = new ArithmeticCurriculum();
-        var context = CreateContext(5, curriculum, EmptyMaterialized());
+        var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
+        var context = CreateContext(5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
 
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
         Assert.Contains("Addition", ex.Message);

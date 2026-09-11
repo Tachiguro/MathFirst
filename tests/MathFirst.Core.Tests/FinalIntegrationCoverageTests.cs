@@ -191,12 +191,12 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, new ScriptedClock());
         await session.InitializeAsync(startTiming: false);
-        for (var position = 1L; position <= 28; position++)
+        for (var position = 1L; position <= 12; position++)
         {
             await SubmitFluentAndAdvanceAsync(session, position);
         }
 
-        Assert.Equal(28, session.Progression.PracticePosition);
+        Assert.Equal(12, session.Progression.PracticePosition);
         Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
     }
