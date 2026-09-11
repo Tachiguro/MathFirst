@@ -49,15 +49,32 @@ When items are accepted into the backlog, they are recorded with:
 
 ---
 
+### MF-LEARN-003: Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults
+
+- **ID**: `MF-LEARN-003`
+- **Title**: Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults
+- **Type**: `Feature`
+- **Status**: `Completed` (Merged through PR #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`)
+- **Dependencies**: `MF-LEARN-002` complete (merged through PR #15)
+- **Description**:
+  1. **Acclimation Timing & Deadlines**: Answer-length acclimation deadlines and entry allowances for unproven facts (`CorrectAttempts == 0`) with novelty floors (15s/20s/25s/30s).
+  2. **Keypad Defaults**: Default to `Numpad` across Onboarding, Settings, and default UI state.
+  3. **Coverage-First Dense Selection**: Scheduled turns prioritize unmaterialized owned-frontier facts until first-pass coverage is complete.
+  4. **Latest-per-Frontier Persistence**: `LoadLatestFrontierAttemptsAsync` queries latest attempts per frontier fact, supported by partial index `ix_attempt_history_operation_fact_position`.
+  5. **Correctness-Driven Dense Progression**: Dense bands advance when complete frontier coverage is met and $C \cdot 10 \ge N \cdot 9$ with recoverable errors; retirement of Fast Acquisition and the `MUL-D01` special bootstrap.
+  6. **Editable Multi-Digit Input**: Incomplete multi-digit answers remain editable until full expected length is reached.
+
+---
+
 ### MF-REL-001: Android Internal AAB Packaging and Release Automation
 
 - **ID**: `MF-REL-001`
 - **Title**: Android Internal AAB Packaging and Release Automation
 - **Type**: `Feature`
-- **Status**: `Deferred`
+- **Status**: `Active` (In Flight on `feat/mf-rel-001-android-aab-packaging`)
 - **Dependencies**: `MF-LEARN-003` complete and merged to `main`
 - **Description**:
-  Establish repeatable Android App Bundle (AAB) packaging, release build automation, keystore management protocols, and local packaging validation scripts for internal distribution and eventual Google Play testing. Packaging and signing remain isolated from publishing; actual store uploads require separate explicit authorization. This package remains deferred and not started until `MF-LEARN-003` completes its entire lifecycle.
+  Establish repeatable Android App Bundle (AAB) packaging, release build automation, keystore management protocols, exact-candidate provenance tracking, and local packaging validation scripts for internal distribution and future Google Play testing readiness.
 
 ---
 

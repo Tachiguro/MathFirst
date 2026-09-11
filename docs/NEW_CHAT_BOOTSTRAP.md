@@ -95,37 +95,32 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-`main` / `origin/main`: `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1` (MF-LEARN-002 merged via PR #15)
+`main` / `origin/main`: `9a9e5c43d1f1685cf21e766e0890b790ab09040c` (MF-LEARN-003 merged via PR #16)
 Worktrees: Exactly one normal worktree
 
 ### Active Feature Candidate
-- Active Task Branch: `feat/mf-learn-003-acclimation-rapid-dense`
-- HEAD Commit: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`)
-- Package: `MF-LEARN-003` — **Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults**
-- Operation Mode: `DOCUMENT_ONLY` (reconciling repository documentation for corrective editable multi-digit input)
-- Behavioral Implementation & Test Suite: Complete across 5 checkpoint slices and corrective editable multi-digit input with 790 passing Core tests (790/790 passed, 0 failed, 0 skipped) in `MathFirst.Core.Tests`. Corrective independent review approved (`REVIEW_PASS`). Feature branch is local only / not pushed. Open PRs: 0. `FULL_VALIDATION` remains pending.
+- Active Task Branch: `feat/mf-rel-001-android-aab-packaging`
+- Package: `MF-REL-001` — **Android Internal AAB Packaging and Release Automation**
+- Operation Mode: `DOCUMENT_ONLY`
+- Behavioral Implementation & Test Suite: Complete across 3 checkpoint slices with 808 passing Core tests (808/808 passed, 0 failed, 0 skipped) in `MathFirst.Core.Tests`. Clean Release builds on Windows and Android. Local AAB packaging and validation verified.
 
-### Checkpoint Commit Chain (MF-LEARN-003)
-- Base: `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
-- Slice 1: `b1a466bc01d5a5ef968eb711fa88f1a792864b51` (`answer-length-deadlines-proof-policy`)
-- Slice 2: `9953308f079b968731bc68b13a993c97b3292308` (`numpad-default-order`)
-- Slice 3: `ae4051b7d1d6c883be19ba977972358b29dd86a6` (`coverage-first-dense-selection`)
-- Slice 4: `269636fab2cae0974cbec9e6085ec5420c6aa66a` (`bounded-frontier-evidence`)
-- Slice 5: `9e07ec34e42a688847e23e53e47adb728fbec428` (`rapid-dense-progression`)
-- Prior Docs: `a06535c0f5c46d0d3ec655540778d2d666aebfc9` (`acclimation-rapid-dense-reconciliation`)
-- Corrective Checkpoint: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (`editable-multidigit-input`)
+### Checkpoint Commit Chain (MF-REL-001)
+- Base: `9a9e5c43d1f1685cf21e766e0890b790ab09040c`
+- Slice 1: `bc7e738` (`android-manifest-hygiene-hardening`)
+- Slice 2: `f890cbd` (`aab-packaging-provenance-automation`)
+- Slice 3: `8e53be1` (`local-aab-validation-harness`)
+- Validator fix: `7684a04` (`correct boolean operator in validate-android-aab.ps1`)
 
-### Implemented Architecture Summary (MF-LEARN-003)
-1. **Answer-Length Acclimation Deadlines & Proof**: Unproven facts (`CorrectAttempts == 0`) receive digit-aware novelty floors (15s/20s/25s/30s for 1/2/3/4+ digits) and entry allowances (+1000ms per extra digit) while maintaining strict decoupling from response latency measurement, adaptive fluency thresholds, `IsFluent`, and FSRS ratings.
-2. **Keypad Defaults & Ordering**: Numpad layout is the default/fallback across Onboarding, Settings, and default UI state with Numpad presented first/left and Phone second/right in visual options.
-3. **Coverage-First Dense Selection**: Scheduled turns for Dense bands select unmaterialized owned-frontier facts as `PracticeSelectionRole.New` across nominal Due/Maintenance/Frontier turns until first-pass coverage is complete, subordinate only to eligible Remediation ($\ge 4$ distance).
-4. **Authoritative Latest-per-Frontier Persistence**: `LoadLatestFrontierAttemptsAsync` queries latest positioned attempts per frontier fact (`PracticePosition > BandStartedPracticePosition`), supported by Schema V6 partial index `ix_attempt_history_operation_fact_position`.
-5. **Correctness-Driven Dense Progression**: Dense bands advance when complete frontier coverage is met and latest votes satisfy $C \cdot 10 \ge N \cdot 9$ using in-memory candidate overlay and recoverable error/timeout votes. Fast Acquisition and the `MUL-D01` special bootstrap are retired; Structured bands retain standard 40-attempt rolling-window progression.
-6. **Editable Incomplete Multi-Digit Input**: Incomplete multi-digit answers remain editable until the expected canonical digit count is reached, allowing mistyped partial answers to be corrected with Backspace/Delete before auto-submission without mutating learning state; single-digit immediate auto-submission is preserved.
+### Implemented Architecture Summary (MF-REL-001)
+1. **Manifest Offline-First Hygiene**: Removal of `INTERNET` and `ACCESS_NETWORK_STATE` permissions from `AndroidManifest.xml` enforcing ADR-0002 offline privacy at the manifest boundary while preserving `android:allowBackup="true"`.
+2. **Repository Secrets Hygiene**: Strict ignore rules in `.gitignore` blocking keystores (`*.keystore`, `*.jks`, `*.p12`, `*.pfx`), secret configurations (`signing.properties`, `.env`), and release artifacts (`artifacts/`, `*.aab`, `*.apk`).
+3. **Repeatable AAB Packaging (`scripts/package-android-aab.ps1`)**: Deterministic Release packaging targeting `net10.0-android`, supporting fail-closed clean working tree checks, externalized signing credentials, semantic version overrides, and deterministic artifact naming.
+4. **Exact Candidate Provenance**: Companion `.provenance.json` recording Git commit SHA, branch, timestamp (UTC), target framework, signing state, and SHA-256 bundle checksum.
+5. **Local Artifact Validation (`scripts/validate-android-aab.ps1`)**: Offline ZIP integrity and bundle structure validation (`BundleConfig.pb`, `base/manifest/AndroidManifest.xml`, DEX bytecode, resources, signature blocks, SHA-256 hash match).
 
 ### Immediate Next Lifecycle Steps
 - Complete `DOCUMENT_ONLY` reconciliation.
 - `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- Deferred Work: `MF-REL-001` (Android Internal AAB Packaging and Release Automation) remains deferred and not started.
+- Release Boundary Invariant: AAB generation and validation do not imply Google Play upload, distribution, or production release.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

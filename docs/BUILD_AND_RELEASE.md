@@ -48,6 +48,49 @@ The canonical semantic release inputs are `ApplicationDisplayVersion` and `Appli
 
 MF-UX-003 provides the later packaging prerequisites: the MathFirst label, stable ApplicationId, canonical version/build inputs, final native app icon, adaptive icon, and splash identity. The package itself does not package, sign, upload, distribute, install, or publish an artifact.
 
-MF-REL-001 may provide explicit build-time overrides of the canonical MSBuild properties if that remains consistent with repository design; it must not introduce a competing semantic-version source. Exact-candidate provenance and fail-closed release behavior remain required.
+---
 
-Android release-readiness remains unresolved for `INTERNET`, `ACCESS_NETWORK_STATE`, `android:allowBackup`, and target SDK policy. AAB generation remains distinct from upload or publication, signing material remains externalized, and no automatic Play Store upload is authorized.
+## 4. Android Packaging Automation & Release Governance (MF-REL-001)
+
+[ADR-0006](decisions/ADR-0006-android-packaging-signing-and-manifest-release-security.md) establishes the official packaging and release automation architecture for Android:
+
+### A. Manifest Hardening & Offline Security
+- **Offline Invariant**: `src/MathFirst.App/Platforms/Android/AndroidManifest.xml` explicitly omits `android.permission.INTERNET` and `android.permission.ACCESS_NETWORK_STATE`. `BlazorWebView` assets are loaded locally from the package.
+- **Backup Policy**: `android:allowBackup="true"` is preserved to allow seamless Android Auto Backup of local SQLite learner progress across device transfers.
+- **Target SDK**: .NET 10 implicitly targets Android API 36 with minimum supported SDK 24.0.
+
+### B. Repeatable AAB Packaging (`scripts/package-android-aab.ps1`)
+- **Canonical Command**:
+  ```powershell
+  pwsh -File scripts/package-android-aab.ps1 -Configuration Release
+  ```
+- **Supported Parameters**:
+  - `-Configuration <String>`: Defaults to `Release`.
+  - `-DisplayVersion <String>`: Optional semantic display version override (validated `^\d+(\.\d+)+$`).
+  - `-BuildNumber <Int32>`: Optional positive integer build number override ($> 0$).
+  - `-Sign`: Enables cryptographic keystore signing.
+  - `-KeystorePath <String>`: Path to external keystore file (or `$env:MATHFIRST_ANDROID_KEYSTORE_PATH`).
+  - `-KeyAlias <String>`: Signing key alias (or `$env:MATHFIRST_ANDROID_KEY_ALIAS`).
+  - `-StorePassword <String>`: Keystore password (or `$env:MATHFIRST_ANDROID_STORE_PASS`).
+  - `-KeyPassword <String>`: Key password (or `$env:MATHFIRST_ANDROID_KEY_PASS`).
+  - `-OutputDir <String>`: Destination folder (defaults to `artifacts/android`).
+  - `-AllowDirty`: Allows packaging on a dirty working tree for local development testing only.
+- **Fail-Closed Working Tree Policy**: Aborts immediately if uncommitted Git changes exist unless `-AllowDirty` is explicitly passed.
+- **Deterministic Output Naming**: `MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Configuration}.aab`
+- **Companion Provenance**: Generates `<ArtifactName>.provenance.json` with commit SHA, branch, timestamp (UTC), configuration, target framework, signing state, and SHA-256 hash.
+
+### C. Fail-Closed Signing Architecture
+- Keystores, certificates, and passwords remain strictly externalized and excluded from Git via `.gitignore`.
+- Passwords and secret values are never printed, echoed, or committed to logs.
+- If `-Sign` is requested, the script verifies all credentials exist; if any input is missing, packaging halts immediately.
+
+### D. Offline Local Validation (`scripts/validate-android-aab.ps1`)
+- **Canonical Command**:
+  ```powershell
+  pwsh -File scripts/validate-android-aab.ps1 -AabPath <path-to-aab> [-ExpectedDisplayVersion <version>] [-ExpectedBuildNumber <build>] [-RequireSigned]
+  ```
+- **Validation Gates**:
+  1. Archive integrity: opens via `System.IO.Compression.ZipArchive`.
+  2. Required bundle modules: asserts `BundleConfig.pb`, `base/manifest/AndroidManifest.xml`, `base/dex/*.dex`, and base resources exist.
+  3. Signature detection: inspects `META-INF/` for signature blocks.
+  4. Provenance match: validates SHA-256 hash against companion `.provenance.json` and asserts `ApplicationId == com.tachiguro.mathfirst`.

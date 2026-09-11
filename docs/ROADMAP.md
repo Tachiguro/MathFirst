@@ -69,8 +69,8 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) — complete and merged through Pull Request #13.
 5. Capture adaptive learning product direction and repository handoff (`MF-DOC-002`) — complete and merged through Pull Request #14.
 6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) — complete and merged through Pull Request #15.
-7. Deliver acclimation timing, rapid dense expansion, and keypad defaults (`MF-LEARN-003`) — implemented, verified (790 Core tests in `MathFirst.Core.Tests`), and independently reviewed (`REVIEW_PASS`); `FULL_VALIDATION` and PR integration pending.
-8. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — deferred until `MF-LEARN-003` completes its entire lifecycle; not started.
+7. Deliver acclimation timing, rapid dense expansion, and keypad defaults (`MF-LEARN-003`) — complete and merged through Pull Request #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
+8. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — implemented and verified across 3 slices with 808 passing Core tests, clean Release builds, and local AAB validation tooling.
 9. Complete final exact-candidate Native V1 validation.
 10. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
 11. Perform separately authorized final real-device verification.

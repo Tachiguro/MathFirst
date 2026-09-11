@@ -8,9 +8,8 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 - **Project Name**: MathFirst
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
-- **Default Branch**: `main`
-- **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, and `MF-LEARN-002` are complete and merged into `main` (`MF-LEARN-002` merged through PR #15 at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`). `MF-LEARN-003` (Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults) includes 5 implementation slices plus corrective editable multi-digit input on branch `feat/mf-learn-003-acclimation-rapid-dense` at candidate HEAD `d2179ffaf3074ab0c1d32f5d018722557c37e78f`, verified with 790 passing Core tests, and independently reviewed with `REVIEW_PASS`. Active work is `DOCUMENT_ONLY` documentation reconciliation for `MF-LEARN-003`.
+- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, `MF-LEARN-002`, and `MF-LEARN-003` are complete and merged into `main` (`MF-LEARN-003` merged through PR #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`). `MF-REL-001` (Android Internal AAB Packaging and Release Automation) completed 3 implementation slices on branch `feat/mf-rel-001-android-aab-packaging`, verified with 808 passing Core tests in `MathFirst.Core.Tests` and clean Release builds on Windows and Android. Active work is `DOCUMENT_ONLY` documentation reconciliation for `MF-REL-001`.
+
 
 ---
 
@@ -90,8 +89,9 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 ## 6. Current Feature Candidate State
 
-- Active candidate branch: `feat/mf-learn-003-acclimation-rapid-dense` at candidate HEAD commit `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`).
-- All behavioral implementations across 5 slices and corrective editable multi-digit input, test suites (790 Core tests), and independent reviews have completed with `REVIEW_PASS`.
+- Active candidate branch: `feat/mf-rel-001-android-aab-packaging` on base commit `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
+- Completed 3 implementation slices (`android-manifest-hygiene-hardening`, `aab-packaging-provenance-automation`, `local-aab-validation-harness`) and local AAB validation verification.
+- Test suite: 808 passing Core tests in `MathFirst.Core.Tests`.
 - Active operation mode: `DOCUMENT_ONLY` documentation reconciliation.
 - Next lifecycle steps: `COMMIT_ONLY` staging and commit creation, followed by `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual merge, and `POST_MERGE_SYNC_ONLY`.
 
@@ -107,7 +107,8 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - MF-UX-003 was merged to `main` through Pull Request #12 on 2026-09-10, reconciling native identity, versioning, and visual assets.
 - MF-STAB-001 was merged to `main` through Pull Request #13 on 2026-09-10 at `45ef623f44df87c0da97460d38dbb797c2aa18bf`, stabilizing practice progression (MUL-D01 bootstrap profile), 30-second countdown bar, compact progress HUD, transient session score, and danger Pause action, with 546 passing Core tests and 0 warnings/errors on Windows/Android Release builds.
 - MF-LEARN-002 was merged to `main` through Pull Request #15 on 2026-09-11 at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1` (head `1efc34c09c3611ff221204966104eb99ec03c7a3`), adding Schema V6 persistence, adaptive pace & answer deadlines, adaptive fluency mapping, fast acquisition for dense bands, role-specific selector chains, repeated-error teaching overlay, session check-ins with zero-timing pause semantics, and clean practice HUD, verified with 708 passing Core tests and clean post-merge synchronization.
-- MF-LEARN-003 completed behavioral implementation across 5 checkpoint slices and corrective editable multi-digit input with `REVIEW_PASS`, adding answer-length acclimation deadlines, durable fact proof, Numpad layout defaults, Coverage-First Dense selection, authoritative latest-per-frontier persistence evidence via `LoadLatestFrontierAttemptsAsync` and Schema V6 partial index `ix_attempt_history_operation_fact_position`, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$) with recoverable errors, and editable incomplete multi-digit answers before auto-submission, verified with 790 passing Core tests in `MathFirst.Core.Tests`. The candidate has not yet undergone `FULL_VALIDATION`; release builds, packaging, and integration remain pending.
+- MF-LEARN-003 was merged to `main` through Pull Request #16 on 2026-09-11 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`, adding answer-length acclimation deadlines, durable fact proof, Numpad layout defaults, Coverage-First Dense selection, authoritative latest-per-frontier persistence evidence via `LoadLatestFrontierAttemptsAsync` and Schema V6 partial index `ix_attempt_history_operation_fact_position`, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$) with recoverable errors, and editable incomplete multi-digit answers before auto-submission, verified with 790 passing Core tests in `MathFirst.Core.Tests` and clean post-merge synchronization.
+- MF-REL-001 completed implementation across 3 slices with 808 passing Core tests, Android manifest hardening (removal of `INTERNET` and `ACCESS_NETWORK_STATE`), .gitignore keystore/secret hygiene, repeatable AAB packaging with exact-candidate provenance tracking (`scripts/package-android-aab.ps1`), and offline local artifact validation (`scripts/validate-android-aab.ps1`), verified with clean Android/Windows Release builds and successful local bundle validation.
 
 ---
 

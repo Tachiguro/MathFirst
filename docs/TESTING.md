@@ -205,4 +205,34 @@ MF-LEARN-003 contract, regression, and simulation coverage validates the acclima
   - `AdaptiveLearningUxCompletionTests`: 17 passed
 - **Full Core Test Suite**: 790 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
 - **Independent Review**: Package-wide corrective independent review approved (`REVIEW_PASS`).
-- **Lifecycle Status**: These are Core and review results; they do not constitute formal `FULL_VALIDATION`. Windows/Android Release builds, release packaging, and PR integration remain scheduled for future lifecycle steps.
+- **Lifecycle Status**: Merged to `main` via PR #16 at commit `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
+
+---
+
+## 12. MF-REL-001 Android Packaging and Release Automation Contracts
+
+MF-REL-001 contract, hygiene, and validation coverage enforces Android App Bundle packaging invariants across 808 automated tests in `MathFirst.Core.Tests`:
+
+1. **Manifest Offline-First Hygiene (`AndroidPackagingContractTests`)**:
+   - Asserts total absence of network permissions (`android.permission.INTERNET`, `android.permission.ACCESS_NETWORK_STATE`).
+   - Asserts `android:allowBackup="true"`, `android:supportsRtl="true"`, and approved native icon references.
+   - Asserts canonical application ID `com.tachiguro.mathfirst`, display version `1.0`, build `1`, and Android minimum SDK `24.0`.
+   - Asserts `.gitignore` contains explicit fail-closed ignore rules for keystores (`*.keystore`, `*.jks`, `*.p12`, `*.pfx`), secret configurations (`signing.properties`, `.env`), and release artifacts (`artifacts/`, `*.aab`, `*.apk`).
+2. **Packaging Automation & Provenance (`AabPackagingScriptValidationTests`)**:
+   - Asserts `scripts/package-android-aab.ps1` exists and declares standard parameter interface (`Configuration`, `DisplayVersion`, `BuildNumber`, `Sign`, `KeystorePath`, `KeyAlias`, `OutputDir`, `AllowDirty`).
+   - Asserts fail-closed clean working tree check (`git status --porcelain=v1`).
+   - Asserts non-disclosure of plaintext passwords in console and script output.
+   - Asserts deterministic artifact naming (`MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Configuration}.aab`).
+   - Asserts companion `.provenance.json` serialization schema and SHA-256 calculation conformance.
+3. **Local Offline Artifact Validation (`scripts/validate-android-aab.ps1`)**:
+   - Asserts `scripts/validate-android-aab.ps1` exists and supports offline bundle structural inspection.
+   - Validates ZIP archive headers, `BundleConfig.pb`, `base/manifest/AndroidManifest.xml`, `base/dex/*.dex`, and compiled resources.
+   - Validates signature block presence in `META-INF/` when `-RequireSigned` is requested.
+   - Validates provenance checksum and metadata against computed file SHA-256 and Git commit SHA.
+
+### Verification Evidence (MF-REL-001)
+- **Targeted Test Suites**:
+  - `AndroidPackagingContractTests`: 3 passed
+  - `AabPackagingScriptValidationTests`: 15 passed
+- **Full Core Test Suite**: 808 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Compilation**: Android and Windows Release builds compile with 0 warnings and 0 errors.

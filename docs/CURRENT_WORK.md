@@ -9,14 +9,14 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-LEARN-003`
-- **Title**: Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults
-- **Active Task Branch**: `feat/mf-learn-003-acclimation-rapid-dense`
-- **Base Branch / Commit**: `main` at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
-- **Current Implementation Candidate**: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`)
+- **Active Package ID**: `MF-REL-001`
+- **Title**: Android Internal AAB Packaging and Release Automation
+- **Active Task Branch**: `feat/mf-rel-001-android-aab-packaging`
+- **Base Branch / Commit**: `main` at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`
+- **Current Implementation Candidate**: `7684a04` (Slice 3 completion + validator fix)
 - **Operation Mode**: `DOCUMENT_ONLY`
-- **Status**: Narrow corrective documentation reconciliation completed locally for editable multi-digit input behavior.
-- **Implementation & Review State**: 5 planned implementation slices plus corrective editable multi-digit input completed. Independent review approved (`REVIEW_PASS`). Core test suite (`MathFirst.Core.Tests`): 790 passed, 0 failed, 0 skipped. Feature branch is local only / not pushed. Open Pull Requests: 0. `FULL_VALIDATION` has not yet run for the final corrective candidate.
+- **Status**: Implementation across 3 slices completed locally with all tests passing and AAB packaging/validation verified.
+- **Implementation & Review State**: 3 planned implementation slices completed (`android-manifest-hygiene-hardening`, `aab-packaging-provenance-automation`, `local-aab-validation-harness`). Full test suite (`MathFirst.Core.Tests`): 808 passed, 0 failed, 0 skipped. Release compilation on Android and Windows: 0 warnings, 0 errors. Feature branch is local only / not pushed. Open Pull Requests: 0.
 
 ---
 
@@ -32,4 +32,4 @@ This document provides operational context for the package currently in flight.
 
 - **Immediate Next Lifecycle Step**: `COMMIT_ONLY` staging and commit creation for the reconciled documentation.
 - **Subsequent Delivery Sequence**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- **Deferred Work**: `MF-REL-001` (Android Internal AAB Packaging and Release Automation) remains deferred and not started.
+- **Release Boundary Invariant**: AAB packaging and validation do not imply Google Play upload, distribution, or production release.
