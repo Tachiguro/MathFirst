@@ -51,17 +51,205 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
     [InlineData("1", 12, false)]
     [InlineData("12", 12, true)]
     [InlineData("13", 12, true)]
-    [InlineData("8", 12, true)]
+    [InlineData("8", 12, false)]
+    [InlineData("1", 36, false)]
+    [InlineData("3", 36, false)]
+    [InlineData("36", 36, true)]
+    [InlineData("12", 36, true)]
+    [InlineData("1", 144, false)]
+    [InlineData("14", 144, false)]
+    [InlineData("144", 144, true)]
+    [InlineData("98", 980, false)]
+    [InlineData("980", 980, true)]
     [InlineData("14.0", 14, true)]
     [InlineData("14,0", 14, true)]
     [InlineData("1.", 12, false)]
     [InlineData("", 12, false)]
+    [InlineData("1", 6, true)]
+    [InlineData("6", 6, true)]
+    [InlineData("0", 0, true)]
+    [InlineData("1", 0, true)]
     public void AutoSubmissionPolicy_IsDeterministicAndMultiDigitSafe(
         string input,
         int correctAnswer,
         bool expected)
     {
         Assert.Equal(expected, AnswerAutoSubmissionPolicy.ShouldSubmit(input, correctAnswer));
+    }
+
+    [Fact]
+    public void TwoDigitAnswer_WrongFirstDigit_RemainsPending_CanBeDeleted_AndCorrected()
+    {
+        var buffer = string.Empty;
+        const int correctAnswer = 36;
+
+        // A. Press '1'
+        buffer = NumericAnswerInputPolicy.Append(buffer, "1");
+        Assert.Equal("1", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        // B. Backspace
+        buffer = NumericAnswerInputPolicy.Backspace(buffer);
+        Assert.Equal(string.Empty, buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        // C. Enter 3, then 6
+        buffer = NumericAnswerInputPolicy.Append(buffer, "3");
+        Assert.Equal("3", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "6");
+        Assert.Equal("36", buffer);
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+        Assert.True(NumericAnswerInputPolicy.TryParseSubmission(buffer, out var parsed));
+        Assert.Equal(36m, parsed);
+    }
+
+    [Fact]
+    public void TwoDigitAnswer_TwoWrongDigits_SubmitsIncorrect()
+    {
+        var buffer = string.Empty;
+        const int correctAnswer = 36;
+
+        // Press '1'
+        buffer = NumericAnswerInputPolicy.Append(buffer, "1");
+        Assert.Equal("1", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        // Press '2'
+        buffer = NumericAnswerInputPolicy.Append(buffer, "2");
+        Assert.Equal("12", buffer);
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+        Assert.True(NumericAnswerInputPolicy.TryParseSubmission(buffer, out var parsed));
+        Assert.Equal(12m, parsed);
+    }
+
+    [Fact]
+    public void ThreeDigitAnswer_RemainsEditableThroughFirstTwoDigits()
+    {
+        var buffer = string.Empty;
+        const int correctAnswer = 144;
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "1");
+        Assert.Equal("1", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "4");
+        Assert.Equal("14", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Backspace(buffer);
+        Assert.Equal("1", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "4");
+        Assert.Equal("14", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "4");
+        Assert.Equal("144", buffer);
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+    }
+
+    [Fact]
+    public void SingleDigitAnswer_PreservesImmediateSubmit_ForCorrectAndIncorrect()
+    {
+        const int correctAnswer = 6;
+
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit("1", correctAnswer));
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit("6", correctAnswer));
+    }
+
+    [Fact]
+    public void EmptyBackspace_IsSafeNoOp()
+    {
+        var buffer = string.Empty;
+        var backspaced = NumericAnswerInputPolicy.Backspace(buffer);
+
+        Assert.Equal(string.Empty, backspaced);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(backspaced, 36));
+    }
+
+    [Fact]
+    public async Task PartialMultiDigitInput_ThenTimeout_RecordsTimeoutWithoutIncorrectAttempt()
+    {
+        var (session, clock, store) = await CreateSession();
+        var fact = session.CurrentFact;
+        var buffer = "3";
+
+        // Partial input for multi-digit answer does not auto-submit
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, 36));
+        Assert.Equal(0, store.CommitCount);
+        Assert.Equal(0, session.SessionTotalCount);
+
+        clock.AdvanceMs(session.CurrentFactDeadlineMs);
+
+        var evaluation = session.RecordTimeout();
+        await session.CommitCurrentEvaluationAsync();
+
+        Assert.Equal(AttemptOutcome.Timeout, evaluation.Outcome);
+        Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
+        Assert.Null(session.LastEvaluation!.SubmittedNumericAnswer);
+        Assert.Equal(1, store.CommitCount);
+        Assert.Equal(1, session.SessionTotalCount);
+    }
+
+    [Fact]
+    public async Task PartialEditing_DoesNotResetResponseTimer()
+    {
+        var (session, clock, _) = await CreateSession();
+        var fact = session.CurrentFact;
+
+        // User enters '1' at t=1000ms
+        clock.AdvanceMs(1000);
+        var buffer = NumericAnswerInputPolicy.Append(string.Empty, "1");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, 36));
+
+        // User backspaces at t=2000ms
+        clock.AdvanceMs(1000);
+        buffer = NumericAnswerInputPolicy.Backspace(buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, 36));
+
+        // User enters '3' at t=2500ms
+        clock.AdvanceMs(500);
+        buffer = NumericAnswerInputPolicy.Append(buffer, "3");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, 36));
+
+        // User enters '6' at t=3500ms
+        clock.AdvanceMs(1000);
+        buffer = NumericAnswerInputPolicy.Append(buffer, "6");
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, 36));
+
+        Assert.True(NumericAnswerInputPolicy.TryParseSubmission(buffer, out var parsedAnswer));
+        var eval = session.SubmitAnswer(parsedAnswer);
+
+        // Latency must reflect full elapsed active time (3500ms), not reset time
+        Assert.Equal(3500, eval.LatencyMs);
+        Assert.Equal(3500, session.GetCurrentActiveElapsedMs());
+    }
+
+    [Fact]
+    public void PhysicalKeyboardAndOnScreenKeypad_UseIdenticalBufferingAndSubmissionPolicy()
+    {
+        const int correctAnswer = 36;
+
+        // Keypad path: Append -> ShouldSubmit
+        var keypadBuffer = NumericAnswerInputPolicy.Append(string.Empty, "1");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(keypadBuffer, correctAnswer));
+
+        // Keyboard path: IsValidEdit -> ShouldSubmit
+        var keyboardBuffer = NumericAnswerInputPolicy.AcceptEditOrKeep(string.Empty, "1");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(keyboardBuffer, correctAnswer));
+        Assert.Equal(keypadBuffer, keyboardBuffer);
+
+        // Keypad second digit
+        keypadBuffer = NumericAnswerInputPolicy.Append(keypadBuffer, "2");
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(keypadBuffer, correctAnswer));
+
+        // Keyboard second digit
+        keyboardBuffer = NumericAnswerInputPolicy.AcceptEditOrKeep(keyboardBuffer, "12");
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(keyboardBuffer, correctAnswer));
+        Assert.Equal(keypadBuffer, keyboardBuffer);
     }
 
     [Fact]

@@ -29,7 +29,6 @@ public static class AnswerAutoSubmissionPolicy
             return false;
         }
 
-        return validInput.Length >= canonicalAnswer.Length ||
-               !canonicalAnswer.StartsWith(validInput, StringComparison.Ordinal);
+        return validInput.Length >= canonicalAnswer.Length;
     }
 }
