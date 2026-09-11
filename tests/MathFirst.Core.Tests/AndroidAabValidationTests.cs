@@ -298,10 +298,34 @@ public sealed class AndroidAabValidationTests
     }
 
     [Fact]
+    public void Validator_AcceptsAndroidSelfSignedSignatureWithTrustAndTimestampWarnings()
+    {
+        using var fixture = new ValidationTestFixture();
+        const string realisticOutput = """
+            jar verified.
+
+            Warning:
+            This jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+            This jar contains entries whose signer certificate is self-signed.
+            This jar contains signatures that do not include a timestamp. Without a timestamp, users may not be able to validate this jar after any of the signer certificates expire (as early as 2056-07-07).
+
+            Re-run with the -verbose and -certs options for more details.
+            """;
+        fixture.ConfigureProcess(fixture.Tools.ResolveJarsigner(), ["-verify", fixture.AabPath],
+            exitCode: 0, standardOutput: realisticOutput);
+
+        var validator = fixture.CreateValidator();
+        var result = validator.Validate(fixture.CreateRequest(ReleaseProfile.SourceCandidate));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(ArtifactValidationStatus.ValidatorApproved, result.Status);
+    }
+
+    [Fact]
     public void Validator_RejectsJarsignerFailure()
     {
         using var fixture = new ValidationTestFixture();
-        fixture.ConfigureProcess(fixture.Tools.ResolveJarsigner(), ["-verify", "-strict", fixture.AabPath],
+        fixture.ConfigureProcess(fixture.Tools.ResolveJarsigner(), ["-verify", fixture.AabPath],
             exitCode: 1, standardError: "jarsigner error: certificate has expired");
 
         var validator = fixture.CreateValidator();
@@ -312,8 +336,19 @@ public sealed class AndroidAabValidationTests
     public void Validator_RejectsUnsignedJarOutput()
     {
         using var fixture = new ValidationTestFixture();
-        fixture.ConfigureProcess(fixture.Tools.ResolveJarsigner(), ["-verify", "-strict", fixture.AabPath],
+        fixture.ConfigureProcess(fixture.Tools.ResolveJarsigner(), ["-verify", fixture.AabPath],
             exitCode: 0, standardOutput: "jar is unsigned.\n");
+
+        var validator = fixture.CreateValidator();
+        Assert.Throws<ReleaseToolException>(() => validator.Validate(fixture.CreateRequest()));
+    }
+
+    [Fact]
+    public void Validator_RejectsOutputWithoutJarVerifiedConfirmation()
+    {
+        using var fixture = new ValidationTestFixture();
+        fixture.ConfigureProcess(fixture.Tools.ResolveJarsigner(), ["-verify", fixture.AabPath],
+            exitCode: 0, standardOutput: "completed without verification confirmation");
 
         var validator = fixture.CreateValidator();
         Assert.Throws<ReleaseToolException>(() => validator.Validate(fixture.CreateRequest()));
@@ -331,13 +366,114 @@ public sealed class AndroidAabValidationTests
     }
 
     [Fact]
+    public void Validator_AcceptsSingleSignerWithCertificateChain()
+    {
+        using var fixture = new ValidationTestFixture();
+        var leafCertPem = fixture.GenerateSelfSignedCertPem("CN=Signer Leaf");
+        var intermediateCertPem = fixture.GenerateSelfSignedCertPem("CN=Signer Intermediate");
+        var rootCertPem = fixture.GenerateSelfSignedCertPem("CN=Signer Root");
+
+        var (leafSha, _) = fixture.ConfigureKeytoolCertChain(leafCertPem, intermediateCertPem, rootCertPem);
+
+        var validator = fixture.CreateValidator();
+        var result = validator.Validate(fixture.CreateRequest(ReleaseProfile.SourceCandidate));
+
+        Assert.True(result.IsValid);
+        Assert.Equal(leafSha, result.SignerCertificateSha256);
+    }
+
+    [Fact]
+    public void Validator_Distributable_AcceptsSignerWithCertificateChainAndMatchesLeafFingerprint()
+    {
+        using var fixture = new ValidationTestFixture();
+        var leafCertPem = fixture.GenerateSelfSignedCertPem("CN=MathFirst Release, O=Tachiguro");
+        var intermediateCertPem = fixture.GenerateSelfSignedCertPem("CN=Intermediate CA, O=Tachiguro");
+        var rootCertPem = fixture.GenerateSelfSignedCertPem("CN=Root CA, O=Tachiguro");
+
+        var (leafSha, _) = fixture.ConfigureKeytoolCertChain(leafCertPem, intermediateCertPem, rootCertPem);
+
+        var provenance = fixture.CreateDefaultProvenance() with
+        {
+            Artifact = fixture.CreateDefaultProvenance().Artifact with
+            {
+                Classification = "distributable-release-signed-pending-validation"
+            },
+            Source = fixture.CreateDefaultProvenance().Source with
+            {
+                Classification = "distributable",
+                Ref = "main"
+            },
+            Signing = new ProvenanceSigning("release-expected-pending-validation", leafSha, null)
+        };
+        fixture.WriteProvenance(provenance);
+
+        var validator = fixture.CreateValidator();
+        var request = fixture.CreateRequest(
+            ReleaseProfile.Distributable,
+            expectedSignerSha: leafSha);
+
+        var result = validator.Validate(request);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(ArtifactValidationStatus.ValidatorApproved, result.Status);
+        Assert.True(result.IsDistributable);
+        Assert.Equal(leafSha, result.SignerCertificateSha256);
+        Assert.Equal("release-distributable", result.SignerClassification);
+    }
+
+    [Fact]
+    public void Validator_Distributable_RejectsWhenExpectedFingerprintMatchesIntermediateInsteadOfLeaf()
+    {
+        using var fixture = new ValidationTestFixture();
+        var leafCertPem = fixture.GenerateSelfSignedCertPem("CN=MathFirst Release, O=Tachiguro");
+        var intermediateCertPem = fixture.GenerateSelfSignedCertPem("CN=Intermediate CA, O=Tachiguro");
+
+        fixture.ConfigureKeytoolCertChain(leafCertPem, intermediateCertPem);
+
+        using var intermediateCert = X509Certificate2.CreateFromPem(intermediateCertPem);
+        var intermediateSha = Convert.ToHexString(SHA256.HashData(intermediateCert.RawData)).ToLowerInvariant();
+
+        var provenance = fixture.CreateDefaultProvenance() with
+        {
+            Artifact = fixture.CreateDefaultProvenance().Artifact with
+            {
+                Classification = "distributable-release-signed-pending-validation"
+            },
+            Source = fixture.CreateDefaultProvenance().Source with
+            {
+                Classification = "distributable",
+                Ref = "main"
+            },
+            Signing = new ProvenanceSigning("release-expected-pending-validation", intermediateSha, null)
+        };
+        fixture.WriteProvenance(provenance);
+
+        var validator = fixture.CreateValidator();
+        var request = fixture.CreateRequest(
+            ReleaseProfile.Distributable,
+            expectedSignerSha: intermediateSha);
+
+        Assert.Throws<ReleaseToolException>(() => validator.Validate(request));
+    }
+
+    [Fact]
     public void Validator_RejectsMultipleSignerCertificates()
     {
         using var fixture = new ValidationTestFixture();
         var cert1 = fixture.GenerateSelfSignedCertPem("CN=Signer 1");
         var cert2 = fixture.GenerateSelfSignedCertPem("CN=Signer 2");
+        fixture.ConfigureKeytoolMultipleSigners(cert1, cert2);
+
+        var validator = fixture.CreateValidator();
+        Assert.Throws<ReleaseToolException>(() => validator.Validate(fixture.CreateRequest()));
+    }
+
+    [Fact]
+    public void Validator_RejectsMalformedSignerStructureWithoutCertificates()
+    {
+        using var fixture = new ValidationTestFixture();
         fixture.ConfigureProcess(fixture.Tools.ResolveKeytool(), ["-printcert", "-jarfile", fixture.AabPath, "-rfc"],
-            exitCode: 0, standardOutput: $"{cert1}\n{cert2}");
+            exitCode: 0, standardOutput: "Signer #1:\n\nNo certificates found here\n");
 
         var validator = fixture.CreateValidator();
         Assert.Throws<ReleaseToolException>(() => validator.Validate(fixture.CreateRequest()));
@@ -575,14 +711,44 @@ public sealed class AndroidAabValidationTests
 
         public (string sha256, string pem) ConfigureKeytoolCert(string pem)
         {
-            using var rsa = RSA.Create(2048);
-            var certBytes = Encoding.UTF8.GetBytes(pem);
             var cert = X509Certificate2.CreateFromPem(pem);
             var sha256 = Convert.ToHexString(SHA256.HashData(cert.RawData)).ToLowerInvariant();
 
+            var output = $"Signer #1:\n\nCertificate #1:\nCertificate owner: {cert.Subject}\n\n{pem}\n";
             ConfigureProcess(Tools.ResolveKeytool(), ["-printcert", "-jarfile", AabPath, "-rfc"],
-                exitCode: 0, standardOutput: pem);
+                exitCode: 0, standardOutput: output);
             return (sha256, pem);
+        }
+
+        public (string leafSha256, string output) ConfigureKeytoolCertChain(string leafPem, params string[] chainPems)
+        {
+            var leafCert = X509Certificate2.CreateFromPem(leafPem);
+            var leafSha = Convert.ToHexString(SHA256.HashData(leafCert.RawData)).ToLowerInvariant();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Signer #1:");
+            sb.AppendLine();
+            sb.AppendLine($"Certificate #1:\nCertificate owner: {leafCert.Subject}\n\n{leafPem}\n");
+            for (var i = 0; i < chainPems.Length; i++)
+            {
+                var chainCert = X509Certificate2.CreateFromPem(chainPems[i]);
+                sb.AppendLine($"Certificate #{i + 2}:\nCertificate owner: {chainCert.Subject}\n\n{chainPems[i]}\n");
+            }
+
+            var output = sb.ToString();
+            ConfigureProcess(Tools.ResolveKeytool(), ["-printcert", "-jarfile", AabPath, "-rfc"],
+                exitCode: 0, standardOutput: output);
+            return (leafSha, output);
+        }
+
+        public void ConfigureKeytoolMultipleSigners(string signer1Pem, string signer2Pem)
+        {
+            var cert1 = X509Certificate2.CreateFromPem(signer1Pem);
+            var cert2 = X509Certificate2.CreateFromPem(signer2Pem);
+
+            var output = $"Signer #1:\n\nCertificate #1:\nCertificate owner: {cert1.Subject}\n\n{signer1Pem}\n\nSigner #2:\n\nCertificate #1:\nCertificate owner: {cert2.Subject}\n\n{signer2Pem}\n";
+            ConfigureProcess(Tools.ResolveKeytool(), ["-printcert", "-jarfile", AabPath, "-rfc"],
+                exitCode: 0, standardOutput: output);
         }
 
         public void ConfigureDexdumpFailure()
@@ -648,8 +814,18 @@ public sealed class AndroidAabValidationTests
                 exitCode: 0, standardOutput: "Package 'com.tachiguro.mathfirst':\n  Type 'xml':\n    Resource 'backup_rules':\n      (default) - res/xml/backup_rules.xml\n      v28 - res/xml-v28/backup_rules.xml\n    Resource 'data_extraction_rules':\n      (default) - res/xml/data_extraction_rules.xml\n");
 
             // jarsigner verify
-            ConfigureProcess(Tools.ResolveJarsigner(), ["-verify", "-strict", AabPath],
-                exitCode: 0, standardOutput: "jar verified.\n\nWarning: This jar contains signed entries that aren't signed by alias specified.\n");
+            const string realisticJarsignerOutput = """
+                jar verified.
+
+                Warning:
+                This jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+                This jar contains entries whose signer certificate is self-signed.
+                This jar contains signatures that do not include a timestamp. Without a timestamp, users may not be able to validate this jar after any of the signer certificates expire (as early as 2056-07-07).
+
+                Re-run with the -verbose and -certs options for more details.
+                """;
+            ConfigureProcess(Tools.ResolveJarsigner(), ["-verify", AabPath],
+                exitCode: 0, standardOutput: realisticJarsignerOutput);
 
             // keytool printcert
             var debugCert = GenerateSelfSignedCertPem("CN=Android Debug, O=Android, C=US");

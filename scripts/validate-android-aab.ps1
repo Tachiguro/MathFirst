@@ -46,7 +46,6 @@ if (-not (Test-Path $releaseToolProject)) {
 $toolArgs = @(
     "run",
     "--project", $releaseToolProject,
-    "--no-build",
     "-c", "Release",
     "--",
     "android-validate",

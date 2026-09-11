@@ -16,8 +16,12 @@ public sealed class JarSignatureInspector(
     IProcessRunner processRunner,
     IValidationToolLocator toolLocator)
 {
+    private static readonly Regex SignerBlockPattern = new(
+        @"Signer\s*#\d+:(.*?)(?=(?:Signer\s*#\d+:|$))",
+        RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
     private static readonly Regex PemCertPattern = new(
-        "-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----",
+        @"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----",
         RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
     public void VerifySignature(string aabPath)
@@ -31,7 +35,7 @@ public sealed class JarSignatureInspector(
         var jarsigner = toolLocator.ResolveJarsigner();
         var invocation = new ProcessInvocation(
             jarsigner,
-            ["-verify", "-strict", aabPath],
+            ["-verify", aabPath],
             Path.GetDirectoryName(aabPath) ?? Environment.CurrentDirectory);
 
         var result = processRunner.Run(invocation);
@@ -47,7 +51,8 @@ public sealed class JarSignatureInspector(
             throw new ReleaseToolException("Cryptographic signature verification failed: the bundle is unsigned.");
         }
 
-        if (!output.Contains("jar verified.", StringComparison.OrdinalIgnoreCase))
+        if (!output.Contains("jar verified.", StringComparison.OrdinalIgnoreCase) &&
+            !output.Contains("jar verified", StringComparison.OrdinalIgnoreCase))
         {
             throw new ReleaseToolException("Cryptographic signature verification failed: jarsigner did not report 'jar verified.'");
         }
@@ -71,13 +76,21 @@ public sealed class JarSignatureInspector(
         result.EnsureSuccess("keytool -printcert");
 
         var signers = new List<SignerInfo>();
-        var matches = PemCertPattern.Matches(result.StandardOutput);
-        foreach (Match match in matches)
+        var signerMatches = SignerBlockPattern.Matches(result.StandardOutput);
+
+        foreach (Match signerMatch in signerMatches)
         {
-            var pemBlock = match.Value;
+            var signerBlock = signerMatch.Groups[1].Value;
+            var certMatches = PemCertPattern.Matches(signerBlock);
+            if (certMatches.Count == 0)
+            {
+                throw new ReleaseToolException("Failed to parse signer certificate: signer block contains no X.509 PEM certificate.");
+            }
+
+            var leafPemBlock = certMatches[0].Value;
             try
             {
-                using var cert = X509Certificate2.CreateFromPem(pemBlock);
+                using var cert = X509Certificate2.CreateFromPem(leafPemBlock);
                 var sha256 = Convert.ToHexString(SHA256.HashData(cert.RawData)).ToLowerInvariant();
                 var subject = cert.Subject;
                 var issuer = cert.Issuer;

@@ -640,6 +640,17 @@ public sealed class AabPackagingScriptValidationTests
     }
 
     [Fact]
+    public void ValidateScript_DoesNotRequirePreexistingReleaseBuild()
+    {
+        var script = File.ReadAllText(GetRepositoryPath("scripts", "validate-android-aab.ps1"));
+
+        Assert.DoesNotContain("--no-build", script, StringComparison.Ordinal);
+        Assert.Contains("MathFirst.ReleaseTool", script, StringComparison.Ordinal);
+        Assert.Contains("-c", script, StringComparison.Ordinal);
+        Assert.Contains("Release", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PublicCli_ValidateCommand_RejectsUnknownOption()
     {
         var originalError = Console.Error;
