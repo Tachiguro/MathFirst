@@ -113,7 +113,11 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
             primary.SubmitAnswer(primary.CurrentFact.CorrectResult);
             Assert.True((await primary.CommitCurrentEvaluationAsync()).IsSuccess);
             replay = primary.LastEvaluation!.ChangeSet;
-            Assert.True(primary.AdvanceAfterCorrectAnswer(startTiming: false));
+            if (!primary.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, primary.InteractionState);
+                primary.ContinuePractice(startTiming: false);
+            }
         }
 
         var beforeReplay = await primaryStore.LoadSnapshotAsync();
@@ -164,7 +168,11 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
                 clock.LatencyMs = position % 19 == 0 ? 3_000 : 900;
                 session.SubmitAnswer(fact.CorrectResult);
                 Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-                Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                {
+                    Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                    session.ContinuePractice(startTiming: false);
+                }
 
                 if (restartCadence is not null && position % restartCadence.Value == 0 && position != length)
                 {

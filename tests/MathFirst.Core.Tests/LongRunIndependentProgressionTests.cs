@@ -29,7 +29,11 @@ public sealed class LongRunIndependentProgressionTests
                     var fact = session.CurrentFact;
                     session.SubmitAnswer(fact.CorrectResult);
                     Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-                    Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                    if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                    {
+                        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                        session.ContinuePractice(startTiming: false);
+                    }
                 }
             }
 
@@ -102,7 +106,11 @@ public sealed class LongRunIndependentProgressionTests
                 Assert.Equal(position, session.Progression.OperationProgressions[fact.Operation].BandStartedPracticePosition);
             }
 
-            Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                session.ContinuePractice(startTiming: false);
+            }
         }
 
         Assert.All(operationSlots.Values, slots => Assert.Equal(500, slots));
@@ -135,7 +143,11 @@ public sealed class LongRunIndependentProgressionTests
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
             }
 
-            Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                session.ContinuePractice(startTiming: false);
+            }
         }
 
         Assert.Equal(51, session.Progression.PracticePosition + 1);
@@ -230,7 +242,11 @@ public sealed class LongRunIndependentProgressionTests
                     var fact = session.CurrentFact;
                     session.SubmitAnswer(fact.CorrectResult);
                     Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-                    Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                    if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                    {
+                        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                        session.ContinuePractice(startTiming: false);
+                    }
                 }
                 await store.CloseAsync();
             }

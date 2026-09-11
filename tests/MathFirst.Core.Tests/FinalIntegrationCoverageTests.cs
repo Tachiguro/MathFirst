@@ -208,7 +208,11 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
         Assert.Equal(expectedPosition, session.Progression.PracticePosition);
-        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+        {
+            Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+            session.ContinuePractice(startTiming: false);
+        }
     }
 
     private static async Task<AdvancementRun> CommitAdvancementTriggerAsync(TrainingSession session)
@@ -217,7 +221,11 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         var before = session.Progression.OperationProgressions[ArithmeticOperation.Addition];
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+        {
+            Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+            session.ContinuePractice(startTiming: false);
+        }
         var run = new AdvancementRun(trigger, CaptureState(session), trigger.PracticePosition);
         Assert.Equal(before.BandIndex + 1, run.State.Progressions[ArithmeticOperation.Addition].BandIndex);
         return run;

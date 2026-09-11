@@ -29,6 +29,7 @@ public sealed class TrainingSession
     private readonly ArithmeticCurriculum _curriculum = new();
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
     private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
+    private readonly List<AttemptRecord> _sessionCheckInAttempts = [];
     private List<AttemptRecord> _recentAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
 
@@ -37,6 +38,7 @@ public sealed class TrainingSession
     public LearnerProgression Progression { get; private set; } = LearnerProgression.CreateFresh();
     public Dictionary<string, ItemLearningState> ItemStates { get; private set; } = new(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, FsrsCardState> FsrsStates => _fsrsStates;
+    public PracticeCheckInSummary? PendingCheckIn { get; private set; }
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
     public int SessionTotalCount { get; private set; }
@@ -81,8 +83,61 @@ public sealed class TrainingSession
             return false;
         }
 
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
         AdvanceToNextFact(startTiming);
         return true;
+    }
+
+    public bool AcknowledgeFeedback(bool startTiming = true)
+    {
+        if (InteractionState is not SessionInteractionState.IncorrectFeedback and not SessionInteractionState.TimeoutFeedback)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        AdvanceToNextFact(startTiming);
+        return true;
+    }
+
+    public void ContinuePractice(bool startTiming = true)
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        AdvanceToNextFact(startTiming);
+    }
+
+    public void TakeBreak()
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        AdvanceToNextFact(startTiming: true);
+        TransitionPracticeGate(PracticeGateState.ManualPause);
+        ReconcileTimingState();
     }
 
     public TrainingSession(
@@ -105,6 +160,8 @@ public sealed class TrainingSession
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
         _sessionConsecutiveErrors.Clear();
+        _sessionCheckInAttempts.Clear();
+        PendingCheckIn = null;
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
@@ -521,6 +578,20 @@ public sealed class TrainingSession
             Progression.StoreRevision = result.NewRevision.Value;
             LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
             _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
+            _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
+            if (_sessionCheckInAttempts.Count == 20)
+            {
+                var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
+                long? medianLatency = correctAttempts.Count > 0
+                    ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
+                    : null;
+                PendingCheckIn = new PracticeCheckInSummary(
+                    correctAttempts.Count,
+                    _sessionCheckInAttempts.Count,
+                    medianLatency);
+                _sessionCheckInAttempts.Clear();
+            }
+
             await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
 
             if (LastEvaluation.Outcome == AttemptOutcome.Correct)
@@ -640,6 +711,15 @@ public sealed class TrainingSession
             return false;
         }
 
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return false;
+        }
+
         AdvanceToNextFact(startTiming);
         return true;
     }
@@ -653,6 +733,8 @@ public sealed class TrainingSession
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
         _sessionConsecutiveErrors.Clear();
+        _sessionCheckInAttempts.Clear();
+        PendingCheckIn = null;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         SessionOrderCounter = 0;
