@@ -9,14 +9,14 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-LEARN-002`
-- **Title**: Adaptive Pace, Fast Acquisition, and Practice Interventions
-- **Active Task Branch**: `feat/mf-learn-002-adaptive-pace`
-- **Base Branch / Commit**: `main` at `8983bee7d4a3cc0a4201ab2b2d208e7692de6a5f`
-- **HEAD Commit**: `b9a886290e8e5497b96af4a4b6a1eb8961b2a34f` (Checkpoint 6/6 `take-break-zero-timing-fix`)
+- **Active Package ID**: `MF-LEARN-003`
+- **Title**: Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults
+- **Active Task Branch**: `feat/mf-learn-003-acclimation-rapid-dense`
+- **Base Branch / Commit**: `main` at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
+- **HEAD Commit**: `9e07ec34e42a688847e23e53e47adb728fbec428` (Checkpoint 5/5 `rapid-dense-progression`)
 - **Operation Mode**: `DOCUMENT_ONLY`
-- **Status**: Reconciling repository documentation to the final, implemented, independently reviewed `MF-LEARN-002` package state (`REVIEW_PASS`).
-- **Implementation & Review State**: Implementation completed across 6 checkpoint commits. Post-correction independent review approved (`REVIEW_PASS`). Core test suite (`MathFirst.Core.Tests`): 708 passed, 0 failed, 0 skipped. `FULL_VALIDATION`, release builds, and PR integration remain pending.
+- **Status**: Reconciling repository documentation to the final, implemented, independently reviewed `MF-LEARN-003` package state (`REVIEW_PASS`).
+- **Implementation & Review State**: Implementation completed across 5 checkpoint slices. Independent review approved (`REVIEW_PASS`). Core test suite (`MathFirst.Core.Tests`): 769 passed, 0 failed, 0 skipped (471 focused package tests). Feature branch is local only / not pushed. Open Pull Requests: 0. `FULL_VALIDATION`, release builds, and PR integration remain pending.
 
 ---
 

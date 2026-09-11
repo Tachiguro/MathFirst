@@ -133,7 +133,59 @@ MF-LEARN-002 contract and regression coverage validates the complete adaptive le
    - Practice screen removes transient session score and progress indicators for distraction-free practice.
    - Pause button is styled in danger red.
 
-### Verification Evidence
+### Verification Evidence (Historical Package Delivery)
 - **Automated Test Suite**: 708 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
 - **Independent Review**: Package-wide post-correction independent review approved (`REVIEW_PASS`).
-- **Lifecycle Status**: The documentation-inclusive candidate has not yet undergone the separate `FULL_VALIDATION` lifecycle step. Windows and Android Release build checks, release packaging, and device validation are not claimed as current evidence and remain scheduled for `FULL_VALIDATION` following `COMMIT_ONLY`.
+- **Delivery Status**: Merged into `main` via PR #15 at commit `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`.
+
+---
+
+## 11. MF-LEARN-003 Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults Contracts
+
+MF-LEARN-003 contract, regression, and simulation coverage validates the acclimation timing model, keypad preferences, Coverage-First selection, bounded latest-per-frontier persistence, and correctness-driven Dense progression across 769 automated tests in `MathFirst.Core.Tests` (including 471 focused package tests):
+
+1. **Answer-Length Acclimation Deadlines & Durable Proof**:
+   - Durable fact proof: Fact is proven iff `ItemLearningState.CorrectAttempts > 0`.
+   - Digit-aware novelty floors for unproven facts: 1 digit = $15000\text{ ms}$, 2 digits = $20000\text{ ms}$, 3 digits = $25000\text{ ms}$, 4+ digits = $30000\text{ ms}$ derived from canonical non-negative correct result using integer arithmetic ($0$ is 1 digit).
+   - Multi-digit entry allowance: $+1000\text{ ms} \cdot \max(0, \text{DigitCount} - 1)$.
+   - Adaptive deadline: $\lceil (2 \cdot P_{\text{fact}} + \text{InstabilityAllowanceMs} + \text{EntryAllowanceMs}) / 100 \rceil \cdot 100\text{ ms}$, clamped $[3000, 30000]\text{ ms}$.
+   - Effective deadline: Proven $\implies \text{AdaptiveDeadline}$; Unproven $\implies \min(30000, \max(\text{AdaptiveDeadline}, \text{NoveltyFloor}))$.
+   - Strict non-interference: Latency measurement, adaptive fluency thresholds, `IsFluent`, and FSRS ratings remain unaffected by novelty deadline floors.
+2. **Keypad Defaults & Ordering**:
+   - Default/fallback is `Numpad` across missing, null, or invalid stored preference values.
+   - Visual option order in Onboarding and Settings presents Numpad first (left) and Phone second (right).
+   - Storage enum values remain `Phone = 0`, `Numpad = 1`. Explicitly stored preferences remain preserved.
+   - Initial Home backing state and Full Local Reset default to Numpad.
+3. **Coverage-First Dense Selection & Materialization Safety**:
+   - Selector precedence: 1. eligible Remediation ($\ge 4$ distance); 2. Dense Coverage-First New; 3. ordinary requested-role chains.
+   - Coverage-First Dense New selects unmaterialized owned-frontier facts across nominal Due/Maintenance/Frontier turns until first-pass coverage is complete.
+   - Materialization invariant: Unmaterialized facts enter practice only via explicit `Requested New` or `Coverage-First Dense New`. Non-New resolved roles strictly cannot materialize facts.
+   - Structured bands are isolated from Coverage-First selection.
+4. **Authoritative Latest-per-Frontier Persistence & Schema V6 Index**:
+   - Store contract `ILearnerStore.LoadLatestFrontierAttemptsAsync` queries at most one latest positioned attempt per requested frontier fact for `PracticePosition > BandStartedPracticePosition`.
+   - Bounded query scope: Frontier is bounded by current Dense band ($N \le 25$).
+   - Schema V6 partial index `ix_attempt_history_operation_fact_position` on `attempt_history(operation, fact_id, practice_position DESC) WHERE practice_position IS NOT NULL` is initialized/repaired idempotently across fresh V6, existing V6, and migrations.
+   - Verified >40-attempt evidence case ensuring progression is evaluated over all attempts since band start, not truncated by the recent 40 window.
+5. **Correctness-Driven Dense Progression ($C \cdot 10 \ge N \cdot 9$)**:
+   - Complete frontier coverage required before progression evaluation.
+   - In-memory candidate overlay pre-evaluates progression before atomic persistence commit.
+   - Error and timeout recovery: Latest positioned outcome is authoritative (an error followed by a correct answer votes Correct).
+   - Slow / non-fluent Correct answers count as Correct for Dense progression.
+   - Threshold conformance: $N=2..9 \implies 100\%$ Correct required; $N=10 \implies 9$ Correct; $N=11 \implies 10$; $N=12 \implies 11$; $N=20 \implies 18$; $N=25 \implies 23$.
+   - Structured band isolation: Structured bands strictly retain the rolling 40-attempt gate ($\ge 38$ Correct, $\ge 34$ Fluent, $\ge 20$ frontier, $\ge \min(16, N)$ distinct, 16 introductions).
+   - Fast Acquisition and `FastAcquisitionEvaluator` are retired.
+   - `MUL-D01` 12-attempt special bootstrap is retired; `MUL-D01` follows the universal Dense progression rule ($N=4 \implies 4$ Correct).
+6. **Weak-Fact Continuity, Atomicity & Restart Equivalence**:
+   - Weak facts in $\ge 90\%$ advanced bands remain in `ItemLearningState`, FSRS card state, and remediation queues.
+   - Persistence failure does not publish or mutate learner state; recovery reloads durable state.
+   - Progression is restart-stable without ephemeral session markers.
+   - Terminal safety: Terminal bands (`ADD-P8-D0`, `SUB-P8-D0`, `MUL-P7-SCALED`, `DIV-P7-SCALED`) do not synthesize unsafe successors.
+7. **Deterministic Progression Simulations**:
+   - Ideal all-Correct simulation validates early expansion: DIV-D01 $\to$ D02 at position 8, SUB-D01 $\to$ D02 at position 10, ADD-D01 $\to$ D02 at position 13, MUL-D01 $\to$ D02 at position 15 (all 4 initial bands advanced by position 15).
+   - Validated positions: Position 20 (all D02), Position 50 (ADD-D03, SUB-D04, MUL-D03, DIV-D04), Position 100 (ADD-D05, SUB-D06, MUL-D05, DIV-D05).
+
+### Verification Evidence (MF-LEARN-003)
+- **Focused Package Test Suites**: 471 passed, 0 failed, 0 skipped.
+- **Full Core Test Suite**: 769 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Independent Review**: Package-wide independent review approved (`REVIEW_PASS`).
+- **Lifecycle Status**: These are Core and review results; they do not constitute formal `FULL_VALIDATION`. Windows/Android Release builds, release packaging, and PR integration remain scheduled for future lifecycle steps.
