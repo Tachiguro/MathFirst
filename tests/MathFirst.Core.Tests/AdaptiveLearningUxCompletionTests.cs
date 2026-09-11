@@ -38,11 +38,30 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
     private sealed class FakeClock : IClock
     {
         public long CurrentTimestamp { get; set; } = 1_000_000;
+        public long AutoAdvanceMs { get; set; } = 0;
         public TimeSpan? CustomElapsed { get; set; }
+        public int ElapsedTimeCallCount { get; private set; }
 
-        public long GetTimestamp() => CurrentTimestamp;
-        public TimeSpan GetElapsedTime(long startTimestamp) =>
-            CustomElapsed ?? TimeSpan.FromMilliseconds(Math.Max(0, CurrentTimestamp - startTimestamp));
+        public long GetTimestamp()
+        {
+            var ts = CurrentTimestamp;
+            CurrentTimestamp += AutoAdvanceMs;
+            return ts;
+        }
+
+        public TimeSpan GetElapsedTime(long startTimestamp)
+        {
+            ElapsedTimeCallCount++;
+            if (CustomElapsed is not null) return CustomElapsed.Value;
+            var elapsed = TimeSpan.FromMilliseconds(Math.Max(0, CurrentTimestamp - startTimestamp));
+            CurrentTimestamp += AutoAdvanceMs;
+            return elapsed;
+        }
+
+        public void ResetCallCounts()
+        {
+            ElapsedTimeCallCount = 0;
+        }
     }
 
     private sealed class GatedFailingStore : ILearnerStore
@@ -475,22 +494,65 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
         session.AdvanceAfterCorrectAnswer();
         Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
 
+        var positionBefore = session.Progression.PracticePosition;
+        var revisionBefore = session.Progression.StoreRevision;
+        var snapshotBefore = await store.LoadSnapshotAsync();
+        Assert.NotNull(snapshotBefore);
+        var sessionTotalCountBefore = session.SessionTotalCount;
+        var sessionCorrectCountBefore = session.SessionCorrectCount;
+
+        // Configure adversarial clock that advances time on every read during TakeBreak
+        clock.AutoAdvanceMs = 10;
+        clock.ResetCallCounts();
+
         session.TakeBreak();
 
+        // A. Immediately after TakeBreak:
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
         Assert.Equal(PracticeGateState.ManualPause, session.PracticeGate);
         Assert.False(session.IsTimingActive);
         Assert.Equal(0, session.GetCurrentActiveElapsedMs());
-        Assert.NotNull(session.CurrentFact);
+        Assert.Equal(0, clock.ElapsedTimeCallCount);
 
-        // Time passes while paused
-        clock.CurrentTimestamp += 60000;
+        // B. Time passes substantially while paused
+        clock.CurrentTimestamp += 60_000;
         Assert.Equal(0, session.GetCurrentActiveElapsedMs());
 
-        // Resume practice
+        // C & D. Real next fact is prepared with full adaptive pace profile
+        Assert.NotNull(session.CurrentFact);
+        Assert.InRange(session.CurrentFactExpectedPaceMs, AdaptivePacePolicy.MinimumSampleMs, AdaptivePacePolicy.MaximumSampleMs);
+        Assert.InRange(session.CurrentFactEasyThresholdMs, AdaptivePacePolicy.MinimumEasyThresholdMs, AdaptivePacePolicy.MaximumEasyThresholdMs);
+        Assert.InRange(session.CurrentFactFluencyThresholdMs, AdaptivePacePolicy.MinimumFluencyThresholdMs, AdaptivePacePolicy.MaximumFluencyThresholdMs);
+        Assert.InRange(session.CurrentFactDeadlineMs, AdaptivePacePolicy.MinimumDeadlineMs, AdaptivePacePolicy.MaximumDeadlineMs);
+
+        // G. Non-mutation proof
+        var snapshotAfter = await store.LoadSnapshotAsync();
+        Assert.NotNull(snapshotBefore);
+        Assert.NotNull(snapshotAfter);
+        Assert.NotNull(snapshotBefore.OperationProgressions);
+        Assert.Equal(positionBefore, session.Progression.PracticePosition);
+        Assert.Equal(revisionBefore, session.Progression.StoreRevision);
+        Assert.Equal(snapshotBefore.RecentAttempts.Count, snapshotAfter.RecentAttempts.Count);
+        Assert.Equal(snapshotBefore.ItemStates.Count, snapshotAfter.ItemStates.Count);
+        Assert.Equal(snapshotBefore.FsrsStates.Count, snapshotAfter.FsrsStates.Count);
+        Assert.Equal(
+            snapshotBefore.OperationProgressions[session.CurrentFact!.Operation].BandIndex,
+            session.Progression.OperationProgressions[session.CurrentFact!.Operation].BandIndex);
+        Assert.Equal(sessionTotalCountBefore, session.SessionTotalCount);
+        Assert.Equal(sessionCorrectCountBefore, session.SessionCorrectCount);
+
+        // E & F. Resume practice and verify full deadline is available from zero
+        clock.AutoAdvanceMs = 0;
         session.StartOrResumePractice();
         Assert.Equal(PracticeGateState.Running, session.PracticeGate);
         Assert.True(session.IsTimingActive);
         Assert.Equal(0, session.GetCurrentActiveElapsedMs());
+
+        // Full deadline available after resume
+        clock.CurrentTimestamp += session.CurrentFactDeadlineMs - 1;
+        Assert.False(session.IsCurrentItemTimedOut());
+        clock.CurrentTimestamp += 1;
+        Assert.True(session.IsCurrentItemTimedOut());
     }
 
     [Fact]

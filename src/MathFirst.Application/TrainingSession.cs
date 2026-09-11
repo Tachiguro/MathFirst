@@ -135,9 +135,8 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
-        AdvanceToNextFact(startTiming: true);
         TransitionPracticeGate(PracticeGateState.ManualPause);
-        ReconcileTimingState();
+        AdvanceToNextFact(startTiming: true);
     }
 
     public TrainingSession(
