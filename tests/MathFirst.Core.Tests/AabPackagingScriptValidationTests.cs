@@ -107,9 +107,47 @@ public sealed class AabPackagingScriptValidationTests
         Assert.Equal(isValid, isMatch);
     }
 
+    [Fact]
+    public void ValidateScript_ExistsAndDeclaresRequiredParameters()
+    {
+        var scriptPath = GetRepositoryPath("scripts", "validate-android-aab.ps1");
+        Assert.True(File.Exists(scriptPath), "scripts/validate-android-aab.ps1 must exist.");
+
+        var content = File.ReadAllText(scriptPath);
+        Assert.Contains("[string]$AabPath", content, StringComparison.Ordinal);
+        Assert.Contains("[string]$ProvenancePath", content, StringComparison.Ordinal);
+        Assert.Contains("[string]$ExpectedDisplayVersion", content, StringComparison.Ordinal);
+        Assert.Contains("[int]$ExpectedBuildNumber", content, StringComparison.Ordinal);
+        Assert.Contains("[switch]$RequireSigned", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SyntheticBundleInspection_ValidatesRequiredAabStructure()
+    {
+        using var memoryStream = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create, true))
+        {
+            archive.CreateEntry("BundleConfig.pb");
+            archive.CreateEntry("base/manifest/AndroidManifest.xml");
+            archive.CreateEntry("base/dex/classes.dex");
+            archive.CreateEntry("base/resources.pb");
+        }
+
+        memoryStream.Position = 0;
+        using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Read))
+        {
+            var entryNames = archive.Entries.Select(e => e.FullName).ToHashSet(StringComparer.Ordinal);
+            Assert.Contains("BundleConfig.pb", entryNames);
+            Assert.Contains("base/manifest/AndroidManifest.xml", entryNames);
+            Assert.Contains("base/dex/classes.dex", entryNames);
+            Assert.Contains("base/resources.pb", entryNames);
+        }
+    }
+
     private static string GetRepositoryPath(params string[] segments) =>
         Path.Combine(new[] { GetRepositoryRoot() }.Concat(segments).ToArray());
 
     private static string GetRepositoryRoot([CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
 }
+
