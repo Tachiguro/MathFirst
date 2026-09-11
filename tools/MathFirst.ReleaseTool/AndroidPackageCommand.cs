@@ -72,11 +72,33 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 expectedCertificateSha256,
                 DateTimeOffset.UtcNow);
 
+            var stagedProvenancePath = Path.Combine(workspace.ReadyRoot, $"{artifactId}.provenance.json");
+            File.WriteAllText(
+                stagedProvenancePath,
+                JsonSerializer.Serialize(provenance, ArtifactWorkspace.ProvenanceJsonOptions) + Environment.NewLine);
+
+            var validator = new AndroidAabValidator(processRunner);
+            var validationRequest = new ValidationRequest(
+                stagedAab,
+                stagedProvenancePath,
+                repository.HeadSha,
+                request.Profile,
+                validatedMetadata.DisplayVersion,
+                validatedMetadata.BuildNumber,
+                expectedCertificateSha256,
+                root);
+
+            var validationResult = validator.Validate(validationRequest);
+            if (!validationResult.IsValid || validationResult.Status != ArtifactValidationStatus.ValidatorApproved)
+            {
+                throw new ReleaseToolException("Authoritative validation failed for packaged AAB.");
+            }
+
             workspace.Promote(
                 request.Profile,
                 artifactId,
                 provenance,
-                ArtifactValidationStatus.NotValidated);
+                ArtifactValidationStatus.ValidatorApproved);
             return workspace.GetFinalDirectory(request.Profile, artifactId);
         }
         finally
@@ -329,44 +351,46 @@ public static class ReleaseCli
     {
         try
         {
-            var request = Parse(args);
+            if (args.Length == 0)
+            {
+                throw new ReleaseToolException("No command specified. Expected 'android-package' or 'android-validate'.");
+            }
+
             var runner = new ProcessRunner();
-            var inspector = new RepositoryInspector(runner);
-            var repositoryRoot = inspector.DiscoverRepositoryRoot(Environment.CurrentDirectory);
-            var finalDirectory = new AndroidPackageCommand(runner).Execute(request, repositoryRoot);
-            Console.WriteLine($"Android package promoted to: {finalDirectory}");
-            return Task.FromResult(0);
+            if (string.Equals(args[0], "android-package", StringComparison.Ordinal))
+            {
+                var request = ParsePackageRequest(args);
+                var inspector = new RepositoryInspector(runner);
+                var repositoryRoot = inspector.DiscoverRepositoryRoot(Environment.CurrentDirectory);
+                var finalDirectory = new AndroidPackageCommand(runner).Execute(request, repositoryRoot);
+                Console.WriteLine($"Android package promoted to: {finalDirectory}");
+                return Task.FromResult(0);
+            }
+
+            if (string.Equals(args[0], "android-validate", StringComparison.Ordinal))
+            {
+                var validationRequest = ParseValidationRequest(args);
+                var validator = new AndroidAabValidator(runner);
+                var result = validator.Validate(validationRequest);
+                Console.WriteLine($"Validation PASSED for: {validationRequest.AabPath}");
+                Console.WriteLine($"  Classification: {result.SignerClassification}");
+                Console.WriteLine($"  Signer SHA-256: {result.SignerCertificateSha256}");
+                Console.WriteLine($"  Distributable: {result.IsDistributable}");
+                return Task.FromResult(0);
+            }
+
+            throw new ReleaseToolException($"Unknown command '{args[0]}'. Expected 'android-package' or 'android-validate'.");
         }
         catch (Exception exception) when (exception is ReleaseToolException or ArgumentException)
         {
-            Console.Error.WriteLine($"Packaging failed: {exception.Message}");
+            Console.Error.WriteLine($"Operation failed: {exception.Message}");
             return Task.FromResult(1);
         }
     }
 
-    private static PackageRequest Parse(string[] args)
+    private static PackageRequest ParsePackageRequest(string[] args)
     {
-        if (args.Length == 0 || !string.Equals(args[0], "android-package", StringComparison.Ordinal))
-        {
-            throw new ReleaseToolException("Expected command 'android-package'.");
-        }
-
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        for (var index = 1; index < args.Length; index += 2)
-        {
-            if (index + 1 >= args.Length || !args[index].StartsWith("--", StringComparison.Ordinal))
-            {
-                throw new ReleaseToolException($"Missing value for command option '{args[index]}'.");
-            }
-
-            if (!values.TryAdd(args[index], args[index + 1]))
-            {
-                throw new ReleaseToolException($"Command option '{args[index]}' was specified more than once.");
-            }
-        }
-
-        var allowed = new HashSet<string>(StringComparer.Ordinal)
-        {
+        var values = ParseOptions(args, [
             "--profile",
             "--expected-commit-sha",
             "--display-version",
@@ -376,12 +400,7 @@ public static class ReleaseCli
             "--store-password-file",
             "--key-password-file",
             "--expected-signer-certificate-sha256"
-        };
-        var unknown = values.Keys.FirstOrDefault(key => !allowed.Contains(key));
-        if (unknown is not null)
-        {
-            throw new ReleaseToolException($"Unknown command option '{unknown}'.");
-        }
+        ]);
 
         var profileText = GetRequired(values, "--profile");
         if (!Enum.TryParse<ReleaseProfile>(profileText, ignoreCase: false, out var profile) ||
@@ -413,6 +432,77 @@ public static class ReleaseCli
         }
 
         return new PackageRequest(profile, expectedSha, versionOverrides, signingInputs);
+    }
+
+    private static ValidationRequest ParseValidationRequest(string[] args)
+    {
+        var values = ParseOptions(args, [
+            "--aab-path",
+            "--provenance-path",
+            "--expected-commit-sha",
+            "--profile",
+            "--display-version",
+            "--build-number",
+            "--expected-signer-certificate-sha256",
+            "--repository-root"
+        ]);
+
+        var aabPath = GetRequired(values, "--aab-path");
+        var provenancePath = GetRequired(values, "--provenance-path");
+        var expectedSha = GetRequired(values, "--expected-commit-sha");
+
+        var profileText = GetRequired(values, "--profile");
+        if (!Enum.TryParse<ReleaseProfile>(profileText, ignoreCase: false, out var profile) ||
+            !Enum.IsDefined(profile))
+        {
+            throw new ReleaseToolException("Profile must be exactly 'SourceCandidate' or 'Distributable'.");
+        }
+
+        int? buildNumber = null;
+        if (values.TryGetValue("--build-number", out var buildNumberText))
+        {
+            if (!int.TryParse(buildNumberText, out var parsedBuildNumber) || parsedBuildNumber <= 0)
+            {
+                throw new ReleaseToolException($"Invalid build number override '{buildNumberText}'.");
+            }
+
+            buildNumber = parsedBuildNumber;
+        }
+
+        return new ValidationRequest(
+            aabPath,
+            provenancePath,
+            expectedSha,
+            profile,
+            values.GetValueOrDefault("--display-version"),
+            buildNumber,
+            values.GetValueOrDefault("--expected-signer-certificate-sha256"),
+            values.GetValueOrDefault("--repository-root"));
+    }
+
+    private static Dictionary<string, string> ParseOptions(string[] args, HashSet<string> allowedOptions)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var index = 1; index < args.Length; index += 2)
+        {
+            if (index + 1 >= args.Length || !args[index].StartsWith("--", StringComparison.Ordinal))
+            {
+                throw new ReleaseToolException($"Missing value for command option '{args[index]}'.");
+            }
+
+            if (!values.TryAdd(args[index], args[index + 1]))
+            {
+                throw new ReleaseToolException($"Command option '{args[index]}' was specified more than once.");
+            }
+        }
+
+        var unknown = values.Keys.FirstOrDefault(key => !allowedOptions.Contains(key));
+        if (unknown is not null)
+        {
+            throw new ReleaseToolException($"Unknown command option '{unknown}'.");
+        }
+
+        return values;
     }
 
     private static string GetRequired(IReadOnlyDictionary<string, string> values, string name)

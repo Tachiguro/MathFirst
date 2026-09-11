@@ -5,7 +5,7 @@ using System.Text.Json;
 
 public sealed class ArtifactWorkspace
 {
-    private static readonly JsonSerializerOptions ProvenanceJsonOptions = new(JsonSerializerDefaults.Web)
+    internal static readonly JsonSerializerOptions ProvenanceJsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
     };

@@ -624,6 +624,48 @@ public sealed class AabPackagingScriptValidationTests
         Assert.DoesNotContain("Copy-Item", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ValidateScript_IsThinAndDelegatesToReleaseTool()
+    {
+        var script = File.ReadAllText(GetRepositoryPath("scripts", "validate-android-aab.ps1"));
+
+        Assert.Contains("MathFirst.ReleaseTool", script, StringComparison.Ordinal);
+        Assert.Contains("android-validate", script, StringComparison.Ordinal);
+        Assert.Contains("ExpectedCommitSha", script, StringComparison.Ordinal);
+        Assert.Contains("Profile", script, StringComparison.Ordinal);
+        Assert.Contains("ExpectedSignerCertificateSha256", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("RequireSigned", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Get-ChildItem", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.IO.Compression", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PublicCli_ValidateCommand_RejectsUnknownOption()
+    {
+        var originalError = Console.Error;
+        try
+        {
+            using var error = new StringWriter();
+            Console.SetError(error);
+
+            var exitCode = await ReleaseCli.RunAsync(
+            [
+                "android-validate",
+                "--profile",
+                "SourceCandidate",
+                "--unknown-option",
+                "value"
+            ]);
+
+            Assert.Equal(1, exitCode);
+            Assert.Contains("Unknown command option '--unknown-option'", error.ToString(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
     private static PackageRequest CreateRequest(
         ReleaseProfile profile = ReleaseProfile.SourceCandidate,
         string expectedSha = FullSha,
