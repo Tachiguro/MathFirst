@@ -1,7 +1,7 @@
 # ADR-0006: Android Packaging, Signing Protocols, and Manifest Release Security
 
 ## Status
-Proposed
+Accepted
 
 ## Date
 2026-09-11
@@ -11,9 +11,9 @@ MathFirst provides focused, offline mental arithmetic practice. Following the im
 
 The learner store is `mathfirst_learner.db` under `FileSystem.AppDataDirectory`. The SQLite adapter uses write-ahead logging, so a consistent device transfer must treat `mathfirst_learner.db`, `mathfirst_learner.db-wal`, and `mathfirst_learner.db-shm` as one approved file set. MathFirst does not provide cloud accounts or cloud synchronization, and routine cloud Auto Backup is outside the product boundary.
 
-This ADR remains Proposed while the release workflow is corrected and validated. Its acceptance requires a future consolidated review and documentation reconciliation after the implementation slices are complete.
+The consolidated REVIEW_ONLY re-review verified the implementation architecture, resolving initial signature-validation defects (R01–R03) with forward-only remediation commit `0c896e6eac827bf3dddca244bc507306997fc2f9`, satisfying the approved condition for accepting ADR-0006. Acceptance of this ADR records the architecture decision and does not claim that formal FULL_VALIDATION, push, PR reconciliation, or merge has occurred.
 
-## Proposed Decision
+## Decision
 1. **Explicit Android platform range**:
    - The Android Target Framework Moniker is pinned to `net10.0-android36.0`, which makes API 36 an explicit source-level target.
    - `SupportedOSPlatformVersion` remains `24.0` for Android.

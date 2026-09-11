@@ -71,10 +71,26 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-REL-001`
 - **Title**: Android Internal AAB Packaging and Release Automation
 - **Type**: `Feature`
-- **Status**: `Active` (In Flight on `feat/mf-rel-001-android-aab-packaging`)
+- **Status**: `Accepted` (In flight; active operational tracking in [docs/CURRENT_WORK.md](CURRENT_WORK.md))
 - **Dependencies**: `MF-LEARN-003` complete and merged to `main`
 - **Description**:
-  Establish repeatable Android App Bundle (AAB) packaging, release build automation, keystore management protocols, exact-candidate provenance tracking, and local packaging validation scripts for internal distribution and future Google Play testing readiness.
+  Establish repeatable Android App Bundle (`.aab`) packaging, `tools/MathFirst.ReleaseTool` release architecture, keystore management protocols, exact-candidate provenance tracking (Schema v1), and offline local packaging validation harness for internal distribution and future testing readiness.
+
+---
+
+### MF-SET-001: Practice Configuration: Operation Selection and Adjustable Base Time
+
+- **ID**: `MF-SET-001`
+- **Title**: Practice Configuration: Operation Selection and Adjustable Base Time
+- **Type**: `Feature`
+- **Status**: `Proposed` (Inactive; planned next product package)
+- **Dependencies**: `MF-REL-001` complete and merged to `main`
+- **Description**:
+  Provide user-configurable arithmetic practice options in Settings to make MathFirst accessible for children and learners who require customized operation focus or additional exercise time:
+  1. **Operation Selection**: Settings allow individual arithmetic operations (Addition, Subtraction, Multiplication, Division) to be enabled or disabled. Disabled operations are excluded from new practice selection while disabled.
+  2. **Configurable Base Exercise Time**: A configurable default/base exercise time is accessible in Settings for learners needing additional time.
+  3. **Learning Progress Continuity**: Changing operation availability or base timing must not erase, reset, or alter existing learning progress. Disabled operations preserve all attempt history, item strength, FSRS state, and band progression for later reactivation.
+  4. **Scope Boundary**: This package is inactive and Proposed until its own `PLAN_ONLY` lifecycle begins. Exact minimum/maximum time bounds, increment steps, default seconds, UI controls (slider vs. numeric), lock vs. validation messaging, adaptive pace interaction, parental controls, profiles/accounts, and gamification remain future `PLAN_ONLY` decisions.
 
 ---
 
