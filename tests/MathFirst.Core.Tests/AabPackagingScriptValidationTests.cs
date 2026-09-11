@@ -150,4 +150,3 @@ public sealed class AabPackagingScriptValidationTests
     private static string GetRepositoryRoot([CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
 }
-
