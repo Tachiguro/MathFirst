@@ -28,6 +28,7 @@ public sealed class TrainingSession
     private long _lastResponseLatencyBeforePendingEvaluation;
     private readonly ArithmeticCurriculum _curriculum = new();
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
+    private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
     private List<AttemptRecord> _recentAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
 
@@ -67,6 +68,23 @@ public sealed class TrainingSession
     public bool IsInitialized { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
+    public int GetConsecutiveErrorCount(string factId)
+    {
+        ArgumentNullException.ThrowIfNull(factId);
+        return _sessionConsecutiveErrors.GetValueOrDefault(factId, 0);
+    }
+
+    public bool AcknowledgeTeachingIntervention(bool startTiming = true)
+    {
+        if (InteractionState != SessionInteractionState.TeachingIntervention)
+        {
+            return false;
+        }
+
+        AdvanceToNextFact(startTiming);
+        return true;
+    }
+
     public TrainingSession(
         ILearnerStore store,
         IClock? clock = null,
@@ -86,6 +104,7 @@ public sealed class TrainingSession
         await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
+        _sessionConsecutiveErrors.Clear();
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
@@ -503,12 +522,30 @@ public sealed class TrainingSession
             LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
             _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
             await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
-            InteractionState = LastEvaluation.Outcome switch
+
+            if (LastEvaluation.Outcome == AttemptOutcome.Correct)
             {
-                AttemptOutcome.Correct => SessionInteractionState.CorrectFeedback,
-                AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
-                _ => SessionInteractionState.IncorrectFeedback
-            };
+                _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                InteractionState = SessionInteractionState.CorrectFeedback;
+            }
+            else
+            {
+                var errorCount = _sessionConsecutiveErrors.GetValueOrDefault(CurrentFact.Id, 0) + 1;
+                if (errorCount >= 2)
+                {
+                    _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                    InteractionState = SessionInteractionState.TeachingIntervention;
+                }
+                else
+                {
+                    _sessionConsecutiveErrors[CurrentFact.Id] = errorCount;
+                    InteractionState = LastEvaluation.Outcome switch
+                    {
+                        AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
+                        _ => SessionInteractionState.IncorrectFeedback
+                    };
+                }
+            }
         }
         else
         {
@@ -615,6 +652,7 @@ public sealed class TrainingSession
         await _store.ResetLearningProgressAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
+        _sessionConsecutiveErrors.Clear();
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         SessionOrderCounter = 0;

@@ -86,6 +86,31 @@
                         </div>
                     </section>
                 }
+                else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
+                {
+                    <section class="practice-overlay teaching-dialog"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="teaching-dialog-title">
+                        <div class="practice-overlay-content">
+                            <h2 id="teaching-dialog-title">@Localizer["Training_TeachingTitle"]</h2>
+                            <p class="teaching-explanation">@Localizer["Training_TeachingExplanation"]</p>
+                            <p class="teaching-equation" aria-label="@Session.CurrentFact.EquationText">
+                                <span>@Session.CurrentFact.LeftOperand</span>
+                                <span>@Session.CurrentFact.DisplaySymbol</span>
+                                <span>@Session.CurrentFact.RightOperand</span>
+                                <span>=</span>
+                                <span>@Session.CurrentFact.CorrectResult</span>
+                            </p>
+                            <button type="button"
+                                    @ref="_primaryOverlayButton"
+                                    class="button button-primary practice-overlay-action"
+                                    @onclick="Advance">
+                                @Localizer["Common_Continue"] (Enter)
+                            </button>
+                        </div>
+                    </section>
+                }
                 else if (IsAwaitingAcknowledgement && Session.LastEvaluation is not null)
                 {
                     <section class="practice-overlay feedback-dialog @(Session.InteractionState == SessionInteractionState.TimeoutFeedback ? "feedback-timeout" : "feedback-incorrect")"
@@ -294,6 +319,12 @@
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
                 _submittedAnswerDisplay = _answerInput;
             }
+            StopTimer();
+        }
+        else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
+        {
+            _shouldFocusInput = false;
+            _shouldFocusPrimaryOverlay = true;
             StopTimer();
         }
 
@@ -563,7 +594,9 @@
                 else
                 {
                     _shouldFocusPrimaryOverlay =
-                        !eval.IsCorrect || Session.InteractionState == SessionInteractionState.PersistenceFailure;
+                        !eval.IsCorrect ||
+                        Session.InteractionState == SessionInteractionState.PersistenceFailure ||
+                        Session.InteractionState == SessionInteractionState.TeachingIntervention;
                 }
             }
             finally
@@ -609,7 +642,15 @@
             return;
         }
 
-        Session.AdvanceToNextFact(startTiming: true);
+        if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
+        {
+            Session.AcknowledgeTeachingIntervention(startTiming: true);
+        }
+        else
+        {
+            Session.AdvanceToNextFact(startTiming: true);
+        }
+
         PrepareNextFactUi();
     }
 
@@ -681,7 +722,9 @@
     }
 
     private bool IsAwaitingAcknowledgement =>
-        Session.InteractionState is SessionInteractionState.IncorrectFeedback or SessionInteractionState.TimeoutFeedback;
+        Session.InteractionState is SessionInteractionState.IncorrectFeedback
+            or SessionInteractionState.TimeoutFeedback
+            or SessionInteractionState.TeachingIntervention;
 
     private bool IsAnswerEntryVisible =>
         Session.IsInitialized &&

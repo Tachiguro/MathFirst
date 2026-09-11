@@ -998,6 +998,28 @@ select:disabled {
     font-weight: 800;
 }
 
+.teaching-dialog {
+    border: 2px solid var(--color-border-strong);
+    background: var(--color-surface);
+}
+
+.teaching-dialog .teaching-explanation {
+    margin: 0;
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    color: var(--color-muted);
+}
+
+.teaching-dialog .teaching-equation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.35rem, 1.8vw, 0.9rem);
+    margin: 0;
+    font-size: clamp(2.2rem, 6.5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+}
+
 .practice-layout {
     display: grid;
     min-width: 0;
