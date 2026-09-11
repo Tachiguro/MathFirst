@@ -678,7 +678,8 @@ public sealed class TrainingSession
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
             .GetOwnedFrontier(currentProgression.BandIndex)
             .Select(fact => fact.Id);
-        var adaptivePace = AdaptivePacePolicy.Calculate(CurrentFact, ownedFrontierFactIds, _recentAttempts);
+        var isProven = ItemStates.TryGetValue(CurrentFact.Id, out var itemState) && itemState.CorrectAttempts > 0;
+        var adaptivePace = AdaptivePacePolicy.Calculate(CurrentFact, ownedFrontierFactIds, _recentAttempts, isProven);
         CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
         CurrentFactEasyThresholdMs = adaptivePace.EasyThresholdMs;
         CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;

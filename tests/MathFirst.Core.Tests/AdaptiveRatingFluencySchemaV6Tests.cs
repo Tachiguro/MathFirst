@@ -37,7 +37,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     public void PresentationProfile_CarriesThresholdsCalculatedFromItsFactPace()
     {
         var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
-        var profile = AdaptivePacePolicy.Calculate(fact, [fact.Id], []);
+        var profile = AdaptivePacePolicy.Calculate(fact, [fact.Id], [], isProven: true);
 
         Assert.Equal(4500, profile.FactPaceMs);
         Assert.Equal(2000, profile.EasyThresholdMs);
@@ -89,8 +89,8 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
 
     [Theory]
     [InlineData(1000, false)]
-    [InlineData(9000, true)]
-    [InlineData(9001, true)]
+    [InlineData(15000, true)]
+    [InlineData(15001, true)]
     public async Task IncorrectAndSemanticTimeout_DominateLatencyAndCorrectArithmetic(
         long elapsedMs,
         bool submitCorrectAnswer)

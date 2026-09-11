@@ -34,7 +34,14 @@ public static class AdaptivePacePolicy
     public static AdaptivePaceResult Calculate(
         ArithmeticFact selectedFact,
         IEnumerable<string> currentOwnedFrontierFactIds,
-        IEnumerable<AttemptRecord> boundedAttempts)
+        IEnumerable<AttemptRecord> boundedAttempts) =>
+        Calculate(selectedFact, currentOwnedFrontierFactIds, boundedAttempts, isProven: false);
+
+    public static AdaptivePaceResult Calculate(
+        ArithmeticFact selectedFact,
+        IEnumerable<string> currentOwnedFrontierFactIds,
+        IEnumerable<AttemptRecord> boundedAttempts,
+        bool isProven)
     {
         ArgumentNullException.ThrowIfNull(selectedFact);
         ArgumentNullException.ThrowIfNull(currentOwnedFrontierFactIds);
@@ -81,7 +88,7 @@ public static class AdaptivePacePolicy
         var allowance = Math.Min(3000L, checked(1000L * incorrectCount + 1500L * timeoutCount));
         var easyThreshold = CalculateEasyThresholdMs(factPace);
         var fluencyThreshold = CalculateFluencyThresholdMs(factPace);
-        var deadline = CalculateDeadline(factPace, allowance);
+        var deadline = CalculateDeadline(factPace, allowance, selectedFact.CorrectResult, isProven);
 
         return new AdaptivePaceResult(
             learnerPace,
@@ -93,6 +100,78 @@ public static class AdaptivePacePolicy
             allowance,
             deadline);
     }
+
+    public static int GetDigitCount(int value)
+    {
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), "Value must be non-negative.");
+        }
+        if (value == 0)
+        {
+            return 1;
+        }
+
+        var count = 0;
+        var current = value;
+        while (current > 0)
+        {
+            count++;
+            current /= 10;
+        }
+        return count;
+    }
+
+    public static long CalculateEntryAllowanceMs(int digitCount)
+    {
+        if (digitCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(digitCount), "Digit count must be positive.");
+        }
+        return checked(1000L * Math.Max(0, digitCount - 1));
+    }
+
+    public static long CalculateNoveltyFloorMs(int digitCount)
+    {
+        if (digitCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(digitCount), "Digit count must be positive.");
+        }
+        return Math.Min(MaximumDeadlineMs, checked(15000L + 5000L * (digitCount - 1)));
+    }
+
+    public static long CalculateDeadline(
+        long factPaceMs,
+        long instabilityAllowanceMs,
+        int correctResult,
+        bool isProven)
+    {
+        if (factPaceMs < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(factPaceMs));
+        }
+        if (instabilityAllowanceMs < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(instabilityAllowanceMs));
+        }
+
+        var digitCount = GetDigitCount(correctResult);
+        var entryAllowanceMs = CalculateEntryAllowanceMs(digitCount);
+        var rawDeadline = checked(2 * factPaceMs + instabilityAllowanceMs + entryAllowanceMs);
+        var roundedDeadline = checked(((rawDeadline + 99) / 100) * 100);
+        var adaptiveDeadline = Math.Clamp(roundedDeadline, MinimumDeadlineMs, MaximumDeadlineMs);
+
+        if (isProven)
+        {
+            return adaptiveDeadline;
+        }
+
+        var noveltyFloorMs = CalculateNoveltyFloorMs(digitCount);
+        return Math.Min(MaximumDeadlineMs, Math.Max(adaptiveDeadline, noveltyFloorMs));
+    }
+
+    public static long CalculateDeadline(long factPaceMs, long instabilityAllowanceMs) =>
+        CalculateDeadline(factPaceMs, instabilityAllowanceMs, correctResult: 0, isProven: true);
 
     public static long CalculateEasyThresholdMs(long factPaceMs)
     {
@@ -163,21 +242,6 @@ public static class AdaptivePacePolicy
         return DivideRoundHalfUp(numerator, checked(parentWeight + transformed.Length));
     }
 
-    public static long CalculateDeadline(long factPaceMs, long instabilityAllowanceMs)
-    {
-        if (factPaceMs < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(factPaceMs));
-        }
-        if (instabilityAllowanceMs < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(instabilityAllowanceMs));
-        }
-
-        var rawDeadline = checked(2 * factPaceMs + instabilityAllowanceMs);
-        var roundedDeadline = checked(((rawDeadline + 99) / 100) * 100);
-        return Math.Clamp(roundedDeadline, MinimumDeadlineMs, MaximumDeadlineMs);
-    }
 
     private static IEnumerable<long> LatestLatencies(
         IEnumerable<AttemptRecord> orderedNewestFirst,
