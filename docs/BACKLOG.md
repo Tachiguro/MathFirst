@@ -30,6 +30,7 @@ When items are accepted into the backlog, they are recorded with:
 
 ## 3. Current Inactive Backlog Registry
 
+
 ### MF-LEARN-002: Adaptive Pace, Fast Acquisition, and Practice Interventions
 
 - **ID**: `MF-LEARN-002`
@@ -71,26 +72,29 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-REL-001`
 - **Title**: Android Internal AAB Packaging and Release Automation
 - **Type**: `Feature`
-- **Status**: `Accepted` (In flight; active operational tracking in [docs/CURRENT_WORK.md](CURRENT_WORK.md))
+- **Status**: `Completed` (Merged through PR #17 at `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`)
 - **Dependencies**: `MF-LEARN-003` complete and merged to `main`
 - **Description**:
   Establish repeatable Android App Bundle (`.aab`) packaging, `tools/MathFirst.ReleaseTool` release architecture, keystore management protocols, exact-candidate provenance tracking (Schema v1), and offline local packaging validation harness for internal distribution and future testing readiness.
 
 ---
 
-### MF-SET-001: Practice Configuration: Operation Selection and Adjustable Base Time
+### MF-SET-001: Practice Configuration: Operation Selection and Adjustable Practice Time
 
 - **ID**: `MF-SET-001`
-- **Title**: Practice Configuration: Operation Selection and Adjustable Base Time
+- **Title**: Practice Configuration: Operation Selection and Adjustable Practice Time
 - **Type**: `Feature`
-- **Status**: `Proposed` (Inactive; planned next product package)
+- **Status**: `Accepted` (Implementation complete across 10 commits to final HEAD `f453501412b7c9fce39356a0837a5b862d6221fd`; reviewed `REVIEW_PASS`; 1037 Core tests passed; physical Android device validation confirmed on debug APK `MathFirst-MF-SET-001-f453501-debug.apk` SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`; `DOCUMENT_ONLY` active, next `COMMIT_ONLY`. Unpushed, no PR, not merged.)
 - **Dependencies**: `MF-REL-001` complete and merged to `main`
 - **Description**:
-  Provide user-configurable arithmetic practice options in Settings to make MathFirst accessible for children and learners who require customized operation focus or additional exercise time:
-  1. **Operation Selection**: Settings allow individual arithmetic operations (Addition, Subtraction, Multiplication, Division) to be enabled or disabled. Disabled operations are excluded from new practice selection while disabled.
-  2. **Configurable Base Exercise Time**: A configurable default/base exercise time is accessible in Settings for learners needing additional time.
-  3. **Learning Progress Continuity**: Changing operation availability or base timing must not erase, reset, or alter existing learning progress. Disabled operations preserve all attempt history, item strength, FSRS state, and band progression for later reactivation.
-  4. **Scope Boundary**: This package is inactive and Proposed until its own `PLAN_ONLY` lifecycle begins. Exact minimum/maximum time bounds, increment steps, default seconds, UI controls (slider vs. numeric), lock vs. validation messaging, adaptive pace interaction, parental controls, profiles/accounts, and gamification remain future `PLAN_ONLY` decisions.
+  Provide general user-configurable arithmetic practice options in Settings and Onboarding for learners who require customized operation focus or additional exercise time:
+  1. **Operation Selection, Onboarding, and HUD**: Settings and Onboarding allow selecting any non-empty subset of the four arithmetic operations. Disabled operations are excluded from new practice and hidden from the operation progress HUD while their learner state remains preserved. A Settings change preserves the current question and applies to the next generated question.
+  2. **Configurable Practice Time**: Settings provide Standard adaptive timing or explicit practice-time floors (30s, 45s, 60s) enforcing a minimum response deadline via $\max(\text{adaptiveDeadline}, \text{explicitFloor})$ without altering raw latency measurement, fluency thresholds, or FSRS ratings.
+  3. **Learning Progress Continuity & Returning Overview**: Disabling an operation preserves all attempt history, item strength, FSRS state, and band progression for later reactivation. Returning learners with past practice view a progress overview on the readiness gate.
+  4. **Schedule-Agnostic Persistence & Evidence Lifecycle**: `AdaptivePracticeSelector` owns scheduling; SQLite persistence remains schedule-policy agnostic. Selection evidence is scoped to operation and prospective Practice Position, required evidence loads on demand, disabled-operation prefetch is best effort, and recovery after a durable write is exactly once.
+  5. **Answer Entry Reliability & Fact Instance Input Reset**: Incomplete multi-digit input remains editable via Backspace before complete submission; single-digit correct answers auto-submit; new problems start with clean empty buffers (enforced via fact instance revision and DOM element keying while preserving active exercise input).
+  6. **Session Check-Ins & Timer Cleanup**: Periodic check-in every 20 accepted attempts displays completed count, correct count, stage progressions, and median latency of correct attempts only. Manual Pause, Settings, and same-process background time do not consume active answer time; cold restart resets only the in-flight timer. The developer Statistics / Diagnostics section is removed without deleting learner data.
+  7. **Scope Boundary**: General practice configuration only. Child accounts, multi-user profiles, parental controls, age detection, and restricted child authentication remain separate future scope outside MF-SET-001.
 
 ---
 

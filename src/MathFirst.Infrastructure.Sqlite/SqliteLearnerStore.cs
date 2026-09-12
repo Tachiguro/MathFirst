@@ -451,7 +451,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
                      item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
 
-        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, earlyReview);
+        return new PracticeSelectionEvidence(
+            request.Operation,
+            request.ProspectivePracticePosition,
+            currentBand,
+            due,
+            maintenance,
+            remediation,
+            earlyReview);
     }
 
     public async Task<PersistenceResult> CommitSubmissionAsync(
@@ -610,7 +617,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             }
 
             var operationProgressions = ResolveOperationProgressions(changeSet);
-            ValidateOperationProgressions(operationProgressions, changeSet.Attempt.Operation, changeSet.Attempt.PracticePosition);
+            ValidateOperationProgressions(operationProgressions, changeSet.Attempt.PracticePosition);
             foreach (var operationProgression in operationProgressions.Values)
             {
                 using var operationCmd = _connection.CreateCommand();
@@ -888,6 +895,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
         long storedPracticePosition,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression> storedOperationProgressions)
     {
+        ValidateAttemptAndRelatedState(changeSet);
+
         if (changeSet.Attempt.IsCorrect != (changeSet.Attempt.Outcome == AttemptOutcome.Correct)
             || (changeSet.Attempt.IsFluent && !changeSet.Attempt.IsCorrect))
         {
@@ -907,22 +916,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
             throw new InvalidOperationException("Updated learner progression practice position must match the accepted attempt.");
         }
 
-        var scheduledOperation = new[]
-        {
-            ArithmeticOperation.Addition,
-            ArithmeticOperation.Subtraction,
-            ArithmeticOperation.Multiplication,
-            ArithmeticOperation.Division
-        }[(int)((attemptPracticePosition - 1) % 4)];
-        if (changeSet.Attempt.Operation != scheduledOperation)
-        {
-            throw new InvalidOperationException($"Practice position {attemptPracticePosition} requires {scheduledOperation}, but the attempt is {changeSet.Attempt.Operation}.");
-        }
-
         var candidateOperationProgressions = ResolveOperationProgressions(changeSet);
-        ValidateOperationProgressions(storedOperationProgressions, changeSet.Attempt.Operation, storedPracticePosition);
-        ValidateOperationProgressions(candidateOperationProgressions, changeSet.Attempt.Operation, attemptPracticePosition);
-        ValidateOperationProgressions(changeSet.UpdatedProgression.OperationProgressions, changeSet.Attempt.Operation, attemptPracticePosition);
+        ValidateOperationProgressions(storedOperationProgressions, storedPracticePosition);
+        ValidateOperationProgressions(candidateOperationProgressions, attemptPracticePosition);
+        ValidateOperationProgressions(changeSet.UpdatedProgression.OperationProgressions, attemptPracticePosition);
 
         foreach (var operation in Enum.GetValues<ArithmeticOperation>())
         {
@@ -939,11 +936,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 throw new InvalidOperationException("Operation band index may advance by at most one and may not regress.");
             }
 
-            if (operation != scheduledOperation)
+            if (operation != changeSet.Attempt.Operation)
             {
                 if (candidate != stored)
                 {
-                    throw new InvalidOperationException("Only the scheduled operation may change progression.");
+                    throw new InvalidOperationException("Only the attempted operation may change progression.");
                 }
 
                 continue;
@@ -951,19 +948,78 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
             if (candidate.BandIndex == stored.BandIndex && candidate.BandStartedPracticePosition != stored.BandStartedPracticePosition)
             {
-                throw new InvalidOperationException("A non-advancing scheduled operation must preserve its band start position.");
+                throw new InvalidOperationException("A non-advancing attempted operation must preserve its band start position.");
             }
 
             if (candidate.BandIndex == stored.BandIndex + 1 && candidate.BandStartedPracticePosition != attemptPracticePosition)
             {
-                throw new InvalidOperationException("An advancing scheduled operation must start its new band at the accepted practice position.");
+                throw new InvalidOperationException("An advancing attempted operation must start its new band at the accepted practice position.");
             }
+        }
+    }
+
+    private static void ValidateAttemptAndRelatedState(SubmissionChangeSet changeSet)
+    {
+        var attempt = changeSet.Attempt;
+        if (!Enum.IsDefined(attempt.Operation))
+        {
+            throw new InvalidOperationException("The accepted attempt has an unknown arithmetic operation.");
+        }
+
+        if (!Enum.IsDefined(attempt.Outcome))
+        {
+            throw new InvalidOperationException("The accepted attempt has an unknown outcome.");
+        }
+
+        if (attempt.ResponseLatencyMs < 0)
+        {
+            throw new InvalidOperationException("Accepted attempt latency cannot be negative.");
+        }
+
+        ArithmeticFact fact;
+        try
+        {
+            fact = new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidOperationException("The accepted attempt does not describe a valid arithmetic fact.", ex);
+        }
+
+        if (!string.Equals(attempt.FactId, fact.Id, StringComparison.Ordinal)
+            || attempt.CorrectAnswer != fact.CorrectResult)
+        {
+            throw new InvalidOperationException("Accepted attempt fact identity and arithmetic result must be consistent.");
+        }
+
+        switch (attempt.Outcome)
+        {
+            case AttemptOutcome.Correct when attempt.SubmittedAnswer != fact.CorrectResult:
+                throw new InvalidOperationException("A correct attempt must submit the fact's correct answer.");
+            case AttemptOutcome.Incorrect when attempt.SubmittedAnswer == fact.CorrectResult:
+                throw new InvalidOperationException("An incorrect attempt cannot submit the fact's correct answer.");
+            case AttemptOutcome.Timeout when attempt.SubmittedAnswer is not null:
+                throw new InvalidOperationException("A timed-out attempt cannot contain a submitted answer.");
+        }
+
+        var item = changeSet.UpdatedItemState;
+        if (!string.Equals(item.FactId, fact.Id, StringComparison.Ordinal)
+            || item.Operation != fact.Operation
+            || item.LeftOperand != fact.LeftOperand
+            || item.RightOperand != fact.RightOperand)
+        {
+            throw new InvalidOperationException("The submitted item learning state must describe the attempted fact.");
+        }
+
+        if (changeSet.UpdatedFsrsState is not null
+            && !string.Equals(changeSet.UpdatedFsrsState.FactId, fact.Id, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The submitted FSRS card state must belong to the attempted fact.");
         }
     }
 
     private static void ValidateOperationProgressions(
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression> progressions,
-        ArithmeticOperation attemptOperation,
         long? practicePosition)
     {
         ArgumentNullException.ThrowIfNull(progressions);
@@ -974,7 +1030,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
             throw new InvalidOperationException("The learner schema requires exactly one valid progression row for every arithmetic operation.");
         }
 
-        if (practicePosition is > 0 && progressions[attemptOperation].BandStartedPracticePosition > practicePosition)
+        if (practicePosition.HasValue
+            && progressions.Values.Any(progression => progression.BandStartedPracticePosition > practicePosition.Value))
         {
             throw new InvalidOperationException("An operation band cannot start after the accepted practice position.");
         }
@@ -1283,7 +1340,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             }
         }
 
-        ValidateOperationProgressions(result, ArithmeticOperation.Addition, null);
+        ValidateOperationProgressions(result, null);
         return result;
     }
 

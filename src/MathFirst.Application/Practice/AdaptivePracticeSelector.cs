@@ -20,41 +20,47 @@ public sealed class AdaptivePracticeSelector
         return fact.Id;
     }
 
-    public static ArithmeticOperation GetScheduledOperation(long prospectivePracticePosition)
+    public static ArithmeticOperation GetScheduledOperation(
+        long prospectivePracticePosition,
+        IReadOnlyList<ArithmeticOperation>? enabledOperations = null)
     {
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
         }
 
-        return ((prospectivePracticePosition - 1) % 4) switch
-        {
-            0 => ArithmeticOperation.Addition,
-            1 => ArithmeticOperation.Subtraction,
-            2 => ArithmeticOperation.Multiplication,
-            3 => ArithmeticOperation.Division,
-            _ => throw new InvalidOperationException("The operation schedule produced an invalid remainder.")
-        };
+        var enabled = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(enabledOperations);
+        var k = enabled.Count;
+        var index = checked((int)((prospectivePracticePosition - 1) % k));
+        return enabled[index];
     }
 
-    public static long GetOperationAttemptOrdinal(long prospectivePracticePosition)
+    public static long GetOperationAttemptOrdinal(
+        long prospectivePracticePosition,
+        int enabledOperationCount = 4)
     {
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
         }
+        if (enabledOperationCount <= 0 || enabledOperationCount > 4)
+        {
+            throw new ArgumentOutOfRangeException(nameof(enabledOperationCount));
+        }
 
-        return ((prospectivePracticePosition - 1) / 4) + 1;
+        return checked(((prospectivePracticePosition - 1) / enabledOperationCount) + 1);
     }
 
-    public static PracticeSelectionRole GetRequestedRole(long prospectivePracticePosition)
+    public static PracticeSelectionRole GetRequestedRole(
+        long prospectivePracticePosition,
+        int enabledOperationCount = 4)
     {
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
         }
 
-        return ((GetOperationAttemptOrdinal(prospectivePracticePosition) - 1) % 10) switch
+        return ((GetOperationAttemptOrdinal(prospectivePracticePosition, enabledOperationCount) - 1) % 10) switch
         {
             0 => PracticeSelectionRole.New,
             1 => PracticeSelectionRole.Due,
@@ -73,8 +79,8 @@ public sealed class AdaptivePracticeSelector
     public PracticeSelectionResult SelectTargetFact(PracticeSelectionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        var operation = GetScheduledOperation(context.ProspectivePracticePosition);
-        var requestedRole = GetRequestedRole(context.ProspectivePracticePosition);
+        var operation = GetScheduledOperation(context.ProspectivePracticePosition, context.EnabledOperations);
+        var requestedRole = GetRequestedRole(context.ProspectivePracticePosition, context.EnabledOperations.Count);
         var progression = context.OperationProgressions[operation];
         var curriculum = context.Curricula[operation];
         if (!curriculum.TryGetBand(progression.BandIndex, out var band))
@@ -109,7 +115,7 @@ public sealed class AdaptivePracticeSelector
             ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
             : ownedFrontier;
         var newPool = introductionFrontier
-            .Where(fact => !context.CandidateIndex.IsMaterialized(fact.Id))
+            .Where(fact => fact.Operation == operation && !context.CandidateIndex.IsMaterialized(fact.Id))
             .ToArray();
         if (band.Kind == CurriculumBandKind.Dense && newPool.Length > 0)
         {
@@ -121,7 +127,7 @@ public sealed class AdaptivePracticeSelector
                 PracticeSelectionRole.New,
                 newPool);
         }
-        var frontierPool = context.CandidateIndex.HasBoundedSemanticPools
+        var frontierPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.CurrentBandMaterializedFacts
             : ownedFrontier
                 .Where(fact => context.CandidateIndex.IsMaterialized(fact.Id))
@@ -132,9 +138,10 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
-        var duePool = context.CandidateIndex.HasBoundedSemanticPools
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
+        var duePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.DueFacts
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
@@ -145,9 +152,10 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
-        var maintenancePool = context.CandidateIndex.HasBoundedSemanticPools
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
+        var maintenancePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.MaintenanceFacts
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
@@ -160,9 +168,10 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState!.DuePracticePosition)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
-        var earlyReviewPool = context.CandidateIndex.HasBoundedSemanticPools
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
+        var earlyReviewPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.EarlyReviewFacts
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
@@ -174,8 +183,9 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState!.DuePracticePosition)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
 
         var pools = new Dictionary<PracticeSelectionRole, IReadOnlyList<ArithmeticFact>>
         {
@@ -250,6 +260,13 @@ public sealed class AdaptivePracticeSelector
         var (fact, relaxation) = SelectTargetCandidate(
             semanticPool,
             context.RecentAcceptedFactsOldestToNewest);
+
+        if (fact.Operation != operation)
+        {
+            throw new InvalidOperationException(
+                $"Selected target candidate {fact.Id} operation {fact.Operation} does not match scheduled operation {operation}.");
+        }
+
         var isMaterialized = context.CandidateIndex.IsMaterialized(fact.Id);
         var isNewIntroduction = resolvedRole == PracticeSelectionRole.New && !isMaterialized;
 

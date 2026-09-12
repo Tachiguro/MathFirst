@@ -3,6 +3,7 @@
 @using MathFirst.Application
 @using MathFirst.Application.Copy
 @using MathFirst.Application.Diagnostics
+@using MathFirst.Application.Practice
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
@@ -58,6 +59,23 @@
                              aria-labelledby="practice-gate-title">
                         <div class="practice-overlay-content">
                             <h2 id="practice-gate-title">@PracticeGateTitle</h2>
+                            @if (Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory)
+                            {
+                                <section class="ready-progress-overview" aria-labelledby="ready-progress-title">
+                                    <h3 id="ready-progress-title">@Localizer["Training_CurrentProgress"]</h3>
+                                    <div class="ready-progress-list">
+                                        @foreach (var progress in ReadyOperationProgress)
+                                        {
+                                            var operationName = Localizer[$"Operation_{progress.Operation}"];
+                                            <p class="ready-progress-entry">
+                                                @(progress.PresentationStage is int stage
+                                                    ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                                    : Localizer["Training_OperationProgressUnavailable", operationName])
+                                            </p>
+                                        }
+                                    </div>
+                                </section>
+                            }
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
@@ -74,7 +92,7 @@
                              aria-modal="true"
                              aria-labelledby="persistence-error-title">
                         <div class="practice-overlay-content">
-                            <h2 id="persistence-error-title">@Localizer["Training_PersistenceFailureTitle"]</h2>
+                            <h2 id="persistence-error-title">@Localizer[PersistenceFailureTitleKey]</h2>
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
@@ -104,7 +122,7 @@
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
-                                    @onclick="Advance">
+                                    @onclick="AdvanceAsync">
                                 @Localizer["Common_Continue"] (Enter)
                             </button>
                         </div>
@@ -120,22 +138,41 @@
                             <h2 id="checkin-dialog-title">@Localizer["Training_CheckInTitle"]</h2>
                             <div class="checkin-stats">
                                 <p class="checkin-stat">
+                                    @Localizer["Training_CheckInCompleted", Session.PendingCheckIn.TotalCount]
+                                </p>
+                                <p class="checkin-stat">
                                     @Localizer["Training_CheckInCorrect", Session.PendingCheckIn.CorrectCount, Session.PendingCheckIn.TotalCount]
                                 </p>
                                 <p class="checkin-stat">
                                     @Localizer["Training_CheckInSpeed", GetCheckInLatencyDisplay(Session.PendingCheckIn.MedianCorrectLatencyMs)]
                                 </p>
                             </div>
+                            @if (Session.PendingCheckIn.ProgressionChanges.Count > 0)
+                            {
+                                <section class="checkin-progress" aria-labelledby="checkin-progress-title">
+                                    <h3 id="checkin-progress-title">@Localizer["Training_CheckInProgressMade"]</h3>
+                                    @foreach (var change in Session.PendingCheckIn.ProgressionChanges)
+                                    {
+                                        <p class="checkin-progress-change">
+                                            @Localizer[
+                                                "Training_CheckInProgressChange",
+                                                Localizer[$"Operation_{change.Operation}"],
+                                                change.FromStage,
+                                                change.ToStage]
+                                        </p>
+                                    }
+                                </section>
+                            }
                             <div class="checkin-actions">
                                 <button type="button"
                                         @ref="_primaryOverlayButton"
                                         class="button button-primary practice-overlay-action"
-                                        @onclick="KeepGoing">
+                                        @onclick="KeepGoingAsync">
                                     @Localizer["Training_KeepGoing"] (Enter)
                                 </button>
                                 <button type="button"
                                         class="button button-secondary practice-overlay-action"
-                                        @onclick="TakeBreak">
+                                        @onclick="TakeBreakAsync">
                                     @Localizer["Training_TakeBreak"]
                                 </button>
                             </div>
@@ -169,7 +206,7 @@
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-danger practice-overlay-action"
-                                    @onclick="Advance">
+                                    @onclick="AdvanceAsync">
                                 @Localizer["Common_Continue"] (Enter)
                             </button>
                         </div>
@@ -179,7 +216,10 @@
                 {
                     <div class="training-top-region">
                         <div class="training-meta-row">
-                            <div class="operation-progress-hud" role="group" aria-label="@Localizer["Diagnostics_Group_Learning"]">
+                            <div class="operation-progress-hud"
+                                 data-operation-count="@OperationProgress.Count"
+                                 role="group"
+                                 aria-label="@Localizer["Diagnostics_Group_Learning"]">
                                 @foreach (var progress in OperationProgress)
                                 {
                                     var operationName = Localizer[$"Operation_{progress.Operation}"];
@@ -272,6 +312,7 @@
     private string? _submittedAnswerDisplay;
     private NumericKeypadLayout _keypadLayout = NumericKeypadLayout.Numpad;
     private int _inputRenderVersion;
+    private long _lastPreparedFactInstanceRevision = -1;
     private int _guardedInputRenderVersion = -1;
     private bool _isSubmitting;
     private ElementReference _inputElement;
@@ -282,6 +323,7 @@
     private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
+    private HashSet<ArithmeticOperation>? _operationProgressEnabledSet;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -307,6 +349,22 @@
 
     private void SyncStateWithSession()
     {
+        if (Session.IsInitialized && Session.CurrentFact is not null)
+        {
+            if (Session.FactInstanceRevision != _lastPreparedFactInstanceRevision)
+            {
+                _lastPreparedFactInstanceRevision = Session.FactInstanceRevision;
+                _inputRenderVersion++;
+                _answerInput = Session.CurrentAnswerInput;
+                _submittedAnswerDisplay = null;
+                _validationError = null;
+            }
+            else
+            {
+                _answerInput = Session.CurrentAnswerInput;
+            }
+        }
+
         if (Session.InteractionState == SessionInteractionState.AwaitingAnswer)
         {
             if (Session.PracticeGate == PracticeGateState.Running)
@@ -453,6 +511,7 @@
         if (NumericAnswerInputPolicy.IsValidEdit(proposedValue))
         {
             _answerInput = proposedValue!;
+            Session.SetCurrentAnswerInput(_answerInput);
             _validationError = null;
             await TryAutoSubmitAsync();
             return;
@@ -472,11 +531,11 @@
 
         if (IsAwaitingAcknowledgement)
         {
-            Advance();
+            await AdvanceAsync();
         }
         else if (Session.InteractionState == SessionInteractionState.SessionCheckIn)
         {
-            KeepGoing();
+            await KeepGoingAsync();
         }
         else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
         {
@@ -502,6 +561,7 @@
         _answerInput = key == "backspace"
             ? NumericAnswerInputPolicy.Backspace(_answerInput)
             : NumericAnswerInputPolicy.Append(_answerInput, key);
+        Session.SetCurrentAnswerInput(_answerInput);
         _validationError = null;
         _shouldFocusInput = true;
         if (key != "backspace")
@@ -626,7 +686,7 @@
                 var persistence = await Session.CommitCurrentEvaluationAsync();
                 var advancedAutomatically = eval.IsCorrect &&
                     persistence.IsSuccess &&
-                    Session.AdvanceAfterCorrectAnswer(startTiming: true);
+                    await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
 
                 if (advancedAutomatically)
                 {
@@ -677,7 +737,7 @@
         }
     }
 
-    private void Advance()
+    private async Task AdvanceAsync()
     {
         if (!IsAwaitingAcknowledgement)
         {
@@ -686,11 +746,11 @@
 
         if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
         {
-            Session.AcknowledgeTeachingIntervention(startTiming: true);
+            await Session.AcknowledgeTeachingInterventionAsync(startTiming: true);
         }
         else
         {
-            Session.AcknowledgeFeedback(startTiming: true);
+            await Session.AcknowledgeFeedbackAsync(startTiming: true);
         }
 
         if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
@@ -720,7 +780,7 @@
             {
                 if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
                 {
-                    Session.AdvanceAfterCorrectAnswer(startTiming: true);
+                    await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
                 }
 
                 if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
@@ -748,7 +808,10 @@
 
     private void PrepareNextFactUi()
     {
+        _lastPreparedFactInstanceRevision = Session.FactInstanceRevision;
+        _inputRenderVersion++;
         _answerInput = string.Empty;
+        Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
         SyncPracticeGateCopy();
@@ -781,15 +844,21 @@
         }
     }
 
-    private void KeepGoing()
+    private async Task KeepGoingAsync()
     {
-        Session.ContinuePractice(startTiming: true);
+        await Session.ContinuePracticeAsync(startTiming: true);
         PrepareNextFactUi();
     }
 
-    private void TakeBreak()
+    private async Task TakeBreakAsync()
     {
-        Session.TakeBreak();
+        await Session.TakeBreakAsync();
+        _lastPreparedFactInstanceRevision = Session.FactInstanceRevision;
+        _inputRenderVersion++;
+        _answerInput = string.Empty;
+        Session.ClearCurrentAnswerInput();
+        _submittedAnswerDisplay = null;
+        _validationError = null;
         StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
@@ -829,19 +898,31 @@
     {
         get
         {
+            var enabledSet = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
             var learnerStateGeneration = Session.LearnerStateGenerationRevision;
             var practicePosition = Session.Progression.PracticePosition;
             if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
-                _operationProgressPracticePosition != practicePosition)
+                _operationProgressPracticePosition != practicePosition ||
+                _operationProgressEnabledSet is null ||
+                !_operationProgressEnabledSet.SetEquals(enabledSet))
             {
-                _operationProgress = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+                var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+                _operationProgress = allDiagnostics.Where(d => enabledSet.Contains(d.Operation)).ToList();
                 _operationProgressLearnerStateGeneration = learnerStateGeneration;
                 _operationProgressPracticePosition = practicePosition;
+                _operationProgressEnabledSet = enabledSet;
             }
 
             return _operationProgress;
         }
     }
+
+    private IReadOnlyList<OperationProgressDiagnostics> ReadyOperationProgress =>
+        PracticeProgressOverview.Create(
+            Session.Progression,
+            _curriculum,
+            PreferenceStore.GetEnabledOperations(),
+            Session.HasCompletedPracticeHistory);
 
     private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
     {
@@ -906,4 +987,9 @@
         (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer
             ? NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator)
             : string.Empty);
+
+    private string PersistenceFailureTitleKey =>
+        Session.IsCurrentSubmissionCommitted
+            ? "Training_EvidencePreparationFailureTitle"
+            : "Training_PersistenceFailureTitle";
 }

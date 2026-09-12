@@ -12,6 +12,7 @@ public sealed class PracticeSelectionContext
     public IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum> Curricula { get; }
     public PracticeCandidateIndex CandidateIndex { get; }
     public IReadOnlyList<ArithmeticFact> RecentAcceptedFactsOldestToNewest { get; }
+    public IReadOnlyList<ArithmeticOperation> EnabledOperations { get; }
 
     public PracticeSelectionContext(
         long prospectivePracticePosition,
@@ -19,7 +20,8 @@ public sealed class PracticeSelectionContext
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression> operationProgressions,
         IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum> curricula,
         PracticeCandidateIndex candidateIndex,
-        IEnumerable<ArithmeticFact> recentAcceptedFactsOldestToNewest)
+        IEnumerable<ArithmeticFact> recentAcceptedFactsOldestToNewest,
+        IEnumerable<ArithmeticOperation>? enabledOperations = null)
     {
         if (prospectivePracticePosition <= 0)
         {
@@ -76,5 +78,6 @@ public sealed class PracticeSelectionContext
         Curricula = curricula.ToFrozenDictionary();
         CandidateIndex = candidateIndex;
         RecentAcceptedFactsOldestToNewest = Array.AsReadOnly(recentFacts);
+        EnabledOperations = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(enabledOperations);
     }
 }

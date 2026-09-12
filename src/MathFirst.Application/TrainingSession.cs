@@ -13,6 +13,7 @@ public sealed class TrainingSession
     private readonly IClock _clock;
     private readonly AdaptivePracticeSelector _selector;
     private readonly IFsrsScheduler _fsrsScheduler;
+    private readonly IPreferenceStore? _preferenceStore;
     private Dictionary<string, FsrsCardState> _fsrsStates = new(StringComparer.Ordinal);
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
@@ -22,6 +23,7 @@ public sealed class TrainingSession
     private PracticeGateState _practiceGateState = PracticeGateState.Running;
     private long _practiceGateActivationRevision;
     private long _learnerStateGenerationRevision;
+    private long _factInstanceRevision;
     private bool _requiresBackgroundResumeAfterAdvance;
     private int _sessionCorrectCountBeforePendingEvaluation;
     private int _sessionTotalCountBeforePendingEvaluation;
@@ -30,9 +32,17 @@ public sealed class TrainingSession
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
     private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
     private readonly List<AttemptRecord> _sessionCheckInAttempts = [];
+    private Dictionary<ArithmeticOperation, OperationProgression> _sessionCheckInProgressionBaseline = [];
     private List<AttemptRecord> _recentAttempts = [];
     private IReadOnlyList<AttemptRecord> _currentDenseFrontierAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
+    private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
+
+    private sealed record CachedOperationEvidence(
+        ArithmeticOperation Operation,
+        long ProspectivePracticePosition,
+        PracticeSelectionEvidence Evidence,
+        IReadOnlyList<AttemptRecord> DenseFrontierAttempts);
 
     public event EventHandler? AppForegroundStateChanged;
 
@@ -68,13 +78,37 @@ public sealed class TrainingSession
     /// this session object. This transient lifecycle metadata is not persisted.
     /// </summary>
     public long LearnerStateGenerationRevision => _learnerStateGenerationRevision;
+    /// <summary>
+    /// Monotonic identity for the current arithmetic exercise instance in this session.
+    /// Increments on every transition to a new fact. This transient presentation lifecycle
+    /// metadata is not persisted.
+    /// </summary>
+    public long FactInstanceRevision => _factInstanceRevision;
+    /// <summary>
+    /// In-progress unsubmitted answer text for the active fact instance.
+    /// Preserved across temporary pauses or Settings navigation for the same fact,
+    /// and reset to empty whenever a new fact instance begins.
+    /// </summary>
+    public string CurrentAnswerInput { get; private set; } = string.Empty;
     public bool IsInitialized { get; private set; }
+    public bool IsCurrentSubmissionCommitted { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
+    public bool HasCompletedPracticeHistory => LatestAcceptedPracticeAt.HasValue;
 
     public int GetConsecutiveErrorCount(string factId)
     {
         ArgumentNullException.ThrowIfNull(factId);
         return _sessionConsecutiveErrors.GetValueOrDefault(factId, 0);
+    }
+
+    public void SetCurrentAnswerInput(string? input)
+    {
+        CurrentAnswerInput = input ?? string.Empty;
+    }
+
+    public void ClearCurrentAnswerInput()
+    {
+        CurrentAnswerInput = string.Empty;
     }
 
     public bool AcknowledgeTeachingIntervention(bool startTiming = true)
@@ -94,6 +128,28 @@ public sealed class TrainingSession
         }
 
         AdvanceToNextFact(startTiming);
+        return true;
+    }
+
+    public async Task<bool> AcknowledgeTeachingInterventionAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.TeachingIntervention)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -117,6 +173,28 @@ public sealed class TrainingSession
         return true;
     }
 
+    public async Task<bool> AcknowledgeFeedbackAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState is not SessionInteractionState.IncorrectFeedback and not SessionInteractionState.TimeoutFeedback)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     public void ContinuePractice(bool startTiming = true)
     {
         if (InteractionState != SessionInteractionState.SessionCheckIn)
@@ -125,7 +203,22 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
+        ResetSessionCheckInSegment();
         AdvanceToNextFact(startTiming);
+    }
+
+    public async Task ContinuePracticeAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        ResetSessionCheckInSegment();
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
     }
 
     public void TakeBreak()
@@ -136,20 +229,36 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
+        ResetSessionCheckInSegment();
         TransitionPracticeGate(PracticeGateState.ManualPause);
         AdvanceToNextFact(startTiming: true);
+    }
+
+    public async Task TakeBreakAsync(CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        ResetSessionCheckInSegment();
+        TransitionPracticeGate(PracticeGateState.ManualPause);
+        await AdvanceToNextFactAsync(startTiming: true, cancellationToken).ConfigureAwait(false);
     }
 
     public TrainingSession(
         ILearnerStore store,
         IClock? clock = null,
         AdaptivePracticeSelector? selector = null,
-        IFsrsScheduler? fsrsScheduler = null)
+        IFsrsScheduler? fsrsScheduler = null,
+        IPreferenceStore? preferenceStore = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _clock = clock ?? MonotonicClock.Instance;
         _selector = selector ?? new AdaptivePracticeSelector();
         _fsrsScheduler = fsrsScheduler ?? new FsrsSchedulerAdapter();
+        _preferenceStore = preferenceStore;
     }
 
     public async Task InitializeAsync(
@@ -160,7 +269,7 @@ public sealed class TrainingSession
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
         _sessionConsecutiveErrors.Clear();
-        _sessionCheckInAttempts.Clear();
+        ResetSessionCheckInSegment();
         PendingCheckIn = null;
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
@@ -169,6 +278,7 @@ public sealed class TrainingSession
         LastPersistenceResult = null;
         _requiresBackgroundResumeAfterAdvance = false;
         IsInitialized = true;
+        CurrentAnswerInput = string.Empty;
 
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming);
@@ -414,6 +524,7 @@ public sealed class TrainingSession
         _sessionTotalCountBeforePendingEvaluation = SessionTotalCount;
         _lastResponseLatencyBeforePendingEvaluation = LastResponseLatencyMs;
         LastPersistenceResult = null;
+        IsCurrentSubmissionCommitted = false;
         LastResponseLatencyMs = elapsedMs;
         var isCorrect = (outcome == AttemptOutcome.Correct);
         var classification = AdaptiveAttemptClassifier.Classify(
@@ -620,37 +731,54 @@ public sealed class TrainingSession
             return PersistenceResult.Success(Progression.StoreRevision);
         }
 
+        var wasAlreadyCommitted = IsCurrentSubmissionCommitted;
         var result = await _store.CommitSubmissionAsync(LastEvaluation.ChangeSet, cancellationToken).ConfigureAwait(false);
         LastPersistenceResult = result;
         if (result.IsSuccess && result.NewRevision.HasValue)
         {
-            Progression = CloneProgression(LastEvaluation.ChangeSet.UpdatedProgression);
-            ItemStates[LastEvaluation.ChangeSet.UpdatedItemState.FactId] = CloneItemState(LastEvaluation.ChangeSet.UpdatedItemState);
-            if (LastEvaluation.ChangeSet.UpdatedFsrsState is not null)
+            IsCurrentSubmissionCommitted = true;
+            if (!wasAlreadyCommitted)
             {
-                _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
-            }
-            SessionTotalCount++;
-            SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
-            LastResponseLatencyMs = LastEvaluation.LatencyMs;
-            Progression.StoreRevision = result.NewRevision.Value;
-            LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
-            _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
-            _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
-            if (_sessionCheckInAttempts.Count == 20)
-            {
-                var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
-                long? medianLatency = correctAttempts.Count > 0
-                    ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
-                    : null;
-                PendingCheckIn = new PracticeCheckInSummary(
-                    correctAttempts.Count,
-                    _sessionCheckInAttempts.Count,
-                    medianLatency);
-                _sessionCheckInAttempts.Clear();
+                Progression = CloneProgression(LastEvaluation.ChangeSet.UpdatedProgression);
+                ItemStates[LastEvaluation.ChangeSet.UpdatedItemState.FactId] = CloneItemState(LastEvaluation.ChangeSet.UpdatedItemState);
+                if (LastEvaluation.ChangeSet.UpdatedFsrsState is not null)
+                {
+                    _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
+                }
+                SessionTotalCount++;
+                SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
+                LastResponseLatencyMs = LastEvaluation.LatencyMs;
+                Progression.StoreRevision = result.NewRevision.Value;
+                LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
+                _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
+                _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
+                if (_sessionCheckInAttempts.Count == 20)
+                {
+                    var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
+                    long? medianLatency = correctAttempts.Count > 0
+                        ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
+                        : null;
+                    PendingCheckIn = new PracticeCheckInSummary(
+                        correctAttempts.Count,
+                        _sessionCheckInAttempts.Count,
+                        medianLatency)
+                    {
+                        ProgressionChanges = CreateSessionProgressionChanges()
+                    };
+                }
             }
 
-            await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                LastPersistenceResult = PersistenceResult.Unavailable($"Evidence preparation failed: {ex.Message}");
+                InteractionState = SessionInteractionState.PersistenceFailure;
+                ReconcileTimingState();
+                return LastPersistenceResult;
+            }
 
             if (LastEvaluation.Outcome == AttemptOutcome.Correct)
             {
@@ -700,6 +828,42 @@ public sealed class TrainingSession
             return true;
         }
 
+        if (IsCurrentSubmissionCommitted || LastPersistenceResult.IsSuccess)
+        {
+            try
+            {
+                await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+                if (LastEvaluation.Outcome == AttemptOutcome.Correct)
+                {
+                    _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                    InteractionState = SessionInteractionState.CorrectFeedback;
+                }
+                else
+                {
+                    var errorCount = _sessionConsecutiveErrors.GetValueOrDefault(CurrentFact.Id, 0) + 1;
+                    if (errorCount >= 2)
+                    {
+                        _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                        InteractionState = SessionInteractionState.TeachingIntervention;
+                    }
+                    else
+                    {
+                        _sessionConsecutiveErrors[CurrentFact.Id] = errorCount;
+                        InteractionState = LastEvaluation.Outcome switch
+                        {
+                            AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
+                            _ => SessionInteractionState.IncorrectFeedback
+                        };
+                    }
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         var result = await CommitCurrentEvaluationAsync(cancellationToken).ConfigureAwait(false);
         return result.IsSuccess;
     }
@@ -713,25 +877,48 @@ public sealed class TrainingSession
         LastResponseLatencyMs = _lastResponseLatencyBeforePendingEvaluation;
         LastEvaluation = null;
         LastPersistenceResult = null;
+        IsCurrentSubmissionCommitted = false;
+        CurrentAnswerInput = string.Empty;
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming: true);
     }
 
+    private IReadOnlyList<ArithmeticOperation> GetCurrentEnabledOperations() =>
+        _preferenceStore?.GetEnabledOperations() ?? PracticeOperationPreferencePolicy.AllOperations;
+
+    private PracticeTimeSetting GetCurrentPracticeTimeSetting() =>
+        _preferenceStore?.GetPracticeTimeSetting() ?? PracticeTimeSetting.Standard;
+
     public void AdvanceToNextFact(bool startTiming = true)
     {
-        if (_selectionEvidence is null)
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var enabledOperations = GetCurrentEnabledOperations();
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+
+        if (!_selectionEvidenceCache.TryGetValue(scheduledOperation, out var cached)
+            || cached.Operation != scheduledOperation
+            || cached.ProspectivePracticePosition != prospectivePosition)
         {
-            throw new InvalidOperationException("Bounded selection evidence must be loaded before advancing the session.");
+            throw new InvalidOperationException(
+                $"Bounded selection evidence for operation {scheduledOperation} at prospective position {prospectivePosition} is not loaded.");
         }
 
+        _selectionEvidence = cached.Evidence;
+        _currentDenseFrontierAttempts = cached.DenseFrontierAttempts;
+        IsCurrentSubmissionCommitted = false;
+
         SessionOrderCounter++;
+        _factInstanceRevision++;
+        CurrentAnswerInput = string.Empty;
+        var practiceTimeSetting = GetCurrentPracticeTimeSetting();
         var context = new PracticeSelectionContext(
-            checked(Progression.PracticePosition + 1),
+            prospectivePosition,
             SessionOrderCounter,
             Progression.OperationProgressions,
             Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, operation => _curriculum.GetCurriculum(operation)),
             new PracticeCandidateIndex(_selectionEvidence),
-            _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)));
+            _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
+            enabledOperations);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
@@ -742,7 +929,8 @@ public sealed class TrainingSession
         CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
         CurrentFactEasyThresholdMs = adaptivePace.EasyThresholdMs;
         CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;
-        CurrentFactDeadlineMs = adaptivePace.DeadlineMs;
+        var deadlineFloorMs = PracticeTimePreferencePolicy.GetDeadlineFloorMs(practiceTimeSetting);
+        CurrentFactDeadlineMs = Math.Max(adaptivePace.DeadlineMs, deadlineFloorMs);
 
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
@@ -760,6 +948,12 @@ public sealed class TrainingSession
         }
 
         ReconcileTimingState();
+    }
+
+    public async Task AdvanceToNextFactAsync(bool startTiming = true, CancellationToken cancellationToken = default)
+    {
+        await EnsureScheduledEvidenceAsync(cancellationToken).ConfigureAwait(false);
+        AdvanceToNextFact(startTiming);
     }
 
     public bool AdvanceAfterCorrectAnswer(bool startTiming = true)
@@ -783,6 +977,71 @@ public sealed class TrainingSession
         return true;
     }
 
+    public async Task<bool> AdvanceAfterCorrectAnswerAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.CorrectFeedback ||
+            LastEvaluation?.Outcome != AttemptOutcome.Correct)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return false;
+        }
+
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task EnsureScheduledEvidenceAsync(CancellationToken cancellationToken = default)
+    {
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var enabledOperations = GetCurrentEnabledOperations();
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+
+        if (!_selectionEvidenceCache.TryGetValue(scheduledOperation, out var cached)
+            || cached.Operation != scheduledOperation
+            || cached.ProspectivePracticePosition != prospectivePosition)
+        {
+            await LoadSingleOperationEvidenceAsync(scheduledOperation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
+        {
+            _selectionEvidence = scheduledEvidence.Evidence;
+            _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
+        }
+    }
+
+    public async Task EnsureSelectionEvidenceAsync(CancellationToken cancellationToken = default)
+    {
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var enabledOperations = GetCurrentEnabledOperations();
+        foreach (var operation in enabledOperations)
+        {
+            if (!_selectionEvidenceCache.TryGetValue(operation, out var cached)
+                || cached.Operation != operation
+                || cached.ProspectivePracticePosition != prospectivePosition)
+            {
+                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+        if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
+        {
+            _selectionEvidence = scheduledEvidence.Evidence;
+            _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
+        }
+    }
+
     public async Task ResetLearningProgressAsync(
         CancellationToken cancellationToken = default,
         bool? startTiming = null)
@@ -792,14 +1051,16 @@ public sealed class TrainingSession
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
         _sessionConsecutiveErrors.Clear();
-        _sessionCheckInAttempts.Clear();
+        ResetSessionCheckInSegment();
         PendingCheckIn = null;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
         SessionOrderCounter = 0;
         LastResponseLatencyMs = 0;
         LastPersistenceResult = null;
+        IsCurrentSubmissionCommitted = false;
         _requiresBackgroundResumeAfterAdvance = false;
+        CurrentAnswerInput = string.Empty;
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(shouldStartTiming);
     }
@@ -815,18 +1076,98 @@ public sealed class TrainingSession
         _recentAttempts = snapshot.RecentAttempts.Where(attempt => attempt.PracticePosition is > 0).ToList();
         _currentDenseFrontierAttempts = [];
         _selectionEvidence = null;
+        _selectionEvidenceCache.Clear();
         LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
+    }
+
+    private void ResetSessionCheckInSegment()
+    {
+        _sessionCheckInAttempts.Clear();
+        _sessionCheckInProgressionBaseline = Progression.OperationProgressions
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+    }
+
+    private IReadOnlyList<PracticeProgressionChange> CreateSessionProgressionChanges()
+    {
+        var practicedOperations = _sessionCheckInAttempts
+            .Select(attempt => attempt.Operation)
+            .ToHashSet();
+        var changes = new List<PracticeProgressionChange>();
+
+        foreach (var operation in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            if (!practicedOperations.Contains(operation) ||
+                !_sessionCheckInProgressionBaseline.TryGetValue(operation, out var baseline) ||
+                !Progression.OperationProgressions.TryGetValue(operation, out var current) ||
+                current.BandIndex <= baseline.BandIndex)
+            {
+                continue;
+            }
+
+            var operationCurriculum = _curriculum.GetCurriculum(operation);
+            if (!operationCurriculum.TryGetBand(baseline.BandIndex, out _) ||
+                !operationCurriculum.TryGetBand(current.BandIndex, out _))
+            {
+                continue;
+            }
+
+            changes.Add(new PracticeProgressionChange(
+                operation,
+                baseline.BandIndex + 1,
+                current.BandIndex + 1));
+        }
+
+        return changes;
     }
 
     private async Task LoadNextSelectionEvidenceAsync(CancellationToken cancellationToken)
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);
-        var operation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition);
+        _selectionEvidenceCache.Clear();
+
+        var enabledOperations = GetCurrentEnabledOperations();
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+
+        // 1. Authoritatively load evidence for enabled operations.
+        foreach (var operation in enabledOperations)
+        {
+            await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+        }
+
+        // 2. Best-effort defensive prefetch for disabled operations.
+        // Failures in loading evidence for disabled operations must never fail practice for enabled operations.
+        var disabledOperations = PracticeOperationPreferencePolicy.AllOperations
+            .Where(op => !enabledOperations.Contains(op));
+
+        foreach (var operation in disabledOperations)
+        {
+            try
+            {
+                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Defensive isolation: errors prefetching evidence for disabled operations are ignored.
+            }
+        }
+
+        if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
+        {
+            _selectionEvidence = scheduledEvidence.Evidence;
+            _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
+        }
+    }
+
+    private async Task LoadSingleOperationEvidenceAsync(
+        ArithmeticOperation operation,
+        long prospectivePosition,
+        CancellationToken cancellationToken)
+    {
         var progression = Progression.OperationProgressions[operation];
         var curriculum = _curriculum.GetCurriculum(operation);
         if (!curriculum.TryGetBand(progression.BandIndex, out var band) || band is null)
         {
-            throw new InvalidOperationException("The current target curriculum band is unavailable.");
+            throw new InvalidOperationException($"The current target curriculum band for operation {operation} is unavailable.");
         }
 
         var ownership = new AcquisitionOwnershipResolver(curriculum);
@@ -840,30 +1181,33 @@ public sealed class TrainingSession
             checked(SessionOrderCounter + 1),
             ownedFrontier,
             introductionFrontier);
-        _selectionEvidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
-        foreach (var (factId, state) in _selectionEvidence.ItemStates)
+        var evidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
+        foreach (var (factId, state) in evidence.ItemStates)
         {
             ItemStates[factId] = CloneItemState(state);
         }
 
-        foreach (var (factId, state) in _selectionEvidence.FsrsStates)
+        foreach (var (factId, state) in evidence.FsrsStates)
         {
             _fsrsStates[factId] = state;
         }
 
+        IReadOnlyList<AttemptRecord> denseAttempts = [];
         if (band.Kind == CurriculumBandKind.Dense)
         {
             var frontierFactIds = ownedFrontier.Select(fact => fact.Id).ToArray();
-            _currentDenseFrontierAttempts = await _store.LoadLatestFrontierAttemptsAsync(
+            denseAttempts = await _store.LoadLatestFrontierAttemptsAsync(
                 operation,
                 progression.BandStartedPracticePosition,
                 frontierFactIds,
                 cancellationToken).ConfigureAwait(false);
         }
-        else
-        {
-            _currentDenseFrontierAttempts = [];
-        }
+
+        _selectionEvidenceCache[operation] = new CachedOperationEvidence(
+            operation,
+            prospectivePosition,
+            evidence,
+            denseAttempts);
     }
 
     private static LearnerProgression CloneProgression(LearnerProgression source) => new()
