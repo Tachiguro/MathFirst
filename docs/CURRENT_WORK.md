@@ -9,27 +9,35 @@ This document provides operational context for the package currently in flight.
 
 ## 1. Active Package Details
 
-- **Active Package ID**: `MF-LEARN-003`
-- **Title**: Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults
-- **Active Task Branch**: `feat/mf-learn-003-acclimation-rapid-dense`
-- **Base Branch / Commit**: `main` at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`
-- **Current Implementation Candidate**: `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`)
+- **Active Package ID**: `MF-REL-001`
+- **Title**: Android Internal AAB Packaging and Release Automation
+- **Active Task Branch**: `feat/mf-rel-001-android-aab-packaging`
+- **Base Branch / Commit**: `main` at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`
+- **Current Implementation Candidate HEAD**: `0c896e6eac827bf3dddca244bc507306997fc2f9`
 - **Operation Mode**: `DOCUMENT_ONLY`
-- **Status**: Narrow corrective documentation reconciliation completed locally for editable multi-digit input behavior.
-- **Implementation & Review State**: 5 planned implementation slices plus corrective editable multi-digit input completed. Independent review approved (`REVIEW_PASS`). Core test suite (`MathFirst.Core.Tests`): 790 passed, 0 failed, 0 skipped. Feature branch is local only / not pushed. Open Pull Requests: 0. `FULL_VALIDATION` has not yet run for the final corrective candidate.
+- **Status**: Implementation complete and verified; consolidated `REVIEW_ONLY` re-review passed (`REVIEW_PASS`); documentation reconciliation completed locally under `DOCUMENT_ONLY`; documentation changes uncommitted; four local corrective commits unpushed; remote PR #17 remains open and stale.
+- **Implementation & Review State**:
+  - Implementation slices completed: `android-manifest-hygiene-hardening`, `aab-packaging-provenance-automation`, `local-aab-validation-harness`.
+  - Consolidated re-review outcome: `REVIEW_PASS` (Implementation-layer readiness: YES).
+  - Verified remediations: R01 (remove jarsigner -strict, accept self-signed/trust/timestamp warnings while requiring cryptographic verification evidence), R02 (parse keytool Signer #N blocks, extract Certificate #1 leaf SHA-256 fingerprint, ignore chain certificates as independent signers), R03 (remove --no-build from scripts/validate-android-aab.ps1 so the tool can build in a fresh checkout).
+  - Open non-blocking review items recorded: R04 (origin/main presence requirement), R05 (MSBuild evaluated property parsing robustness), R06 (redundant resource path matching).
+  - Test suite (`MathFirst.Core.Tests`): Targeted packaging, script, and validation suites passed during implementation; final review remediation verified 141 directly relevant tests; full Core suite validation remains pending for formal FULL_VALIDATION.
+  - Compilation: Android and Windows Release builds compile with 0 warnings, 0 errors.
+  - Remote PR #17: Open on GitHub (base `main`, remote head `eccfa823e365dd728b3c63b5065601f561969f9c`, 6 commits). Four local corrective commits are unpushed. Remote PR body is intentionally stale with invalid historical claims and will be updated during `PR_ONLY`.
 
 ---
 
 ## 2. Operational Rules
 
 1. **Subordinate Status**: If this file differs from the current branch, working tree, or GitHub state, live repository evidence is authoritative.
-2. **Lifecycle Isolation**: `DOCUMENT_ONLY` modifies documentation files without staging, committing, or pushing.
-3. **No Behavioral Implementation**: No code or tests under `src/` or `tests/` are modified during this documentation reconciliation.
+2. **Lifecycle Isolation**: `DOCUMENT_ONLY` modifies documentation files without staging, committing, pushing, or running build/test commands.
+3. **No Behavioral Implementation**: No code or tests under `src/`, `tests/`, or `tools/` are modified during documentation reconciliation.
+4. **Planned Future Work**: `MF-SET-001` (Practice Configuration: Operation Selection and Adjustable Base Time) is recorded as `Proposed` in `docs/BACKLOG.md` and is inactive until `MF-REL-001` is merged and synchronized.
 
 ---
 
 ## 3. Current Lifecycle Position
 
 - **Immediate Next Lifecycle Step**: `COMMIT_ONLY` staging and commit creation for the reconciled documentation.
-- **Subsequent Delivery Sequence**: `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- **Deferred Work**: `MF-REL-001` (Android Internal AAB Packaging and Release Automation) remains deferred and not started.
+- **Subsequent Delivery Sequence**: `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` (reconcile PR #17 metadata and validation claims) → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Release Boundary Invariant**: Local AAB packaging and validation do not imply Google Play upload, distribution, or production release. Google Play release remains a separately authorized lifecycle gate.

@@ -42,3 +42,4 @@ Every ADR must contain the following sections:
 | [ADR-0003](ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) | Independent Operation Progression and Open-Ended Fact Space | Accepted | 2026-09-08 |
 | [ADR-0004](ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md) | Adaptive Pace, Fast Acquisition, and Practice Interventions | Accepted | 2026-09-11 |
 | [ADR-0005](ADR-0005-acclimation-timing-and-rapid-dense-progression.md) | Acclimation Timing and Rapid Dense Progression | Accepted | 2026-09-11 |
+| [ADR-0006](ADR-0006-android-packaging-signing-and-manifest-release-security.md) | Android Packaging, Signing Protocols, and Manifest Release Security | Accepted | 2026-09-11 |

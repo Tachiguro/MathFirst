@@ -205,4 +205,52 @@ MF-LEARN-003 contract, regression, and simulation coverage validates the acclima
   - `AdaptiveLearningUxCompletionTests`: 17 passed
 - **Full Core Test Suite**: 790 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
 - **Independent Review**: Package-wide corrective independent review approved (`REVIEW_PASS`).
-- **Lifecycle Status**: These are Core and review results; they do not constitute formal `FULL_VALIDATION`. Windows/Android Release builds, release packaging, and PR integration remain scheduled for future lifecycle steps.
+- **Lifecycle Status**: Merged to `main` via PR #16 at commit `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
+
+---
+
+## 12. MF-REL-001 Android Packaging and Release Automation Contracts
+
+MF-REL-001 contract, hygiene, and validation coverage enforces Android App Bundle packaging invariants across automated test suites in `MathFirst.Core.Tests`:
+
+1. **Manifest and Backup Policy Contracts (`AndroidPackagingContractTests`)**:
+   - Asserts total absence of network permissions (`android.permission.INTERNET`, `android.permission.ACCESS_NETWORK_STATE`).
+   - Asserts `android:allowBackup="true"`, `android:supportsRtl="true"`, and approved native icon references.
+   - Asserts canonical application ID `com.tachiguro.mathfirst`, display version `1.0`, build `1`, target framework `net10.0-android36.0`, and Android minimum SDK `24.0`.
+   - Asserts `.gitignore` contains explicit fail-closed ignore rules for keystores (`*.keystore`, `*.jks`, `*.p12`, `*.pfx`), secret configurations (`signing.properties`, `.env`), and release artifacts (`artifacts/`, `*.aab`, `*.apk`).
+   - Asserts multi-generation backup rules: API 24–27 deny-all fallback across 9 storage domains, API 28–30 device-to-device-only for learner SQLite files (`mathfirst_learner.db`, `mathfirst_learner.db-wal`, `mathfirst_learner.db-shm`), and API 31+ deny-all cloud backup with device transfer restricted to learner SQLite files.
+   - Asserts ADR-0006 architectural boundaries and terminology.
+
+2. **Release Packaging Script & Tool Invariants (`AabPackagingScriptValidationTests`)**:
+   - Asserts `PackageRequest` and CLI reject Debug configuration, dirty escape hatches, and unknown options.
+   - Asserts `RepositoryPolicy` enforces clean working tree, clean index, zero untracked files, 40-character SHA matching `HEAD`, exact branch for `SourceCandidate`, and synchronized `main` (`HEAD == local main == origin/main`) for `Distributable`.
+   - Asserts `VersionPolicy` delegates to shared `AppBuildInfoMetadataParser` contract, rejects invalid overrides, and accepts valid overrides.
+   - Asserts MSBuild property evaluation invocation and JSON parsing.
+   - Asserts fail-closed external process execution.
+   - Asserts `SigningPolicy` rejects missing/empty alias, malformed fingerprints, relative secret paths, missing files, repository/artifact-contained files, and reparse-point paths.
+   - Asserts `SigningInputs` exposes no plaintext passwords and `publish` invocation passes password files via `AndroidSigningStorePass=file:...` and `AndroidSigningKeyPass=file:...`.
+   - Asserts `ArtifactWorkspace` fixed hierarchy, path-escape rejection, reparse-point rejection, single-AAB discovery, promotion collision rejection, unvalidated distributable rejection, incomplete provenance rejection, atomic directory move, and owned-staging cleanup.
+   - Asserts artifact naming format: `MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Classification}`.
+   - Asserts provenance schema v1 structure, mandatory fields, and typed serialization.
+   - Asserts `scripts/package-android-aab.ps1` and `scripts/validate-android-aab.ps1` are thin wrappers delegating to `MathFirst.ReleaseTool`.
+
+3. **Authoritative Offline AAB Validation Invariants (`AndroidAabValidationTests`)**:
+   - Asserts `AndroidAabValidator` rejects missing AAB/provenance files, malformed SHAs, malformed provenance JSON, schema version != 1, file name / size / hash mismatches, expected/commit SHA mismatches, dirty working trees, non-Release configurations, non-net10.0-android36.0 frameworks, incorrect SDK versions, and application ID mismatches.
+   - Asserts `bundletool validate` failure rejection.
+   - Asserts binary manifest validation: rejects wrong package ID, mismatched version name/code, min SDK != 24, target SDK != 36, `debuggable="true"`, declared `INTERNET` or `ACCESS_NETWORK_STATE`, `allowBackup != true`, or invalid backup rule resource references.
+   - Asserts resource validation: rejects missing backup XML resources in bundle table or archive (`backup_rules.xml`, `xml-v28/backup_rules.xml`, `data_extraction_rules.xml`).
+   - Asserts DEX bytecode validation: rejects missing DEX entries or `dexdump -f` execution failures.
+   - Asserts `JarSignatureInspector` accepts valid Android self-signed signatures with standard trust/timestamp warnings; rejects exit code != 0, unsigned jars, or unconfirmed verification.
+   - Asserts certificate extraction via `keytool`: rejects zero signers, handles certificate chains by extracting the leaf certificate SHA-256, rejects multiple independent signers, rejects malformed signer blocks.
+   - Asserts profile-specific signer policies: `SourceCandidate` accepts development/debug signing (non-distributable); `Distributable` rejects Android Debug signers, rejects signer fingerprint mismatches, accepts valid release signers matching expected SHA-256, and rejects expired certificates.
+   - Asserts packaging integration fails and promotes nothing when validation fails.
+
+### Verification Evidence & Lifecycle Boundary
+
+- **Targeted Test Suites**:
+  - `AndroidPackagingContractTests`
+  - `AabPackagingScriptValidationTests`
+  - `AndroidAabValidationTests`
+- **Full Core Test Suite**: Complete current Core-suite count will be formally established during candidate `FULL_VALIDATION` (focused packaging/validation suites passed during implementation; final remediation verified 141 directly relevant tests; consolidated `REVIEW_ONLY` did not rerun the full suite).
+- **Compilation**: Android and Windows Release builds compile with 0 warnings and 0 errors.
+- **Evidence Boundary**: Automated tests in `MathFirst.Core.Tests` execute against synthetic fixtures, mocked tool runners, and isolated temporary directories. These tests verify tool logic and contracts; they do **not** constitute formal release candidate `FULL_VALIDATION`, real candidate packaging, or Google Play verification. Real candidate packaging and full validation remain separate subsequent lifecycle concerns.

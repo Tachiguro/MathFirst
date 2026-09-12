@@ -8,4 +8,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/MathFirst.Core.Tests/MathFirst.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/MathFirst.ReleaseTool/MathFirst.ReleaseTool.csproj" />
+  </Folder>
 </Solution>

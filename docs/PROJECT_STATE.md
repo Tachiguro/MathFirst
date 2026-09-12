@@ -8,9 +8,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 - **Project Name**: MathFirst
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
-- **Default Branch**: `main`
-- **License**: Apache License 2.0 (see [LICENSE.txt](../LICENSE.txt))
-- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, and `MF-LEARN-002` are complete and merged into `main` (`MF-LEARN-002` merged through PR #15 at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1`). `MF-LEARN-003` (Acclimation Timing, Rapid Dense Expansion, and Keypad Defaults) includes 5 implementation slices plus corrective editable multi-digit input on branch `feat/mf-learn-003-acclimation-rapid-dense` at candidate HEAD `d2179ffaf3074ab0c1d32f5d018722557c37e78f`, verified with 790 passing Core tests, and independently reviewed with `REVIEW_PASS`. Active work is `DOCUMENT_ONLY` documentation reconciliation for `MF-LEARN-003`.
+- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, `MF-LEARN-002`, and `MF-LEARN-003` are complete and merged into `main` (`MF-LEARN-003` merged through PR #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`). `MF-REL-001` (Android Internal AAB Packaging and Release Automation) completed 3 implementation slices on branch `feat/mf-rel-001-android-aab-packaging` (candidate HEAD `0c896e6eac827bf3dddca244bc507306997fc2f9`), passed consolidated `REVIEW_ONLY` re-review (`REVIEW_PASS`), and is undergoing `DOCUMENT_ONLY` documentation reconciliation.
 
 ---
 
@@ -90,10 +88,19 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 ## 6. Current Feature Candidate State
 
-- Active candidate branch: `feat/mf-learn-003-acclimation-rapid-dense` at candidate HEAD commit `d2179ffaf3074ab0c1d32f5d018722557c37e78f` (Corrective `editable-multidigit-input`).
-- All behavioral implementations across 5 slices and corrective editable multi-digit input, test suites (790 Core tests), and independent reviews have completed with `REVIEW_PASS`.
-- Active operation mode: `DOCUMENT_ONLY` documentation reconciliation.
-- Next lifecycle steps: `COMMIT_ONLY` staging and commit creation, followed by `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual merge, and `POST_MERGE_SYNC_ONLY`.
+- **Active candidate branch**: `feat/mf-rel-001-android-aab-packaging` on base commit `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
+- **Current candidate HEAD**: `0c896e6eac827bf3dddca244bc507306997fc2f9`.
+- **Local commit state**: 4 forward-only corrective commits ahead of `origin/feat/mf-rel-001-android-aab-packaging` (`199dbd7`, `179273e`, `c227ab6`, `0c896e6`).
+- **Remote PR #17**: Open on GitHub (base `main`, remote head `eccfa823e365dd728b3c63b5065601f561969f9c`, 6 commits). Four local corrective commits remain unpushed. Remote PR body is intentionally stale with invalid historical claims and will be updated during `PR_ONLY`.
+- **Implementation & Review State**:
+  - Completed 3 implementation slices: `android-manifest-hygiene-hardening`, `aab-packaging-provenance-automation`, `local-aab-validation-harness`.
+  - Consolidated re-review outcome: `REVIEW_PASS` (Implementation-layer readiness: YES).
+  - Remediations verified in candidate HEAD `0c896e6`: R01 (remove jarsigner -strict, accept self-signed/trust/timestamp warnings while requiring cryptographic verification evidence), R02 (parse keytool Signer #N blocks, extract Certificate #1 leaf SHA-256 fingerprint, ignore chain certificates as independent signers), R03 (remove --no-build from scripts/validate-android-aab.ps1 so the tool can build in a fresh checkout).
+  - Recorded non-blocking review items: R04 (origin/main presence requirement), R05 (MSBuild evaluated property parsing robustness), R06 (redundant resource path matching).
+  - Test suite: Targeted packaging, script, and validation suites passed during implementation; final review remediation verified 141 directly relevant tests; full Core suite validation will be established during formal `FULL_VALIDATION`.
+  - Compilation: Android and Windows Release builds compile with 0 warnings, 0 errors.
+- **Active operation mode**: `DOCUMENT_ONLY` documentation reconciliation.
+- **Next lifecycle steps**: `COMMIT_ONLY` staging and commit creation, followed by `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual merge, and `POST_MERGE_SYNC_ONLY`.
 
 ---
 
@@ -107,7 +114,13 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - MF-UX-003 was merged to `main` through Pull Request #12 on 2026-09-10, reconciling native identity, versioning, and visual assets.
 - MF-STAB-001 was merged to `main` through Pull Request #13 on 2026-09-10 at `45ef623f44df87c0da97460d38dbb797c2aa18bf`, stabilizing practice progression (MUL-D01 bootstrap profile), 30-second countdown bar, compact progress HUD, transient session score, and danger Pause action, with 546 passing Core tests and 0 warnings/errors on Windows/Android Release builds.
 - MF-LEARN-002 was merged to `main` through Pull Request #15 on 2026-09-11 at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1` (head `1efc34c09c3611ff221204966104eb99ec03c7a3`), adding Schema V6 persistence, adaptive pace & answer deadlines, adaptive fluency mapping, fast acquisition for dense bands, role-specific selector chains, repeated-error teaching overlay, session check-ins with zero-timing pause semantics, and clean practice HUD, verified with 708 passing Core tests and clean post-merge synchronization.
-- MF-LEARN-003 completed behavioral implementation across 5 checkpoint slices and corrective editable multi-digit input with `REVIEW_PASS`, adding answer-length acclimation deadlines, durable fact proof, Numpad layout defaults, Coverage-First Dense selection, authoritative latest-per-frontier persistence evidence via `LoadLatestFrontierAttemptsAsync` and Schema V6 partial index `ix_attempt_history_operation_fact_position`, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$) with recoverable errors, and editable incomplete multi-digit answers before auto-submission, verified with 790 passing Core tests in `MathFirst.Core.Tests`. The candidate has not yet undergone `FULL_VALIDATION`; release builds, packaging, and integration remain pending.
+- MF-LEARN-003 was merged to `main` through Pull Request #16 on 2026-09-11 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`, adding answer-length acclimation deadlines, durable fact proof, Numpad layout defaults, Coverage-First Dense selection, authoritative latest-per-frontier persistence evidence via `LoadLatestFrontierAttemptsAsync` and Schema V6 partial index `ix_attempt_history_operation_fact_position`, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$) with recoverable errors, and editable incomplete multi-digit answers before auto-submission, verified with 790 passing Core tests in `MathFirst.Core.Tests` and clean post-merge synchronization.
+- MF-REL-001 implemented Android internal AAB packaging automation and security baseline:
+  - Architecture: Dedicated .NET 10 console release tool (`tools/MathFirst.ReleaseTool`) invoked via thin PowerShell entrypoints (`scripts/package-android-aab.ps1`, `scripts/validate-android-aab.ps1`).
+  - Packaging Profiles: `SourceCandidate` (local verification, branch `feat/mf-rel-001-android-aab-packaging`, exact SHA candidate provenance, debug-signed, non-distributable) and `Distributable` (`main` branch only, local main == origin/main, Release build, external signing credentials with file-indirect passwords `file:<path>`, approved SHA-256 fingerprint validation).
+  - Android Manifest & Security Hygiene: Stripped `INTERNET` and `ACCESS_NETWORK_STATE` permissions (zero network permissions contract), retained `android:allowBackup="true"` in manifest root and configured multi-generation data extraction rules (`data_extraction_rules.xml` API 31+ deny cloud backup, allow device-to-device transfer only for learner SQLite databases; `backup_rules.xml` API 28-30 device-to-device only; API 24-27 deny-all backup). Added `.gitignore` patterns preventing keystore and secret leakage (`*.keystore`, `*.jks`, `*.p12`, `*.key`, `*.secret`, `*.credentials`).
+  - Provenance & Validation: Companion schema-v1 provenance JSON (`<ArtifactId>.provenance.json`), atomic staging directory packaging, and comprehensive zip/manifest/signing inspection harness.
+  - Verification & Review: Targeted packaging, script, and validation suites passed during implementation; final review remediation verified 141 directly relevant tests; Android and Windows Release builds compile with 0 warnings and 0 errors; consolidated `REVIEW_ONLY` re-review passed (`REVIEW_PASS`) at candidate HEAD `0c896e6eac827bf3dddca244bc507306997fc2f9`. Real candidate `FULL_VALIDATION` will occur following documentation commit.
 
 ---
 

@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\MathFirst.Domain\MathFirst.Domain.csproj" />
     <ProjectReference Include="..\..\src\MathFirst.Application\MathFirst.Application.csproj" />
     <ProjectReference Include="..\..\src\MathFirst.Infrastructure.Sqlite\MathFirst.Infrastructure.Sqlite.csproj" />
+    <ProjectReference Include="..\..\tools\MathFirst.ReleaseTool\MathFirst.ReleaseTool.csproj" />
   </ItemGroup>
 
 </Project>
