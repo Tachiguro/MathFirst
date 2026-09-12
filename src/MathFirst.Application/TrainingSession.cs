@@ -13,6 +13,7 @@ public sealed class TrainingSession
     private readonly IClock _clock;
     private readonly AdaptivePracticeSelector _selector;
     private readonly IFsrsScheduler _fsrsScheduler;
+    private readonly IPreferenceStore? _preferenceStore;
     private Dictionary<string, FsrsCardState> _fsrsStates = new(StringComparer.Ordinal);
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
@@ -144,12 +145,14 @@ public sealed class TrainingSession
         ILearnerStore store,
         IClock? clock = null,
         AdaptivePracticeSelector? selector = null,
-        IFsrsScheduler? fsrsScheduler = null)
+        IFsrsScheduler? fsrsScheduler = null,
+        IPreferenceStore? preferenceStore = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _clock = clock ?? MonotonicClock.Instance;
         _selector = selector ?? new AdaptivePracticeSelector();
         _fsrsScheduler = fsrsScheduler ?? new FsrsSchedulerAdapter();
+        _preferenceStore = preferenceStore;
     }
 
     public async Task InitializeAsync(
@@ -717,6 +720,12 @@ public sealed class TrainingSession
         AdvanceToNextFact(startTiming: true);
     }
 
+    private IReadOnlyList<ArithmeticOperation> GetCurrentEnabledOperations() =>
+        _preferenceStore?.GetEnabledOperations() ?? PracticeOperationPreferencePolicy.AllOperations;
+
+    private PracticeTimeSetting GetCurrentPracticeTimeSetting() =>
+        _preferenceStore?.GetPracticeTimeSetting() ?? PracticeTimeSetting.Standard;
+
     public void AdvanceToNextFact(bool startTiming = true)
     {
         if (_selectionEvidence is null)
@@ -725,13 +734,16 @@ public sealed class TrainingSession
         }
 
         SessionOrderCounter++;
+        var enabledOperations = GetCurrentEnabledOperations();
+        var practiceTimeSetting = GetCurrentPracticeTimeSetting();
         var context = new PracticeSelectionContext(
             checked(Progression.PracticePosition + 1),
             SessionOrderCounter,
             Progression.OperationProgressions,
             Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, operation => _curriculum.GetCurriculum(operation)),
             new PracticeCandidateIndex(_selectionEvidence),
-            _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)));
+            _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
+            enabledOperations);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
@@ -742,7 +754,8 @@ public sealed class TrainingSession
         CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
         CurrentFactEasyThresholdMs = adaptivePace.EasyThresholdMs;
         CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;
-        CurrentFactDeadlineMs = adaptivePace.DeadlineMs;
+        var deadlineFloorMs = PracticeTimePreferencePolicy.GetDeadlineFloorMs(practiceTimeSetting);
+        CurrentFactDeadlineMs = Math.Max(adaptivePace.DeadlineMs, deadlineFloorMs);
 
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
@@ -821,7 +834,8 @@ public sealed class TrainingSession
     private async Task LoadNextSelectionEvidenceAsync(CancellationToken cancellationToken)
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);
-        var operation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition);
+        var enabledOperations = GetCurrentEnabledOperations();
+        var operation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
         var progression = Progression.OperationProgressions[operation];
         var curriculum = _curriculum.GetCurriculum(operation);
         if (!curriculum.TryGetBand(progression.BandIndex, out var band) || band is null)

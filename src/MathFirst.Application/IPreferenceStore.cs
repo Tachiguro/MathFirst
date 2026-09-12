@@ -16,5 +16,13 @@ public interface IPreferenceStore
     string GetLanguagePreference();
     void SetLanguagePreference(string languageCode);
 
+    bool GetOperationEnabled(ArithmeticOperation operation);
+    void SetOperationEnabled(ArithmeticOperation operation, bool enabled);
+    IReadOnlyList<ArithmeticOperation> GetEnabledOperations();
+
+    PracticeTimeSetting GetPracticeTimeSetting();
+    void SetPracticeTimeSetting(PracticeTimeSetting setting);
+
+    void ResetPracticePreferences();
     void ResetAllPreferences();
 }

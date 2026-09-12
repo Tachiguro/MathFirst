@@ -45,12 +45,46 @@ public sealed class ResetWorkflowTests : IDisposable
         public void SetThemePreference(ThemePreference preference) => Theme = preference;
         public NumericKeypadLayout GetNumericKeypadLayout() => KeypadLayout;
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
+
+        private readonly Dictionary<string, bool> _operations = new(StringComparer.Ordinal);
+        private PracticeTimeSetting _practiceTimeSetting = PracticeTimeSetting.Standard;
+
+        public bool GetOperationEnabled(ArithmeticOperation operation) =>
+            _operations.GetValueOrDefault($"op_{operation}", true);
+
+        public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) =>
+            _operations[$"op_{operation}"] = enabled;
+
+        public IReadOnlyList<ArithmeticOperation> GetEnabledOperations()
+        {
+            var list = new List<ArithmeticOperation>();
+            foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+            {
+                if (GetOperationEnabled(op))
+                {
+                    list.Add(op);
+                }
+            }
+            return PracticeOperationPreferencePolicy.NormalizeEnabledOperations(list);
+        }
+
+        public PracticeTimeSetting GetPracticeTimeSetting() => _practiceTimeSetting;
+        public void SetPracticeTimeSetting(PracticeTimeSetting setting) =>
+            _practiceTimeSetting = PracticeTimePreferencePolicy.Normalize((int)setting);
+
+        public void ResetPracticePreferences()
+        {
+            _operations.Clear();
+            _practiceTimeSetting = PracticeTimeSetting.Standard;
+        }
+
         public void ResetAllPreferences()
         {
             OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
+            ResetPracticePreferences();
         }
     }
 

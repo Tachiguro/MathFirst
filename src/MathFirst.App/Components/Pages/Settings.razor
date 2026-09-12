@@ -76,7 +76,69 @@
             }
         </section>
 
-        <!-- 3. NUMBER KEYPAD -->
+        <!-- 3. PRACTICE -->
+        <section class="settings-card practice-settings-card" aria-labelledby="settings-practice-title">
+            <h2 id="settings-practice-title" class="settings-section-title">@Localizer["Settings_PracticeSectionTitle"]</h2>
+
+            <div class="settings-subsection">
+                <h3 class="settings-subsection-title">@Localizer["Settings_OperationsTitle"]</h3>
+                <p class="setting-help">@Localizer["Settings_OperationsHelp"]</p>
+                <div class="choice-grid choice-grid-two">
+                    @foreach (var operation in PracticeOperationPreferencePolicy.AllOperations)
+                    {
+                        var isEnabled = _enabledOperations.Contains(operation);
+                        var isLastActive = isEnabled && _enabledOperations.Count == 1;
+                        <button type="button"
+                                class="choice-button @(isEnabled ? "active" : null)"
+                                aria-pressed="@isEnabled"
+                                disabled="@isLastActive"
+                                @onclick="() => ToggleOperation(operation)">
+                            @Localizer[$"Operation_{operation}"]
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="settings-subsection">
+                <h3 class="settings-subsection-title">@Localizer["Settings_PracticeTimeTitle"]</h3>
+                <p class="setting-help">@Localizer["Settings_PracticeTimeHelp"]</p>
+                <div class="choice-grid choice-grid-four">
+                    <button type="button"
+                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Standard ? "active" : null)"
+                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Standard)"
+                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Standard)">
+                        @Localizer["PracticeTime_Standard"]
+                    </button>
+                    <button type="button"
+                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds30 ? "active" : null)"
+                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Seconds30)"
+                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Seconds30)">
+                        @Localizer["PracticeTime_30s"]
+                    </button>
+                    <button type="button"
+                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds45 ? "active" : null)"
+                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Seconds45)"
+                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Seconds45)">
+                        @Localizer["PracticeTime_45s"]
+                    </button>
+                    <button type="button"
+                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds60 ? "active" : null)"
+                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Seconds60)"
+                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Seconds60)">
+                        @Localizer["PracticeTime_60s"]
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_practiceMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">
+                    @_practiceMessage
+                </p>
+            }
+        </section>
+
+        <!-- 4. NUMBER KEYPAD -->
         <section class="settings-card keypad-settings-card" aria-labelledby="settings-keypad-title">
             <h2 id="settings-keypad-title" class="settings-section-title">@Localizer["Keypad_NumberKeypad"]</h2>
             <p class="setting-help">@Localizer["Keypad_Explanation"]</p>
@@ -286,10 +348,13 @@
 
     private string? _languageMessage;
     private string? _appearanceMessage;
+    private string? _practiceMessage;
     private string? _keypadMessage;
     private string? _resetFeedbackMessage;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
+    private HashSet<ArithmeticOperation> _enabledOperations = new(PracticeOperationPreferencePolicy.AllOperations);
+    private PracticeTimeSetting _selectedPracticeTime = PracticeTimeSetting.Standard;
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
     private ElementReference _confirmationPanel;
     private bool _pendingConfirmationVisibility;
@@ -301,6 +366,8 @@
         ThemeService.ThemeChanged += OnThemeChanged;
         _selectedLanguage = Localizer.SelectedLanguagePreference;
         _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
+        _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+        _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
 
         if (!Session.IsInitialized)
         {
@@ -339,6 +406,7 @@
         };
         _languageMessage = Localizer["Settings_LanguageChangedTo", displayName];
         _appearanceMessage = null;
+        _practiceMessage = null;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
@@ -354,6 +422,52 @@
         };
         _appearanceMessage = Localizer["Settings_AppearanceChangedTo", displayName];
         _languageMessage = null;
+        _practiceMessage = null;
+        _keypadMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    private void ToggleOperation(ArithmeticOperation operation)
+    {
+        var currentlyEnabled = _enabledOperations.Contains(operation);
+        if (currentlyEnabled && _enabledOperations.Count == 1)
+        {
+            // Enforce minimum 1 operation rule: cannot disable the last active operation
+            return;
+        }
+
+        var nextState = !currentlyEnabled;
+        if (nextState)
+        {
+            _enabledOperations.Add(operation);
+        }
+        else
+        {
+            _enabledOperations.Remove(operation);
+        }
+
+        PreferenceStore.SetOperationEnabled(operation, nextState);
+        _practiceMessage = Localizer["Settings_OperationsChanged"];
+        _languageMessage = null;
+        _appearanceMessage = null;
+        _keypadMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    private void SelectPracticeTime(PracticeTimeSetting setting)
+    {
+        _selectedPracticeTime = PracticeTimePreferencePolicy.Normalize(setting);
+        PreferenceStore.SetPracticeTimeSetting(_selectedPracticeTime);
+        var displayName = _selectedPracticeTime switch
+        {
+            PracticeTimeSetting.Seconds30 => Localizer["PracticeTime_30s"],
+            PracticeTimeSetting.Seconds45 => Localizer["PracticeTime_45s"],
+            PracticeTimeSetting.Seconds60 => Localizer["PracticeTime_60s"],
+            _ => Localizer["PracticeTime_Standard"]
+        };
+        _practiceMessage = Localizer["Settings_PracticeTimeChangedTo", displayName];
+        _languageMessage = null;
+        _appearanceMessage = null;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
@@ -386,6 +500,7 @@
         _keypadMessage = Localizer["Keypad_ChangedTo", displayName];
         _languageMessage = null;
         _appearanceMessage = null;
+        _practiceMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -409,6 +524,7 @@
         _resetFeedbackMessage = Localizer["Reset_LearningProgress_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
+        _practiceMessage = null;
         _keypadMessage = null;
     }
 
@@ -419,6 +535,7 @@
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
         PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
+        PreferenceStore.ResetPracticePreferences();
 
         ThemeService.ResetPreference();
         Localizer.ApplyLanguagePreference("system");
@@ -427,6 +544,7 @@
         _resetFeedbackMessage = Localizer["Reset_UiPreferences_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
+        _practiceMessage = null;
         _keypadMessage = null;
 
         Navigation.NavigateTo("/", replace: true);
@@ -441,6 +559,7 @@
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
         PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
+        PreferenceStore.ResetPracticePreferences();
 
         ThemeService.ResetPreference();
         Localizer.ApplyLanguagePreference("system");

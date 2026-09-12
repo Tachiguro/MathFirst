@@ -20,41 +20,47 @@ public sealed class AdaptivePracticeSelector
         return fact.Id;
     }
 
-    public static ArithmeticOperation GetScheduledOperation(long prospectivePracticePosition)
+    public static ArithmeticOperation GetScheduledOperation(
+        long prospectivePracticePosition,
+        IReadOnlyList<ArithmeticOperation>? enabledOperations = null)
     {
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
         }
 
-        return ((prospectivePracticePosition - 1) % 4) switch
-        {
-            0 => ArithmeticOperation.Addition,
-            1 => ArithmeticOperation.Subtraction,
-            2 => ArithmeticOperation.Multiplication,
-            3 => ArithmeticOperation.Division,
-            _ => throw new InvalidOperationException("The operation schedule produced an invalid remainder.")
-        };
+        var enabled = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(enabledOperations);
+        var k = enabled.Count;
+        var index = checked((int)((prospectivePracticePosition - 1) % k));
+        return enabled[index];
     }
 
-    public static long GetOperationAttemptOrdinal(long prospectivePracticePosition)
+    public static long GetOperationAttemptOrdinal(
+        long prospectivePracticePosition,
+        int enabledOperationCount = 4)
     {
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
         }
+        if (enabledOperationCount <= 0 || enabledOperationCount > 4)
+        {
+            throw new ArgumentOutOfRangeException(nameof(enabledOperationCount));
+        }
 
-        return ((prospectivePracticePosition - 1) / 4) + 1;
+        return checked(((prospectivePracticePosition - 1) / enabledOperationCount) + 1);
     }
 
-    public static PracticeSelectionRole GetRequestedRole(long prospectivePracticePosition)
+    public static PracticeSelectionRole GetRequestedRole(
+        long prospectivePracticePosition,
+        int enabledOperationCount = 4)
     {
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
         }
 
-        return ((GetOperationAttemptOrdinal(prospectivePracticePosition) - 1) % 10) switch
+        return ((GetOperationAttemptOrdinal(prospectivePracticePosition, enabledOperationCount) - 1) % 10) switch
         {
             0 => PracticeSelectionRole.New,
             1 => PracticeSelectionRole.Due,
@@ -73,8 +79,8 @@ public sealed class AdaptivePracticeSelector
     public PracticeSelectionResult SelectTargetFact(PracticeSelectionContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        var operation = GetScheduledOperation(context.ProspectivePracticePosition);
-        var requestedRole = GetRequestedRole(context.ProspectivePracticePosition);
+        var operation = GetScheduledOperation(context.ProspectivePracticePosition, context.EnabledOperations);
+        var requestedRole = GetRequestedRole(context.ProspectivePracticePosition, context.EnabledOperations.Count);
         var progression = context.OperationProgressions[operation];
         var curriculum = context.Curricula[operation];
         if (!curriculum.TryGetBand(progression.BandIndex, out var band))

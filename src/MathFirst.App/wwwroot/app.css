@@ -220,6 +220,27 @@ select:disabled {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
 }
 
+.choice-grid-four {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
+}
+
+.settings-subsection {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.settings-subsection:first-of-type {
+    margin-top: 0;
+}
+
+.settings-subsection-title {
+    margin: 0;
+    font-weight: 700;
+    font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+    color: var(--color-text);
+}
+
 .choice-button {
     min-width: 0;
     min-height: clamp(2.75rem, 4.5vh, 3.4rem);
