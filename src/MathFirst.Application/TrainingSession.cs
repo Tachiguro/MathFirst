@@ -660,7 +660,16 @@ public sealed class TrainingSession
                 _sessionCheckInAttempts.Clear();
             }
 
-            await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                InteractionState = SessionInteractionState.PersistenceFailure;
+                ReconcileTimingState();
+                return PersistenceResult.Unavailable($"Evidence preparation failed: {ex.Message}");
+            }
 
             if (LastEvaluation.Outcome == AttemptOutcome.Correct)
             {
@@ -710,6 +719,42 @@ public sealed class TrainingSession
             return true;
         }
 
+        if (LastPersistenceResult.IsSuccess)
+        {
+            try
+            {
+                await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+                if (LastEvaluation.Outcome == AttemptOutcome.Correct)
+                {
+                    _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                    InteractionState = SessionInteractionState.CorrectFeedback;
+                }
+                else
+                {
+                    var errorCount = _sessionConsecutiveErrors.GetValueOrDefault(CurrentFact.Id, 0) + 1;
+                    if (errorCount >= 2)
+                    {
+                        _sessionConsecutiveErrors[CurrentFact.Id] = 0;
+                        InteractionState = SessionInteractionState.TeachingIntervention;
+                    }
+                    else
+                    {
+                        _sessionConsecutiveErrors[CurrentFact.Id] = errorCount;
+                        InteractionState = LastEvaluation.Outcome switch
+                        {
+                            AttemptOutcome.Timeout => SessionInteractionState.TimeoutFeedback,
+                            _ => SessionInteractionState.IncorrectFeedback
+                        };
+                    }
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         var result = await CommitCurrentEvaluationAsync(cancellationToken).ConfigureAwait(false);
         return result.IsSuccess;
     }
@@ -743,8 +788,18 @@ public sealed class TrainingSession
             || cached.Operation != scheduledOperation
             || cached.ProspectivePracticePosition != prospectivePosition)
         {
-            throw new InvalidOperationException(
-                $"Bounded selection evidence for operation {scheduledOperation} at prospective position {prospectivePosition} is not loaded.");
+            var fallback = _selectionEvidenceCache.Values
+                .FirstOrDefault(c => enabledOperations.Contains(c.Operation) && c.ProspectivePracticePosition == prospectivePosition);
+            if (fallback is not null)
+            {
+                cached = fallback;
+                scheduledOperation = fallback.Operation;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Bounded selection evidence for operation {scheduledOperation} at prospective position {prospectivePosition} is not loaded.");
+            }
         }
 
         _selectionEvidence = cached.Evidence;
@@ -853,62 +908,89 @@ public sealed class TrainingSession
         var prospectivePosition = checked(Progression.PracticePosition + 1);
         _selectionEvidenceCache.Clear();
 
-        foreach (var operation in PracticeOperationPreferencePolicy.AllOperations)
-        {
-            var progression = Progression.OperationProgressions[operation];
-            var curriculum = _curriculum.GetCurriculum(operation);
-            if (!curriculum.TryGetBand(progression.BandIndex, out var band) || band is null)
-            {
-                throw new InvalidOperationException($"The current target curriculum band for operation {operation} is unavailable.");
-            }
-
-            var ownership = new AcquisitionOwnershipResolver(curriculum);
-            var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
-            var introductionFrontier = band.Kind == CurriculumBandKind.Structured
-                ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
-                : ownedFrontier;
-            var request = new PracticeSelectionEvidenceRequest(
-                operation,
-                prospectivePosition,
-                checked(SessionOrderCounter + 1),
-                ownedFrontier,
-                introductionFrontier);
-            var evidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
-            foreach (var (factId, state) in evidence.ItemStates)
-            {
-                ItemStates[factId] = CloneItemState(state);
-            }
-
-            foreach (var (factId, state) in evidence.FsrsStates)
-            {
-                _fsrsStates[factId] = state;
-            }
-
-            IReadOnlyList<AttemptRecord> denseAttempts = [];
-            if (band.Kind == CurriculumBandKind.Dense)
-            {
-                var frontierFactIds = ownedFrontier.Select(fact => fact.Id).ToArray();
-                denseAttempts = await _store.LoadLatestFrontierAttemptsAsync(
-                    operation,
-                    progression.BandStartedPracticePosition,
-                    frontierFactIds,
-                    cancellationToken).ConfigureAwait(false);
-            }
-
-            _selectionEvidenceCache[operation] = new CachedOperationEvidence(
-                operation,
-                prospectivePosition,
-                evidence,
-                denseAttempts);
-        }
-
         var enabledOperations = GetCurrentEnabledOperations();
         var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+
+        // 1. Authoritatively load evidence for enabled operations.
+        foreach (var operation in enabledOperations)
+        {
+            await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+        }
+
+        // 2. Best-effort defensive prefetch for disabled operations.
+        // Failures in loading evidence for disabled operations must never fail practice for enabled operations.
+        var disabledOperations = PracticeOperationPreferencePolicy.AllOperations
+            .Where(op => !enabledOperations.Contains(op));
+
+        foreach (var operation in disabledOperations)
+        {
+            try
+            {
+                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Defensive isolation: errors prefetching evidence for disabled operations are ignored.
+            }
+        }
+
         if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
         {
             _selectionEvidence = scheduledEvidence.Evidence;
             _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
         }
+    }
+
+    private async Task LoadSingleOperationEvidenceAsync(
+        ArithmeticOperation operation,
+        long prospectivePosition,
+        CancellationToken cancellationToken)
+    {
+        var progression = Progression.OperationProgressions[operation];
+        var curriculum = _curriculum.GetCurriculum(operation);
+        if (!curriculum.TryGetBand(progression.BandIndex, out var band) || band is null)
+        {
+            throw new InvalidOperationException($"The current target curriculum band for operation {operation} is unavailable.");
+        }
+
+        var ownership = new AcquisitionOwnershipResolver(curriculum);
+        var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
+        var introductionFrontier = band.Kind == CurriculumBandKind.Structured
+            ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
+            : ownedFrontier;
+        var request = new PracticeSelectionEvidenceRequest(
+            operation,
+            prospectivePosition,
+            checked(SessionOrderCounter + 1),
+            ownedFrontier,
+            introductionFrontier);
+        var evidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
+        foreach (var (factId, state) in evidence.ItemStates)
+        {
+            ItemStates[factId] = CloneItemState(state);
+        }
+
+        foreach (var (factId, state) in evidence.FsrsStates)
+        {
+            _fsrsStates[factId] = state;
+        }
+
+        IReadOnlyList<AttemptRecord> denseAttempts = [];
+        if (band.Kind == CurriculumBandKind.Dense)
+        {
+            var frontierFactIds = ownedFrontier.Select(fact => fact.Id).ToArray();
+            denseAttempts = await _store.LoadLatestFrontierAttemptsAsync(
+                operation,
+                progression.BandStartedPracticePosition,
+                frontierFactIds,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        _selectionEvidenceCache[operation] = new CachedOperationEvidence(
+            operation,
+            prospectivePosition,
+            evidence,
+            denseAttempts);
     }
 
     private static LearnerProgression CloneProgression(LearnerProgression source) => new()
