@@ -445,6 +445,10 @@
                 _enabledOperations = new HashSet<ArithmeticOperation>(resulting);
                 _practiceMessage = Localizer["Settings_OperationsChanged"];
                 _practiceMessageIsError = false;
+                if (Session.IsInitialized)
+                {
+                    _ = Session.EnsureScheduledEvidenceAsync();
+                }
             }
         }
         catch

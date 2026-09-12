@@ -77,6 +77,7 @@ public sealed class TrainingSession
     /// </summary>
     public long LearnerStateGenerationRevision => _learnerStateGenerationRevision;
     public bool IsInitialized { get; private set; }
+    public bool IsCurrentSubmissionCommitted { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
 
     public int GetConsecutiveErrorCount(string factId)
@@ -105,6 +106,28 @@ public sealed class TrainingSession
         return true;
     }
 
+    public async Task<bool> AcknowledgeTeachingInterventionAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.TeachingIntervention)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     public bool AcknowledgeFeedback(bool startTiming = true)
     {
         if (InteractionState is not SessionInteractionState.IncorrectFeedback and not SessionInteractionState.TimeoutFeedback)
@@ -125,6 +148,28 @@ public sealed class TrainingSession
         return true;
     }
 
+    public async Task<bool> AcknowledgeFeedbackAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState is not SessionInteractionState.IncorrectFeedback and not SessionInteractionState.TimeoutFeedback)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return true;
+        }
+
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     public void ContinuePractice(bool startTiming = true)
     {
         if (InteractionState != SessionInteractionState.SessionCheckIn)
@@ -134,6 +179,19 @@ public sealed class TrainingSession
 
         PendingCheckIn = null;
         AdvanceToNextFact(startTiming);
+    }
+
+    public async Task ContinuePracticeAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
     }
 
     public void TakeBreak()
@@ -146,6 +204,18 @@ public sealed class TrainingSession
         PendingCheckIn = null;
         TransitionPracticeGate(PracticeGateState.ManualPause);
         AdvanceToNextFact(startTiming: true);
+    }
+
+    public async Task TakeBreakAsync(CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.SessionCheckIn)
+        {
+            return;
+        }
+
+        PendingCheckIn = null;
+        TransitionPracticeGate(PracticeGateState.ManualPause);
+        await AdvanceToNextFactAsync(startTiming: true, cancellationToken).ConfigureAwait(false);
     }
 
     public TrainingSession(
@@ -424,6 +494,7 @@ public sealed class TrainingSession
         _sessionTotalCountBeforePendingEvaluation = SessionTotalCount;
         _lastResponseLatencyBeforePendingEvaluation = LastResponseLatencyMs;
         LastPersistenceResult = null;
+        IsCurrentSubmissionCommitted = false;
         LastResponseLatencyMs = elapsedMs;
         var isCorrect = (outcome == AttemptOutcome.Correct);
         var classification = AdaptiveAttemptClassifier.Classify(
@@ -634,6 +705,7 @@ public sealed class TrainingSession
         LastPersistenceResult = result;
         if (result.IsSuccess && result.NewRevision.HasValue)
         {
+            IsCurrentSubmissionCommitted = true;
             Progression = CloneProgression(LastEvaluation.ChangeSet.UpdatedProgression);
             ItemStates[LastEvaluation.ChangeSet.UpdatedItemState.FactId] = CloneItemState(LastEvaluation.ChangeSet.UpdatedItemState);
             if (LastEvaluation.ChangeSet.UpdatedFsrsState is not null)
@@ -666,9 +738,10 @@ public sealed class TrainingSession
             }
             catch (Exception ex)
             {
+                LastPersistenceResult = PersistenceResult.Unavailable($"Evidence preparation failed: {ex.Message}");
                 InteractionState = SessionInteractionState.PersistenceFailure;
                 ReconcileTimingState();
-                return PersistenceResult.Unavailable($"Evidence preparation failed: {ex.Message}");
+                return LastPersistenceResult;
             }
 
             if (LastEvaluation.Outcome == AttemptOutcome.Correct)
@@ -719,7 +792,7 @@ public sealed class TrainingSession
             return true;
         }
 
-        if (LastPersistenceResult.IsSuccess)
+        if (IsCurrentSubmissionCommitted || LastPersistenceResult.IsSuccess)
         {
             try
             {
@@ -768,6 +841,7 @@ public sealed class TrainingSession
         LastResponseLatencyMs = _lastResponseLatencyBeforePendingEvaluation;
         LastEvaluation = null;
         LastPersistenceResult = null;
+        IsCurrentSubmissionCommitted = false;
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming: true);
     }
@@ -788,22 +862,13 @@ public sealed class TrainingSession
             || cached.Operation != scheduledOperation
             || cached.ProspectivePracticePosition != prospectivePosition)
         {
-            var fallback = _selectionEvidenceCache.Values
-                .FirstOrDefault(c => enabledOperations.Contains(c.Operation) && c.ProspectivePracticePosition == prospectivePosition);
-            if (fallback is not null)
-            {
-                cached = fallback;
-                scheduledOperation = fallback.Operation;
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    $"Bounded selection evidence for operation {scheduledOperation} at prospective position {prospectivePosition} is not loaded.");
-            }
+            throw new InvalidOperationException(
+                $"Bounded selection evidence for operation {scheduledOperation} at prospective position {prospectivePosition} is not loaded.");
         }
 
         _selectionEvidence = cached.Evidence;
         _currentDenseFrontierAttempts = cached.DenseFrontierAttempts;
+        IsCurrentSubmissionCommitted = false;
 
         SessionOrderCounter++;
         var practiceTimeSetting = GetCurrentPracticeTimeSetting();
@@ -846,6 +911,12 @@ public sealed class TrainingSession
         ReconcileTimingState();
     }
 
+    public async Task AdvanceToNextFactAsync(bool startTiming = true, CancellationToken cancellationToken = default)
+    {
+        await EnsureScheduledEvidenceAsync(cancellationToken).ConfigureAwait(false);
+        AdvanceToNextFact(startTiming);
+    }
+
     public bool AdvanceAfterCorrectAnswer(bool startTiming = true)
     {
         if (InteractionState != SessionInteractionState.CorrectFeedback ||
@@ -867,6 +938,71 @@ public sealed class TrainingSession
         return true;
     }
 
+    public async Task<bool> AdvanceAfterCorrectAnswerAsync(
+        bool startTiming = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (InteractionState != SessionInteractionState.CorrectFeedback ||
+            LastEvaluation?.Outcome != AttemptOutcome.Correct)
+        {
+            return false;
+        }
+
+        if (PendingCheckIn is not null)
+        {
+            InteractionState = SessionInteractionState.SessionCheckIn;
+            _isTimingActive = false;
+            _isPracticeSurfaceActive = false;
+            ReconcileTimingState();
+            return false;
+        }
+
+        await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task EnsureScheduledEvidenceAsync(CancellationToken cancellationToken = default)
+    {
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var enabledOperations = GetCurrentEnabledOperations();
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+
+        if (!_selectionEvidenceCache.TryGetValue(scheduledOperation, out var cached)
+            || cached.Operation != scheduledOperation
+            || cached.ProspectivePracticePosition != prospectivePosition)
+        {
+            await LoadSingleOperationEvidenceAsync(scheduledOperation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
+        {
+            _selectionEvidence = scheduledEvidence.Evidence;
+            _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
+        }
+    }
+
+    public async Task EnsureSelectionEvidenceAsync(CancellationToken cancellationToken = default)
+    {
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var enabledOperations = GetCurrentEnabledOperations();
+        foreach (var operation in enabledOperations)
+        {
+            if (!_selectionEvidenceCache.TryGetValue(operation, out var cached)
+                || cached.Operation != operation
+                || cached.ProspectivePracticePosition != prospectivePosition)
+            {
+                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+        if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
+        {
+            _selectionEvidence = scheduledEvidence.Evidence;
+            _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
+        }
+    }
+
     public async Task ResetLearningProgressAsync(
         CancellationToken cancellationToken = default,
         bool? startTiming = null)
@@ -883,6 +1019,7 @@ public sealed class TrainingSession
         SessionOrderCounter = 0;
         LastResponseLatencyMs = 0;
         LastPersistenceResult = null;
+        IsCurrentSubmissionCommitted = false;
         _requiresBackgroundResumeAfterAdvance = false;
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(shouldStartTiming);

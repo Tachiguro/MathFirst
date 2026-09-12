@@ -74,7 +74,7 @@
                              aria-modal="true"
                              aria-labelledby="persistence-error-title">
                         <div class="practice-overlay-content">
-                            <h2 id="persistence-error-title">@Localizer["Training_PersistenceFailureTitle"]</h2>
+                            <h2 id="persistence-error-title">@Localizer[PersistenceFailureTitleKey]</h2>
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
@@ -104,7 +104,7 @@
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
-                                    @onclick="Advance">
+                                    @onclick="AdvanceAsync">
                                 @Localizer["Common_Continue"] (Enter)
                             </button>
                         </div>
@@ -130,12 +130,12 @@
                                 <button type="button"
                                         @ref="_primaryOverlayButton"
                                         class="button button-primary practice-overlay-action"
-                                        @onclick="KeepGoing">
+                                        @onclick="KeepGoingAsync">
                                     @Localizer["Training_KeepGoing"] (Enter)
                                 </button>
                                 <button type="button"
                                         class="button button-secondary practice-overlay-action"
-                                        @onclick="TakeBreak">
+                                        @onclick="TakeBreakAsync">
                                     @Localizer["Training_TakeBreak"]
                                 </button>
                             </div>
@@ -169,7 +169,7 @@
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-danger practice-overlay-action"
-                                    @onclick="Advance">
+                                    @onclick="AdvanceAsync">
                                 @Localizer["Common_Continue"] (Enter)
                             </button>
                         </div>
@@ -472,11 +472,11 @@
 
         if (IsAwaitingAcknowledgement)
         {
-            Advance();
+            await AdvanceAsync();
         }
         else if (Session.InteractionState == SessionInteractionState.SessionCheckIn)
         {
-            KeepGoing();
+            await KeepGoingAsync();
         }
         else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
         {
@@ -626,7 +626,7 @@
                 var persistence = await Session.CommitCurrentEvaluationAsync();
                 var advancedAutomatically = eval.IsCorrect &&
                     persistence.IsSuccess &&
-                    Session.AdvanceAfterCorrectAnswer(startTiming: true);
+                    await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
 
                 if (advancedAutomatically)
                 {
@@ -677,7 +677,7 @@
         }
     }
 
-    private void Advance()
+    private async Task AdvanceAsync()
     {
         if (!IsAwaitingAcknowledgement)
         {
@@ -686,11 +686,11 @@
 
         if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
         {
-            Session.AcknowledgeTeachingIntervention(startTiming: true);
+            await Session.AcknowledgeTeachingInterventionAsync(startTiming: true);
         }
         else
         {
-            Session.AcknowledgeFeedback(startTiming: true);
+            await Session.AcknowledgeFeedbackAsync(startTiming: true);
         }
 
         if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
@@ -720,7 +720,7 @@
             {
                 if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
                 {
-                    Session.AdvanceAfterCorrectAnswer(startTiming: true);
+                    await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
                 }
 
                 if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
@@ -782,15 +782,15 @@
         }
     }
 
-    private void KeepGoing()
+    private async Task KeepGoingAsync()
     {
-        Session.ContinuePractice(startTiming: true);
+        await Session.ContinuePracticeAsync(startTiming: true);
         PrepareNextFactUi();
     }
 
-    private void TakeBreak()
+    private async Task TakeBreakAsync()
     {
-        Session.TakeBreak();
+        await Session.TakeBreakAsync();
         StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
@@ -907,4 +907,9 @@
         (Session.LastEvaluation?.SubmittedNumericAnswer is decimal submittedAnswer
             ? NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator)
             : string.Empty);
+
+    private string PersistenceFailureTitleKey =>
+        Session.IsCurrentSubmissionCommitted
+            ? "Training_EvidencePreparationFailureTitle"
+            : "Training_PersistenceFailureTitle";
 }
