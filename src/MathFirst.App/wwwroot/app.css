@@ -411,6 +411,36 @@ select:disabled {
     line-height: 1.45;
 }
 
+.onboarding-operation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.operation-choice-button {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    text-align: left;
+}
+
+.operation-choice-symbol {
+    color: var(--color-primary);
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+.operation-choice-state {
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
+.onboarding-selection-help {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
 .onboarding-workflow-list {
     display: grid;
     min-width: 0;
@@ -873,6 +903,18 @@ select:disabled {
     gap: clamp(0.25rem, 1vw, 0.5rem);
 }
 
+.operation-progress-hud[data-operation-count="1"] {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.operation-progress-hud[data-operation-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.operation-progress-hud[data-operation-count="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .operation-progress-entry {
     display: flex;
     min-width: 0;
@@ -909,8 +951,14 @@ select:disabled {
         font-size: 0.75rem;
     }
 
-    .operation-progress-hud {
+    .operation-progress-hud,
+    .operation-progress-hud[data-operation-count="3"],
+    .operation-progress-hud[data-operation-count="4"] {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .operation-progress-hud[data-operation-count="1"] {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -937,6 +985,37 @@ select:disabled {
 .practice-overlay-content h2 {
     margin: 0;
     font-size: clamp(1.8rem, 5vw, 3rem);
+}
+
+.ready-progress-overview {
+    width: min(100%, 24rem);
+    display: grid;
+    gap: var(--space-2);
+    padding: clamp(0.75rem, 2vw, 1rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.9rem;
+    background: var(--color-surface-muted);
+    text-align: left;
+}
+
+.ready-progress-overview h3,
+.checkin-progress h3 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 1rem;
+}
+
+.ready-progress-list,
+.checkin-progress {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.ready-progress-entry,
+.checkin-progress-change {
+    margin: 0;
+    color: var(--color-text);
+    line-height: 1.4;
 }
 
 .practice-overlay-action {
@@ -1019,6 +1098,15 @@ select:disabled {
     align-items: center;
     gap: clamp(0.5rem, 1.2vh, 0.75rem);
     width: min(100%, 20rem);
+}
+
+.checkin-progress {
+    width: min(100%, 24rem);
+    padding: clamp(0.65rem, 1.8vw, 0.9rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-surface-muted);
+    text-align: left;
 }
 
 .checkin-actions .practice-overlay-action {

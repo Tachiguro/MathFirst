@@ -3,6 +3,7 @@
 @using MathFirst.Application
 @using MathFirst.Application.Copy
 @using MathFirst.Application.Diagnostics
+@using MathFirst.Application.Practice
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
@@ -58,6 +59,23 @@
                              aria-labelledby="practice-gate-title">
                         <div class="practice-overlay-content">
                             <h2 id="practice-gate-title">@PracticeGateTitle</h2>
+                            @if (Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory)
+                            {
+                                <section class="ready-progress-overview" aria-labelledby="ready-progress-title">
+                                    <h3 id="ready-progress-title">@Localizer["Training_CurrentProgress"]</h3>
+                                    <div class="ready-progress-list">
+                                        @foreach (var progress in ReadyOperationProgress)
+                                        {
+                                            var operationName = Localizer[$"Operation_{progress.Operation}"];
+                                            <p class="ready-progress-entry">
+                                                @(progress.PresentationStage is int stage
+                                                    ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                                    : Localizer["Training_OperationProgressUnavailable", operationName])
+                                            </p>
+                                        }
+                                    </div>
+                                </section>
+                            }
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
@@ -120,12 +138,31 @@
                             <h2 id="checkin-dialog-title">@Localizer["Training_CheckInTitle"]</h2>
                             <div class="checkin-stats">
                                 <p class="checkin-stat">
+                                    @Localizer["Training_CheckInCompleted", Session.PendingCheckIn.TotalCount]
+                                </p>
+                                <p class="checkin-stat">
                                     @Localizer["Training_CheckInCorrect", Session.PendingCheckIn.CorrectCount, Session.PendingCheckIn.TotalCount]
                                 </p>
                                 <p class="checkin-stat">
                                     @Localizer["Training_CheckInSpeed", GetCheckInLatencyDisplay(Session.PendingCheckIn.MedianCorrectLatencyMs)]
                                 </p>
                             </div>
+                            @if (Session.PendingCheckIn.ProgressionChanges.Count > 0)
+                            {
+                                <section class="checkin-progress" aria-labelledby="checkin-progress-title">
+                                    <h3 id="checkin-progress-title">@Localizer["Training_CheckInProgressMade"]</h3>
+                                    @foreach (var change in Session.PendingCheckIn.ProgressionChanges)
+                                    {
+                                        <p class="checkin-progress-change">
+                                            @Localizer[
+                                                "Training_CheckInProgressChange",
+                                                Localizer[$"Operation_{change.Operation}"],
+                                                change.FromStage,
+                                                change.ToStage]
+                                        </p>
+                                    }
+                                </section>
+                            }
                             <div class="checkin-actions">
                                 <button type="button"
                                         @ref="_primaryOverlayButton"
@@ -180,7 +217,7 @@
                     <div class="training-top-region">
                         <div class="training-meta-row">
                             <div class="operation-progress-hud"
-                                 style="grid-template-columns: repeat(@Math.Max(1, OperationProgress.Count), minmax(0, 1fr));"
+                                 data-operation-count="@OperationProgress.Count"
                                  role="group"
                                  aria-label="@Localizer["Diagnostics_Group_Learning"]">
                                 @foreach (var progress in OperationProgress)
@@ -852,6 +889,13 @@
             return _operationProgress;
         }
     }
+
+    private IReadOnlyList<OperationProgressDiagnostics> ReadyOperationProgress =>
+        PracticeProgressOverview.Create(
+            Session.Progression,
+            _curriculum,
+            PreferenceStore.GetEnabledOperations(),
+            Session.HasCompletedPracticeHistory);
 
     private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
     {

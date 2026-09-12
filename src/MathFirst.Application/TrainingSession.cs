@@ -31,6 +31,7 @@ public sealed class TrainingSession
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
     private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
     private readonly List<AttemptRecord> _sessionCheckInAttempts = [];
+    private Dictionary<ArithmeticOperation, OperationProgression> _sessionCheckInProgressionBaseline = [];
     private List<AttemptRecord> _recentAttempts = [];
     private IReadOnlyList<AttemptRecord> _currentDenseFrontierAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
@@ -79,6 +80,7 @@ public sealed class TrainingSession
     public bool IsInitialized { get; private set; }
     public bool IsCurrentSubmissionCommitted { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
+    public bool HasCompletedPracticeHistory => LatestAcceptedPracticeAt.HasValue;
 
     public int GetConsecutiveErrorCount(string factId)
     {
@@ -178,6 +180,7 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
+        ResetSessionCheckInSegment();
         AdvanceToNextFact(startTiming);
     }
 
@@ -191,6 +194,7 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
+        ResetSessionCheckInSegment();
         await AdvanceToNextFactAsync(startTiming, cancellationToken).ConfigureAwait(false);
     }
 
@@ -202,6 +206,7 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
+        ResetSessionCheckInSegment();
         TransitionPracticeGate(PracticeGateState.ManualPause);
         AdvanceToNextFact(startTiming: true);
     }
@@ -214,6 +219,7 @@ public sealed class TrainingSession
         }
 
         PendingCheckIn = null;
+        ResetSessionCheckInSegment();
         TransitionPracticeGate(PracticeGateState.ManualPause);
         await AdvanceToNextFactAsync(startTiming: true, cancellationToken).ConfigureAwait(false);
     }
@@ -240,7 +246,7 @@ public sealed class TrainingSession
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
         _sessionConsecutiveErrors.Clear();
-        _sessionCheckInAttempts.Clear();
+        ResetSessionCheckInSegment();
         PendingCheckIn = null;
         SessionOrderCounter = 0;
         SessionCorrectCount = 0;
@@ -701,35 +707,41 @@ public sealed class TrainingSession
             return PersistenceResult.Success(Progression.StoreRevision);
         }
 
+        var wasAlreadyCommitted = IsCurrentSubmissionCommitted;
         var result = await _store.CommitSubmissionAsync(LastEvaluation.ChangeSet, cancellationToken).ConfigureAwait(false);
         LastPersistenceResult = result;
         if (result.IsSuccess && result.NewRevision.HasValue)
         {
             IsCurrentSubmissionCommitted = true;
-            Progression = CloneProgression(LastEvaluation.ChangeSet.UpdatedProgression);
-            ItemStates[LastEvaluation.ChangeSet.UpdatedItemState.FactId] = CloneItemState(LastEvaluation.ChangeSet.UpdatedItemState);
-            if (LastEvaluation.ChangeSet.UpdatedFsrsState is not null)
+            if (!wasAlreadyCommitted)
             {
-                _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
-            }
-            SessionTotalCount++;
-            SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
-            LastResponseLatencyMs = LastEvaluation.LatencyMs;
-            Progression.StoreRevision = result.NewRevision.Value;
-            LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
-            _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
-            _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
-            if (_sessionCheckInAttempts.Count == 20)
-            {
-                var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
-                long? medianLatency = correctAttempts.Count > 0
-                    ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
-                    : null;
-                PendingCheckIn = new PracticeCheckInSummary(
-                    correctAttempts.Count,
-                    _sessionCheckInAttempts.Count,
-                    medianLatency);
-                _sessionCheckInAttempts.Clear();
+                Progression = CloneProgression(LastEvaluation.ChangeSet.UpdatedProgression);
+                ItemStates[LastEvaluation.ChangeSet.UpdatedItemState.FactId] = CloneItemState(LastEvaluation.ChangeSet.UpdatedItemState);
+                if (LastEvaluation.ChangeSet.UpdatedFsrsState is not null)
+                {
+                    _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
+                }
+                SessionTotalCount++;
+                SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
+                LastResponseLatencyMs = LastEvaluation.LatencyMs;
+                Progression.StoreRevision = result.NewRevision.Value;
+                LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
+                _recentAttempts = BoundRecentAttempts(_recentAttempts.Append(LastEvaluation.ChangeSet.Attempt));
+                _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
+                if (_sessionCheckInAttempts.Count == 20)
+                {
+                    var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
+                    long? medianLatency = correctAttempts.Count > 0
+                        ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
+                        : null;
+                    PendingCheckIn = new PracticeCheckInSummary(
+                        correctAttempts.Count,
+                        _sessionCheckInAttempts.Count,
+                        medianLatency)
+                    {
+                        ProgressionChanges = CreateSessionProgressionChanges()
+                    };
+                }
             }
 
             try
@@ -1012,7 +1024,7 @@ public sealed class TrainingSession
         var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSnapshot(snapshot);
         _sessionConsecutiveErrors.Clear();
-        _sessionCheckInAttempts.Clear();
+        ResetSessionCheckInSegment();
         PendingCheckIn = null;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
@@ -1038,6 +1050,46 @@ public sealed class TrainingSession
         _selectionEvidence = null;
         _selectionEvidenceCache.Clear();
         LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
+    }
+
+    private void ResetSessionCheckInSegment()
+    {
+        _sessionCheckInAttempts.Clear();
+        _sessionCheckInProgressionBaseline = Progression.OperationProgressions
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+    }
+
+    private IReadOnlyList<PracticeProgressionChange> CreateSessionProgressionChanges()
+    {
+        var practicedOperations = _sessionCheckInAttempts
+            .Select(attempt => attempt.Operation)
+            .ToHashSet();
+        var changes = new List<PracticeProgressionChange>();
+
+        foreach (var operation in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            if (!practicedOperations.Contains(operation) ||
+                !_sessionCheckInProgressionBaseline.TryGetValue(operation, out var baseline) ||
+                !Progression.OperationProgressions.TryGetValue(operation, out var current) ||
+                current.BandIndex <= baseline.BandIndex)
+            {
+                continue;
+            }
+
+            var operationCurriculum = _curriculum.GetCurriculum(operation);
+            if (!operationCurriculum.TryGetBand(baseline.BandIndex, out _) ||
+                !operationCurriculum.TryGetBand(current.BandIndex, out _))
+            {
+                continue;
+            }
+
+            changes.Add(new PracticeProgressionChange(
+                operation,
+                baseline.BandIndex + 1,
+                current.BandIndex + 1));
+        }
+
+        return changes;
     }
 
     private async Task LoadNextSelectionEvidenceAsync(CancellationToken cancellationToken)

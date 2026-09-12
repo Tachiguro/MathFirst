@@ -107,6 +107,46 @@
             }
             else if (_currentStep == 3)
             {
+                <section class="onboarding-step onboarding-operations-step">
+                    <h1 class="onboarding-title">@Localizer["Onboarding_OperationsTitle"]</h1>
+                    <p class="onboarding-concept">@Localizer["Onboarding_OperationsDescription"]</p>
+
+                    <div class="choice-grid choice-grid-four onboarding-operation-grid"
+                         role="group"
+                         aria-label="@Localizer["Onboarding_OperationsTitle"]">
+                        @foreach (var operation in PracticeOperationPreferencePolicy.AllOperations)
+                        {
+                            var isSelected = _operationSelection.IsSelected(operation);
+                            <button type="button"
+                                    class="choice-button operation-choice-button @(isSelected ? "active" : null)"
+                                    aria-pressed="@isSelected"
+                                    aria-label="@Localizer[$"Operation_{operation}"]"
+                                    @onclick="() => ToggleOperation(operation)">
+                                <span class="operation-choice-symbol" aria-hidden="true">@GetOperationSymbol(operation)</span>
+                                <span>@Localizer[$"Operation_{operation}"]</span>
+                                <span class="operation-choice-state" aria-hidden="true">@(isSelected ? "✓" : "○")</span>
+                            </button>
+                        }
+                    </div>
+
+                    <p class="onboarding-selection-help">@Localizer["Onboarding_OperationsMinimum"]</p>
+                    @if (!string.IsNullOrEmpty(_operationSelectionError))
+                    {
+                        <p class="setting-feedback setting-feedback-error" role="alert">@_operationSelectionError</p>
+                    }
+
+                    <div class="onboarding-actions">
+                        <button type="button" class="button button-primary" @onclick="ContinueFromOperationSelection">
+                            @Localizer["Common_Continue"]
+                        </button>
+                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 2">
+                            @Localizer["Common_Back"]
+                        </button>
+                    </div>
+                </section>
+            }
+            else if (_currentStep == 4)
+            {
                 <section class="onboarding-step onboarding-workflow-step">
                     <h1 class="onboarding-title">@Localizer["Onboarding_TutorialTitle"]</h1>
 
@@ -135,10 +175,10 @@
                     </div>
 
                     <div class="onboarding-actions">
-                        <button type="button" class="button button-primary" @onclick="() => _currentStep = 4">
+                        <button type="button" class="button button-primary" @onclick="() => _currentStep = 5">
                             @Localizer["Common_Continue"]
                         </button>
-                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 2">
+                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 3">
                             @Localizer["Common_Back"]
                         </button>
                     </div>
@@ -154,7 +194,7 @@
                         <button type="button" class="button button-primary" @onclick="CompleteOnboardingAsync">
                             @Localizer["Common_Start"]
                         </button>
-                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 3">
+                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 4">
                             @Localizer["Common_Back"]
                         </button>
                     </div>
@@ -171,6 +211,8 @@
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
+    private PracticeOperationSelectionDraft _operationSelection = new(PracticeOperationPreferencePolicy.AllOperations);
+    private string? _operationSelectionError;
 
     private bool IsSystemLanguageSelected =>
         LanguagePreferencePolicy.IsExplicitSystemSelector(_selectedLanguage);
@@ -184,6 +226,7 @@
         _selectedLanguage = PreferenceStore.GetLanguagePreference();
         _selectedTheme = PreferenceStore.GetThemePreference();
         _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
+        _operationSelection = new PracticeOperationSelectionDraft(PreferenceStore.GetEnabledOperations());
 
         Localizer.UiLanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
@@ -220,6 +263,45 @@
     {
         _selectedKeypadLayout = NumericKeypadLayoutPolicy.Normalize((int)layout);
     }
+
+    private void ToggleOperation(ArithmeticOperation operation)
+    {
+        if (_operationSelection.Toggle(operation))
+        {
+            _operationSelectionError = null;
+        }
+    }
+
+    private void ContinueFromOperationSelection()
+    {
+        if (_operationSelection.EnabledOperations.Count == 0)
+        {
+            _operationSelectionError = Localizer["Onboarding_OperationsMinimum"];
+            return;
+        }
+
+        try
+        {
+            _operationSelection.Save(PreferenceStore);
+            _operationSelection = new PracticeOperationSelectionDraft(PreferenceStore.GetEnabledOperations());
+            _operationSelectionError = null;
+            _currentStep = 4;
+        }
+        catch
+        {
+            _operationSelection = new PracticeOperationSelectionDraft(PreferenceStore.GetEnabledOperations());
+            _operationSelectionError = Localizer["Settings_SaveFailed"];
+        }
+    }
+
+    private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
+    {
+        ArithmeticOperation.Addition => "+",
+        ArithmeticOperation.Subtraction => "−",
+        ArithmeticOperation.Multiplication => "×",
+        ArithmeticOperation.Division => "÷",
+        _ => "—"
+    };
 
     private async Task CompleteOnboardingAsync()
     {
