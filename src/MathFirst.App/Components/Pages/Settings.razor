@@ -10,7 +10,6 @@
 @inject IThemeService ThemeService
 @inject AppBuildInfo BuildInfo
 @inject IPreferenceStore PreferenceStore
-@inject ILearnerStore LearnerStore
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
@@ -166,84 +165,7 @@
             }
         </section>
 
-        <!-- 4. DEVELOPER / TESTING DIAGNOSTICS -->
-        <section class="settings-card diagnostics-card">
-            <h2 class="settings-section-title">@Localizer["Diagnostics_Title"]</h2>
-            <p class="setting-help">@Localizer["Diagnostics_Description"]</p>
 
-            <div class="diagnostics-sections">
-                <div class="diagnostics-group">
-                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Learning"]</h3>
-                    <div class="diagnostics-grid">
-                        @foreach (var operation in GetLearningProgressDiagnostics().Operations)
-                        {
-                            <div class="diag-item diag-item-wide">
-                                <span class="diag-label">@Localizer[$"Operation_{operation.Operation}"]</span>
-                                <span class="diag-value">@GetOperationProgressDisplay(operation)</span>
-                            </div>
-                        }
-                    </div>
-                </div>
-
-                <!-- FSRS-6 Task Scheduler -->
-                <div class="diagnostics-group">
-                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Scheduler"]</h3>
-                    <div class="diagnostics-grid">
-                        <div class="diag-item diag-item-wide">
-                            <span class="diag-label">@Localizer["Diagnostics_FsrsScheduler"]</span>
-                            <span class="diag-value">@Localizer["Diagnostics_FsrsModel"]</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_PracticePosition"]</span>
-                            <span class="diag-value">#@(Session.Progression.PracticePosition)</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_FsrsCardsTracked"]</span>
-                            <span class="diag-value">@Session.FsrsStates.Count</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_FsrsDueCards"]</span>
-                            <span class="diag-value">@GetDueFsrsCardsCount()</span>
-                        </div>
-                        <div class="diag-item diag-item-wide">
-                            <span class="diag-label">@Localizer["Diagnostics_CurrentFactFsrs"]</span>
-                            <span class="diag-value">@GetCurrentFactFsrsDisplay()</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Group 4: Timing & Storage -->
-                <div class="diagnostics-group">
-                    <h3 class="diagnostics-group-title">@Localizer["Diagnostics_Group_Storage"]</h3>
-                    <div class="diagnostics-grid">
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_AnswerDeadline"]</span>
-                            <span class="diag-value">@GetCurrentDeadlineDisplay()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_TotalAttempts"]</span>
-                            <span class="diag-value">@GetTotalAttempts()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_Accuracy"]</span>
-                            <span class="diag-value">@GetAccuracyPercentage()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_LastLatency"]</span>
-                            <span class="diag-value">@GetLastLatencyDisplay()</span>
-                        </div>
-                        <div class="diag-item">
-                            <span class="diag-label">@Localizer["Diagnostics_SchemaVersion"]</span>
-                            <span class="diag-value">v@(Session.Progression.SchemaVersion) (rev @(Session.Progression.StoreRevision))</span>
-                        </div>
-                        <div class="diag-item diag-item-wide">
-                            <span class="diag-label">@Localizer["Diagnostics_DatabasePath"]</span>
-                            <span class="diag-value diag-value-wrap">@GetSafeDbFileName()</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
 
         <!-- 4. RESET LEARNING PROGRESS -->
         <section class="settings-card learning-reset-card">
@@ -359,7 +281,6 @@
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
     private ElementReference _confirmationPanel;
     private bool _pendingConfirmationVisibility;
-    private readonly ArithmeticCurriculum _curriculum = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -591,81 +512,4 @@
     }
 
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
-
-    private LearningProgressDiagnostics GetLearningProgressDiagnostics() =>
-        LearningProgressDiagnostics.Create(Session.Progression, _curriculum);
-
-    private string GetOperationProgressDisplay(OperationProgressDiagnostics operation) =>
-        operation.BandIndex is int bandIndex &&
-        operation.CurriculumBandId is not null &&
-        operation.BandStartedPracticePosition is long bandStartedPracticePosition
-            ? Localizer["Diagnostics_OperationProgress", bandIndex, operation.CurriculumBandId, bandStartedPracticePosition]
-            : Localizer["Diagnostics_Unavailable"];
-
-    private int GetTotalAttempts()
-    {
-        return Session.ItemStates.Values.Sum(s => s.TotalAttempts);
-    }
-
-    private string GetAccuracyPercentage()
-    {
-        var total = GetTotalAttempts();
-        if (total == 0) return "0 / 0 (100%)";
-        var correct = Session.ItemStates.Values.Sum(s => s.CorrectAttempts);
-        var pct = (int)Math.Round((double)correct / total * 100);
-        return $"{correct} / {total} ({pct}%)";
-    }
-
-    private int GetPendingRemediationCount()
-    {
-        return Session.ItemStates.Values.Count(s => s.NeedsRemediation);
-    }
-
-    private string GetCurrentDeadlineDisplay()
-    {
-        return LearningPolicy.FormatTimerDisplay(Session.CurrentFactDeadlineMs, Session.CurrentFactDeadlineMs);
-    }
-
-    private string GetLastLatencyDisplay()
-    {
-        if (Session.LastResponseLatencyMs <= 0)
-        {
-            return "-";
-        }
-
-        var isFluent = Session.LastResponseLatencyMs <= LearningPolicy.DefaultFluentResponseThresholdMs;
-        var classification = isFluent ? Localizer["Diagnostics_LatencyFluent"] : Localizer["Diagnostics_LatencySlow"];
-
-        if (Session.LastResponseLatencyMs < 1000)
-        {
-            return $"{Session.LastResponseLatencyMs} ms ({classification})";
-        }
-
-        var seconds = Session.LastResponseLatencyMs / 1000.0;
-        return $"{seconds:F2} s ({classification})";
-    }
-
-    private string GetSafeDbFileName()
-    {
-        var path = LearnerStore.StoragePath;
-        return string.IsNullOrEmpty(path) ? "mathfirst_learner.db" : path;
-    }
-
-    private int GetDueFsrsCardsCount()
-    {
-        var currentPos = Session.Progression.PracticePosition;
-        return Session.FsrsStates.Values.Count(c => c.DuePracticePosition <= currentPos);
-    }
-
-    private string GetCurrentFactFsrsDisplay()
-    {
-        if (Session.CurrentFact is null || !Session.FsrsStates.TryGetValue(Session.CurrentFact.Id, out var card))
-        {
-            return "-";
-        }
-
-        var stab = card.Stability.HasValue ? $"{card.Stability.Value:F1}" : "-";
-        var diff = card.Difficulty.HasValue ? $"{card.Difficulty.Value:F1}" : "-";
-        return $"S:{stab} | D:{diff} | Due:#{card.DuePracticePosition}";
-    }
 }

@@ -179,7 +179,10 @@
                 {
                     <div class="training-top-region">
                         <div class="training-meta-row">
-                            <div class="operation-progress-hud" role="group" aria-label="@Localizer["Diagnostics_Group_Learning"]">
+                            <div class="operation-progress-hud"
+                                 style="grid-template-columns: repeat(@Math.Max(1, OperationProgress.Count), minmax(0, 1fr));"
+                                 role="group"
+                                 aria-label="@Localizer["Diagnostics_Group_Learning"]">
                                 @foreach (var progress in OperationProgress)
                                 {
                                     var operationName = Localizer[$"Operation_{progress.Operation}"];
@@ -282,6 +285,7 @@
     private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
+    private HashSet<ArithmeticOperation>? _operationProgressEnabledSet;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
@@ -830,14 +834,19 @@
     {
         get
         {
+            var enabledSet = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
             var learnerStateGeneration = Session.LearnerStateGenerationRevision;
             var practicePosition = Session.Progression.PracticePosition;
             if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
-                _operationProgressPracticePosition != practicePosition)
+                _operationProgressPracticePosition != practicePosition ||
+                _operationProgressEnabledSet is null ||
+                !_operationProgressEnabledSet.SetEquals(enabledSet))
             {
-                _operationProgress = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+                var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+                _operationProgress = allDiagnostics.Where(d => enabledSet.Contains(d.Operation)).ToList();
                 _operationProgressLearnerStateGeneration = learnerStateGeneration;
                 _operationProgressPracticePosition = practicePosition;
+                _operationProgressEnabledSet = enabledSet;
             }
 
             return _operationProgress;

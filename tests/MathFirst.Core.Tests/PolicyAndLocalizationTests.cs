@@ -68,9 +68,6 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Correct answer: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Welcome to MathFirst", service["Onboarding_WelcomeTitle"]);
         Assert.Equal("Operation Bands", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Band 10: ADD-P1-ANCHOR · started at #11", service["Diagnostics_OperationProgress", 10, "ADD-P1-ANCHOR", 11]);
-        Assert.Equal("FSRS-6 Task Scheduler", service["Diagnostics_Group_Scheduler"]);
-        Assert.Equal("Timing & Storage", service["Diagnostics_Group_Storage"]);
         Assert.Equal("Choose your number keypad", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Phone keypad", service["Keypad_Phone"]);
         Assert.Equal("PC numpad", service["Keypad_Numpad"]);
@@ -85,9 +82,6 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Richtige Antwort: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Willkommen bei MathFirst", service["Onboarding_WelcomeTitle"]);
         Assert.Equal("Operationsbänder", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Band 10: ADD-P1-ANCHOR · begonnen bei #11", service["Diagnostics_OperationProgress", 10, "ADD-P1-ANCHOR", 11]);
-        Assert.Equal("FSRS-6-Aufgabenplaner", service["Diagnostics_Group_Scheduler"]);
-        Assert.Equal("Zeit & Speicher", service["Diagnostics_Group_Storage"]);
         Assert.Equal("Zahlentastatur auswählen", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Telefon-Tastatur", service["Keypad_Phone"]);
         Assert.Equal("PC-Ziffernblock", service["Keypad_Numpad"]);
@@ -102,9 +96,6 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Правильный ответ: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Добро пожаловать в MathFirst", service["Onboarding_WelcomeTitle"]);
         Assert.Equal("Банды операций", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Банд 10: ADD-P1-ANCHOR · начат на #11", service["Diagnostics_OperationProgress", 10, "ADD-P1-ANCHOR", 11]);
-        Assert.Equal("Планировщик FSRS-6", service["Diagnostics_Group_Scheduler"]);
-        Assert.Equal("Время и хранилище", service["Diagnostics_Group_Storage"]);
         Assert.Equal("Выберите цифровую клавиатуру", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Телефонная клавиатура", service["Keypad_Phone"]);
         Assert.Equal("Цифровой блок ПК", service["Keypad_Numpad"]);
