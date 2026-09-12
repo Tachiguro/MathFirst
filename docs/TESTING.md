@@ -251,6 +251,78 @@ MF-REL-001 contract, hygiene, and validation coverage enforces Android App Bundl
   - `AndroidPackagingContractTests`
   - `AabPackagingScriptValidationTests`
   - `AndroidAabValidationTests`
-- **Full Core Test Suite**: Complete current Core-suite count will be formally established during candidate `FULL_VALIDATION` (focused packaging/validation suites passed during implementation; final remediation verified 141 directly relevant tests; consolidated `REVIEW_ONLY` did not rerun the full suite).
+- **Delivery Status**: Merged into `main` via PR #17 at commit `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`.
 - **Compilation**: Android and Windows Release builds compile with 0 warnings and 0 errors.
-- **Evidence Boundary**: Automated tests in `MathFirst.Core.Tests` execute against synthetic fixtures, mocked tool runners, and isolated temporary directories. These tests verify tool logic and contracts; they do **not** constitute formal release candidate `FULL_VALIDATION`, real candidate packaging, or Google Play verification. Real candidate packaging and full validation remain separate subsequent lifecycle concerns.
+- **Evidence Boundary**: Automated tests in `MathFirst.Core.Tests` execute against synthetic fixtures, mocked tool runners, and isolated temporary directories.
+
+---
+
+## 13. MF-SET-001 Practice Configuration, Visibility, Timer, and Persistence Contracts
+
+MF-SET-001 permanent regression coverage validates the final practice-configuration behavior across `MathFirst.Core.Tests`:
+
+1. **Answer Entry Reliability & Fact-Instance Input Reset**:
+   - Partial multi-digit input such as `2` for `7 + 4 = 11` remains editable and creates no premature Incorrect attempt.
+   - Backspace correction works, a complete answer submits once, single-digit correct answers retain immediate auto-submit, and every newly generated problem starts with an empty input field.
+   - Fact-instance lifecycle tracking (`FactInstanceRevision` on `TrainingSession` and DOM element keying via `_inputRenderVersion` in `Home.razor`) guarantees that new problems always begin with clean empty buffers while the active exercise retains partial input across transient UI interactions.
+
+2. **Operation Configuration, Onboarding, and HUD Visibility**:
+   - All four controls remain visible in Settings and Onboarding; all operations default enabled; valid one-, two-, three-, and four-operation subsets persist; the last enabled operation cannot be disabled; and corrupt all-false state falls back to all four.
+   - Enabled operations are both selection and display filters. One, two, three, and four enabled operations produce the corresponding number of HUD indicators; disabled operations retain all learner state. Returning learners with existing progress view a progress overview on the readiness gate.
+   - Settings changes preserve the displayed question, update the HUD on return, and apply to the next generated question.
+   - The developer Statistics / Diagnostics section is absent from Settings while the operation HUD remains. Learner attempts, FSRS data, progression, and item state are not deleted.
+
+3. **Enabled-Subset Scheduling and Evidence**:
+   - `AdaptivePracticeSelector` schedules index $(P - 1) \bmod k$ and per-operation ordinal $\lfloor(P - 1) / k\rfloor + 1$ from the enabled list.
+   - `PracticeSelectionEvidence` is bound to both operation and prospective Practice Position. Cached evidence cannot change the scheduled operation or satisfy a different operation/position.
+   - Required scheduled-operation evidence loads asynchronously on demand. Disabled-operation evidence prefetch is best effort; its failure cannot block enabled practice. No arbitrary wrong-operation fallback is permitted.
+
+4. **Schedule-Agnostic SQLite Persistence and Exactly-Once Recovery**:
+   - Single-, two-, and three-operation long-running sessions persist without reconstructing a fixed four-operation rotation.
+   - Validation covers Practice Position monotonicity, attempt/progression consistency, canonical fact identity and result, answer/outcome consistency, item and FSRS transitions, canonical four-entry `OperationProgression`, attempted-operation mutation boundaries, band progression, revision conflicts, duplicate positions, transaction atomicity, and idempotency.
+   - Durable commit failure remains distinct from post-write next-exercise evidence/preparation failure. English uses “Progress could not be saved.” versus “Next exercise could not be loaded.”; German uses “Fortschritt konnte nicht gespeichert werden.” versus “Nächste Aufgabe konnte nicht geladen werden.”; Russian equivalents have localization coverage.
+   - Recovery after a successful durable write cannot duplicate attempt history, Practice Position, item state, FSRS repetitions, or store revision; it prepares the required next-exercise evidence and resumes.
+
+5. **Practice Time, Active Latency, and Timer Lifecycle**:
+   - Standard leaves the adaptive deadline unchanged; 30 s, 45 s, and 60 s apply $\max(\text{adaptive deadline}, \text{configured floor})$ without changing easy/fluency thresholds, FSRS rating semantics, or raw active latency.
+   - Manual Pause and Settings freeze elapsed and remaining time, suppress timeout while inactive, and resume the same question with its remaining time.
+   - Same-process background/foreground preserves remaining time behind the resume gate. A cold process restart begins the in-flight timer fresh while retaining preferences and learner progress.
+   - Only active answering time feeds learning evaluation and persisted attempt metrics. In-flight elapsed/remaining time and pause/active segment timestamps are not persisted.
+
+6. **Reset, Check-In, and Localization Contracts**:
+   - Reset Learning Progress preserves enabled-operation and Practice Time preferences; Restore Default Settings restores all four operations and Standard time while preserving learner progress; Full Local Reset performs both resets.
+   - Session check-in every 20 accepted attempts accurately reports completed count, correct count, stage progressions, and median latency of correct attempts only.
+   - English, German, and Russian remain in parity. Exactly 20 unique Diagnostics keys were removed (60 dictionary entries); `Diagnostics_Group_Learning` intentionally remains for the Home HUD accessible group label.
+
+### Reviewed Focused Test Evidence
+
+- `PracticeVisibilityAndTimerLifecycleTests`: 13 passed
+- `PolicyAndLocalizationTests`: 48 passed
+- `RuntimePersistenceRegressionTests`: 8 passed
+- `StaleSelectionEvidenceRemediationTests`: 9 passed
+- `SqliteEnabledSubsetPersistenceTests`: 9 passed
+- `SubmissionIntegrityAndPublishBoundaryTests`: 19 passed
+- `PersistenceRecoveryAndLifecycleTests`: 8 passed
+- `AnswerEntryReliabilityTests`: 10 passed
+- `OnboardingAndProgressFeedbackTests`: 12 passed
+- `PracticeConfigurationTests`: 38 passed
+- `AdaptivePaceRuntimeTests`: 66 passed
+- `ResetWorkflowTests`: 5 passed
+- `AndroidLifecycleTimerTests`: 11 passed
+
+### Final Reviewed Baseline and Evidence Boundary
+
+- **Final Implementation HEAD**: `f453501412b7c9fce39356a0837a5b862d6221fd` (across 10 commits).
+- **Full Core Test Suite**: 1037 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Compilation**: Windows Release 0 warnings / 0 errors; Android Release 0 warnings / 0 errors.
+- **Independent Review**: `REVIEW_PASS` (Implementation Readiness: YES).
+- **Android Validation Artifact**: `MathFirst-MF-SET-001-f453501-debug.apk`, SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`, provenance `f453501412b7c9fce39356a0837a5b862d6221fd`, package ID `com.tachiguro.mathfirst`, versionCode 1, versionName 1.0. It is an installable Debug validation APK, not a production Google Play AAB or release artifact.
+- **Manual Physical Android Device Validation**: User confirmed successful physical device validation:
+  - New exercise input reset: newly generated problems always start with clean empty buffers.
+  - Same exercise partial input retention: partial input is preserved across transient UI interactions.
+  - Settings/timer lifecycle: opening Settings pauses the active timer; returning resumes with same remaining time.
+  - Onboarding operation choice: operation selection works during initial setup and subsequent Settings.
+  - Returning progress presentation: preserved learner progress and HUD indicators display accurately for returning learners.
+  - SessionCheckIn: 20-attempt summaries compute correct count and median correct latency accurately.
+- **Lifecycle**: `DOCUMENT_ONLY`; the next successful lifecycle is `COMMIT_ONLY`.
+- **Evidence Boundary**: Automated tests in `MathFirst.Core.Tests` execute against synthetic fixtures and isolated environments. Manual verification on physical device confirmed UI/runtime invariants. No production AAB, signing, Google Play upload, distribution, or release is implied.

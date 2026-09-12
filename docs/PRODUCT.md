@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression, hybrid curriculum, and adaptive learning model in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), and [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`). The current native applications implement learner Schema V6, hierarchical adaptive pace, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, and adaptive learning model in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), and [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
 
 ---
 
@@ -135,7 +135,7 @@ Negative subtraction, division with remainders, decimal-result arithmetic, and d
 
 ## 6. Adaptive Training Loop & Spaced Repetition (FSRS-6)
 
-For next accepted global Practice Position `p`, the scheduled operation is `(p - 1) mod 4` in the order Addition, Subtraction, Multiplication, Division. Each operation independently follows this repeating role cycle:
+For the next accepted global Practice Position `p`, practice rotates deterministically through the operations currently enabled in Settings, in canonical Addition, Subtraction, Multiplication, Division order. Each enabled operation independently follows this repeating role cycle:
 
 ```text
 New, Due, New, Maintenance, Frontier, New, Due, New, Due, Frontier
@@ -202,7 +202,7 @@ Exact-fact review preserves `FSRS.Core` 1.0.7, 95% desired retention, 21 default
 True arithmetic fluency requires evaluating both correctness and speed against adaptive timing boundaries:
 
 1. **Correctness**: Whether the submitted numeric answer is mathematically correct.
-2. **Response Latency**: The elapsed monotonic active time between item readiness (`ITEM_READY`) and answer submission.
+2. **Response Latency**: The elapsed monotonic active answering time between item readiness (`ITEM_READY`) and answer submission. Manual Pause, Settings, and same-process background/suspend time are excluded.
 3. **Hierarchical Adaptive Pace Runtime**:
    Expected response latency ($P_{\text{fact}}$) is computed dynamically from positioned, accepted, mathematically correct attempt evidence ($PracticePosition > 0$). Latency samples are clamped to $[600\text{ ms}, 12000\text{ ms}]$.
 
@@ -230,13 +230,14 @@ True arithmetic fluency requires evaluating both correctness and speed against a
        - 2 answer digits: minimum $20000\text{ ms}$
        - 3 answer digits: minimum $25000\text{ ms}$
        - 4 or more answer digits: minimum $30000\text{ ms}$
-     - **Effective Deadline**:
-       - Proven facts: $\text{AdaptiveDeadlineMs}$
-       - Unproven facts: $\min(30000, \max(\text{AdaptiveDeadlineMs}, \text{NoveltyFloorMs}))$
-     - **Strict Non-Interference**: Novelty deadline extension expands response opportunity only. It does not alter measured response latency, adaptive fluency thresholds, `IsFluent`, or FSRS ratings.
+     - **Effective Deadline & Practice Time Floors**:
+       - Proven facts: $\text{BaseDeadlineMs} = \text{AdaptiveDeadlineMs}$
+       - Unproven facts: $\text{BaseDeadlineMs} = \min(30000, \max(\text{AdaptiveDeadlineMs}, \text{NoveltyFloorMs}))$
+       - **Configurable Practice-Time Floor**: Settings provide Standard adaptive timing (floor = 0) or explicit minimum floors: 30s ($30000\text{ ms}$), 45s ($45000\text{ ms}$), 60s ($60000\text{ ms}$). The effective deadline is $\max(\text{BaseDeadlineMs}, \text{PracticeTimeFloorMs})$.
+     - **Strict Non-Interference**: Novelty deadline extension and practice-time floors expand response opportunity only. They do not alter measured response latency, adaptive fluency thresholds, `IsFluent`, or FSRS ratings.
    - A single visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
    - Timer text features a direct black glyph contour/outline (`-webkit-text-stroke: 2px #000`) for high-contrast readability across themes.
-   - Practice timing is active only while the application is foreground/interactable, the Practice surface is visible, the Practice gate is `Running`, and the session is awaiting an answer. Settings, onboarding, Ready/Pause/Resume gates, and feedback states keep the active item paused without consuming deadline or creating timeout attempts.
+   - Practice timing is active only while the application is foreground/interactable, the Practice surface is visible, the Practice gate is `Running`, and the session is awaiting an answer. Settings, onboarding, Ready/Pause/Resume gates, and feedback states keep the active item paused without consuming deadline or creating timeout attempts. Returning from Settings resumes the same question with the same remaining time. Same-process background/suspend preserves remaining time behind the background resume gate. A true cold process restart starts only the in-flight question timer fresh; stored Practice Time and learner progress remain intact.
    - **Semantic Timeout Rule**: If elapsed active time reaches or exceeds the effective deadline, the attempt is recorded as `AttemptOutcome.Timeout`. A correct numeric entry submitted at or after the deadline remains a Timeout.
 
 5. **Adaptive FSRS Rating & Fluency Classification**:
@@ -268,10 +269,13 @@ True arithmetic fluency requires evaluating both correctness and speed against a
 Training sessions are automatically generated by blending items across learning categories (new items, weak items, due reviews, and items requiring remediation) under deterministic operation and role scheduling.
 
 ### Progress HUD and Practice Cleanliness
-- The compact progression HUD presents Addition, Subtraction, Multiplication, and Division in that visible order with `+`, `−`, `×`, and `÷`. Its numeric value is `BandIndex + 1`: an independent progression stage, not a maximum operand, mastery percentage, global arithmetic level, or session score. Valid BandIndex 0 and 1 display stages 1 and 2; unavailable or malformed bands fail closed as presentation unavailable rather than displaying a false stage. Internal curriculum band IDs are not learner-facing.
-- Ordinary widths use four bounded HUD columns; below approximately 480 px, the layout deterministically becomes two columns. Symbols are visual, while accessible labels identify operation and progression stage (including unavailable state). English, German, and Russian progression labels are complete.
+- The compact progression HUD presents only the operations currently enabled in Settings, in Addition, Subtraction, Multiplication, Division order with `+`, `−`, `×`, and `÷`. One enabled operation produces one indicator, two produce two, three produce three, and all four produce four. Disabled operations disappear from the HUD without losing progress.
+- Each numeric value is `BandIndex + 1`: an independent progression stage, not a maximum operand, mastery percentage, global arithmetic level, or session score. Symbols are visual, while accessible labels identify the operation and progression stage. Internal curriculum band IDs are not learner-facing.
 - **Distraction-Free Practice Header**: The permanent score HUD display has been removed from normal active practice. Session counts are retained internally for periodic check-ins rather than cluttering active arithmetic recall.
 - Home practice owns or reuses one stable `ArithmeticCurriculum` for the component lifetime. HUD diagnostics are cached by authoritative learner-state generation and Practice Position, so timer-only approximately 50 ms presentation refreshes do not reconstruct the curriculum or regenerate the full diagnostic snapshot.
+
+### Repeated-Error Teaching Intervention
+When a learner struggles repeatedly with a specific fact in the active session:
 
 ### Repeated-Error Teaching Intervention
 When a learner struggles repeatedly with a specific fact in the active session:
@@ -283,7 +287,7 @@ When a learner struggles repeatedly with a specific fact in the active session:
 ### Session Check-Ins & Break Flow
 To provide encouraging feedback without breaking active focus:
 1. **Cadence**: Triggered every 20 accepted attempts in the active training session ($20, 40, 60, \dots$). Cadence is session-local only.
-2. **Summary**: Displays correct count out of 20 and the deterministic median response latency of **Correct attempts only** (Incorrect and Timeout latencies are excluded; if 0 correct, median is unavailable).
+2. **Summary**: Displays correct count out of 20, completed attempts, stage progressions achieved, and the deterministic median response latency of **Correct attempts only** (Incorrect and Timeout latencies are excluded; if 0 correct, median is unavailable).
 3. **Actions**:
    - **`Keep Going`**: Prepares the next deterministic fact and resumes active practice with its full adaptive deadline starting from zero.
    - **`Take a Break`**: Transitions the practice gate to `ManualPause` **before** next-fact preparation, guaranteeing that accumulated active elapsed time remains exactly zero while paused. The prepared fact receives its full adaptive deadline upon explicit learner Resume.
@@ -310,6 +314,7 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
     - Automatic submission occurs once the entered buffer reaches the expected canonical digit count (evaluated as Correct or Incorrect) or upon exact numeric equality. Prefix mismatch alone does not trigger early submission.
     - If the active answer deadline expires while a partial multi-digit input is present, the attempt is recorded as a Timeout rather than an incorrect submission.
     - Enter remains an explicit force-submit path for any valid complete numeric value.
+    - Every newly generated problem starts with an empty answer input buffer (managed via process-local fact instance revision tracking and DOM element keying, ensuring that new exercises always begin with an empty buffer while the active exercise retains partial input across transient UI interactions).
   - Supported browser/WebView input paths synchronously reject invalid prospective keyboard, selection-replacement, deletion, and paste edits before the DOM mutates. The C# numeric policy remains authoritative for submission, the on-screen keypad, fallback input handling, and tests.
   - Rejected or incomplete input creates no semantic attempt and therefore cannot affect score, Practice Position, FSRS, exposure, remediation, or progression evidence. Input is bounded to 28 characters to protect layout while leaving ample future arithmetic range.
   - The responsive answer field comfortably exposes approximately eight digits plus a decimal separator at normal Windows desktop sizes. It remains centered, never exceeds the card width, and wraps below the arithmetic expression on narrow layouts without reducing arithmetic typography.
@@ -323,15 +328,17 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
 - **Windows & Web**:
   - Effective physical keyboard support.
   - Physical numeric keypad (numpad) support where available.
-- **Shared On-Screen Keypad**:
+- **Shared On-Screen Keypad & Onboarding**:
   - During ordinary answer entry Practice renders a centered, responsive, clickable/touchable keypad with no permanent Submit, Confirm, or Continue action. Physical digits, Backspace, decimal comma/period, and Enter remain supported through the same controlled answer model.
   - Learners choose exactly one persistent UI layout: `Numpad` (default; `7 8 9` at the top) or `Phone` (`1 2 3` at the top). The locale-familiar decimal glyph is shown, while both separators remain valid input.
-  - The choice is previewed on a dedicated onboarding step between Welcome and Tutorial (presenting Numpad first/left and Phone second/right), persists only at Get Started, and can be changed immediately in Settings without resuming practice timing. Restore Defaults and Full Local Reset return it to Numpad; Reset Learning Progress preserves it. The preference is UI state and is not stored in learner SQLite data.
-- **Practice Flow and Readiness Gates**:
+  - Onboarding guides first-time learners through Welcome, Keypad Layout (previewing Numpad first/left and Phone second/right, defaulting to Numpad), Practice Operations (allowing selection of any non-empty subset of Addition, Subtraction, Multiplication, and Division, defaulting to all four), and Tutorial, persisting choices at Get Started. Preferences can be modified subsequently in Settings. Restore Defaults and Full Local Reset restore all defaults; Reset Learning Progress preserves preferences.
+- **Practice Flow, Readiness Gates, and Returning Learner Feedback**:
   - After a correct answer is accepted and persisted exactly once, Practice immediately prepares the next fact without visual delay or acknowledgement. Incorrect answers and timeouts pause timing and show a blocking dialog containing the original arithmetic expression, the submitted answer when applicable, the correct answer, and a Continue action that is also activated by Enter.
-  - A cold application session with onboarding already complete starts behind an opaque Ready to practice dialog. No problem, keypad, semantic timing, attempt, score, or Practice Position change is exposed before Start. Onboarding Get Started itself satisfies this gate and does not lead to a redundant second dialog.
+  - A true save failure reports “Progress could not be saved.” A failure that occurs only while loading the next exercise after the answer was already saved reports “Next exercise could not be loaded.” Retry never saves the same completed attempt twice. Equivalent localized wording is provided in German and Russian.
+  - A cold application session with onboarding already complete starts behind an opaque Ready to practice dialog (presenting returning learner progress overview when past practice exists). No problem, keypad, semantic timing, attempt, score, or Practice Position change is exposed before Start. Onboarding Get Started itself satisfies this gate and does not lead to a redundant second dialog.
   - Manual Pause is available beside Settings only during active answer entry. It uses an accessible CSS-drawn two-bar icon with danger action treatment (red in the current theme, `button-danger`), freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice. Start and Resume remain normal primary (green) actions whenever the Pause action is absent.
-  - Leaving the application foreground converts a running awaiting-answer item to a Background Resume gate. Foreground return does not restart timing; explicit Resume is required, including after returning from Settings to an interrupted Practice item. These transient gates require no learner SQLite schema change.
+  - Opening Settings freezes active timing and preserves the current question. Returning to Practice resumes that question and its remaining time; changed operation settings update the visible HUD immediately and apply to the next generated question rather than replacing the current one.
+  - Leaving the application foreground converts a running awaiting-answer item to a Background Resume gate. Foreground return does not restart timing; explicit Resume is required. These transient gates require no learner SQLite schema change.
 
 ### Contextual Practice-Gate Personality
 
@@ -344,8 +351,14 @@ The physical contextual corpus supports English, German, and Russian with 55 mes
 Tone is concise, respectful, age-neutral, and secondary to arithmetic interaction. Neutral, welcoming, semantically supported progress-aware, dry-humorous, and occasional lightly cheeky wording is allowed. The product avoids insults, humiliation, guilt, patronizing or manipulative language, exaggerated praise, false achievement claims, and assumptions about a learner’s personal circumstances. Onboarding readiness is history-neutral: “Your arithmetic practice is ready,” because restored UI preferences can replay onboarding while learning history remains.
 
 Contextual copy is presentation behavior only. It does not change FactId, curriculum generation, Practice Position, BandIndex progression, advancement gates, evidence windows, FSRS, remediation, cooldowns, operation scheduling, answer deadlines, answer evaluation, accepted-attempt semantics, or Schema V6.
-- **Windows Settings Confirmations**:
-  - Restore Defaults, Reset Learning Progress, and Full Local Reset remain explicit two-step actions. After an inline confirmation is rendered, it receives programmatic focus and is scrolled into view with nearest-block behavior; reduced-motion preferences disable smooth scrolling.
+- **Settings Actions and Reset Confirmations**:
+  - *Practice Operations*: Settings always shows controls for Addition, Subtraction, Multiplication, and Division. All four are enabled by default; users may choose any non-empty subset, and the last enabled operation cannot be disabled. Disabled operations are excluded from newly generated practice and hidden from the HUD while retaining all learning progress for later resumption.
+  - *Practice Time*: Standard uses the adaptive deadline unchanged. The 30 s, 45 s, and 60 s options set a minimum answer-time floor and do not change response-speed evaluation.
+  - *Statistics / Diagnostics*: The developer-facing Statistics / Diagnostics section is no longer shown in Settings. This UI removal does not delete attempt history, FSRS scheduling data, operation progress, item learning state, or progression calculations.
+  - *Restore Default Settings*: Restores all four operations (Addition, Subtraction, Multiplication, Division) to enabled, Standard practice time, and Numpad keypad layout while preserving all learner progress.
+  - *Reset Learning Progress*: Resets learner attempts, item states, FSRS states, and progression while preserving UI/onboarding preferences, keypad choice, operation preferences, and practice-time preferences.
+  - *Full Local Reset*: Clears all learner progress and restores all settings, operation preferences, practice-time preferences, keypad layout, and UI preferences to defaults.
+  - All three reset actions remain explicit two-step confirmations. After an inline confirmation is rendered, it receives programmatic focus and is scrolled into view with nearest-block behavior; reduced-motion preferences disable smooth scrolling.
 
 ---
 
@@ -365,6 +378,7 @@ Contextual copy is presentation behavior only. It does not change FactId, curric
 - Transactional migration from V5 to V6 backfills historical attempts with the fixed rule (Correct with `ResponseLatencyMs <= 2500` $\implies \text{fluent}$; otherwise non-fluent), preserving all PracticePosition, store revision, item learning states, FSRS card states, and operation progression rows without reset. Rollback leaves V5 intact upon failure.
 - Local persistence must survive application restarts, browser refreshes, and device reboots.
 - The shared Application layer owns persistence contracts and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V6 store and is registered by the native app through dependency injection.
+- Enabled-operation and Practice Time preferences are stored separately from learner progress. Only completed attempt latency and outcome are durable; an in-flight question's elapsed time, remaining deadline, and pause/active segment timestamps are not restored after a cold process restart.
 
 ### Android Runtime and App-Data Location
 - The native MAUI application targets Android and Windows (`net10.0-android` and `net10.0-windows10.0.19041.0`); Web, iOS, and Mac Catalyst are not activated by the Android V1 runtime package.
@@ -396,7 +410,7 @@ MathFirst must support three mandatory target platforms:
 MathFirst aims to maximize shared domain and application logic across Android, Web, and Windows where technically sensible, while permitting platform-specific UI or integration adaptations where justified.
 
 ### Practice Timer Lifecycle
-Answer time advances only while the application is foreground/interactive, the Practice/Home surface is active, the transient Practice gate is `Running`, and the session is awaiting an answer. Backgrounding, device lock, Settings, onboarding, Ready/Pause/Resume gates, and Correct/Incorrect/Timeout feedback pause semantic elapsed time without resetting the current deadline or producing an attempt. Foreground return keeps the same remaining semantic time frozen until explicit Resume practice.
+Answer time advances only while the application is foreground/interactive, the Practice/Home surface is active, the transient Practice gate is `Running`, and the session is awaiting an answer. Manual Pause, backgrounding, device lock, Settings, onboarding, Ready/Pause/Resume gates, and Correct/Incorrect/Timeout feedback pause semantic elapsed time without resetting the current deadline or producing an attempt. Returning from Settings resumes the preserved current question. Same-process foreground return keeps the remaining time frozen until explicit Resume practice. A cold process restart gives the in-flight question a fresh timer without resetting learning progress or stored Practice Time.
 
 ---
 
@@ -460,7 +474,8 @@ The following register contains both resolved and unresolved product decisions. 
 | **Exact Range Expansion Increments** | Dense bands advance via complete frontier coverage and $C \cdot 10 \ge N \cdot 9$; Structured bands advance via 40-attempt rolling window gate ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md)). | `RESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
 | **Multi-Operation Range Sequencing** | Deterministic Addition/Subtraction/Multiplication/Division scheduling interleave with fully independent per-operation band advancement and no global checkpoint. | `RESOLVED` |
-| **Manual Operation Control** | Whether users should be able to manually enable, disable, or override operation progression. | `UNRESOLVED` |
+| **Manual Operation Control** | Users can independently enable/disable Addition, Subtraction, Multiplication, and Division in Settings (at least one enabled; enabled-subset scheduling `(p - 1) mod k`; progress preserved across toggles) (`MF-SET-001`). | `RESOLVED` |
+| **Practice Time Configuration** | Standard adaptive timing or configurable response deadline floors (30s, 45s, 60s) via $\max(\text{adaptiveDeadline}, \text{explicitFloor})$ without altering raw latency measurement, fluency thresholds, or FSRS ratings (`MF-SET-001`). | `RESOLVED` |
 | **Session Length & Bounding** | Periodic session check-in cadence every 20 accepted attempts with correctness/median-speed summary and Keep Going vs. Take a Break flow ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
 | **Answer Submission Trigger** | Deterministic smart auto-submit for complete canonical integer answers, with Enter as a valid explicit force-submit path and no permanent Submit action. | `RESOLVED` |
 | **Progress Visualization Details** | Specific dashboard widgets, charts, and mastery visual indicators. | `UNRESOLVED` |
