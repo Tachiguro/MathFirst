@@ -2,6 +2,7 @@ namespace MathFirst.Core.Tests;
 
 using MathFirst.Application;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
 
@@ -149,14 +150,11 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
     }
 
     [Fact]
-    public async Task SqliteStore_RejectsWrongOperationAndInvalidProgressionMutationWithoutWriting()
+    public async Task SqliteStore_RejectsInvalidProgressionMutationWithoutWriting()
     {
         using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "operation-validation.db"));
         await store.InitializeAsync();
         var before = await store.LoadSnapshotAsync();
-
-        var wrongOperation = await store.CommitSubmissionAsync(CreateChangeSet(before.Revision, 1, ArithmeticOperation.Subtraction));
-        AssertInvalidAndUnchanged(wrongOperation, before, await store.LoadSnapshotAsync());
 
         var nonScheduledMutation = CreateChangeSet(before.Revision, 1, ArithmeticOperation.Addition, progression =>
             progression.OperationProgressions[ArithmeticOperation.Subtraction] =
@@ -178,6 +176,210 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         var after = await store.LoadSnapshotAsync();
         Assert.Equal(1, after.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(1, after.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsAttemptOperationAndChangedProgressionMismatchWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "attempt-progression-mismatch.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var changeSet = CreateChangeSet(before.Revision, 1, ArithmeticOperation.Addition, progression =>
+            progression.OperationProgressions[ArithmeticOperation.Subtraction] =
+                new OperationProgression(ArithmeticOperation.Subtraction, 1, 1));
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsMultipleOperationProgressionMutationsWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "multiple-progression-mutations.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var changeSet = CreateChangeSet(before.Revision, 1, ArithmeticOperation.Addition, progression =>
+        {
+            progression.OperationProgressions[ArithmeticOperation.Addition] =
+                new OperationProgression(ArithmeticOperation.Addition, 1, 1);
+            progression.OperationProgressions[ArithmeticOperation.Subtraction] =
+                new OperationProgression(ArithmeticOperation.Subtraction, 1, 1);
+        });
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsOperationProgressionRegressionWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "progression-regression.db"));
+        await store.InitializeAsync();
+        var advancing = CreateChangeSet(1, 1, ArithmeticOperation.Addition, progression =>
+            progression.OperationProgressions[ArithmeticOperation.Addition] =
+                new OperationProgression(ArithmeticOperation.Addition, 1, 1));
+        Assert.True((await store.CommitSubmissionAsync(advancing)).IsSuccess);
+        var before = await store.LoadSnapshotAsync();
+        var regressing = CreateChangeSet(before.Revision, 2, ArithmeticOperation.Addition, progression =>
+            progression.OperationProgressions[ArithmeticOperation.Addition] =
+                new OperationProgression(ArithmeticOperation.Addition, 0, 0));
+
+        var result = await store.CommitSubmissionAsync(regressing);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsItemFactOperationMismatchWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "item-fact-operation-mismatch.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var subtractionFact = new ArithmeticFact(ArithmeticOperation.Subtraction, 1, 0);
+        var submissionId = Guid.NewGuid().ToString("N");
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
+        var attempt = new AttemptRecord(
+            submissionId,
+            subtractionFact.Id,
+            ArithmeticOperation.Addition,
+            subtractionFact.LeftOperand,
+            subtractionFact.RightOperand,
+            1,
+            1,
+            true,
+            true,
+            900,
+            DateTimeOffset.UtcNow,
+            practicePosition: 1);
+        var changeSet = new SubmissionChangeSet(
+            submissionId,
+            before.Revision,
+            attempt,
+            ItemLearningState.CreateNew(subtractionFact),
+            progression);
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsUnknownAttemptOperationWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "unknown-operation.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
+        var submissionId = Guid.NewGuid().ToString("N");
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
+        var attempt = new AttemptRecord(
+            submissionId,
+            fact.Id,
+            (ArithmeticOperation)999,
+            fact.LeftOperand,
+            fact.RightOperand,
+            1,
+            fact.CorrectResult,
+            true,
+            true,
+            900,
+            DateTimeOffset.UtcNow,
+            practicePosition: 1);
+        var changeSet = new SubmissionChangeSet(
+            submissionId,
+            before.Revision,
+            attempt,
+            ItemLearningState.CreateNew(fact),
+            progression);
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+        Assert.Contains("unknown", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsMissingCanonicalOperationProgressionWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "missing-operation-progression.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var changeSet = CreateChangeSet(before.Revision, 1, ArithmeticOperation.Addition, progression =>
+            progression.OperationProgressions.Remove(ArithmeticOperation.Division));
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsFsrsFactMismatchWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "fsrs-fact-mismatch.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var baseChangeSet = CreateChangeSet(before.Revision, 1, ArithmeticOperation.Addition);
+        var changeSet = new SubmissionChangeSet(
+            baseChangeSet.SubmissionId,
+            baseChangeSet.ExpectedRevision,
+            baseChangeSet.Attempt,
+            baseChangeSet.UpdatedItemState,
+            baseChangeSet.UpdatedProgression,
+            new FsrsCardState(
+                "add:9+9",
+                Guid.NewGuid(),
+                2,
+                null,
+                1.0,
+                5.0,
+                2,
+                1,
+                FsrsRating.Easy),
+            baseChangeSet.OperationProgressions);
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task SqliteStore_RejectsMathematicallyInconsistentAttemptWithoutWriting()
+    {
+        using var store = new SqliteLearnerStore(Path.Combine(_testDbDir, "attempt-semantics.db"));
+        await store.InitializeAsync();
+        var before = await store.LoadSnapshotAsync();
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 1, 1);
+        var submissionId = Guid.NewGuid().ToString("N");
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
+        var attempt = new AttemptRecord(
+            submissionId,
+            fact.Id,
+            fact.Operation,
+            fact.LeftOperand,
+            fact.RightOperand,
+            3,
+            3,
+            true,
+            true,
+            900,
+            DateTimeOffset.UtcNow,
+            practicePosition: 1);
+        var item = ItemLearningState.CreateNew(fact);
+        var changeSet = new SubmissionChangeSet(
+            submissionId,
+            before.Revision,
+            attempt,
+            item,
+            progression);
+
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        AssertInvalidAndUnchanged(result, before, await store.LoadSnapshotAsync());
     }
 
     [Fact]
