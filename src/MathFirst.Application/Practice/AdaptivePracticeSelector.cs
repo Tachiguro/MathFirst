@@ -115,7 +115,7 @@ public sealed class AdaptivePracticeSelector
             ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
             : ownedFrontier;
         var newPool = introductionFrontier
-            .Where(fact => !context.CandidateIndex.IsMaterialized(fact.Id))
+            .Where(fact => fact.Operation == operation && !context.CandidateIndex.IsMaterialized(fact.Id))
             .ToArray();
         if (band.Kind == CurriculumBandKind.Dense && newPool.Length > 0)
         {
@@ -127,7 +127,7 @@ public sealed class AdaptivePracticeSelector
                 PracticeSelectionRole.New,
                 newPool);
         }
-        var frontierPool = context.CandidateIndex.HasBoundedSemanticPools
+        var frontierPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.CurrentBandMaterializedFacts
             : ownedFrontier
                 .Where(fact => context.CandidateIndex.IsMaterialized(fact.Id))
@@ -138,9 +138,10 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
-        var duePool = context.CandidateIndex.HasBoundedSemanticPools
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
+        var duePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.DueFacts
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
@@ -151,9 +152,10 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
-        var maintenancePool = context.CandidateIndex.HasBoundedSemanticPools
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
+        var maintenancePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.MaintenanceFacts
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
@@ -166,9 +168,10 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState!.DuePracticePosition)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
-        var earlyReviewPool = context.CandidateIndex.HasBoundedSemanticPools
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
+        var earlyReviewPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.EarlyReviewFacts
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
@@ -180,8 +183,9 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.FsrsState!.DuePracticePosition)
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
-                .Select(candidate => candidate.Fact)
-                .ToArray();
+                .Select(candidate => candidate.Fact))
+            .Where(fact => fact.Operation == operation)
+            .ToArray();
 
         var pools = new Dictionary<PracticeSelectionRole, IReadOnlyList<ArithmeticFact>>
         {
@@ -256,6 +260,13 @@ public sealed class AdaptivePracticeSelector
         var (fact, relaxation) = SelectTargetCandidate(
             semanticPool,
             context.RecentAcceptedFactsOldestToNewest);
+
+        if (fact.Operation != operation)
+        {
+            throw new InvalidOperationException(
+                $"Selected target candidate {fact.Id} operation {fact.Operation} does not match scheduled operation {operation}.");
+        }
+
         var isMaterialized = context.CandidateIndex.IsMaterialized(fact.Id);
         var isNewIntroduction = resolvedRole == PracticeSelectionRole.New && !isMaterialized;
 

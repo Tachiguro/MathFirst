@@ -61,6 +61,43 @@ public sealed record PracticeSelectionCandidate(
 
 public sealed class PracticeSelectionEvidence
 {
+    public ArithmeticOperation? Operation { get; }
+    public long ProspectivePracticePosition { get; }
+
+    public PracticeSelectionEvidence(
+        ArithmeticOperation operation,
+        long prospectivePracticePosition,
+        IEnumerable<PracticeSelectionCandidate> currentBandCandidates,
+        IEnumerable<PracticeSelectionCandidate> dueCandidates,
+        IEnumerable<PracticeSelectionCandidate> maintenanceCandidates,
+        IEnumerable<PracticeSelectionCandidate> remediationCandidates,
+        IEnumerable<PracticeSelectionCandidate> earlyReviewCandidates)
+    {
+        if (prospectivePracticePosition <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(prospectivePracticePosition),
+                prospectivePracticePosition,
+                "Prospective practice position must be positive.");
+        }
+
+        Operation = operation;
+        ProspectivePracticePosition = prospectivePracticePosition;
+        CurrentBandCandidates = Copy(currentBandCandidates, operation, nameof(currentBandCandidates));
+        DueCandidates = Copy(dueCandidates, operation, nameof(dueCandidates));
+        MaintenanceCandidates = Copy(maintenanceCandidates, operation, nameof(maintenanceCandidates));
+        RemediationCandidates = Copy(remediationCandidates, operation, nameof(remediationCandidates));
+        EarlyReviewCandidates = Copy(earlyReviewCandidates, operation, nameof(earlyReviewCandidates));
+
+        if (DueCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
+            || MaintenanceCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
+            || RemediationCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
+            || EarlyReviewCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize)
+        {
+            throw new ArgumentException("Open-ended practice-selection candidate windows must be bounded.");
+        }
+    }
+
     public PracticeSelectionEvidence(
         IEnumerable<PracticeSelectionCandidate> currentBandCandidates,
         IEnumerable<PracticeSelectionCandidate> dueCandidates,
@@ -68,11 +105,13 @@ public sealed class PracticeSelectionEvidence
         IEnumerable<PracticeSelectionCandidate> remediationCandidates,
         IEnumerable<PracticeSelectionCandidate> earlyReviewCandidates)
     {
-        CurrentBandCandidates = Copy(currentBandCandidates, nameof(currentBandCandidates));
-        DueCandidates = Copy(dueCandidates, nameof(dueCandidates));
-        MaintenanceCandidates = Copy(maintenanceCandidates, nameof(maintenanceCandidates));
-        RemediationCandidates = Copy(remediationCandidates, nameof(remediationCandidates));
-        EarlyReviewCandidates = Copy(earlyReviewCandidates, nameof(earlyReviewCandidates));
+        Operation = null;
+        ProspectivePracticePosition = 1;
+        CurrentBandCandidates = Copy(currentBandCandidates, null, nameof(currentBandCandidates));
+        DueCandidates = Copy(dueCandidates, null, nameof(dueCandidates));
+        MaintenanceCandidates = Copy(maintenanceCandidates, null, nameof(maintenanceCandidates));
+        RemediationCandidates = Copy(remediationCandidates, null, nameof(remediationCandidates));
+        EarlyReviewCandidates = Copy(earlyReviewCandidates, null, nameof(earlyReviewCandidates));
 
         if (DueCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
             || MaintenanceCandidates.Count > PracticeSelectionEvidenceRequest.CandidateWindowSize
@@ -174,6 +213,8 @@ public sealed class PracticeSelectionEvidence
             .ToArray();
 
         return new PracticeSelectionEvidence(
+            request.Operation,
+            request.ProspectivePracticePosition,
             currentBandCandidates,
             dueCandidates,
             maintenanceCandidates,
@@ -183,16 +224,18 @@ public sealed class PracticeSelectionEvidence
 
     private static IReadOnlyList<PracticeSelectionCandidate> Copy(
         IEnumerable<PracticeSelectionCandidate> candidates,
+        ArithmeticOperation? operation,
         string parameterName)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         var copied = candidates.ToArray();
         if (copied.Any(candidate => candidate is null
+                || (operation.HasValue && (candidate.Fact.Operation != operation.Value || candidate.ItemState.Operation != operation.Value))
                 || candidate.ItemState.FactId != candidate.Fact.Id
                 || (candidate.FsrsState is not null && candidate.FsrsState.FactId != candidate.Fact.Id))
             || copied.Select(candidate => candidate.Fact.Id).Distinct(StringComparer.Ordinal).Count() != copied.Length)
         {
-            throw new ArgumentException("Selection candidates must be unique and internally consistent.", parameterName);
+            throw new ArgumentException("Selection candidates must be unique, internally consistent, and belong to the evidence operation.", parameterName);
         }
 
         return Array.AsReadOnly(copied);

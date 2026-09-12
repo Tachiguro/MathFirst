@@ -126,16 +126,34 @@ public sealed class PracticeCandidateIndex
             evidence.ItemStates,
             evidence.FsrsStates)
     {
-        CurrentBandMaterializedFacts = evidence.CurrentBandCandidates.Select(candidate => candidate.Fact).ToArray();
-        DueFacts = evidence.DueCandidates.Select(candidate => candidate.Fact).ToArray();
-        MaintenanceFacts = evidence.MaintenanceCandidates.Select(candidate => candidate.Fact).ToArray();
-        RemediationCandidates = evidence.RemediationCandidates
+        CurrentBandMaterializedFacts = (evidence.Operation.HasValue
+            ? evidence.CurrentBandCandidates.Where(candidate => candidate.Fact.Operation == evidence.Operation.Value)
+            : evidence.CurrentBandCandidates)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
+        DueFacts = (evidence.Operation.HasValue
+            ? evidence.DueCandidates.Where(candidate => candidate.Fact.Operation == evidence.Operation.Value)
+            : evidence.DueCandidates)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
+        MaintenanceFacts = (evidence.Operation.HasValue
+            ? evidence.MaintenanceCandidates.Where(candidate => candidate.Fact.Operation == evidence.Operation.Value)
+            : evidence.MaintenanceCandidates)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
+        RemediationCandidates = (evidence.Operation.HasValue
+            ? evidence.RemediationCandidates.Where(candidate => candidate.Fact.Operation == evidence.Operation.Value)
+            : evidence.RemediationCandidates)
             .Select(candidate => new IndexedPracticeCandidate(
                 candidate.Fact,
                 candidate.ItemState,
                 candidate.FsrsState))
             .ToArray();
-        EarlyReviewFacts = evidence.EarlyReviewCandidates.Select(candidate => candidate.Fact).ToArray();
+        EarlyReviewFacts = (evidence.Operation.HasValue
+            ? evidence.EarlyReviewCandidates.Where(candidate => candidate.Fact.Operation == evidence.Operation.Value)
+            : evidence.EarlyReviewCandidates)
+            .Select(candidate => candidate.Fact)
+            .ToArray();
         HasBoundedSemanticPools = true;
     }
 

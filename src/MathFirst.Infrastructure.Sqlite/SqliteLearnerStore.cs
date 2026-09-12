@@ -451,7 +451,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
                      item.fact_id ASC
             LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
 
-        return new PracticeSelectionEvidence(currentBand, due, maintenance, remediation, earlyReview);
+        return new PracticeSelectionEvidence(
+            request.Operation,
+            request.ProspectivePracticePosition,
+            currentBand,
+            due,
+            maintenance,
+            remediation,
+            earlyReview);
     }
 
     public async Task<PersistenceResult> CommitSubmissionAsync(
