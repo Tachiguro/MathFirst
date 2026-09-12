@@ -132,7 +132,7 @@
 
             @if (!string.IsNullOrEmpty(_practiceMessage))
             {
-                <p class="setting-feedback setting-feedback-success" role="status">
+                <p class="setting-feedback @(_practiceMessageIsError ? "setting-feedback-error" : "setting-feedback-success")" role="status">
                     @_practiceMessage
                 </p>
             }
@@ -349,6 +349,7 @@
     private string? _languageMessage;
     private string? _appearanceMessage;
     private string? _practiceMessage;
+    private bool _practiceMessageIsError;
     private string? _keypadMessage;
     private string? _resetFeedbackMessage;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
@@ -407,6 +408,7 @@
         _languageMessage = Localizer["Settings_LanguageChangedTo", displayName];
         _appearanceMessage = null;
         _practiceMessage = null;
+        _practiceMessageIsError = false;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
@@ -423,31 +425,35 @@
         _appearanceMessage = Localizer["Settings_AppearanceChangedTo", displayName];
         _languageMessage = null;
         _practiceMessage = null;
+        _practiceMessageIsError = false;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
 
     private void ToggleOperation(ArithmeticOperation operation)
     {
-        var currentlyEnabled = _enabledOperations.Contains(operation);
-        if (currentlyEnabled && _enabledOperations.Count == 1)
+        if (!PracticeOperationPreferencePolicy.CanToggleOperationOff(_enabledOperations, operation))
         {
             // Enforce minimum 1 operation rule: cannot disable the last active operation
             return;
         }
 
-        var nextState = !currentlyEnabled;
-        if (nextState)
+        try
         {
-            _enabledOperations.Add(operation);
+            if (PracticeOperationPreferenceCoordinator.TryToggleOperation(PreferenceStore, _enabledOperations, operation, out var resulting))
+            {
+                _enabledOperations = new HashSet<ArithmeticOperation>(resulting);
+                _practiceMessage = Localizer["Settings_OperationsChanged"];
+                _practiceMessageIsError = false;
+            }
         }
-        else
+        catch
         {
-            _enabledOperations.Remove(operation);
+            _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+            _practiceMessage = Localizer["Settings_SaveFailed"];
+            _practiceMessageIsError = true;
         }
 
-        PreferenceStore.SetOperationEnabled(operation, nextState);
-        _practiceMessage = Localizer["Settings_OperationsChanged"];
         _languageMessage = null;
         _appearanceMessage = null;
         _keypadMessage = null;
@@ -456,16 +462,28 @@
 
     private void SelectPracticeTime(PracticeTimeSetting setting)
     {
-        _selectedPracticeTime = PracticeTimePreferencePolicy.Normalize(setting);
-        PreferenceStore.SetPracticeTimeSetting(_selectedPracticeTime);
-        var displayName = _selectedPracticeTime switch
+        var normalized = PracticeTimePreferencePolicy.Normalize(setting);
+        try
         {
-            PracticeTimeSetting.Seconds30 => Localizer["PracticeTime_30s"],
-            PracticeTimeSetting.Seconds45 => Localizer["PracticeTime_45s"],
-            PracticeTimeSetting.Seconds60 => Localizer["PracticeTime_60s"],
-            _ => Localizer["PracticeTime_Standard"]
-        };
-        _practiceMessage = Localizer["Settings_PracticeTimeChangedTo", displayName];
+            PreferenceStore.SetPracticeTimeSetting(normalized);
+            _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
+            var displayName = _selectedPracticeTime switch
+            {
+                PracticeTimeSetting.Seconds30 => Localizer["PracticeTime_30s"],
+                PracticeTimeSetting.Seconds45 => Localizer["PracticeTime_45s"],
+                PracticeTimeSetting.Seconds60 => Localizer["PracticeTime_60s"],
+                _ => Localizer["PracticeTime_Standard"]
+            };
+            _practiceMessage = Localizer["Settings_PracticeTimeChangedTo", displayName];
+            _practiceMessageIsError = false;
+        }
+        catch
+        {
+            _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
+            _practiceMessage = Localizer["Settings_SaveFailed"];
+            _practiceMessageIsError = true;
+        }
+
         _languageMessage = null;
         _appearanceMessage = null;
         _keypadMessage = null;

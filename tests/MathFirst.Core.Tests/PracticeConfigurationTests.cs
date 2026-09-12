@@ -179,6 +179,161 @@ public sealed class PracticeConfigurationTests
             store.GetEnabledOperations());
     }
 
+    [Fact]
+    public void OperationPersistence_DisableThreeOperations_PersistsAdditionOnlySuccessfully()
+    {
+        var store = new InMemoryPreferenceStore();
+
+        // 1. Begin with all four enabled
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Division));
+        Assert.Equal(PracticeOperationPreferencePolicy.AllOperations, store.GetEnabledOperations());
+
+        // 2. Disable Subtraction
+        store.SetOperationEnabled(ArithmeticOperation.Subtraction, false);
+        // 3. Disable Multiplication
+        store.SetOperationEnabled(ArithmeticOperation.Multiplication, false);
+        // 4. Disable Division
+        store.SetOperationEnabled(ArithmeticOperation.Division, false);
+
+        // 5. Verify final persisted state is exactly: Addition=true, others=false
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Division));
+
+        // 6. Re-read configuration from the persistence authority
+        var enabled = store.GetEnabledOperations();
+
+        // 7. Verify normalized enabled set is exactly Addition
+        Assert.Single(enabled);
+        Assert.Equal(ArithmeticOperation.Addition, enabled[0]);
+
+        // 8. Verify no fallback to all operations occurs
+        Assert.NotEqual(4, enabled.Count);
+    }
+
+    [Theory]
+    [InlineData(ArithmeticOperation.Addition)]
+    [InlineData(ArithmeticOperation.Subtraction)]
+    [InlineData(ArithmeticOperation.Multiplication)]
+    [InlineData(ArithmeticOperation.Division)]
+    public void OperationPersistence_AllFourSingleOperationConfigurations_PersistAndNormalizeCorrectly(
+        ArithmeticOperation singleEnabledOp)
+    {
+        var store = new InMemoryPreferenceStore();
+
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            store.SetOperationEnabled(op, op == singleEnabledOp);
+        }
+
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(op == singleEnabledOp, store.GetOperationEnabled(op));
+        }
+
+        var enabled = store.GetEnabledOperations();
+        Assert.Single(enabled);
+        Assert.Equal(singleEnabledOp, enabled[0]);
+    }
+
+    [Fact]
+    public void OperationPersistence_CorruptAllFalsePersistedState_RecoversToAllFourOperations()
+    {
+        var store = new InMemoryPreferenceStore();
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            store.SetOperationEnabled(op, false);
+        }
+
+        // When all 4 are persisted as false, reading normalized config safely recovers to all 4
+        var enabled = store.GetEnabledOperations();
+        Assert.Equal(4, enabled.Count);
+        Assert.Equal(PracticeOperationPreferencePolicy.AllOperations, enabled);
+    }
+
+    [Fact]
+    public void SettingsOrchestration_ToggleFlow_SyncsPreferenceStoreAndUiState()
+    {
+        var store = new InMemoryPreferenceStore();
+        var uiEnabled = new HashSet<ArithmeticOperation>(store.GetEnabledOperations());
+        Assert.Equal(4, uiEnabled.Count);
+
+        // Disable Subtraction via orchestration helper
+        var toggled = PracticeOperationPreferenceCoordinator.TryToggleOperation(
+            store, uiEnabled, ArithmeticOperation.Subtraction, out var resulting);
+        Assert.True(toggled);
+        uiEnabled = new HashSet<ArithmeticOperation>(resulting);
+        Assert.Equal([ArithmeticOperation.Addition, ArithmeticOperation.Multiplication, ArithmeticOperation.Division], resulting);
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
+
+        // Disable Multiplication
+        toggled = PracticeOperationPreferenceCoordinator.TryToggleOperation(
+            store, uiEnabled, ArithmeticOperation.Multiplication, out resulting);
+        Assert.True(toggled);
+        uiEnabled = new HashSet<ArithmeticOperation>(resulting);
+        Assert.Equal([ArithmeticOperation.Addition, ArithmeticOperation.Division], resulting);
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+
+        // Disable Division -> Addition only remains
+        toggled = PracticeOperationPreferenceCoordinator.TryToggleOperation(
+            store, uiEnabled, ArithmeticOperation.Division, out resulting);
+        Assert.True(toggled);
+        uiEnabled = new HashSet<ArithmeticOperation>(resulting);
+        Assert.Equal([ArithmeticOperation.Addition], resulting);
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Division));
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+
+        // Attempting to disable Addition (the last remaining operation) is blocked
+        toggled = PracticeOperationPreferenceCoordinator.TryToggleOperation(
+            store, uiEnabled, ArithmeticOperation.Addition, out resulting);
+        Assert.False(toggled);
+        Assert.Equal([ArithmeticOperation.Addition], resulting);
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+    }
+
+    private sealed class ThrowingPreferenceStore : IPreferenceStore
+    {
+        public bool ThrowOnWrite { get; set; } = true;
+        public bool GetOnboardingCompleted() => true;
+        public void SetOnboardingCompleted(bool completed) { }
+        public ThemePreference GetThemePreference() => ThemePreference.System;
+        public void SetThemePreference(ThemePreference preference) { }
+        public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;
+        public void SetNumericKeypadLayout(NumericKeypadLayout layout) { }
+        public string GetLanguagePreference() => "system";
+        public void SetLanguagePreference(string languageCode) { }
+        public bool GetOperationEnabled(ArithmeticOperation operation) => true;
+        public void SetOperationEnabled(ArithmeticOperation operation, bool enabled)
+        {
+            if (ThrowOnWrite) throw new InvalidOperationException("Storage unavailable.");
+        }
+        public IReadOnlyList<ArithmeticOperation> GetEnabledOperations() => PracticeOperationPreferencePolicy.AllOperations;
+        public PracticeTimeSetting GetPracticeTimeSetting() => PracticeTimeSetting.Standard;
+        public void SetPracticeTimeSetting(PracticeTimeSetting setting) { }
+        public void ResetPracticePreferences() { }
+        public void ResetAllPreferences() { }
+    }
+
+    [Fact]
+    public void SettingsOrchestration_PersistenceFailure_ThrowsAndPreservesStoreState()
+    {
+        var throwingStore = new ThrowingPreferenceStore();
+        var uiEnabled = new HashSet<ArithmeticOperation>(throwingStore.GetEnabledOperations());
+
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            PracticeOperationPreferenceCoordinator.TryToggleOperation(
+                throwingStore, uiEnabled, ArithmeticOperation.Subtraction, out _);
+        });
+
+        // Authoritative store state remains intact
+        Assert.Equal(PracticeOperationPreferencePolicy.AllOperations, throwingStore.GetEnabledOperations());
+    }
+
     // ============================================================
     // 2. Deterministic Enabled-Subset Scheduling Tests
     // ============================================================
@@ -305,6 +460,47 @@ public sealed class PracticeConfigurationTests
             session.Progression.PracticePosition + 1,
             prefStore.GetEnabledOperations());
         Assert.Contains(nextOp, prefStore.GetEnabledOperations());
+    }
+
+    [Theory]
+    [InlineData(ArithmeticOperation.Addition)]
+    [InlineData(ArithmeticOperation.Subtraction)]
+    [InlineData(ArithmeticOperation.Multiplication)]
+    [InlineData(ArithmeticOperation.Division)]
+    public async Task SingleOperation_EachOfFourOperations_OnlySelectsThatOperationAndPreservesOtherProgressions(
+        ArithmeticOperation singleOp)
+    {
+        var store = new RecordingStore();
+        var prefStore = new InMemoryPreferenceStore();
+
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            prefStore.SetOperationEnabled(op, op == singleOp);
+        }
+
+        var session = new TrainingSession(store, preferenceStore: prefStore);
+        await session.InitializeAsync();
+
+        // Run 15 submissions with only the single operation enabled
+        for (var i = 0; i < 15; i++)
+        {
+            var fact = session.CurrentFact;
+            Assert.Equal(singleOp, fact.Operation);
+
+            session.SubmitAnswer(fact.CorrectResult);
+            await session.CommitCurrentEvaluationAsync();
+            session.AdvanceAfterCorrectAnswer();
+        }
+
+        // Verify disabled operations' progressions remain untouched at band 0
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            if (op != singleOp)
+            {
+                Assert.Equal(0, session.Progression.OperationProgressions[op].BandIndex);
+                Assert.Equal(0, session.Progression.OperationProgressions[op].BandStartedPracticePosition);
+            }
+        }
     }
 
     // ============================================================
