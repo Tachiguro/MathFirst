@@ -260,6 +260,212 @@ public sealed class AnswerEntryReliabilityTests
         Assert.Contains("_inputRenderVersion++", body, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Home_TakeBreakAsync_MustInvalidateInputRenderVersion_AndClearAnswerInput()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var homeContent = File.ReadAllText(homePath);
+
+        var match = Regex.Match(
+            homeContent,
+            @"private\s+async\s+Task\s+TakeBreakAsync\s*\(\)\s*\{(?<body>.*?)\}",
+            RegexOptions.Singleline);
+
+        Assert.True(match.Success, "TakeBreakAsync method was not found in Home.razor.");
+        var body = match.Groups["body"].Value;
+
+        Assert.Contains("_inputRenderVersion++", body, StringComparison.Ordinal);
+        Assert.Contains("_answerInput = string.Empty", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_SyncStateWithSession_MustTrackFactInstanceRevision()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var homeContent = File.ReadAllText(homePath);
+
+        Assert.Contains("FactInstanceRevision", homeContent, StringComparison.Ordinal);
+        Assert.Contains("CurrentAnswerInput", homeContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SessionCheckIn_TakeBreak_ThenStart_ProducesEmptyAnswerInput_AndAdvancesFactInstance()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        for (var i = 0; i < 19; i++)
+        {
+            var fact = session.CurrentFact;
+            session.SetCurrentAnswerInput(fact.CorrectResult.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            session.SubmitAnswer(fact.CorrectResult);
+            await session.CommitCurrentEvaluationAsync();
+            Assert.True(session.AdvanceAfterCorrectAnswer());
+        }
+
+        var fact20 = session.CurrentFact;
+        session.SetCurrentAnswerInput(fact20.CorrectResult.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        session.SubmitAnswer(fact20.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.False(session.AdvanceAfterCorrectAnswer());
+        Assert.NotNull(session.PendingCheckIn);
+        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+
+        var revisionBeforeBreak = session.FactInstanceRevision;
+        await session.TakeBreakAsync();
+
+        Assert.Equal(PracticeGateState.ManualPause, session.PracticeGate);
+        Assert.True(session.FactInstanceRevision > revisionBeforeBreak);
+        Assert.Equal(string.Empty, session.CurrentAnswerInput);
+
+        session.StartOrResumePractice();
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+        Assert.Equal(string.Empty, session.CurrentAnswerInput);
+    }
+
+    [Fact]
+    public async Task SessionCheckIn_ContinuePractice_ProducesEmptyAnswerInput_AndAdvancesFactInstance()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        for (var i = 0; i < 19; i++)
+        {
+            var fact = session.CurrentFact;
+            session.SetCurrentAnswerInput(fact.CorrectResult.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            session.SubmitAnswer(fact.CorrectResult);
+            await session.CommitCurrentEvaluationAsync();
+            Assert.True(session.AdvanceAfterCorrectAnswer());
+        }
+
+        var fact20 = session.CurrentFact;
+        session.SetCurrentAnswerInput(fact20.CorrectResult.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        session.SubmitAnswer(fact20.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.False(session.AdvanceAfterCorrectAnswer());
+        Assert.NotNull(session.PendingCheckIn);
+
+        var revisionBeforeContinue = session.FactInstanceRevision;
+        await session.ContinuePracticeAsync();
+
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+        Assert.True(session.FactInstanceRevision > revisionBeforeContinue);
+        Assert.Equal(string.Empty, session.CurrentAnswerInput);
+    }
+
+    [Fact]
+    public async Task NormalNextFact_AdvancesFactInstance_AndClearsAnswerInput()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var initialRevision = session.FactInstanceRevision;
+        session.SetCurrentAnswerInput("4");
+        Assert.Equal("4", session.CurrentAnswerInput);
+
+        var fact = session.CurrentFact;
+        session.SubmitAnswer(fact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.True(session.AdvanceAfterCorrectAnswer());
+
+        Assert.True(session.FactInstanceRevision > initialRevision);
+        Assert.Equal(string.Empty, session.CurrentAnswerInput);
+    }
+
+    [Fact]
+    public async Task ManualPause_AndResume_OnSameFact_PreservesUnsubmittedAnswerInput()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var revision = session.FactInstanceRevision;
+        session.SetCurrentAnswerInput("1");
+        Assert.Equal("1", session.CurrentAnswerInput);
+
+        session.PausePractice();
+        Assert.Equal(PracticeGateState.ManualPause, session.PracticeGate);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("1", session.CurrentAnswerInput);
+
+        session.StartOrResumePractice();
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("1", session.CurrentAnswerInput);
+    }
+
+    [Fact]
+    public async Task SettingsRoundTrip_OnSameFact_PreservesUnsubmittedAnswerInput()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var revision = session.FactInstanceRevision;
+        session.SetCurrentAnswerInput("2");
+        Assert.Equal("2", session.CurrentAnswerInput);
+
+        session.PauseItemTiming();
+        Assert.False(session.IsPracticeSurfaceActive);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("2", session.CurrentAnswerInput);
+
+        session.ResumeItemTiming();
+        Assert.True(session.IsPracticeSurfaceActive);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("2", session.CurrentAnswerInput);
+    }
+
+    [Fact]
+    public async Task AppBackground_AndForeground_OnSameFact_PreservesUnsubmittedAnswerInput()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var revision = session.FactInstanceRevision;
+        session.SetCurrentAnswerInput("3");
+        Assert.Equal("3", session.CurrentAnswerInput);
+
+        session.SetAppForeground(false);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("3", session.CurrentAnswerInput);
+
+        session.SetAppForeground(true);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("3", session.CurrentAnswerInput);
+    }
+
+    [Fact]
+    public async Task SameArithmeticOperands_InConsecutiveExercise_StillYieldsFreshFactInstanceAndEmptyInput()
+    {
+        var clock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var fact1 = session.CurrentFact;
+        session.SetCurrentAnswerInput(fact1.CorrectResult.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var rev1 = session.FactInstanceRevision;
+
+        session.SubmitAnswer(fact1.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        session.AdvanceAfterCorrectAnswer();
+
+        var rev2 = session.FactInstanceRevision;
+        Assert.True(rev2 > rev1, "Consecutive exercise instance MUST have monotonically increasing FactInstanceRevision.");
+        Assert.Equal(string.Empty, session.CurrentAnswerInput);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();

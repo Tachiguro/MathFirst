@@ -23,6 +23,7 @@ public sealed class TrainingSession
     private PracticeGateState _practiceGateState = PracticeGateState.Running;
     private long _practiceGateActivationRevision;
     private long _learnerStateGenerationRevision;
+    private long _factInstanceRevision;
     private bool _requiresBackgroundResumeAfterAdvance;
     private int _sessionCorrectCountBeforePendingEvaluation;
     private int _sessionTotalCountBeforePendingEvaluation;
@@ -77,6 +78,18 @@ public sealed class TrainingSession
     /// this session object. This transient lifecycle metadata is not persisted.
     /// </summary>
     public long LearnerStateGenerationRevision => _learnerStateGenerationRevision;
+    /// <summary>
+    /// Monotonic identity for the current arithmetic exercise instance in this session.
+    /// Increments on every transition to a new fact. This transient presentation lifecycle
+    /// metadata is not persisted.
+    /// </summary>
+    public long FactInstanceRevision => _factInstanceRevision;
+    /// <summary>
+    /// In-progress unsubmitted answer text for the active fact instance.
+    /// Preserved across temporary pauses or Settings navigation for the same fact,
+    /// and reset to empty whenever a new fact instance begins.
+    /// </summary>
+    public string CurrentAnswerInput { get; private set; } = string.Empty;
     public bool IsInitialized { get; private set; }
     public bool IsCurrentSubmissionCommitted { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
@@ -86,6 +99,16 @@ public sealed class TrainingSession
     {
         ArgumentNullException.ThrowIfNull(factId);
         return _sessionConsecutiveErrors.GetValueOrDefault(factId, 0);
+    }
+
+    public void SetCurrentAnswerInput(string? input)
+    {
+        CurrentAnswerInput = input ?? string.Empty;
+    }
+
+    public void ClearCurrentAnswerInput()
+    {
+        CurrentAnswerInput = string.Empty;
     }
 
     public bool AcknowledgeTeachingIntervention(bool startTiming = true)
@@ -255,6 +278,7 @@ public sealed class TrainingSession
         LastPersistenceResult = null;
         _requiresBackgroundResumeAfterAdvance = false;
         IsInitialized = true;
+        CurrentAnswerInput = string.Empty;
 
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming);
@@ -854,6 +878,7 @@ public sealed class TrainingSession
         LastEvaluation = null;
         LastPersistenceResult = null;
         IsCurrentSubmissionCommitted = false;
+        CurrentAnswerInput = string.Empty;
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming: true);
     }
@@ -883,6 +908,8 @@ public sealed class TrainingSession
         IsCurrentSubmissionCommitted = false;
 
         SessionOrderCounter++;
+        _factInstanceRevision++;
+        CurrentAnswerInput = string.Empty;
         var practiceTimeSetting = GetCurrentPracticeTimeSetting();
         var context = new PracticeSelectionContext(
             prospectivePosition,
@@ -1033,6 +1060,7 @@ public sealed class TrainingSession
         LastPersistenceResult = null;
         IsCurrentSubmissionCommitted = false;
         _requiresBackgroundResumeAfterAdvance = false;
+        CurrentAnswerInput = string.Empty;
         await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(shouldStartTiming);
     }

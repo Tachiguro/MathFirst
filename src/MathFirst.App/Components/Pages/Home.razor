@@ -312,6 +312,7 @@
     private string? _submittedAnswerDisplay;
     private NumericKeypadLayout _keypadLayout = NumericKeypadLayout.Numpad;
     private int _inputRenderVersion;
+    private long _lastPreparedFactInstanceRevision = -1;
     private int _guardedInputRenderVersion = -1;
     private bool _isSubmitting;
     private ElementReference _inputElement;
@@ -348,6 +349,22 @@
 
     private void SyncStateWithSession()
     {
+        if (Session.IsInitialized && Session.CurrentFact is not null)
+        {
+            if (Session.FactInstanceRevision != _lastPreparedFactInstanceRevision)
+            {
+                _lastPreparedFactInstanceRevision = Session.FactInstanceRevision;
+                _inputRenderVersion++;
+                _answerInput = Session.CurrentAnswerInput;
+                _submittedAnswerDisplay = null;
+                _validationError = null;
+            }
+            else
+            {
+                _answerInput = Session.CurrentAnswerInput;
+            }
+        }
+
         if (Session.InteractionState == SessionInteractionState.AwaitingAnswer)
         {
             if (Session.PracticeGate == PracticeGateState.Running)
@@ -494,6 +511,7 @@
         if (NumericAnswerInputPolicy.IsValidEdit(proposedValue))
         {
             _answerInput = proposedValue!;
+            Session.SetCurrentAnswerInput(_answerInput);
             _validationError = null;
             await TryAutoSubmitAsync();
             return;
@@ -543,6 +561,7 @@
         _answerInput = key == "backspace"
             ? NumericAnswerInputPolicy.Backspace(_answerInput)
             : NumericAnswerInputPolicy.Append(_answerInput, key);
+        Session.SetCurrentAnswerInput(_answerInput);
         _validationError = null;
         _shouldFocusInput = true;
         if (key != "backspace")
@@ -789,8 +808,10 @@
 
     private void PrepareNextFactUi()
     {
+        _lastPreparedFactInstanceRevision = Session.FactInstanceRevision;
         _inputRenderVersion++;
         _answerInput = string.Empty;
+        Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
         SyncPracticeGateCopy();
@@ -832,6 +853,12 @@
     private async Task TakeBreakAsync()
     {
         await Session.TakeBreakAsync();
+        _lastPreparedFactInstanceRevision = Session.FactInstanceRevision;
+        _inputRenderVersion++;
+        _answerInput = string.Empty;
+        Session.ClearCurrentAnswerInput();
+        _submittedAnswerDisplay = null;
+        _validationError = null;
         StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
