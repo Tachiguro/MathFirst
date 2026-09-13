@@ -71,8 +71,9 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) — complete and merged through Pull Request #15.
 7. Deliver acclimation timing, rapid dense expansion, and keypad defaults (`MF-LEARN-003`) — complete and merged through Pull Request #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
 8. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — complete and merged through Pull Request #17 at `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`.
-9. Practice Configuration: Operation Selection and Adjustable Practice Time (`MF-SET-001`) — implementation complete and reviewed (`REVIEW_PASS`, Implementation Readiness: YES) at final implementation HEAD `f453501412b7c9fce39356a0837a5b862d6221fd` across 10 commits, with 1037 Core tests passing and Windows/Android Release builds at 0 warnings and 0 errors. Physical Android device validation was completed and confirmed on debug APK `MathFirst-MF-SET-001-f453501-debug.apk` (SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`). Documentation reconciliation is in progress under `DOCUMENT_ONLY`, after which `COMMIT_ONLY` is next. The feature branch is unpushed, has no PR, and is not merged. Future child accounts, multi-user profiles, and parental controls remain separate scope outside MF-SET-001.
-10. Complete final exact-candidate Native V1 validation.
-11. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
-12. Perform separately authorized final real-device verification.
-13. Make a separate later decision about Google Play upload.
+9. Practice Configuration: Operation Selection and Adjustable Practice Time (`MF-SET-001`) — complete and merged through Pull Request #18 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`. Implementation completed across 10 commits with 1037 Core tests passing, clean Windows and Android Release builds (0 warnings / 0 errors), and confirmed manual validation on a physical Android device. Future child accounts, multi-user profiles, and parental controls remain separate scope outside MF-SET-001.
+10. Reconcile post-merge project state and V1 baseline documentation (`MF-DOC-003`) — active documentation package establishing the accurate documentation baseline on `main` before final candidate verification.
+11. Complete final exact-candidate Native V1 validation.
+12. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
+13. Perform separately authorized final real-device verification.
+14. Make a separate later decision about Google Play upload.

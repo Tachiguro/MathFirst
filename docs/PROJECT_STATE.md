@@ -8,7 +8,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 - **Project Name**: MathFirst
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
-- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, `MF-LEARN-002`, `MF-LEARN-003`, and `MF-REL-001` are complete and merged into `main` (`MF-REL-001` merged through PR #17 at `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`). `MF-SET-001` completed implementation on branch `feat/mf-set-001-practice-configuration` at `f453501412b7c9fce39356a0837a5b862d6221fd`, passed final review (`REVIEW_PASS`, Implementation Readiness: YES), completed user-confirmed physical Android validation, and is undergoing `DOCUMENT_ONLY` reconciliation. It is unpushed, has no Pull Request, and is not merged.
+- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, `MF-LEARN-002`, `MF-LEARN-003`, `MF-REL-001`, and `MF-SET-001` are complete and merged into `main` (`MF-SET-001` merged through PR #18 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`). `MF-DOC-003` is the active documentation-only reconciliation package on branch `docs/mf-doc-003-v1-baseline-reconciliation`, establishing the durable project documentation baseline before final exact-candidate Native V1 validation.
 
 ---
 
@@ -93,20 +93,15 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 ---
 
-## 6. Current Feature Candidate State
+## 6. Current Active Package State (MF-DOC-003)
 
-- **Active candidate branch**: `feat/mf-set-001-practice-configuration` on base commit `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`.
-- **Current candidate HEAD**: `f453501412b7c9fce39356a0837a5b862d6221fd` (parent `694b2e6b677b0f327f79f58ce5966871cd2b69ce`).
-- **Local commit state**: 10 forward-only commits ahead of `main` (`e18dae5`, `dc402c3`, `8772d56`, `9cd173c`, `98a6468`, `3b5caac`, `4e18eee`, `a658d95`, `694b2e6`, `f453501`). Feature branch is unpushed, has no MF-SET-001 Pull Request, and is not merged.
-- **Implementation & Review State**:
-  - Implemented answer entry reliability, operation selection in Settings and fresh-install Onboarding, returning learner progress presentation, session check-in 20-attempt summaries, enabled-only HUD visibility, practice-time floors, active-only timer lifecycle, schedule-agnostic SQLite persistence, scoped evidence loading, exactly-once post-write recovery, and strict answer-input lifecycle management; removed the Settings Statistics / Diagnostics section without deleting learner data.
-  - Consolidated review outcome: `REVIEW_PASS` (Implementation Readiness: YES).
-  - Final Core suite: 1037 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
-  - Compilation: Android and Windows Release builds compile with 0 warnings, 0 errors.
-  - Android validation artifact: `C:\Dev\MathFirstArtifacts\MF-SET-001\MathFirst-MF-SET-001-f453501-debug.apk`, SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`, provenance `f453501412b7c9fce39356a0837a5b862d6221fd`, package ID `com.tachiguro.mathfirst`, versionCode 1, versionName 1.0. This Debug APK is not a production Google Play artifact.
-  - Completed user validation on a physical Android device confirming correct input clearing on new exercise after break, partial input preservation on same exercise, lifecycle timing, and practice UI flows.
-- **Active operation mode**: `DOCUMENT_ONLY` documentation reconciliation.
-- **Next lifecycle steps**: `COMMIT_ONLY` staging and commit creation, followed by exact-candidate `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual merge, and `POST_MERGE_SYNC_ONLY`.
+- **Active package**: `MF-DOC-003` — **Post-Merge Project State and V1 Baseline Reconciliation**
+- **Active candidate branch**: `docs/mf-doc-003-v1-baseline-reconciliation` on base commit `a051518420db3b45f8ca1074bac27e9b4d1b799d`.
+- **Package type**: `Documentation`.
+- **Purpose**: Reconcile repository documentation after the completed merge of `MF-SET-001` to establish an accurate documentation baseline before final exact-candidate Native V1 validation.
+- **Current lifecycle**: `DOCUMENT_ONLY` (reconciling documentation).
+- **Next lifecycle steps**: `REVIEW_ONLY` consolidated review, followed by `COMMIT_ONLY`, `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
+- **Downstream roadmap boundaries**: Final exact-candidate Native V1 validation (Phase 6 Item 10), production Distributable AAB packaging and signing (Item 11), final real-device verification (Item 12), and Google Play release decisions (Item 13) remain separate subsequent lifecycle steps.
 
 ---
 
@@ -122,7 +117,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - MF-LEARN-002 was merged to `main` through Pull Request #15 on 2026-09-11 at `b2c5a43707167d5f6720d66834ebbbd3c6ede1d1` (head `1efc34c09c3611ff221204966104eb99ec03c7a3`), adding Schema V6 persistence, adaptive pace & answer deadlines, adaptive fluency mapping, fast acquisition for dense bands, role-specific selector chains, repeated-error teaching overlay, session check-ins with zero-timing pause semantics, and clean practice HUD, verified with 708 passing Core tests and clean post-merge synchronization.
 - MF-LEARN-003 was merged to `main` through Pull Request #16 on 2026-09-11 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`, adding answer-length acclimation deadlines, durable fact proof, Numpad layout defaults, Coverage-First Dense selection, authoritative latest-per-frontier persistence evidence via `LoadLatestFrontierAttemptsAsync` and Schema V6 partial index `ix_attempt_history_operation_fact_position`, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$) with recoverable errors, and editable incomplete multi-digit answers before auto-submission, verified with 790 passing Core tests in `MathFirst.Core.Tests` and clean post-merge synchronization.
 - MF-REL-001 was merged to `main` through Pull Request #17 on 2026-09-12 at `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`, establishing Android internal AAB packaging automation, `tools/MathFirst.ReleaseTool`, release profiles (`SourceCandidate`, `Distributable`), offline bundle validator, companion schema-v1 provenance JSON, Android manifest security hardening, and multi-generation backup rules.
-- MF-SET-001 completed implementation across 10 commits on branch `feat/mf-set-001-practice-configuration` at `f453501412b7c9fce39356a0837a5b862d6221fd`: added configurable operation subsets in Settings and Onboarding, returning learner progress presentation, session check-in 20-attempt summaries, configurable Practice Time, enabled-only HUD visibility, schedule-agnostic persistence, operation/position-scoped evidence, exactly-once post-write recovery, active-only process-local timing, Settings diagnostics removal, and answer-input lifecycle reliability. Final review passed (`REVIEW_PASS`, Implementation Readiness: YES) with 1037 Core tests passing and clean Windows/Android Release builds. Completed manual validation on physical Android device with debug APK `MathFirst-MF-SET-001-f453501-debug.apk` (SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`). Documentation reconciliation is in progress; push, Pull Request, merge, production AAB/signing/upload, and release remain outstanding.
+- MF-SET-001 was merged to `main` through Pull Request #18 on 2026-09-12 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`: added configurable operation subsets in Settings and Onboarding, returning learner progress presentation, session check-in 20-attempt summaries, configurable Practice Time floors, enabled-only HUD visibility, schedule-agnostic persistence, operation/position-scoped evidence, exactly-once post-write recovery, active-only process-local timing, Settings diagnostics removal, and answer-input lifecycle reliability (editable multi-digit input, new-fact empty input invariant). Verified with 1037 Core tests passing, clean Windows/Android Release builds, and confirmed manual validation on a physical Android device (`MathFirst-MF-SET-001-f453501-debug.apk` SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`). Post-merge synchronization is complete; downstream candidate validation, packaging, signing, and release remain separate subsequent lifecycle steps.
 
 ---
 

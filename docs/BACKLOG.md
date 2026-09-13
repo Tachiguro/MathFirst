@@ -84,7 +84,7 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-SET-001`
 - **Title**: Practice Configuration: Operation Selection and Adjustable Practice Time
 - **Type**: `Feature`
-- **Status**: `Accepted` (Implementation complete across 10 commits to final HEAD `f453501412b7c9fce39356a0837a5b862d6221fd`; reviewed `REVIEW_PASS`; 1037 Core tests passed; physical Android device validation confirmed on debug APK `MathFirst-MF-SET-001-f453501-debug.apk` SHA-256 `97f85e448d078e46d813aa1244e49b95933e51e1c9d64732faf3a614ae31db12`; `DOCUMENT_ONLY` active, next `COMMIT_ONLY`. Unpushed, no PR, not merged.)
+- **Status**: `Completed` (Merged through PR #18 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`)
 - **Dependencies**: `MF-REL-001` complete and merged to `main`
 - **Description**:
   Provide general user-configurable arithmetic practice options in Settings and Onboarding for learners who require customized operation focus or additional exercise time:
