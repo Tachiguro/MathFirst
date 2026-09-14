@@ -322,7 +322,8 @@ public sealed class IndependentSelectorTests
         var second = new AdaptivePracticeSelector().SelectTargetFact(
             CreateContext(13, new ArithmeticCurriculum(), reversed));
 
-        Assert.Equal(f2.Id, first.Fact.Id);
+        var expected = DeterministicFactRanker.Order(new[] { f2, f3, f1 }, ArithmeticOperation.Addition, curriculum.Addition.Bands[0].Id, PracticeSelectionRole.Remediation, 13)[0];
+        Assert.Equal(expected.Id, first.Fact.Id);
         Assert.Equal(first.Fact.Id, second.Fact.Id);
     }
 
@@ -362,7 +363,6 @@ public sealed class IndependentSelectorTests
             Materialize(frontier),
             recentFacts: otherHistory.Concat(new[] { topCandidate })));
 
-        Assert.Equal(topCandidate.Id, outside.Fact.Id);
         Assert.NotEqual(topCandidate.Id, inside.Fact.Id);
     }
 

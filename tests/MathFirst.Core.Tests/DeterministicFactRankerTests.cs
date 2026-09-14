@@ -45,6 +45,11 @@ public sealed class DeterministicFactRankerTests
             Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Subtraction, band, FactSelectionRole.New, 42, "add:11+1")),
             Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, new CurriculumBandId("ADD-P1-R0"), FactSelectionRole.New, 42, "add:11+1")),
             Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.Due, 42, "add:11+1")),
+            Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.Maintenance, 42, "add:11+1")),
+            Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.Frontier, 42, "add:11+1")),
+            Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.Remediation, 42, "add:11+1")),
+            Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.EarlyReview, 42, "add:11+1")),
+            Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.Any, 42, "add:11+1")),
             Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.New, 43, "add:11+1")),
             Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, band, FactSelectionRole.New, 42, "add:1+11")),
             Hex(DeterministicFactRanker.ComputeSelectionDigest(ArithmeticOperation.Addition, null, FactSelectionRole.New, 42, "add:11+1"))
@@ -186,6 +191,37 @@ public sealed class DeterministicFactRankerTests
             null,
             FactSelectionRole.Any,
             0));
+    }
+
+    [Fact]
+    public void MapRole_MapsEveryPracticeSelectionRoleExplicitlyAndThrowsOnInvalid()
+    {
+        Assert.Equal(FactSelectionRole.New, DeterministicFactRanker.MapRole(PracticeSelectionRole.New));
+        Assert.Equal(FactSelectionRole.Due, DeterministicFactRanker.MapRole(PracticeSelectionRole.Due));
+        Assert.Equal(FactSelectionRole.Maintenance, DeterministicFactRanker.MapRole(PracticeSelectionRole.Maintenance));
+        Assert.Equal(FactSelectionRole.Frontier, DeterministicFactRanker.MapRole(PracticeSelectionRole.Frontier));
+        Assert.Equal(FactSelectionRole.Any, DeterministicFactRanker.MapRole(PracticeSelectionRole.AnyMaterialized));
+        Assert.Equal(FactSelectionRole.Remediation, DeterministicFactRanker.MapRole(PracticeSelectionRole.Remediation));
+        Assert.Equal(FactSelectionRole.EarlyReview, DeterministicFactRanker.MapRole(PracticeSelectionRole.EarlyReview));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => DeterministicFactRanker.MapRole((PracticeSelectionRole)999));
+    }
+
+    [Fact]
+    public void RemediationAndEarlyReview_ProduceDistinctDeterministicRankings()
+    {
+        var facts = Enumerable.Range(1, 10)
+            .Select(v => new ArithmeticFact(ArithmeticOperation.Addition, v, 2))
+            .ToArray();
+        var band = new CurriculumBandId("ADD-D02");
+
+        var remRanked = DeterministicFactRanker.Order(facts, ArithmeticOperation.Addition, band, PracticeSelectionRole.Remediation, 50);
+        var earlyRanked = DeterministicFactRanker.Order(facts, ArithmeticOperation.Addition, band, PracticeSelectionRole.EarlyReview, 50);
+        var anyRanked = DeterministicFactRanker.Order(facts, ArithmeticOperation.Addition, band, PracticeSelectionRole.AnyMaterialized, 50);
+
+        Assert.NotEqual(remRanked.Select(f => f.Id), earlyRanked.Select(f => f.Id));
+        Assert.NotEqual(remRanked.Select(f => f.Id), anyRanked.Select(f => f.Id));
+        Assert.NotEqual(earlyRanked.Select(f => f.Id), anyRanked.Select(f => f.Id));
     }
 
     private static string Hex(byte[] digest) => Convert.ToHexString(digest);
