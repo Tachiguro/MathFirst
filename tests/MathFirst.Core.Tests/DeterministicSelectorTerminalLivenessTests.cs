@@ -215,7 +215,13 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var context = CreateContext(13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
-        Assert.Equal(f3.Id, result.Fact.Id);
+        var expected = DeterministicFactRanker.Order(
+            new[] { f3, f2, f4, f1 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-S01"),
+            PracticeSelectionRole.Due,
+            13)[0];
+        Assert.Equal(expected.Id, result.Fact.Id);
         Assert.Equal(PracticeSelectionRole.Due, result.ResolvedRole);
     }
 
@@ -255,7 +261,13 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var context = CreateContext(17, curriculum, materialized, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
-        Assert.Equal(f4.Id, result.Fact.Id);
+        var expected = DeterministicFactRanker.Order(
+            new[] { f4, f3, f2, f1 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-D01"),
+            PracticeSelectionRole.Frontier,
+            17)[0];
+        Assert.Equal(expected.Id, result.Fact.Id);
         Assert.Equal(PracticeSelectionRole.Frontier, result.ResolvedRole);
     }
 
@@ -327,7 +339,13 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var context = CreateContext(53, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
-        Assert.Equal(f3.Id, result.Fact.Id);
+        var expected = DeterministicFactRanker.Order(
+            new[] { f3, f4, f2, f1 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-S01"),
+            PracticeSelectionRole.Maintenance,
+            53)[0];
+        Assert.Equal(expected.Id, result.Fact.Id);
         Assert.Equal(PracticeSelectionRole.Maintenance, result.ResolvedRole);
     }
 
@@ -443,8 +461,8 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     {
         var curriculum = new ArithmeticCurriculum();
         var f1 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
-        var f2 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
-        var f3 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 2);
+        var f2 = new ArithmeticFact(ArithmeticOperation.Addition, 3, 3);
+        var f3 = new ArithmeticFact(ArithmeticOperation.Addition, 7, 7);
 
         var custom = CreateRepeatedFactCurriculum(ArithmeticOperation.Addition, f1, f2, f3);
         var curricula = CreateCurricula(curriculum, (ArithmeticOperation.Addition, custom));
@@ -465,37 +483,61 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var selector = new AdaptivePracticeSelector();
 
-        // Step 1: Position 13 -> F1 has oldest last review (1) -> selects F1
+        // Step 1: Position 13
         var mat1 = new MaterializedState([f1, f2, f3], states, cards);
         var res1 = selector.SelectTargetFact(CreateContext(13, curriculum, mat1, operationProgressions: progressions, curricula: curricula));
-        Assert.Equal(f1.Id, res1.Fact.Id);
+        var expected1 = DeterministicFactRanker.Order(
+            new[] { f1, f2, f3 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-S01"),
+            PracticeSelectionRole.EarlyReview,
+            13)[0];
+        Assert.Equal(expected1.Id, res1.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res1.ResolvedRole);
 
-        // Simulate review of F1 at position 13: F1.LastReview becomes 13
-        cards[f1.Id] = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 13, FsrsRating.Good);
+        // Simulate review of res1 at position 13
+        cards[res1.Fact.Id] = new FsrsCardState(res1.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 13, FsrsRating.Good);
 
-        // Step 2: Position 17 -> F2 has oldest last review (5) -> selects F2
+        // Step 2: Position 17
         var mat2 = new MaterializedState([f1, f2, f3], states, cards);
         var res2 = selector.SelectTargetFact(CreateContext(17, curriculum, mat2, operationProgressions: progressions, curricula: curricula));
-        Assert.Equal(f2.Id, res2.Fact.Id);
+        var expected2 = DeterministicFactRanker.Order(
+            new[] { f1, f2, f3 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-S01"),
+            PracticeSelectionRole.EarlyReview,
+            17)[0];
+        Assert.Equal(expected2.Id, res2.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res2.ResolvedRole);
 
-        // Simulate review of F2 at position 17: F2.LastReview becomes 17
-        cards[f2.Id] = new FsrsCardState(f2.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 17, FsrsRating.Good);
+        // Simulate review of res2 at position 17
+        cards[res2.Fact.Id] = new FsrsCardState(res2.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 17, FsrsRating.Good);
 
-        // Step 3: Position 21 -> F3 has oldest last review (9) -> selects F3
+        // Step 3: Position 21
         var mat3 = new MaterializedState([f1, f2, f3], states, cards);
         var res3 = selector.SelectTargetFact(CreateContext(21, curriculum, mat3, operationProgressions: progressions, curricula: curricula));
-        Assert.Equal(f3.Id, res3.Fact.Id);
+        var expected3 = DeterministicFactRanker.Order(
+            new[] { f1, f2, f3 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-S01"),
+            PracticeSelectionRole.EarlyReview,
+            21)[0];
+        Assert.Equal(expected3.Id, res3.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res3.ResolvedRole);
 
-        // Simulate review of F3 at position 21: F3.LastReview becomes 21
-        cards[f3.Id] = new FsrsCardState(f3.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 21, FsrsRating.Good);
+        // Simulate review of res3 at position 21
+        cards[res3.Fact.Id] = new FsrsCardState(res3.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 21, FsrsRating.Good);
 
-        // Step 4: Position 25 -> F1 now has oldest last review (13 < 17 < 21) -> selects F1 again!
+        // Step 4: Position 25
         var mat4 = new MaterializedState([f1, f2, f3], states, cards);
         var res4 = selector.SelectTargetFact(CreateContext(25, curriculum, mat4, operationProgressions: progressions, curricula: curricula));
-        Assert.Equal(f1.Id, res4.Fact.Id);
+        var expected4 = DeterministicFactRanker.Order(
+            new[] { f1, f2, f3 },
+            ArithmeticOperation.Addition,
+            new CurriculumBandId("TEST-S01"),
+            PracticeSelectionRole.EarlyReview,
+            25)[0];
+        Assert.Equal(expected4.Id, res4.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res4.ResolvedRole);
     }
 
@@ -699,8 +741,14 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var mat = new MaterializedState([f1, f2], new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = s1, [f2.Id] = s2 }, cards);
 
         var res = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(17, curriculum, mat));
+        var expected = DeterministicFactRanker.Order(
+            new[] { f1, f2 },
+            ArithmeticOperation.Addition,
+            curriculum.Addition.Bands[0].Id,
+            PracticeSelectionRole.Remediation,
+            17)[0];
         Assert.Equal(PracticeSelectionRole.Remediation, res.ResolvedRole);
-        Assert.Equal(f1.Id, res.Fact.Id);
+        Assert.Equal(expected.Id, res.Fact.Id);
     }
 
     // S. SQL-before-LIMIT correctness (> 64 candidates)

@@ -259,7 +259,11 @@ public sealed class AdaptivePracticeSelector
     {
         var (fact, relaxation) = SelectTargetCandidate(
             semanticPool,
-            context.RecentAcceptedFactsOldestToNewest);
+            context.RecentAcceptedFactsOldestToNewest,
+            operation,
+            currentBand.Id,
+            resolvedRole,
+            context.ProspectivePracticePosition);
 
         if (fact.Operation != operation)
         {
@@ -286,30 +290,111 @@ public sealed class AdaptivePracticeSelector
             relaxation);
     }
 
-    private static (ArithmeticFact Fact, PracticeCooldownRelaxation Relaxation) SelectTargetCandidate(
+    public static (ArithmeticFact Fact, PracticeCooldownRelaxation Relaxation) SelectTargetCandidate(
         IReadOnlyList<ArithmeticFact> semanticPool,
-        IReadOnlyList<ArithmeticFact> recentAcceptedFactsOldestToNewest)
+        IReadOnlyList<ArithmeticFact> recentAcceptedFactsOldestToNewest,
+        ArithmeticOperation operation,
+        CurriculumBandId? bandId,
+        PracticeSelectionRole role,
+        long practicePosition)
     {
-        var recent = recentAcceptedFactsOldestToNewest.TakeLast(LearningPolicy.ExactFactCooldownDistance).ToArray();
-        var recentExactIds = recent.Select(fact => fact.Id).ToHashSet(StringComparer.Ordinal);
-        var fullyFiltered = semanticPool
-            .Where(fact => !recentExactIds.Contains(fact.Id))
-            .Where(fact => !HasRecentCommutativeMirror(fact, recent))
-            .ToArray();
-        if (fullyFiltered.Length > 0)
+        ArgumentNullException.ThrowIfNull(semanticPool);
+        ArgumentNullException.ThrowIfNull(recentAcceptedFactsOldestToNewest);
+
+        if (semanticPool.Count == 0)
         {
-            return (fullyFiltered[0], PracticeCooldownRelaxation.None);
+            throw new ArgumentException("Candidate pool cannot be empty.", nameof(semanticPool));
         }
 
-        var mirrorRelaxed = semanticPool
+        var rankedPool = DeterministicFactRanker.Order(
+            semanticPool,
+            operation,
+            bandId,
+            role,
+            practicePosition);
+
+        var exactRecent = recentAcceptedFactsOldestToNewest.TakeLast(LearningPolicy.ExactFactCooldownDistance).ToArray();
+        var mirrorRecent = recentAcceptedFactsOldestToNewest.TakeLast(LearningPolicy.MirrorFactCooldownDistance).ToArray();
+        var recentExactIds = exactRecent.Select(fact => fact.Id).ToHashSet(StringComparer.Ordinal);
+        var previousSameOpFact = recentAcceptedFactsOldestToNewest.LastOrDefault(fact => fact.Operation == operation);
+
+        // Tier 1: Exact cooldown + Commutative mirror cooldown + Anti-ladder
+        var exactAndMirrorFiltered = rankedPool
+            .Where(fact => !recentExactIds.Contains(fact.Id))
+            .Where(fact => !HasRecentCommutativeMirror(fact, mirrorRecent))
+            .ToArray();
+        if (exactAndMirrorFiltered.Length > 0)
+        {
+            var nonLadder = previousSameOpFact is not null
+                ? exactAndMirrorFiltered.Where(fact => !IsLadderContinuation(fact, previousSameOpFact)).ToArray()
+                : exactAndMirrorFiltered;
+
+            if (nonLadder.Length > 0)
+            {
+                return (nonLadder[0], PracticeCooldownRelaxation.None);
+            }
+
+            return (exactAndMirrorFiltered[0], PracticeCooldownRelaxation.None);
+        }
+
+        // Tier 2: Mirror relaxed, Exact cooldown preserved + Anti-ladder
+        var mirrorRelaxed = rankedPool
             .Where(fact => !recentExactIds.Contains(fact.Id))
             .ToArray();
         if (mirrorRelaxed.Length > 0)
         {
+            var nonLadder = previousSameOpFact is not null
+                ? mirrorRelaxed.Where(fact => !IsLadderContinuation(fact, previousSameOpFact)).ToArray()
+                : mirrorRelaxed;
+
+            if (nonLadder.Length > 0)
+            {
+                return (nonLadder[0], PracticeCooldownRelaxation.Mirror);
+            }
+
             return (mirrorRelaxed[0], PracticeCooldownRelaxation.Mirror);
         }
 
-        return (semanticPool[0], PracticeCooldownRelaxation.Exact);
+        // Tier 3: Exact relaxed (entire pool available) + Anti-ladder
+        var tier3NonLadder = previousSameOpFact is not null
+            ? rankedPool.Where(fact => !IsLadderContinuation(fact, previousSameOpFact)).ToArray()
+            : rankedPool;
+
+        if (tier3NonLadder.Count > 0)
+        {
+            return (tier3NonLadder[0], PracticeCooldownRelaxation.Exact);
+        }
+
+        return (rankedPool[0], PracticeCooldownRelaxation.Exact);
+    }
+
+    public static bool IsLadderContinuation(ArithmeticFact candidate, ArithmeticFact previous)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(previous);
+
+        if (candidate.Operation != previous.Operation)
+        {
+            return false;
+        }
+
+        return candidate.Operation switch
+        {
+            ArithmeticOperation.Addition or ArithmeticOperation.Multiplication =>
+                (candidate.LeftOperand == previous.LeftOperand && Math.Abs(candidate.RightOperand - previous.RightOperand) == 1)
+                || (candidate.RightOperand == previous.RightOperand && Math.Abs(candidate.LeftOperand - previous.LeftOperand) == 1),
+
+            ArithmeticOperation.Subtraction =>
+                (candidate.LeftOperand == previous.LeftOperand && Math.Abs(candidate.RightOperand - previous.RightOperand) == 1)
+                || (candidate.RightOperand == previous.RightOperand && Math.Abs(candidate.LeftOperand - previous.LeftOperand) == 1),
+
+            ArithmeticOperation.Division =>
+                (candidate.RightOperand == previous.RightOperand && Math.Abs(candidate.CorrectResult - previous.CorrectResult) == 1)
+                || (candidate.LeftOperand == previous.LeftOperand && Math.Abs(candidate.RightOperand - previous.RightOperand) == 1)
+                || (candidate.CorrectResult == previous.CorrectResult && Math.Abs(candidate.RightOperand - previous.RightOperand) == 1),
+
+            _ => false
+        };
     }
 
     private static bool HasRecentCommutativeMirror(
@@ -327,5 +412,4 @@ public sealed class AdaptivePracticeSelector
             && recent.LeftOperand == candidate.RightOperand
             && recent.RightOperand == candidate.LeftOperand);
     }
-
 }

@@ -13,7 +13,9 @@ public enum FactSelectionRole
     Due,
     Maintenance,
     Frontier,
-    Any
+    Any,
+    Remediation,
+    EarlyReview
 }
 
 public static class DeterministicFactRanker
@@ -42,6 +44,26 @@ public static class DeterministicFactRanker
             operation,
             fact => ComputeSelectionDigest(operation, bandId, role, practicePosition, fact.Id));
     }
+
+    public static IReadOnlyList<ArithmeticFact> Order(
+        IEnumerable<ArithmeticFact> facts,
+        ArithmeticOperation operation,
+        CurriculumBandId? bandId,
+        PracticeSelectionRole role,
+        long practicePosition) =>
+        Order(facts, operation, bandId, MapRole(role), practicePosition);
+
+    public static FactSelectionRole MapRole(PracticeSelectionRole role) => role switch
+    {
+        PracticeSelectionRole.New => FactSelectionRole.New,
+        PracticeSelectionRole.Due => FactSelectionRole.Due,
+        PracticeSelectionRole.Maintenance => FactSelectionRole.Maintenance,
+        PracticeSelectionRole.Frontier => FactSelectionRole.Frontier,
+        PracticeSelectionRole.AnyMaterialized => FactSelectionRole.Any,
+        PracticeSelectionRole.Remediation => FactSelectionRole.Remediation,
+        PracticeSelectionRole.EarlyReview => FactSelectionRole.EarlyReview,
+        _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown practice selection role.")
+    };
 
     public static IReadOnlyList<ArithmeticFact> SelectStructuredSample(
         IEnumerable<ArithmeticFact> facts,
@@ -92,6 +114,14 @@ public static class DeterministicFactRanker
             factId);
         return SHA256.HashData(Encoding.UTF8.GetBytes(input));
     }
+
+    public static byte[] ComputeSelectionDigest(
+        ArithmeticOperation operation,
+        CurriculumBandId? bandId,
+        PracticeSelectionRole role,
+        long practicePosition,
+        string factId) =>
+        ComputeSelectionDigest(operation, bandId, MapRole(role), practicePosition, factId);
 
     public static byte[] ComputeStructuredSampleDigest(
         ArithmeticOperation operation,
@@ -191,6 +221,8 @@ public static class DeterministicFactRanker
         FactSelectionRole.Maintenance => "maintenance",
         FactSelectionRole.Frontier => "frontier",
         FactSelectionRole.Any => "any",
+        FactSelectionRole.Remediation => "remediation",
+        FactSelectionRole.EarlyReview => "early_review",
         _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown selection role.")
     };
 
