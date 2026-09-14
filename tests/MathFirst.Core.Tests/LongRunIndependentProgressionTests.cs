@@ -131,17 +131,21 @@ public sealed class LongRunIndependentProgressionTests
         await session.InitializeAsync(startTiming: false);
 
         var mulAttempts = 0;
-        for (var position = 1; position <= 20; position++)
+        var factorTwoReceived = false;
+        var targetPosition = GetOpPosition(ArithmeticOperation.Multiplication, 11);
+
+        for (var position = 1L; position <= targetPosition; position++)
         {
             var fact = session.CurrentFact;
             var isMul = fact.Operation == ArithmeticOperation.Multiplication;
             if (isMul)
             {
                 mulAttempts++;
-                if (mulAttempts == 5)
+                if (mulAttempts == 11)
                 {
                     Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                    Assert.True(fact.LeftOperand == 2 || fact.RightOperand == 2);
+                    Assert.True(fact.LeftOperand == 2 || fact.RightOperand == 2, "11th multiplication attempt must introduce a factor-2 fact from MUL-D02.");
+                    factorTwoReceived = true;
                     break;
                 }
             }
@@ -150,7 +154,7 @@ public sealed class LongRunIndependentProgressionTests
             var result = await session.CommitCurrentEvaluationAsync();
             Assert.True(result.IsSuccess);
 
-            if (isMul && mulAttempts == 4)
+            if (isMul && mulAttempts == 8)
             {
                 Assert.True(session.LastEvaluation!.OperationAdvanced);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
@@ -163,7 +167,8 @@ public sealed class LongRunIndependentProgressionTests
             }
         }
 
-        Assert.Equal(5, mulAttempts);
+        Assert.True(factorTwoReceived, "Learner should receive a factor-2 fact after advancing to Band 1.");
+        Assert.Equal(11, mulAttempts);
     }
 
     [Fact]
@@ -493,5 +498,17 @@ public sealed class LongRunIndependentProgressionTests
         }
 
         await transaction.CommitAsync();
+    }
+    private static long GetOpPosition(ArithmeticOperation operation, long attemptOrdinal, int enabledCount = 4)
+    {
+        var bagIndex = attemptOrdinal - 1;
+        for (var p = (bagIndex * (long)enabledCount) + 1; p <= (bagIndex + 1) * (long)enabledCount; p++)
+        {
+            if (AdaptivePracticeSelector.GetScheduledOperation(p) == operation)
+            {
+                return p;
+            }
+        }
+        throw new InvalidOperationException($"Operation {operation} not found in bag {bagIndex}.");
     }
 }

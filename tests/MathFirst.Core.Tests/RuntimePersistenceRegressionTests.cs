@@ -421,24 +421,33 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore);
         await session.InitializeAsync(startTiming: false);
 
-        // Position 0 -> Practice fact 1 (Addition)
+        // Turn 1 (pos 1): Practice fact 1 (Addition)
+        Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var commit1 = await session.CommitCurrentEvaluationAsync();
+        Assert.True(commit1.IsSuccess);
+        var advanced1 = await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
+        Assert.True(advanced1);
+
+        // Turn 2 (pos 2): Practice fact 2 (Addition)
         Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
 
-        // Commit fact 1. Prospective position for next fact is 2.
-        var commit = await session.CommitCurrentEvaluationAsync();
-        Assert.True(commit.IsSuccess);
+        // Commit fact 2. Prospective position for next fact is 3.
+        var commit2 = await session.CommitCurrentEvaluationAsync();
+        Assert.True(commit2.IsSuccess);
         Assert.Equal(SessionInteractionState.CorrectFeedback, session.InteractionState);
 
         // While in CorrectFeedback, switch preferences exclusively to Subtraction-only.
+        // Prospective position 3 with Subtraction-only maps to attempt ordinal 3 (New slot).
         prefStore.SetEnabledOperations([ArithmeticOperation.Subtraction]);
 
         // Enable Subtraction evidence in store
         failingStore.FailSubtractionEvidence = false;
 
         // Advance via async method
-        var advanced = await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
-        Assert.True(advanced);
+        var advanced2 = await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
+        Assert.True(advanced2);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
         // CurrentFact MUST be Subtraction

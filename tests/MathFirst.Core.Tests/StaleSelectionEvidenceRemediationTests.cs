@@ -46,34 +46,35 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        // Attempt 1: Addition (pos 1) -> correct
+        // Attempt 1: Op1 (pos 1) -> correct
+        var op1 = session.CurrentFact.Operation;
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
-        // Attempt 2: Subtraction (pos 2) -> correct
+        // Attempt 2: Op2 (pos 2) -> correct
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
-        // Attempt 3: Multiplication (pos 3) -> incorrect
+        // Attempt 3: Op3 (pos 3) -> incorrect
         Assert.Equal(AdaptivePracticeSelector.GetScheduledOperation(3), session.CurrentFact.Operation);
         session.SubmitAnswer(session.CurrentFact.CorrectResult + 10);
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
         Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
 
-        // At this moment, prospective position 4 prefetched Division evidence!
-        // While in IncorrectFeedback, change preference to Addition-only (Structured Band 0).
-        preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
+        // At this moment, prospective position 4 prefetched Op4 evidence!
+        // While in IncorrectFeedback, change preference to Op1-only (which has materialized facts).
+        preferences.SetEnabledOperations([op1]);
 
         // Acknowledge feedback to advance.
         var acknowledged = session.AcknowledgeFeedback(startTiming: false);
         Assert.True(acknowledged);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
-        // CurrentFact MUST be Addition (the only enabled operation), NOT the prefetched Division fact.
-        Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
+        // CurrentFact MUST be Op1 (the only enabled operation), NOT the prefetched Op4 fact.
+        Assert.Equal(op1, session.CurrentFact.Operation);
         Assert.NotEqual(SessionInteractionState.PersistenceFailure, session.InteractionState);
     }
 
@@ -88,34 +89,35 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        // Attempt 1: Addition (pos 1) -> correct
+        // Attempt 1: Op1 (pos 1) -> correct
+        var op1 = session.CurrentFact.Operation;
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
-        // Attempt 2: Subtraction (pos 2) -> correct
+        // Attempt 2: Op2 (pos 2) -> correct
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
-        // Attempt 3: Multiplication (pos 3) -> timeout
+        // Attempt 3: Op3 (pos 3) -> timeout
         Assert.Equal(AdaptivePracticeSelector.GetScheduledOperation(3), session.CurrentFact.Operation);
         session.RecordTimeout();
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
 
-        // At this moment, prospective position 4 prefetched Division evidence!
-        // While in TimeoutFeedback, change preference to Addition-only (Structured Band 0).
-        preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
+        // At this moment, prospective position 4 prefetched Op4 evidence!
+        // While in TimeoutFeedback, change preference to Op1-only (which has materialized facts).
+        preferences.SetEnabledOperations([op1]);
 
         // Acknowledge feedback to advance.
         var acknowledged = session.AcknowledgeFeedback(startTiming: false);
         Assert.True(acknowledged);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
-        // CurrentFact MUST be Addition.
-        Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
+        // CurrentFact MUST be Op1.
+        Assert.Equal(op1, session.CurrentFact.Operation);
         Assert.NotEqual(SessionInteractionState.PersistenceFailure, session.InteractionState);
     }
 
@@ -211,24 +213,34 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        var firstFact = session.CurrentFact;
-        var firstDeadline = session.CurrentFactDeadlineMs;
-
-        // Change settings while awaiting answer on first fact
-        preferences.SetEnabledOperations([ArithmeticOperation.Subtraction]);
-
-        // Active fact and deadline MUST NOT change
-        Assert.Equal(firstFact.Id, session.CurrentFact.Id);
-        Assert.Equal(firstDeadline, session.CurrentFactDeadlineMs);
-
-        // Submit first fact
-        session.SubmitAnswer(firstFact.CorrectResult);
-        var persist = await session.CommitCurrentEvaluationAsync();
-        Assert.True(persist.IsSuccess);
+        // Turn 1 (pos 1): Addition -> correct
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var persist1 = await session.CommitCurrentEvaluationAsync();
+        Assert.True(persist1.IsSuccess);
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
-        // Next generated fact MUST use Subtraction
-        Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
+        // Turn 2 (pos 2): Subtraction fact is presented
+        var activeFact = session.CurrentFact;
+        var activeDeadline = session.CurrentFactDeadlineMs;
+        Assert.Equal(ArithmeticOperation.Subtraction, activeFact.Operation);
+
+        // While awaiting answer on Turn 2, switch preferences to a different operation (Multiplication-only)
+        preferences.SetEnabledOperations([ArithmeticOperation.Multiplication]);
+
+        // Active fact and deadline MUST NOT change
+        Assert.Equal(activeFact.Id, session.CurrentFact.Id);
+        Assert.Equal(activeDeadline, session.CurrentFactDeadlineMs);
+
+        // Submit answer for active fact (Turn 2: Subtraction)
+        session.SubmitAnswer(activeFact.CorrectResult);
+        var persist2 = await session.CommitCurrentEvaluationAsync();
+        Assert.True(persist2.IsSuccess);
+        session.AdvanceAfterCorrectAnswer(startTiming: false);
+
+        // Next generated fact (prospective pos 3 under Multiplication-only, ordinal 3 -> New slot) MUST use Multiplication
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.NotEqual(SessionInteractionState.PersistenceFailure, session.InteractionState);
     }
 
     [Fact]
@@ -413,10 +425,10 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
             earlyReviewCandidates: []);
 
         var index = new PracticeCandidateIndex(evidence);
-        // Position 2 with Addition only -> requested role Due
+        // Position 1 with Addition only -> requested role New
         var context = new PracticeSelectionContext(
-            prospectivePracticePosition: 2,
-            currentSessionOrder: 2,
+            prospectivePracticePosition: 1,
+            currentSessionOrder: 1,
             operationProgressions: progressions,
             curricula: curricula,
             candidateIndex: index,
