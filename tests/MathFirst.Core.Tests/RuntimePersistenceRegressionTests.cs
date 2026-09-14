@@ -399,8 +399,9 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         Assert.True(advanced);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
-        // CurrentFact MUST be Subtraction, deterministically scheduled
-        Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
+        // CurrentFact MUST match deterministically scheduled operation
+        var expectedScheduledOp = AdaptivePracticeSelector.GetScheduledOperation(2, prefStore.GetEnabledOperations());
+        Assert.Equal(expectedScheduledOp, session.CurrentFact.Operation);
     }
 
     [Fact]

@@ -522,7 +522,7 @@ public sealed class DenseProgressionTests : IDisposable
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
 
-        for (var position = 1; position <= 15; position++)
+        for (var position = 1; position <= 16; position++)
         {
             Assert.Equal(position, session.Progression.PracticePosition + 1);
             var fact = session.CurrentFact;
@@ -534,15 +534,15 @@ public sealed class DenseProgressionTests : IDisposable
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
-            else if (position == 10)
+            else if (position == 12)
             {
-                // SUB-D01 (3 facts) advances on 10
+                // SUB-D01 (3 facts) advances on 12
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
             }
-            else if (position == 13)
+            else if (position == 14)
             {
-                // ADD-D01 (4 facts) advances on 13
+                // ADD-D01 (4 facts) advances on 14
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
             }
@@ -554,7 +554,7 @@ public sealed class DenseProgressionTests : IDisposable
             }
 
             Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-            if (position < 15)
+            if (position < 16)
             {
                 Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
             }

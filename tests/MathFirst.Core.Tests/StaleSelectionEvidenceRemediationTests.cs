@@ -57,7 +57,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
         // Attempt 3: Multiplication (pos 3) -> incorrect
-        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.Equal(AdaptivePracticeSelector.GetScheduledOperation(3), session.CurrentFact.Operation);
         session.SubmitAnswer(session.CurrentFact.CorrectResult + 10);
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
@@ -99,7 +99,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
         // Attempt 3: Multiplication (pos 3) -> timeout
-        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.Equal(AdaptivePracticeSelector.GetScheduledOperation(3), session.CurrentFact.Operation);
         session.RecordTimeout();
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);

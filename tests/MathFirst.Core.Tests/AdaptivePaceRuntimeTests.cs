@@ -404,7 +404,8 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
     public async Task ExistingDurableItemState_WithCorrectAttemptsGreaterThanZero_IsProvenAfterInit()
     {
         var curriculum = new ArithmeticCurriculum();
-        var frontier = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0);
+        var frontier = Enum.GetValues<ArithmeticOperation>()
+            .SelectMany(op => new AcquisitionOwnershipResolver(curriculum.GetCurriculum(op)).GetOwnedFrontier(0));
         var itemStates = frontier.ToDictionary(
             fact => fact.Id,
             fact =>
@@ -623,8 +624,9 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
     public async Task RollingLatency_IsNotAdaptivePaceEvidence()
     {
         var curriculum = new ArithmeticCurriculum();
-        var frontier = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0);
-        var itemStates = frontier.ToDictionary(
+        var allFrontier = Enum.GetValues<ArithmeticOperation>()
+            .SelectMany(op => new AcquisitionOwnershipResolver(curriculum.GetCurriculum(op)).GetOwnedFrontier(0));
+        var itemStates = allFrontier.ToDictionary(
             fact => fact.Id,
             fact =>
             {

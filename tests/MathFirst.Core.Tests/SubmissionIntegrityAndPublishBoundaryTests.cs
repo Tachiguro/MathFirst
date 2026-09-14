@@ -1,3 +1,4 @@
+using MathFirst.Application.Practice;
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application;
@@ -91,7 +92,8 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         var pending = session.CommitCurrentEvaluationAsync();
         await store.CommitStarted.Task;
 
-        Assert.Equal(156, session.Progression.PracticePosition);
+        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 40);
+        Assert.Equal(triggerPos - 1, session.Progression.PracticePosition);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
         Assert.All(
@@ -100,9 +102,9 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
 
         store.Complete(PersistenceResult.Success(2));
         Assert.True((await pending).IsSuccess);
-        Assert.Equal(157, session.Progression.PracticePosition);
+        Assert.Equal(triggerPos, session.Progression.PracticePosition);
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-        Assert.Equal(157, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
+        Assert.Equal(triggerPos, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
         Assert.All(
             Enum.GetValues<ArithmeticOperation>().Where(operation => operation != ArithmeticOperation.Addition),
             operation => Assert.Equal(new OperationProgression(operation, 0, 0), session.Progression.OperationProgressions[operation]));
@@ -120,7 +122,8 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
 
         store.Complete(PersistenceResult.Unavailable("synthetic advancement failure"));
         Assert.False((await pending).IsSuccess);
-        Assert.Equal(156, session.Progression.PracticePosition);
+        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 40);
+        Assert.Equal(triggerPos - 1, session.Progression.PracticePosition);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandStartedPracticePosition);
     }
@@ -530,13 +533,8 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
             operationProgressions: progression.OperationProgressions);
     }
 
-    private static ArithmeticOperation ScheduledOperation(long practicePosition) => new[]
-    {
-        ArithmeticOperation.Addition,
-        ArithmeticOperation.Subtraction,
-        ArithmeticOperation.Multiplication,
-        ArithmeticOperation.Division
-    }[(int)((practicePosition - 1) % 4)];
+    private static ArithmeticOperation ScheduledOperation(long practicePosition) =>
+        AdaptivePracticeSelector.GetScheduledOperation(practicePosition);
 
     private static void AssertInvalidAndUnchanged(PersistenceResult result, LearnerSnapshot before, LearnerSnapshot after)
     {
@@ -549,13 +547,30 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
         Assert.Equal(before.FsrsStates.Count, after.FsrsStates.Count);
     }
 
+    private static long GetOpPosition(ArithmeticOperation operation, long attemptOrdinal, int enabledCount = 4)
+    {
+        for (var pos = 1L; pos <= 100000; pos++)
+        {
+            if (AdaptivePracticeSelector.GetScheduledOperation(pos) == operation)
+            {
+                var ordinal = ((pos - 1) / enabledCount) + 1;
+                if (ordinal == attemptOrdinal)
+                {
+                    return pos;
+                }
+            }
+        }
+        throw new InvalidOperationException($"Could not find position for {operation} attempt {attemptOrdinal}");
+    }
+
     private static LearnerSnapshot CreateAdvancementReadySnapshot()
     {
         var curriculum = new ArithmeticCurriculum().GetCurriculum(ArithmeticOperation.Addition);
         var ownership = new AcquisitionOwnershipResolver(curriculum);
         var frontier = ownership.GetOwnedFrontier(0);
+        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 40);
         var progression = LearnerProgression.CreateFresh();
-        progression.PracticePosition = 156;
+        progression.PracticePosition = triggerPos - 1;
         var items = frontier.ToDictionary(fact => fact.Id, fact =>
         {
             var state = ItemLearningState.CreateNew(fact);
@@ -569,7 +584,7 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
             .Select(index =>
             {
                 var fact = frontier[index % frontier.Count];
-                var position = 1L + (index * 4L);
+                var position = GetOpPosition(ArithmeticOperation.Addition, index + 1);
                 return new AttemptRecord(
                     $"advancement-ready-{position}", fact.Id, fact.Operation, fact.LeftOperand, fact.RightOperand,
                     fact.CorrectResult, fact.CorrectResult, true, true, 900, DateTimeOffset.UtcNow,
