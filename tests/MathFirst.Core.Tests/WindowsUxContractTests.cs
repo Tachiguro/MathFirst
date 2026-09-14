@@ -179,6 +179,28 @@ public sealed class WindowsUxContractTests
         Assert.Contains("PreferenceStore.GetOnboardingCompleted()", routes, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Keypad_DefinesActivePressFeedbackAndFocusVisibleContracts()
+    {
+        var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
+
+        // Centralized focus-visible rule must include .numeric-keypad-button:focus-visible
+        Assert.Matches(@"\.numeric-keypad-button:focus-visible\s*,\s*select:focus-visible", styles);
+        Assert.Contains("outline: 3px solid var(--color-focus-ring);", styles, StringComparison.Ordinal);
+        Assert.Contains("outline-offset: 2px;", styles, StringComparison.Ordinal);
+
+        // Active state must provide primary background, primary border, contrast text, 1px translation, and instant transition
+        var activeMatch = Regex.Match(styles, @"\.numeric-keypad-button:not\(:disabled\):active\s*\{(?<rules>[^}]+)\}", RegexOptions.Singleline);
+        Assert.True(activeMatch.Success, ".numeric-keypad-button:not(:disabled):active rule must exist in app.css");
+
+        var rules = activeMatch.Groups["rules"].Value;
+        Assert.Contains("border-color: var(--color-primary);", rules, StringComparison.Ordinal);
+        Assert.Contains("background: var(--color-primary);", rules, StringComparison.Ordinal);
+        Assert.Contains("color: var(--color-primary-contrast);", rules, StringComparison.Ordinal);
+        Assert.Contains("transform: translateY(1px);", rules, StringComparison.Ordinal);
+        Assert.Contains("transition: none;", rules, StringComparison.Ordinal);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();
