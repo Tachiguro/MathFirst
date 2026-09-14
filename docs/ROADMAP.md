@@ -57,23 +57,28 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 - Complete accepted shared learning architecture in the native Windows and Android applications before beginning the deferred Web runtime.
 
 ### MF-LEARN-001 Delivery State
-- **Implementation**: Complete — independent operation progression, deterministic bounded selection, Schema V5 persistence, and open-ended curriculum runtime are implemented.
+- **Implementation**: Complete - independent operation progression, deterministic bounded selection, Schema V5 persistence, and open-ended curriculum runtime are implemented.
 - **Review and validation**: `REVIEW_APPROVED`; full validation passed.
 - **Delivery status**: Merged into `main` through Pull Request #9. Web implementation remains deferred.
 
 ### Phase 6: Native V1 Release Readiness & Adaptive Learning
 
-1. Reconcile post-merge current-state documentation (`MF-DOC-001`) — complete and merged through Pull Request #10.
-2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) — complete and merged through Pull Request #11.
-3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) — complete and merged through Pull Request #12.
-4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) — complete and merged through Pull Request #13.
-5. Capture adaptive learning product direction and repository handoff (`MF-DOC-002`) — complete and merged through Pull Request #14.
-6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) — complete and merged through Pull Request #15.
-7. Deliver acclimation timing, rapid dense expansion, and keypad defaults (`MF-LEARN-003`) — complete and merged through Pull Request #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
-8. Establish Android internal AAB packaging and release automation (`MF-REL-001`) — complete and merged through Pull Request #17 at `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`.
-9. Practice Configuration: Operation Selection and Adjustable Practice Time (`MF-SET-001`) — complete and merged through Pull Request #18 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`. Implementation completed across 10 commits with 1037 Core tests passing, clean Windows and Android Release builds (0 warnings / 0 errors), and confirmed manual validation on a physical Android device. Future child accounts, multi-user profiles, and parental controls remain separate scope outside MF-SET-001.
-10. Reconcile post-merge project state and V1 baseline documentation (`MF-DOC-003`) — active documentation package establishing the accurate documentation baseline on `main` before final candidate verification.
-11. Complete final exact-candidate Native V1 validation.
-12. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
-13. Perform separately authorized final real-device verification.
-14. Make a separate later decision about Google Play upload.
+1. Reconcile post-merge current-state documentation (`MF-DOC-001`) - complete and merged through Pull Request #10.
+2. Deliver deterministic practice personality and contextual copy (`MF-UX-002`) - complete and merged through Pull Request #11.
+3. Reconcile native identity, version, and visual treatment (`MF-UX-003`) - complete and merged through Pull Request #12.
+4. Stabilize practice progression and the compact HUD (`MF-STAB-001`) - complete and merged through Pull Request #13.
+5. Capture adaptive learning product direction and repository handoff (`MF-DOC-002`) - complete and merged through Pull Request #14.
+6. Deliver adaptive pace, fast acquisition, and practice interventions (`MF-LEARN-002`) - complete and merged through Pull Request #15.
+7. Deliver acclimation timing, rapid dense expansion, and keypad defaults (`MF-LEARN-003`) - complete and merged through Pull Request #16 at `9a9e5c43d1f1685cf21e766e0890b790ab09040c`.
+8. Establish Android internal AAB packaging and release automation (`MF-REL-001`) - complete and merged through Pull Request #17 at `e1a0ae5a4a557f434f29ae04b7f8bcd32f3d2d88`.
+9. Practice Configuration: Operation Selection and Adjustable Practice Time (`MF-SET-001`) - complete and merged through Pull Request #18 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`. Implementation completed across 10 commits with 1037 Core tests passing, clean Windows and Android Release builds (0 warnings / 0 errors), and confirmed manual validation on a physical Android device. Future child accounts, multi-user profiles, and parental controls remain separate scope outside MF-SET-001.
+10. Reconcile post-merge project state and V1 baseline documentation (`MF-DOC-003`) - complete and merged through Pull Request #19 at `6e137471a16ffced5f5a62daa1a3f5143b5bbb7a`.
+11. Standalone MathFirst Privacy Policy (`PRIVACY.md`) - complete and merged through Pull Request #20 at `c4ae75a99f7971033ca9887bb2277b217979be03`.
+12. Stabilize deterministic practice diversity, bounded operation scheduling, and review balance (`MF-STAB-002`) - complete and merged across three slices: Slice 1 (PR #21 at `7cc6caebec1798d5cfb3c48172b6f78360fb2442`), Slice 2 (PR #22 at `33d745d270745c2de65e47519cb98959278bbcbd`), and Slice 3 (PR #23 at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`).
+13. Reconcile post-stabilization project state documentation (`MF-DOC-004`) - active documentation package on branch `docs/mf-doc-004-post-stabilization-reconciliation` establishing current truth on `main` at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`.
+14. Deliver keypad press feedback and responsive validation (`MF-UX-004`) - planned future UX package.
+15. Deliver tester distribution and release hardening (`MF-REL-002`) - planned future release package.
+16. Complete final exact-candidate Native V1 validation.
+17. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
+18. Perform separately authorized final real-device verification.
+19. Make a separate later decision about Google Play upload.
