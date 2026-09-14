@@ -96,31 +96,27 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-`main` / `origin/main`: `a051518420db3b45f8ca1074bac27e9b4d1b799d` (MF-SET-001 merged via PR #18)
+`main` / `origin/main`: `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9` (MF-STAB-002 Slice 3 merged via PR #23)
 Worktrees: Exactly one normal worktree
 
 ### Active Package Context
-- Active Task Branch: `docs/mf-doc-003-v1-baseline-reconciliation`
-- Package: `MF-DOC-003` — **Post-Merge Project State and V1 Baseline Reconciliation**
-- Base Branch / Commit: `main` at `a051518420db3b45f8ca1074bac27e9b4d1b799d`
+- Active Task Branch: `docs/mf-doc-004-post-stabilization-reconciliation`
+- Package: `MF-DOC-004` - **Post-Stabilization Project State Reconciliation**
+- Base Branch / Commit: `main` at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`
 - Package Type: `Documentation`
 - Current Lifecycle: `DOCUMENT_ONLY`
 - Next Lifecycle: `REVIEW_ONLY`
 - Remote State: Branch unpushed; no Pull Request opened yet
 
-### Durable Merged Baseline (MF-SET-001 Summary)
-- **Delivery Status**: Merged into `main` via PR #18 at `a051518420db3b45f8ca1074bac27e9b4d1b799d`.
-- **Enabled Operations & Onboarding Choice**: Any non-empty subset of Addition, Subtraction, Multiplication, and Division may be selected in Settings or during fresh-install Onboarding (all four enabled by default, using shared preferences). Enabled operations filter newly generated practice and the progress HUD; disabled operations retain all learning progress for later reactivation.
-- **Returning Learner Progress & Session Check-In Summary**: Returning learners see a compact progress overview of enabled operations before starting practice without invented mastery percentages. Every 20 attempts, a check-in summary presents completed attempts, correct count, median correct latency, and actual Stage changes across process-local segments.
-- **Current-Fact and HUD Semantics**: Settings changes preserve the displayed question. On return, the HUD immediately shows the enabled set; the next generated question follows the updated configuration.
-- **Scheduling and Evidence**: `AdaptivePracticeSelector` alone schedules via $(P - 1) \bmod k$ and ordinal $\lfloor (P - 1) / k \rfloor + 1$. `PracticeSelectionEvidence` is operation/prospective-position scoped; cache state never changes the scheduled operation; required evidence is loaded on demand without wrong-operation fallback.
-- **Persistence and Recovery**: `SqliteLearnerStore` remains schedule-policy agnostic and atomically validates submitted state transitions. Preferences remain outside learner SQLite; no schema change was required. Post-write evidence recovery never duplicates a durable submission.
-- **Practice Time and Runtime Timer**: Standard, 30 s, 45 s, and 60 s preserve active-only raw latency semantics. Pause, Settings, and same-process background time are excluded; a true cold restart resets only the in-flight timer, not preferences or learner progress.
-- **Settings Cleanup and Localization**: The developer Statistics / Diagnostics section is removed without deleting learner data. The enabled-only operation HUD remains. 20 unique Diagnostics keys (60 locale entries) were removed; `Diagnostics_Group_Learning` remains for the HUD accessible label.
-- **Answer Entry & Input Lifecycle Invariants**: Unsubmitted partial input is preserved on the same exercise across pause, settings, and background transitions. Every new exercise instance always starts with an empty input buffer. Partial multi-digit input remains editable with Backspace before complete submission; single-digit correct answers auto-submit. Reset Learning Progress preserves operation/time preferences; Restore Default Settings preserves learning; Full Local Reset performs both resets.
+### Durable Merged Baseline (MF-STAB-002 & Predecessors Summary)
+- **Delivery Status**: `MF-STAB-002` merged into `main` across three slices through PR #21 (`7cc6caebec1798d5cfb3c48172b6f78360fb2442`), PR #22 (`33d745d270745c2de65e47519cb98959278bbcbd`), and PR #23 (`2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`).
+- **Deterministic Practice Selection Diversity**: Deterministic candidate ranking, anti-ladder candidate selection when alternatives exist, preserved exact (3-fact) and mirror (3-fact) cooldowns, and deterministic role-specific ranking domains.
+- **Bounded Operation Scheduling**: Deterministic bounded operation permutation bags ensuring every enabled operation appears exactly once per bag without RNG or persisted scheduler state.
+- **Review Balance Stabilization & Restored Role Authority**: Restored requested-role authority during Dense acquisition, bounding New introductions to 4 requested slots per 10 per-operation attempts and enabling Due, Maintenance, and Frontier review opportunities without global suppression by unseen Dense material. Preserved remediation priority, FSRS virtual time, persistence, and progression rules. Full Core test suite passed with 1074 tests.
+- **Privacy Policy & Predecessors**: MathFirst standalone privacy policy merged via PR #20 (`c4ae75a99f7971033ca9887bb2277b217979be03`), MF-DOC-003 merged via PR #19 (`6e137471a16ffced5f5a62daa1a3f5143b5bbb7a`), and MF-SET-001 practice configuration merged via PR #18 (`a051518420db3b45f8ca1074bac27e9b4d1b799d`).
 
 ### Immediate Next Lifecycle Steps
-- Complete `DOCUMENT_ONLY` reconciliation on `docs/mf-doc-003-v1-baseline-reconciliation`.
+- Complete `DOCUMENT_ONLY` reconciliation on `docs/mf-doc-004-post-stabilization-reconciliation`.
 - Next lifecycle step: `REVIEW_ONLY`.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

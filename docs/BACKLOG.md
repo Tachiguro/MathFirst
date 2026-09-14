@@ -60,7 +60,7 @@ When items are accepted into the backlog, they are recorded with:
 - **Description**:
   1. **Acclimation Timing & Deadlines**: Answer-length acclimation deadlines and entry allowances for unproven facts (`CorrectAttempts == 0`) with novelty floors (15s/20s/25s/30s).
   2. **Keypad Defaults**: Default to `Numpad` across Onboarding, Settings, and default UI state.
-  3. **Coverage-First Dense Selection**: Scheduled turns prioritize unmaterialized owned-frontier facts until first-pass coverage is complete.
+  3. **Coverage-First Dense Selection**: Scheduled turns prioritize unmaterialized owned-frontier facts until first-pass coverage is complete (subsequently refined by MF-STAB-002 to restore requested-role review authority).
   4. **Latest-per-Frontier Persistence**: `LoadLatestFrontierAttemptsAsync` queries latest attempts per frontier fact, supported by partial index `ix_attempt_history_operation_fact_position`.
   5. **Correctness-Driven Dense Progression**: Dense bands advance when complete frontier coverage is met and $C \cdot 10 \ge N \cdot 9$ with recoverable errors; retirement of Fast Acquisition and the `MUL-D01` special bootstrap.
   6. **Editable Multi-Digit Input**: Incomplete multi-digit answers remain editable until full expected length is reached.
@@ -95,6 +95,69 @@ When items are accepted into the backlog, they are recorded with:
   5. **Answer Entry Reliability & Fact Instance Input Reset**: Incomplete multi-digit input remains editable via Backspace before complete submission; single-digit correct answers auto-submit; new problems start with clean empty buffers (enforced via fact instance revision and DOM element keying while preserving active exercise input).
   6. **Session Check-Ins & Timer Cleanup**: Periodic check-in every 20 accepted attempts displays completed count, correct count, stage progressions, and median latency of correct attempts only. Manual Pause, Settings, and same-process background time do not consume active answer time; cold restart resets only the in-flight timer. The developer Statistics / Diagnostics section is removed without deleting learner data.
   7. **Scope Boundary**: General practice configuration only. Child accounts, multi-user profiles, parental controls, age detection, and restricted child authentication remain separate future scope outside MF-SET-001.
+
+---
+
+### MF-DOC-003: Post-Merge Project State and V1 Baseline Reconciliation
+
+- **ID**: `MF-DOC-003`
+- **Title**: Post-Merge Project State and V1 Baseline Reconciliation
+- **Type**: `Documentation`
+- **Status**: `Completed` (Merged through PR #19 at `6e137471a16ffced5f5a62daa1a3f5143b5bbb7a`)
+- **Dependencies**: `MF-SET-001` complete and merged to `main`
+- **Description**:
+  Reconcile repository documentation after the completed merge of `MF-SET-001` across `CHANGELOG.md`, `docs/BACKLOG.md`, `docs/CURRENT_WORK.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, `docs/PROJECT_STATE.md`, and `docs/ROADMAP.md` to establish an accurate documentation baseline on `main` before downstream work.
+
+---
+
+### MathFirst Privacy Policy Documentation
+
+- **ID**: `PRIVACY.md`
+- **Title**: MathFirst Standalone Privacy Policy
+- **Type**: `Documentation`
+- **Status**: `Completed` (Merged through PR #20 at `c4ae75a99f7971033ca9887bb2277b217979be03`)
+- **Dependencies**: None
+- **Description**:
+  Establish standalone offline privacy policy documentation in `PRIVACY.md` satisfying Google Play Store policy requirements for offline apps with zero network data collection.
+
+---
+
+### MF-STAB-002: Deterministic Practice Selection Diversity, Bounded Operation Scheduling, and Adaptive Review Balance
+
+- **ID**: `MF-STAB-002`
+- **Title**: Deterministic Practice Selection Diversity, Bounded Operation Scheduling, and Adaptive Review Balance
+- **Type**: `Feature`
+- **Status**: `Completed` (Merged across Slices 1–3 through PR #21, PR #22, and PR #23 at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`)
+- **Dependencies**: `MF-DOC-003` complete and merged to `main`
+- **Description**:
+  Stabilize practice selection diversity, multi-operation turn distribution, and review balance across three focused implementation slices:
+  1. **Slice 1 (Practice Diversity)** (PR #21 at `7cc6caebec1798d5cfb3c48172b6f78360fb2442`): Deterministic fact candidate ranking, anti-ladder candidate selection when alternatives exist, preserved exact (3-fact) and commutative mirror (3-fact) cooldown semantics, and deterministic role-specific ranking domains.
+  2. **Slice 2 (Bounded Operation Scheduling)** (PR #22 at `33d745d270745c2de65e47519cb98959278bbcbd`): Deterministic bounded operation permutation bags ensuring every enabled operation appears exactly once per bag without RNG or persisted scheduler state; enabled-operation order independence; possible same-operation adjacency across bag boundaries.
+  3. **Slice 3 (Review Stabilization)** (PR #23 at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`): Restore requested-role authority during Dense acquisition, bounding New introductions to the 4 requested New opportunities per 10 per-operation attempts while Due, Maintenance, and Frontier provide review/retention opportunities without global suppression by unseen Dense material; preserved remediation priority, FSRS virtual time, persistence, and progression rules; verified with 1074 passing Core tests.
+
+---
+
+### MF-UX-004: Keypad Press Feedback and Responsive Validation
+
+- **ID**: `MF-UX-004`
+- **Title**: Keypad Press Feedback and Responsive Validation
+- **Type**: `Feature`
+- **Status**: `Planned`
+- **Dependencies**: `MF-STAB-002` and `MF-DOC-004` complete
+- **Description**:
+  Refine numeric keypad visual feedback on active press states and perform responsive layout validation across narrow and wide viewport dimensions.
+
+---
+
+### MF-REL-002: Tester Distribution / Release Hardening
+
+- **ID**: `MF-REL-002`
+- **Title**: Tester Distribution / Release Hardening
+- **Type**: `Feature`
+- **Status**: `Planned`
+- **Dependencies**: `MF-UX-004` complete
+- **Description**:
+  Provide tester distribution workflows, verify release build profiles, and harden release verification artifacts prior to final candidate validation and packaging.
 
 ---
 
