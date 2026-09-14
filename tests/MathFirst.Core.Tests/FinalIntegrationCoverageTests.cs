@@ -186,17 +186,31 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         try { Directory.Delete(_directory, recursive: true); } catch { }
     }
 
+    private static long GetOpPosition(ArithmeticOperation operation, long attemptOrdinal, int enabledCount = 4)
+    {
+        var bagIndex = attemptOrdinal - 1;
+        for (var p = (bagIndex * (long)enabledCount) + 1; p <= (bagIndex + 1) * (long)enabledCount; p++)
+        {
+            if (AdaptivePracticeSelector.GetScheduledOperation(p) == operation)
+            {
+                return p;
+            }
+        }
+        throw new InvalidOperationException($"Operation {operation} not found in bag {bagIndex}.");
+    }
+
     private static async Task PrepareAdvancementTriggerAsync(string path)
     {
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, new ScriptedClock());
         await session.InitializeAsync(startTiming: false);
-        for (var position = 1L; position <= 13; position++)
+        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 8);
+        for (var position = 1L; position < triggerPos; position++)
         {
             await SubmitFluentAndAdvanceAsync(session, position);
         }
 
-        Assert.Equal(13, session.Progression.PracticePosition);
+        Assert.Equal(triggerPos - 1, session.Progression.PracticePosition);
         Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
     }

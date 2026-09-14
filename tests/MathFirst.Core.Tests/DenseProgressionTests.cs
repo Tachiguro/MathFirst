@@ -469,98 +469,82 @@ public sealed class DenseProgressionTests : IDisposable
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
 
-        // Turn 1 (pos 1): Addition fact
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
+        var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 3);
 
-        // Turn 2 (pos 2): Subtraction
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
+        for (var p = 1L; p < divTriggerPos; p++)
+        {
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                session.ContinuePractice(startTiming: false);
+            }
+        }
 
-        // Turn 3 (pos 3): Multiplication
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
-
-        // Turn 4 (pos 4): Division
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
-
-        // Turn 5 (pos 5): Addition fact 2
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
-
-        // Turn 6 (pos 6): Subtraction
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
-
-        // Turn 7 (pos 7): Multiplication
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        session.AdvanceAfterCorrectAnswer(startTiming: false);
-
-        // Turn 8 (pos 8): Division fact 2 -> DIV-D01 has 2 facts, should advance on pos 8!
+        // Division attempt 3 (DIV-D01 has 2 facts, introduced on ordinals 1 and 3) triggers advancement
+        Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
         var divEval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(divEval.OperationAdvanced);
         Assert.Equal(1, divEval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
-        Assert.Equal(8, divEval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Division].BandStartedPracticePosition);
+        Assert.Equal(divTriggerPos, divEval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Division].BandStartedPracticePosition);
 
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
     }
 
     [Fact]
-    public async Task Initial_Progression_GlobalPosition15_AdvancesAllFourInitialBands()
+    public async Task Initial_Progression_GlobalPosition32_AdvancesAllFourInitialBands()
     {
-        var path = Path.Combine(_directory, "all-advance-15.db");
+        var path = Path.Combine(_directory, "all-advance-32.db");
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
 
-        for (var position = 1; position <= 16; position++)
+        var divAdvancePos = GetOpPosition(ArithmeticOperation.Division, 3);
+        var subAdvancePos = GetOpPosition(ArithmeticOperation.Subtraction, 6);
+        var addAdvancePos = GetOpPosition(ArithmeticOperation.Addition, 8);
+        var mulAdvancePos = GetOpPosition(ArithmeticOperation.Multiplication, 8);
+
+        for (var position = 1; position <= 32; position++)
         {
             Assert.Equal(position, session.Progression.PracticePosition + 1);
             var fact = session.CurrentFact;
             var eval = session.SubmitAnswer(fact.CorrectResult);
 
-            if (position == 8)
+            if (position == divAdvancePos)
             {
-                // DIV-D01 (2 facts) advances on 8
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
-            else if (position == 12)
+            else if (position == subAdvancePos)
             {
-                // SUB-D01 (3 facts) advances on 12
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
             }
-            else if (position == 14)
+            else if (position == addAdvancePos)
             {
-                // ADD-D01 (4 facts) advances on 14
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
             }
-            else if (position == 15)
+            else if (position == mulAdvancePos)
             {
-                // MUL-D01 (4 facts) advances on 15
                 Assert.True(eval.OperationAdvanced);
                 Assert.Equal(1, eval.ChangeSet.UpdatedProgression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
             }
 
             Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-            if (position < 16)
+            if (position < 32)
             {
-                Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+                if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                {
+                    Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                    session.ContinuePractice(startTiming: false);
+                }
             }
         }
 
-        // Verify all 4 operations are at BandIndex 1 (D02) at position 15
+        // Verify exact deterministic band progression after 8 turns per operation: all 4 operations advance to Band 1
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
@@ -651,19 +635,23 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "atomicity-advancement.db");
         using var innerStore = new SqliteLearnerStore(path);
-        var failingStore = new FailOnNthCommitStore(innerStore, failOnCommit: 8);
+        var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 3);
+        var failingStore = new FailOnNthCommitStore(innerStore, failOnCommit: (int)divTriggerPos);
         var session = new TrainingSession(failingStore);
         await session.InitializeAsync(startTiming: false);
 
-        // 7 turns correct
-        for (var i = 1; i <= 7; i++)
+        for (var i = 1L; i < divTriggerPos; i++)
         {
             session.SubmitAnswer(session.CurrentFact.CorrectResult);
             Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-            session.AdvanceAfterCorrectAnswer(startTiming: false);
+            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+            {
+                Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                session.ContinuePractice(startTiming: false);
+            }
         }
 
-        // Turn 8 would advance DIV-D01 to Band 1, but commit will fail
+        // Division attempt 3 would advance DIV-D01 to Band 1, but commit will fail
         var divEval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(divEval.OperationAdvanced); // in candidate evaluation
 
@@ -673,7 +661,7 @@ public sealed class DenseProgressionTests : IDisposable
 
         // Authoritative session progression must NOT have advanced
         Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
-        Assert.Equal(7, session.Progression.PracticePosition);
+        Assert.Equal(divTriggerPos - 1, session.Progression.PracticePosition);
     }
 
     [Fact]
@@ -745,14 +733,12 @@ public sealed class DenseProgressionTests : IDisposable
     }
 
     [Fact]
-    public async Task Simulation_DeterministicProgression_Positions20_50_100()
+    public async Task Simulation_DeterministicProgression_Positions32_50_100()
     {
         var path = Path.Combine(_directory, "simulation-100.db");
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
-
-        var curriculum = new ArithmeticCurriculum();
 
         for (var position = 1; position <= 100; position++)
         {
@@ -760,13 +746,9 @@ public sealed class DenseProgressionTests : IDisposable
             session.SubmitAnswer(fact.CorrectResult);
             Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
 
-            if (position == 20)
+            if (position == 32)
             {
-                // Position 20 (5 turns per op):
-                // ADD: Band 1 (ADD-D02)
-                // SUB: Band 1 (SUB-D02)
-                // MUL: Band 1 (MUL-D02)
-                // DIV: Band 1 (DIV-D02)
+                // Position 32 (8 turns per op): all 4 operations advance to Band 1
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
@@ -775,26 +757,26 @@ public sealed class DenseProgressionTests : IDisposable
             else if (position == 50)
             {
                 // Position 50 (13 turns for ADD/SUB, 12 turns for MUL/DIV):
-                // ADD: Band 2 (ADD-D03)
-                // SUB: Band 3 (SUB-D04)
-                // MUL: Band 2 (MUL-D03)
-                // DIV: Band 3 (DIV-D04)
-                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(3, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
-                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                Assert.Equal(3, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
+                // ADD: Band 1 (ADD-D02, needs 5 new facts)
+                // SUB: Band 2 (SUB-D03, completed SUB-D02 at attempt 13 / pos 50)
+                // MUL: Band 1 (MUL-D02, needs 5 new facts)
+                // DIV: Band 1 (DIV-D02, completes at attempt 13 / pos 52)
+                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
             else if (position == 100)
             {
                 // Position 100 (25 turns per op):
-                // ADD: Band 4 (ADD-D05)
-                // SUB: Band 5 (SUB-D06)
-                // MUL: Band 4 (MUL-D05)
-                // DIV: Band 4 (DIV-D05)
-                Assert.Equal(4, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(5, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
-                Assert.Equal(4, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                Assert.Equal(4, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
+                // ADD: Band 2 (ADD-D03, completed ADD-D02 at attempt 21 / pos 84)
+                // SUB: Band 3 (SUB-D04, completed SUB-D03 at attempt 23 / pos 92)
+                // MUL: Band 2 (MUL-D03, completed MUL-D02 at attempt 21 / pos 82)
+                // DIV: Band 2 (DIV-D03, completed DIV-D02 at attempt 13 / pos 52)
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+                Assert.Equal(3, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
 
             if (position < 100)
@@ -855,5 +837,17 @@ public sealed class DenseProgressionTests : IDisposable
             inner.CloseAsync(cancellationToken);
 
         public void Dispose() => inner.Dispose();
+    }
+    private static long GetOpPosition(ArithmeticOperation operation, long attemptOrdinal, int enabledCount = 4)
+    {
+        var bagIndex = attemptOrdinal - 1;
+        for (var p = (bagIndex * (long)enabledCount) + 1; p <= (bagIndex + 1) * (long)enabledCount; p++)
+        {
+            if (AdaptivePracticeSelector.GetScheduledOperation(p) == operation)
+            {
+                return p;
+            }
+        }
+        throw new InvalidOperationException($"Operation {operation} not found in bag {bagIndex}.");
     }
 }

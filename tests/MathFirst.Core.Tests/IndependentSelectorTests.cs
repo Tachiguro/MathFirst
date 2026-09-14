@@ -539,13 +539,15 @@ public sealed class IndependentSelectorTests
     }
 
     [Theory]
-    [InlineData(1, PracticeSelectionRole.New)]
-    [InlineData(2, PracticeSelectionRole.Due)]
-    [InlineData(4, PracticeSelectionRole.Maintenance)]
-    [InlineData(5, PracticeSelectionRole.Frontier)]
-    public void DenseBand_UnseenFacts_RequestedRolesOverrideToNewIntroduction(
+    [InlineData(1, PracticeSelectionRole.New, PracticeSelectionRole.New, true)]
+    [InlineData(2, PracticeSelectionRole.Due, PracticeSelectionRole.Frontier, false)]
+    [InlineData(4, PracticeSelectionRole.Maintenance, PracticeSelectionRole.Frontier, false)]
+    [InlineData(5, PracticeSelectionRole.Frontier, PracticeSelectionRole.Frontier, false)]
+    public void DenseBand_UnseenFacts_NonNewRolesConsolidateExistingFactsWithoutOverridingToNew(
         long attemptOrdinal,
-        PracticeSelectionRole expectedRequestedRole)
+        PracticeSelectionRole expectedRequestedRole,
+        PracticeSelectionRole expectedResolvedRole,
+        bool expectNewIntroduction)
     {
         var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var curriculum = new ArithmeticCurriculum();
@@ -557,15 +559,22 @@ public sealed class IndependentSelectorTests
 
         Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
         Assert.Equal(expectedRequestedRole, result.RequestedRole);
-        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
-        Assert.False(result.IsMaterialized);
-        Assert.True(result.IsNewIntroduction);
-        Assert.NotEqual(firstFact.Id, result.Fact.Id);
-        Assert.Contains(result.Fact.Id, curriculum.Addition.Bands[0].Frontier.Select(f => f.Id));
+        Assert.Equal(expectedResolvedRole, result.ResolvedRole);
+        Assert.Equal(expectNewIntroduction, result.IsNewIntroduction);
+        Assert.Equal(!expectNewIntroduction, result.IsMaterialized);
+        if (expectNewIntroduction)
+        {
+            Assert.NotEqual(firstFact.Id, result.Fact.Id);
+            Assert.Contains(result.Fact.Id, curriculum.Addition.Bands[0].Frontier.Select(f => f.Id));
+        }
+        else
+        {
+            Assert.Equal(firstFact.Id, result.Fact.Id);
+        }
     }
 
     [Fact]
-    public void DenseFirstPassCoverage_InitialDenseBands_ExposeAllOwnedFrontierFactsBeforeReview()
+    public void DenseFirstPassCoverage_InitialDenseBands_ExposeAllOwnedFrontierFactsOnScheduledNewSlots()
     {
         var curriculum = new ArithmeticCurriculum();
         var selector = new AdaptivePracticeSelector();
@@ -575,9 +584,9 @@ public sealed class IndependentSelectorTests
         var addSeen = new List<ArithmeticFact>();
         var addPositions = new long[] {
             GetOpPosition(ArithmeticOperation.Addition, 1),
-            GetOpPosition(ArithmeticOperation.Addition, 2),
             GetOpPosition(ArithmeticOperation.Addition, 3),
-            GetOpPosition(ArithmeticOperation.Addition, 4)
+            GetOpPosition(ArithmeticOperation.Addition, 6),
+            GetOpPosition(ArithmeticOperation.Addition, 8)
         };
         foreach (var pos in addPositions)
         {
@@ -606,8 +615,8 @@ public sealed class IndependentSelectorTests
         var subSeen = new List<ArithmeticFact>();
         var subPositions = new long[] {
             GetOpPosition(ArithmeticOperation.Subtraction, 1),
-            GetOpPosition(ArithmeticOperation.Subtraction, 2),
-            GetOpPosition(ArithmeticOperation.Subtraction, 3)
+            GetOpPosition(ArithmeticOperation.Subtraction, 3),
+            GetOpPosition(ArithmeticOperation.Subtraction, 6)
         };
         foreach (var pos in subPositions)
         {
@@ -628,9 +637,9 @@ public sealed class IndependentSelectorTests
         var mulSeen = new List<ArithmeticFact>();
         var mulPositions = new long[] {
             GetOpPosition(ArithmeticOperation.Multiplication, 1),
-            GetOpPosition(ArithmeticOperation.Multiplication, 2),
             GetOpPosition(ArithmeticOperation.Multiplication, 3),
-            GetOpPosition(ArithmeticOperation.Multiplication, 4)
+            GetOpPosition(ArithmeticOperation.Multiplication, 6),
+            GetOpPosition(ArithmeticOperation.Multiplication, 8)
         };
         foreach (var pos in mulPositions)
         {
@@ -651,7 +660,7 @@ public sealed class IndependentSelectorTests
         var divSeen = new List<ArithmeticFact>();
         var divPositions = new long[] {
             GetOpPosition(ArithmeticOperation.Division, 1),
-            GetOpPosition(ArithmeticOperation.Division, 2)
+            GetOpPosition(ArithmeticOperation.Division, 3)
         };
         foreach (var pos in divPositions)
         {
@@ -701,10 +710,10 @@ public sealed class IndependentSelectorTests
         var contextNotYet = CreateContext(posEligible, curriculum, materializedNotYet);
         var resNotYet = new AdaptivePracticeSelector().SelectTargetFact(contextNotYet);
 
-        Assert.Equal(PracticeSelectionRole.New, resNotYet.ResolvedRole);
-        Assert.NotEqual(f1.Id, resNotYet.Fact.Id);
-        Assert.False(resNotYet.IsMaterialized);
-        Assert.True(resNotYet.IsNewIntroduction);
+        Assert.Equal(PracticeSelectionRole.Frontier, resNotYet.ResolvedRole);
+        Assert.Equal(f1.Id, resNotYet.Fact.Id);
+        Assert.True(resNotYet.IsMaterialized);
+        Assert.False(resNotYet.IsNewIntroduction);
     }
 
     [Theory]
@@ -763,7 +772,7 @@ public sealed class IndependentSelectorTests
 
         var allMaterialized = new List<ArithmeticFact>();
 
-        for (var position = 1L; position <= 16; position++)
+        for (var position = 1L; position <= 32; position++)
         {
             var op = AdaptivePracticeSelector.GetScheduledOperation(position);
             var ctx = CreateContext(position, curriculum, Materialize(allMaterialized));
