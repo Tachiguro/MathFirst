@@ -162,6 +162,7 @@ a {
 .button:focus-visible,
 .choice-button:focus-visible,
 .answer-input:focus-visible,
+.numeric-keypad-button:focus-visible,
 select:focus-visible,
 a:focus-visible {
     outline: 3px solid var(--color-focus-ring);
@@ -1340,7 +1341,11 @@ select:disabled {
 }
 
 .numeric-keypad-button:not(:disabled):active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
     transform: translateY(1px);
+    transition: none;
 }
 
 .numeric-keypad-button:disabled {
