@@ -12,6 +12,18 @@ using Xunit;
 
 public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 {
+    private static long GetOpPosition(ArithmeticOperation operation, long attemptOrdinal, int enabledCount = 4)
+    {
+        var bagIndex = attemptOrdinal - 1;
+        for (var p = (bagIndex * (long)enabledCount) + 1; p <= (bagIndex + 1) * (long)enabledCount; p++)
+        {
+            if (AdaptivePracticeSelector.GetScheduledOperation(p) == operation)
+            {
+                return p;
+            }
+        }
+        throw new InvalidOperationException($"Operation {operation} not found in bag {bagIndex}.");
+    }
     private readonly string _testDirectory = Path.Combine(Path.GetTempPath(), "MathFirstSlice4Tests_" + Guid.NewGuid().ToString("N"));
 
     public DeterministicSelectorTerminalLivenessTests()
@@ -31,23 +43,24 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     [InlineData(1, "due", PracticeSelectionRole.Due)]
     [InlineData(1, "stale_maintenance", PracticeSelectionRole.Maintenance)]
     [InlineData(1, "early_review", PracticeSelectionRole.EarlyReview)]
-    [InlineData(5, "due", PracticeSelectionRole.Due)]
+    [InlineData(2, "due", PracticeSelectionRole.Due)]
+    [InlineData(2, "frontier", PracticeSelectionRole.Frontier)]
+    [InlineData(2, "stale_maintenance", PracticeSelectionRole.Maintenance)]
+    [InlineData(2, "early_review", PracticeSelectionRole.EarlyReview)]
+    [InlineData(4, "stale_maintenance", PracticeSelectionRole.Maintenance)]
+    [InlineData(4, "frontier", PracticeSelectionRole.Frontier)]
+    [InlineData(4, "due", PracticeSelectionRole.Due)]
+    [InlineData(4, "early_review", PracticeSelectionRole.EarlyReview)]
     [InlineData(5, "frontier", PracticeSelectionRole.Frontier)]
+    [InlineData(5, "due", PracticeSelectionRole.Due)]
     [InlineData(5, "stale_maintenance", PracticeSelectionRole.Maintenance)]
     [InlineData(5, "early_review", PracticeSelectionRole.EarlyReview)]
-    [InlineData(13, "stale_maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(13, "frontier", PracticeSelectionRole.Frontier)]
-    [InlineData(13, "due", PracticeSelectionRole.Due)]
-    [InlineData(13, "early_review", PracticeSelectionRole.EarlyReview)]
-    [InlineData(17, "frontier", PracticeSelectionRole.Frontier)]
-    [InlineData(17, "due", PracticeSelectionRole.Due)]
-    [InlineData(17, "stale_maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(17, "early_review", PracticeSelectionRole.EarlyReview)]
     public void FallbackMatrix_FollowsAuthoritativeChain(
-        long position,
+        long attemptOrdinal,
         string availablePool,
         PracticeSelectionRole expectedResolvedRole)
     {
+        var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var context = CreateFallbackContext(position, availablePool);
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -65,7 +78,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var selector = new AdaptivePracticeSelector();
 
         // 1. Requested New with unmaterialized candidate -> materializes
-        var freshContext = CreateContext(1, curriculum, EmptyMaterialized());
+        var freshContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 1), curriculum, EmptyMaterialized());
         var newResult = selector.SelectTargetFact(freshContext);
         Assert.Equal(PracticeSelectionRole.New, newResult.ResolvedRole);
         Assert.False(newResult.IsMaterialized);
@@ -73,18 +86,18 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         // 2. Non-New role with empty pools on structured band -> fails closed, never materializes
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
-        var dueContext = CreateContext(5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var dueContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 2), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(dueContext));
 
-        var maintenanceContext = CreateContext(13, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var maintenanceContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 4), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(maintenanceContext));
 
-        var frontierContext = CreateContext(17, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var frontierContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 5), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(frontierContext));
 
         // 3. Requested New fallback (e.g. all new materialized, falls back to Frontier/Due/EarlyReview) -> never isNewIntroduction
         var owned = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0);
-        var materializedContext = CreateContext(1, curriculum, Materialize(owned));
+        var materializedContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 1), curriculum, Materialize(owned));
         var fallbackResult = selector.SelectTargetFact(materializedContext);
         Assert.NotEqual(PracticeSelectionRole.New, fallbackResult.ResolvedRole);
         Assert.True(fallbackResult.IsMaterialized);
@@ -104,27 +117,22 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var curricula = CreateCurricula(curriculum, (ArithmeticOperation.Addition, custom));
         var progressions = CreateProgressions((ArithmeticOperation.Addition, 1)); // current band is 1
 
-        // Materialized fact is from band 0 (not in current band 1 frontier).
-        // It has NeedsRemediation=true, LastReview=10 and prospective=13 (13 < 10+4), so ineligible for remediation override.
-        // Due is 100 (> 13), so not Due.
-        // NeedsRemediation is true, so ineligible for Stale Maintenance and Early Review.
-        // At position 13 (requested Maintenance), fallback chain is Maintenance -> Frontier -> Due -> EarlyReview.
-        // All 4 pools are EMPTY!
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
         var itemState = ItemLearningState.CreateNew(fact0);
         itemState.NeedsRemediation = true;
-        var fsrsState = new FsrsCardState(fact0.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 10, FsrsRating.Again);
+        var fsrsState = new FsrsCardState(fact0.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, pos13 - 3, FsrsRating.Again);
 
         var materialized = new MaterializedState(
             [fact0],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact0.Id] = itemState },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact0.Id] = fsrsState });
 
-        var context = CreateContext(13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
+        var context = CreateContext(pos13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
 
         // Must throw because no eligible semantic pool exists; must NOT fall back to AnyMaterialized!
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
         Assert.Contains("Addition", ex.Message);
-        Assert.Contains("13", ex.Message);
+        Assert.Contains(pos13.ToString(), ex.Message);
     }
 
     // D. Remediation boundary
@@ -133,7 +141,10 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     {
         var curriculum = new ArithmeticCurriculum();
         var fact = curriculum.Addition.Bands[0].Frontier[0];
-        const long lastReview = 10;
+
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
+        var pos17 = GetOpPosition(ArithmeticOperation.Addition, 5);
+        var lastReview = pos13 - 3;
 
         var itemState = ItemLearningState.CreateNew(fact);
         itemState.NeedsRemediation = true;
@@ -147,37 +158,36 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var selector = new AdaptivePracticeSelector();
 
-        // At prospective = 13 (lastReview + 3): NOT eligible for remediation override.
-        // At position 13, scheduled op is Addition.
-        var context13 = CreateContext(13, curriculum, materialized);
+        // At prospective = pos13 (lastReview + 3): NOT eligible for remediation override.
+        var context13 = CreateContext(pos13, curriculum, materialized);
         var result13 = selector.SelectTargetFact(context13);
         Assert.NotEqual(PracticeSelectionRole.Remediation, result13.ResolvedRole);
 
-        // At prospective = 17 (lastReview + 7 >= lastReview + 4): ELIGIBLE for remediation override!
-        var context17 = CreateContext(17, curriculum, materialized);
+        // At prospective = pos17 (lastReview + 7 >= lastReview + 4): ELIGIBLE for remediation override!
+        var context17 = CreateContext(pos17, curriculum, materialized);
         var result17 = selector.SelectTargetFact(context17);
         Assert.Equal(PracticeSelectionRole.Remediation, result17.ResolvedRole);
         Assert.Equal(fact.Id, result17.Fact.Id);
 
-        // At prospective = 17, lastReview = 13 => 17 = 13 + 4 => exactly eligible!
-        var fsrsState13 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 13, FsrsRating.Again);
-        var materialized13 = new MaterializedState(
+        // At prospective = pos17, lastReview = pos17 - 4 => exactly eligible!
+        var fsrsStateExact4 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, pos17 - 4, FsrsRating.Again);
+        var materializedExact4 = new MaterializedState(
             [fact],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
-            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState13 });
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsStateExact4 });
 
-        var contextExact4 = CreateContext(17, curriculum, materialized13);
+        var contextExact4 = CreateContext(pos17, curriculum, materializedExact4);
         var resultExact4 = selector.SelectTargetFact(contextExact4);
         Assert.Equal(PracticeSelectionRole.Remediation, resultExact4.ResolvedRole);
         Assert.Equal(fact.Id, resultExact4.Fact.Id);
 
-        // If lastReview is 14 => 17 < 14 + 4 (18) => NOT eligible!
-        var fsrsState14 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 14, FsrsRating.Again);
-        var materialized14 = new MaterializedState(
+        // If lastReview is pos17 - 3 => pos17 < (pos17 - 3) + 4 => NOT eligible!
+        var fsrsStateNotYet4 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, pos17 - 3, FsrsRating.Again);
+        var materializedNotYet4 = new MaterializedState(
             [fact],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
-            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState14 });
-        var contextNotYet4 = CreateContext(17, curriculum, materialized14);
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsStateNotYet4 });
+        var contextNotYet4 = CreateContext(pos17, curriculum, materializedNotYet4);
         var resultNotYet4 = selector.SelectTargetFact(contextNotYet4);
         Assert.NotEqual(PracticeSelectionRole.Remediation, resultNotYet4.ResolvedRole);
     }
@@ -211,8 +221,9 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             [f4.Id] = new FsrsCardState(f4.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 10, 3, FsrsRating.Good)
         };
 
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
         var materialized = new MaterializedState([f1, f2, f3, f4], states, cards);
-        var context = CreateContext(13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
+        var context = CreateContext(pos13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         var expected = DeterministicFactRanker.Order(
@@ -220,7 +231,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-S01"),
             PracticeSelectionRole.Due,
-            13)[0];
+            pos13)[0];
         Assert.Equal(expected.Id, result.Fact.Id);
         Assert.Equal(PracticeSelectionRole.Due, result.ResolvedRole);
     }
@@ -257,8 +268,9 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             [f4.Id] = new FsrsCardState(f4.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Good)
         };
 
+        var pos17 = GetOpPosition(ArithmeticOperation.Addition, 5);
         var materialized = new MaterializedState([f1, f2, f3, f4], states, cards);
-        var context = CreateContext(17, curriculum, materialized, curricula: curricula);
+        var context = CreateContext(pos17, curriculum, materialized, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         var expected = DeterministicFactRanker.Order(
@@ -266,7 +278,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-D01"),
             PracticeSelectionRole.Frontier,
-            17)[0];
+            pos17)[0];
         Assert.Equal(expected.Id, result.Fact.Id);
         Assert.Equal(PracticeSelectionRole.Frontier, result.ResolvedRole);
     }
@@ -284,24 +296,25 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var itemState = ItemLearningState.CreateNew(fact);
         var selector = new AdaptivePracticeSelector();
 
-        // Ordinal 14 is position 53.
-        // At position 53: prospective = 53. If lastReview = 14 => 53 = 14 + 39 => NOT stale! Falls back to Early Review.
-        var fsrsState39 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 14, FsrsRating.Good);
+        var pos53 = GetOpPosition(ArithmeticOperation.Addition, 14);
+
+        // If diff = 39 => NOT stale! Falls back to Early Review.
+        var fsrsState39 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, pos53 - 39, FsrsRating.Good);
         var mat39 = new MaterializedState(
             [fact],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState39 });
-        var contextNotStale = CreateContext(53, curriculum, mat39, operationProgressions: progressions, curricula: curricula);
+        var contextNotStale = CreateContext(pos53, curriculum, mat39, operationProgressions: progressions, curricula: curricula);
         var resultNotStale = selector.SelectTargetFact(contextNotStale);
         Assert.Equal(PracticeSelectionRole.EarlyReview, resultNotStale.ResolvedRole);
 
-        // If lastReview = 13 => 53 = 13 + 40 => STALE!
-        var fsrsState40 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 13, FsrsRating.Good);
+        // If diff = 40 => STALE!
+        var fsrsState40 = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, pos53 - 40, FsrsRating.Good);
         var mat40 = new MaterializedState(
             [fact],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState40 });
-        var contextStale = CreateContext(53, curriculum, mat40, operationProgressions: progressions, curricula: curricula);
+        var contextStale = CreateContext(pos53, curriculum, mat40, operationProgressions: progressions, curricula: curricula);
         var resultStale = selector.SelectTargetFact(contextStale);
         Assert.Equal(PracticeSelectionRole.Maintenance, resultStale.ResolvedRole);
     }
@@ -335,8 +348,9 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             [f4.Id] = new FsrsCardState(f4.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 90, 5, FsrsRating.Good)
         };
 
+        var pos53 = GetOpPosition(ArithmeticOperation.Addition, 14);
         var materialized = new MaterializedState([f1, f2, f3, f4], states, cards);
-        var context = CreateContext(53, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
+        var context = CreateContext(pos53, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         var expected = DeterministicFactRanker.Order(
@@ -344,7 +358,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-S01"),
             PracticeSelectionRole.Maintenance,
-            53)[0];
+            pos53)[0];
         Assert.Equal(expected.Id, result.Fact.Id);
         Assert.Equal(PracticeSelectionRole.Maintenance, result.ResolvedRole);
     }
@@ -379,8 +393,10 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             [fRemed.Id] = new FsrsCardState(fRemed.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 10, FsrsRating.Again)
         };
 
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
+        cards[fRemed.Id] = new FsrsCardState(fRemed.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, pos13 - 3, FsrsRating.Again);
         var materialized = new MaterializedState([fFuture, fDue, fRemed], states, cards);
-        var context = CreateContext(13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
+        var context = CreateContext(pos13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
 
         var selector = new AdaptivePracticeSelector();
         var dueResult = selector.SelectTargetFact(context);
@@ -391,7 +407,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var matNoDue = new MaterializedState([fFuture, fRemed],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fFuture.Id] = sFuture, [fRemed.Id] = sRemed },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fFuture.Id] = cards[fFuture.Id], [fRemed.Id] = cards[fRemed.Id] });
-        var contextEarly = CreateContext(13, curriculum, matNoDue, operationProgressions: progressions, curricula: curricula);
+        var contextEarly = CreateContext(pos13, curriculum, matNoDue, operationProgressions: progressions, curricula: curricula);
 
         var earlyResult = selector.SelectTargetFact(contextEarly);
         Assert.Equal(PracticeSelectionRole.EarlyReview, earlyResult.ResolvedRole);
@@ -444,8 +460,9 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var selector = new AdaptivePracticeSelector();
 
-        for (var position = 1; position <= 41; position += 4)
+        for (var ordinal = 1; ordinal <= 11; ordinal++)
         {
+            var position = GetOpPosition(ArithmeticOperation.Addition, ordinal);
             var context = CreateContext(position, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
             var result = selector.SelectTargetFact(context);
 
@@ -483,60 +500,65 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var selector = new AdaptivePracticeSelector();
 
-        // Step 1: Position 13
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
+        var pos17 = GetOpPosition(ArithmeticOperation.Addition, 5);
+        var pos21 = GetOpPosition(ArithmeticOperation.Addition, 6);
+        var pos25 = GetOpPosition(ArithmeticOperation.Addition, 7);
+
+        // Step 1
         var mat1 = new MaterializedState([f1, f2, f3], states, cards);
-        var res1 = selector.SelectTargetFact(CreateContext(13, curriculum, mat1, operationProgressions: progressions, curricula: curricula));
+        var res1 = selector.SelectTargetFact(CreateContext(pos13, curriculum, mat1, operationProgressions: progressions, curricula: curricula));
         var expected1 = DeterministicFactRanker.Order(
             new[] { f1, f2, f3 },
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-S01"),
             PracticeSelectionRole.EarlyReview,
-            13)[0];
+            pos13)[0];
         Assert.Equal(expected1.Id, res1.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res1.ResolvedRole);
 
-        // Simulate review of res1 at position 13
-        cards[res1.Fact.Id] = new FsrsCardState(res1.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 13, FsrsRating.Good);
+        // Simulate review of res1
+        cards[res1.Fact.Id] = new FsrsCardState(res1.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, pos13, FsrsRating.Good);
 
-        // Step 2: Position 17
+        // Step 2
         var mat2 = new MaterializedState([f1, f2, f3], states, cards);
-        var res2 = selector.SelectTargetFact(CreateContext(17, curriculum, mat2, operationProgressions: progressions, curricula: curricula));
+        var res2 = selector.SelectTargetFact(CreateContext(pos17, curriculum, mat2, operationProgressions: progressions, curricula: curricula));
         var expected2 = DeterministicFactRanker.Order(
             new[] { f1, f2, f3 },
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-S01"),
             PracticeSelectionRole.EarlyReview,
-            17)[0];
+            pos17)[0];
         Assert.Equal(expected2.Id, res2.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res2.ResolvedRole);
 
-        // Simulate review of res2 at position 17
-        cards[res2.Fact.Id] = new FsrsCardState(res2.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 17, FsrsRating.Good);
+        // Simulate review of res2
+        cards[res2.Fact.Id] = new FsrsCardState(res2.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, pos17, FsrsRating.Good);
 
-        // Step 3: Position 21
+        // Step 3
         var mat3 = new MaterializedState([f1, f2, f3], states, cards);
-        var res3 = selector.SelectTargetFact(CreateContext(21, curriculum, mat3, operationProgressions: progressions, curricula: curricula));
+        var res3 = selector.SelectTargetFact(CreateContext(pos21, curriculum, mat3, operationProgressions: progressions, curricula: curricula));
         var expected3 = DeterministicFactRanker.Order(
             new[] { f1, f2, f3 },
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-S01"),
             PracticeSelectionRole.EarlyReview,
-            21)[0];
+            pos21)[0];
         Assert.Equal(expected3.Id, res3.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res3.ResolvedRole);
 
-        // Simulate review of res3 at position 21
-        cards[res3.Fact.Id] = new FsrsCardState(res3.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 21, FsrsRating.Good);
+        // Simulate review of res3
+        cards[res3.Fact.Id] = new FsrsCardState(res3.Fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, pos21, FsrsRating.Good);
 
-        // Step 4: Position 25
+        // Step 4
         var mat4 = new MaterializedState([f1, f2, f3], states, cards);
-        var res4 = selector.SelectTargetFact(CreateContext(25, curriculum, mat4, operationProgressions: progressions, curricula: curricula));
+        var res4 = selector.SelectTargetFact(CreateContext(pos25, curriculum, mat4, operationProgressions: progressions, curricula: curricula));
         var expected4 = DeterministicFactRanker.Order(
             new[] { f1, f2, f3 },
             ArithmeticOperation.Addition,
             new CurriculumBandId("TEST-S01"),
             PracticeSelectionRole.EarlyReview,
-            25)[0];
+            pos25)[0];
         Assert.Equal(expected4.Id, res4.Fact.Id);
         Assert.Equal(PracticeSelectionRole.EarlyReview, res4.ResolvedRole);
     }
@@ -569,8 +591,9 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var materialized = new MaterializedState([fForward, fMirror, fOther], states, cards);
 
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
         var context = CreateContext(
-            13,
+            pos13,
             curriculum,
             materialized,
             recentFacts: [fForward],
@@ -607,9 +630,11 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var materialized = new MaterializedState([fForward, fMirror], states, cards);
 
+        var pos13 = GetOpPosition(ArithmeticOperation.Addition, 4);
+
         // Case 1: Pool has fForward and fMirror. Recent has fForward.
         var mirrorContext = CreateContext(
-            13, curriculum, materialized,
+            pos13, curriculum, materialized,
             recentFacts: [fForward],
             operationProgressions: progressions,
             curricula: curricula);
@@ -623,7 +648,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fForward.Id] = states[fForward.Id] },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fForward.Id] = cards[fForward.Id] });
         var exactContext = CreateContext(
-            13, curriculum, singleMat,
+            pos13, curriculum, singleMat,
             recentFacts: [fForward],
             operationProgressions: progressions,
             curricula: curricula);
@@ -658,7 +683,8 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var materialized = new MaterializedState([f1], states, cards);
 
         var recent = new[] { f1, sub, mul, div };
-        var context = CreateContext(5, curriculum, materialized, recentFacts: recent, operationProgressions: progressions, curricula: curricula);
+        var pos5 = GetOpPosition(ArithmeticOperation.Addition, 2);
+        var context = CreateContext(pos5, curriculum, materialized, recentFacts: recent, operationProgressions: progressions, curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         Assert.Equal(f1.Id, result.Fact.Id);
@@ -709,13 +735,14 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             [f2.Id] = new FsrsCardState(f2.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 5, FsrsRating.Good)
         };
 
+        var pos53 = GetOpPosition(ArithmeticOperation.Addition, 14);
         var matA = new MaterializedState([f1, f2], new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = s1, [f2.Id] = s2 }, cards);
-        var resA = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(53, curriculum, matA, operationProgressions: progressions, curricula: curricula));
+        var resA = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(pos53, curriculum, matA, operationProgressions: progressions, curricula: curricula));
 
         s1.LastPracticedOrder = 1;
         s2.LastPracticedOrder = 100;
         var matB = new MaterializedState([f1, f2], new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = s1, [f2.Id] = s2 }, cards);
-        var resB = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(53, curriculum, matB, operationProgressions: progressions, curricula: curricula));
+        var resB = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(pos53, curriculum, matB, operationProgressions: progressions, curricula: curricula));
 
         Assert.Equal(resA.Fact.Id, resB.Fact.Id);
         Assert.Equal(f1.Id, resA.Fact.Id);
@@ -738,15 +765,16 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             [f2.Id] = new FsrsCardState(f2.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 5, FsrsRating.Again)
         };
 
+        var pos17 = GetOpPosition(ArithmeticOperation.Addition, 5);
         var mat = new MaterializedState([f1, f2], new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = s1, [f2.Id] = s2 }, cards);
 
-        var res = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(17, curriculum, mat));
+        var res = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(pos17, curriculum, mat));
         var expected = DeterministicFactRanker.Order(
             new[] { f1, f2 },
             ArithmeticOperation.Addition,
             curriculum.Addition.Bands[0].Id,
             PracticeSelectionRole.Remediation,
-            17)[0];
+            pos17)[0];
         Assert.Equal(PracticeSelectionRole.Remediation, res.ResolvedRole);
         Assert.Equal(expected.Id, res.Fact.Id);
     }
@@ -827,7 +855,8 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var materialized = new MaterializedState(facts, states, cards);
 
         var progressions = CreateProgressions((ArithmeticOperation.Addition, 125));
-        var context = CreateContext(1, curriculum, materialized, operationProgressions: progressions);
+        var pos1 = GetOpPosition(ArithmeticOperation.Addition, 1);
+        var context = CreateContext(pos1, curriculum, materialized, operationProgressions: progressions);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         Assert.Contains(result.Fact.Id, facts.Select(f => f.Id));
@@ -863,7 +892,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             var materialized = new MaterializedState(facts, states, cards);
 
             var progressions = CreateProgressions((operation, terminalBandIndex));
-            var position = (int)operation;
+            var position = GetOpPosition(operation, 1);
             var context = CreateContext(position, curriculum, materialized, operationProgressions: progressions);
 
             var result = new AdaptivePracticeSelector().SelectTargetFact(context);
@@ -885,7 +914,12 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState });
 
-        var context = CreateContext(5_000_000_001L, curriculum, materialized);
+        var pos = 5_000_000_001L;
+        while (AdaptivePracticeSelector.GetScheduledOperation(pos) != ArithmeticOperation.Addition)
+        {
+            pos++;
+        }
+        var context = CreateContext(pos, curriculum, materialized);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         Assert.NotNull(result.Fact);
@@ -898,11 +932,12 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     {
         var curriculum = new ArithmeticCurriculum();
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
-        var context = CreateContext(5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var pos5 = GetOpPosition(ArithmeticOperation.Addition, 2);
+        var context = CreateContext(pos5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
 
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
         Assert.Contains("Addition", ex.Message);
-        Assert.Contains("5", ex.Message);
+        Assert.Contains(pos5.ToString(), ex.Message);
     }
 
     // X. SQLite / in-memory conformance
@@ -973,11 +1008,10 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     [Fact]
     public void ExistingSelectorInvariants_OperationSchedulingAndTenRoleCycleUnchanged()
     {
-        for (var p = 1; p <= 40; p++)
+        for (var p = 1L; p <= 40; p++)
         {
             var op = AdaptivePracticeSelector.GetScheduledOperation(p);
-            var expectedOp = (ArithmeticOperation)(((p - 1) % 4) + 1);
-            Assert.Equal(expectedOp, op);
+            Assert.Contains(op, PracticeOperationPreferencePolicy.AllOperations);
 
             var role = AdaptivePracticeSelector.GetRequestedRole(p);
             var opOrdinal = ((p - 1) / 4) + 1;
@@ -996,6 +1030,14 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
                 _ => throw new InvalidOperationException()
             };
             Assert.Equal(expectedRole, role);
+        }
+
+        for (var bag = 0; bag < 10; bag++)
+        {
+            var bagOps = Enumerable.Range(0, 4)
+                .Select(s => AdaptivePracticeSelector.GetScheduledOperation((bag * 4L) + s + 1))
+                .ToArray();
+            Assert.Equal(4, bagOps.Distinct().Count());
         }
     }
 
@@ -1033,8 +1075,11 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [sampleFact.Id] = fsrsState });
 
         var progressions = CreateProgressions((operation, bandIndex));
-        var prospectivePosition = practicePosition + ((int)operation - 1 - ((practicePosition - 1) % 4) + 4) % 4;
-        if (prospectivePosition <= 0) prospectivePosition += 4;
+        var prospectivePosition = practicePosition <= 0 ? 1L : practicePosition;
+        while (AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition) != operation)
+        {
+            prospectivePosition++;
+        }
 
         var context = CreateContext(prospectivePosition, curriculum, materialized, operationProgressions: progressions);
 

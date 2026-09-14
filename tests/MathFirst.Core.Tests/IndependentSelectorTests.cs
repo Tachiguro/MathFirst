@@ -8,29 +8,36 @@ using Xunit;
 
 public sealed class IndependentSelectorTests
 {
+    private static long GetOpPosition(ArithmeticOperation operation, long attemptOrdinal, int enabledCount = 4)
+    {
+        for (var pos = 1L; pos <= 100000; pos++)
+        {
+            if (AdaptivePracticeSelector.GetScheduledOperation(pos) == operation)
+            {
+                var ordinal = ((pos - 1) / enabledCount) + 1;
+                if (ordinal == attemptOrdinal)
+                {
+                    return pos;
+                }
+            }
+        }
+        throw new InvalidOperationException($"Could not find position for {operation} attempt {attemptOrdinal}");
+    }
+
     [Fact]
     public void ProspectivePosition_DeterminesIndependentOperationAndRoleSchedule()
     {
-        var expectedOperations = new[]
+        for (var bag = 0; bag < 40; bag++)
         {
-            ArithmeticOperation.Addition,
-            ArithmeticOperation.Subtraction,
-            ArithmeticOperation.Multiplication,
-            ArithmeticOperation.Division,
-            ArithmeticOperation.Addition
-        };
-
-        Assert.Equal(
-            expectedOperations,
-            Enumerable.Range(1, 5).Select(position => AdaptivePracticeSelector.GetScheduledOperation(position)));
-        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(5));
-        Assert.Equal(PracticeSelectionRole.Due, AdaptivePracticeSelector.GetRequestedRole(5));
+            var ops = Enumerable.Range(1, 4)
+                .Select(offset => AdaptivePracticeSelector.GetScheduledOperation((bag * 4) + offset))
+                .ToHashSet();
+            Assert.Equal(4, ops.Count);
+        }
 
         for (var position = 1; position <= 160; position++)
         {
-            var expectedOperation = expectedOperations[(position - 1) % 4];
             var expectedOrdinal = ((position - 1) / 4) + 1;
-            Assert.Equal(expectedOperation, AdaptivePracticeSelector.GetScheduledOperation(position));
             Assert.Equal(expectedOrdinal, AdaptivePracticeSelector.GetOperationAttemptOrdinal(position));
         }
 
@@ -57,9 +64,8 @@ public sealed class IndependentSelectorTests
 
         foreach (var operation in Enum.GetValues<ArithmeticOperation>())
         {
-            var offset = (int)operation - 1;
-            var actual = Enumerable.Range(0, 20)
-                .Select(index => AdaptivePracticeSelector.GetRequestedRole((index * 4L) + offset + 1))
+            var actual = Enumerable.Range(1, 20)
+                .Select(attemptOrdinal => AdaptivePracticeSelector.GetRequestedRole(GetOpPosition(operation, attemptOrdinal)))
                 .ToArray();
             Assert.Equal(expected.Concat(expected), actual);
             Assert.Equal(4, actual.Take(10).Count(role => role == PracticeSelectionRole.New));
@@ -74,7 +80,8 @@ public sealed class IndependentSelectorTests
     {
         var curriculum = new ArithmeticCurriculum();
         var frontier = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0);
-        var context = CreateContext(5, curriculum, Materialize(frontier));
+        var position = GetOpPosition(ArithmeticOperation.Addition, 2);
+        var context = CreateContext(position, curriculum, Materialize(frontier));
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
         var expected = DeterministicFactRanker.Order(
@@ -82,7 +89,7 @@ public sealed class IndependentSelectorTests
             ArithmeticOperation.Addition,
             curriculum.Addition.Bands[0].Id,
             FactSelectionRole.Frontier,
-            5)[0];
+            position)[0];
 
         Assert.Equal(PracticeSelectionRole.Frontier, result.ResolvedRole);
         Assert.Equal(expected.Id, result.Fact.Id);
@@ -102,7 +109,8 @@ public sealed class IndependentSelectorTests
             new[] { remediationFact },
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [remediationFact.Id] = state },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [remediationFact.Id] = card });
-        var context = CreateContext(5, curriculum, materialized);
+        var position = GetOpPosition(ArithmeticOperation.Addition, 2);
+        var context = CreateContext(position, curriculum, materialized);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -117,23 +125,24 @@ public sealed class IndependentSelectorTests
     [InlineData(1, "due", PracticeSelectionRole.Due)]
     [InlineData(1, "maintenance", PracticeSelectionRole.Maintenance)]
     [InlineData(1, "early_review", PracticeSelectionRole.EarlyReview)]
-    [InlineData(5, "due", PracticeSelectionRole.Due)]
+    [InlineData(2, "due", PracticeSelectionRole.Due)]
+    [InlineData(2, "frontier", PracticeSelectionRole.Frontier)]
+    [InlineData(2, "maintenance", PracticeSelectionRole.Maintenance)]
+    [InlineData(2, "early_review", PracticeSelectionRole.EarlyReview)]
+    [InlineData(4, "maintenance", PracticeSelectionRole.Maintenance)]
+    [InlineData(4, "frontier", PracticeSelectionRole.Frontier)]
+    [InlineData(4, "due", PracticeSelectionRole.Due)]
+    [InlineData(4, "early_review", PracticeSelectionRole.EarlyReview)]
     [InlineData(5, "frontier", PracticeSelectionRole.Frontier)]
+    [InlineData(5, "due", PracticeSelectionRole.Due)]
     [InlineData(5, "maintenance", PracticeSelectionRole.Maintenance)]
     [InlineData(5, "early_review", PracticeSelectionRole.EarlyReview)]
-    [InlineData(13, "maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(13, "frontier", PracticeSelectionRole.Frontier)]
-    [InlineData(13, "due", PracticeSelectionRole.Due)]
-    [InlineData(13, "early_review", PracticeSelectionRole.EarlyReview)]
-    [InlineData(17, "frontier", PracticeSelectionRole.Frontier)]
-    [InlineData(17, "due", PracticeSelectionRole.Due)]
-    [InlineData(17, "maintenance", PracticeSelectionRole.Maintenance)]
-    [InlineData(17, "early_review", PracticeSelectionRole.EarlyReview)]
     public void EveryFallbackTransition_UsesTheFirstNonEmptyPoolWithoutSwitchingOperation(
-        long position,
+        long attemptOrdinal,
         string availablePool,
         PracticeSelectionRole expectedResolvedRole)
     {
+        var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var context = CreateFallbackContext(position, availablePool);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
@@ -149,11 +158,12 @@ public sealed class IndependentSelectorTests
     {
         var curriculum = new ArithmeticCurriculum();
         var empty = EmptyMaterialized();
-        var dense = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(1, curriculum, empty));
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 1);
+        var dense = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(pos, curriculum, empty));
 
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
         var structuredContext = CreateContext(
-            1,
+            pos,
             curriculum,
             empty,
             operationProgressions: structuredProgressions);
@@ -169,7 +179,7 @@ public sealed class IndependentSelectorTests
         Assert.True(owned.Count > sample.Count);
 
         var exhaustedContext = CreateContext(
-            1,
+            pos,
             curriculum,
             Materialize(sample),
             operationProgressions: structuredProgressions);
@@ -184,8 +194,9 @@ public sealed class IndependentSelectorTests
     {
         var curriculum = new ArithmeticCurriculum();
         var progressions = CreateProgressions((ArithmeticOperation.Multiplication, 1));
+        var pos = GetOpPosition(ArithmeticOperation.Multiplication, 1);
         var context = CreateContext(
-            position: 3,
+            position: pos,
             curriculum,
             EmptyMaterialized(),
             operationProgressions: progressions);
@@ -203,22 +214,20 @@ public sealed class IndependentSelectorTests
     }
 
     [Theory]
-    [InlineData(ArithmeticOperation.Addition, 10, 1)]
-    [InlineData(ArithmeticOperation.Multiplication, 13, 19)]
+    [InlineData(ArithmeticOperation.Addition, 10)]
+    [InlineData(ArithmeticOperation.Multiplication, 13)]
     public void Frontier_UsesAcquisitionOwnershipAndRejectsDenseOwnedStructuredOverlap(
         ArithmeticOperation operation,
-        int bandIndex,
-        long position)
+        int bandIndex)
     {
         var curriculum = new ArithmeticCurriculum();
-        var operationCurriculum = curriculum.GetCurriculum(operation);
-        var band = GetBand(operationCurriculum, bandIndex);
-        var resolver = new AcquisitionOwnershipResolver(operationCurriculum);
+        var band = GetBand(curriculum.GetCurriculum(operation), bandIndex);
+        var resolver = new AcquisitionOwnershipResolver(curriculum.GetCurriculum(operation));
         var owned = resolver.GetOwnedFrontier(bandIndex);
         var earlierOwned = band.Frontier.First(fact => !owned.Any(item => item.Id == fact.Id));
         var currentOwned = owned[0];
         var progressions = CreateProgressions((operation, bandIndex));
-        var rolePosition = operation == ArithmeticOperation.Addition ? 17 : position;
+        var rolePosition = GetOpPosition(operation, 5);
         var context = CreateContext(
             rolePosition,
             curriculum,
@@ -242,7 +251,8 @@ public sealed class IndependentSelectorTests
             new[] { new CurriculumBand(ArithmeticOperation.Addition, 0, new CurriculumBandId("TEST-D01"), CurriculumBandKind.Dense, new[] { forward, reverse }) });
         var curriculum = new ArithmeticCurriculum();
         var curricula = CreateCurricula(curriculum, (ArithmeticOperation.Addition, custom));
-        var context = CreateContext(1, curriculum, Materialize(new[] { forward }), curricula: curricula);
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 1);
+        var context = CreateContext(pos, curriculum, Materialize(new[] { forward }), curricula: curricula);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -252,11 +262,12 @@ public sealed class IndependentSelectorTests
 
     [Theory]
     [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(4)]
     [InlineData(5)]
-    [InlineData(13)]
-    [InlineData(17)]
-    public void DueRemediation_OverridesEveryRequestedRoleWithoutChangingOperation(long position)
+    public void DueRemediation_OverridesEveryRequestedRoleWithoutChangingOperation(long attemptOrdinal)
     {
+        var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var curriculum = new ArithmeticCurriculum();
         var remediationFact = curriculum.Addition.Bands[0].Frontier[0];
         var materialized = Materialize(new[] { remediationFact }, state =>
@@ -284,8 +295,9 @@ public sealed class IndependentSelectorTests
             state.NeedsRemediation = true;
         }, fsrsDuePosition: 100, lastReviewPosition: -3);
 
+        var pos = GetOpPosition(ArithmeticOperation.Subtraction, 1);
         var result = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(2, curriculum, materialized));
+            CreateContext(pos, curriculum, materialized));
 
         Assert.Equal(ArithmeticOperation.Subtraction, result.ScheduledOperation);
         Assert.NotEqual(PracticeSelectionRole.Remediation, result.ResolvedRole);
@@ -316,13 +328,14 @@ public sealed class IndependentSelectorTests
         };
 
         var materialized = new MaterializedState(new[] { f1, f2, f3 }, states, cards);
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 4);
         var first = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(13, curriculum, materialized));
+            CreateContext(pos, curriculum, materialized));
         var reversed = ReverseMaterialized(materialized);
         var second = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(13, new ArithmeticCurriculum(), reversed));
+            CreateContext(pos, new ArithmeticCurriculum(), reversed));
 
-        var expected = DeterministicFactRanker.Order(new[] { f2, f3, f1 }, ArithmeticOperation.Addition, curriculum.Addition.Bands[0].Id, PracticeSelectionRole.Remediation, 13)[0];
+        var expected = DeterministicFactRanker.Order(new[] { f2, f3, f1 }, ArithmeticOperation.Addition, curriculum.Addition.Bands[0].Id, PracticeSelectionRole.Remediation, pos)[0];
         Assert.Equal(expected.Id, first.Fact.Id);
         Assert.Equal(first.Fact.Id, second.Fact.Id);
     }
@@ -330,7 +343,8 @@ public sealed class IndependentSelectorTests
     [Fact]
     public void Maintenance_ExcludesDueFactsAndUsesOnlyMaterializedCandidates()
     {
-        var context = CreateEmptyOwnedContext(13, "mixed");
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 4);
+        var context = CreateEmptyOwnedContext(pos, "mixed");
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -352,13 +366,14 @@ public sealed class IndependentSelectorTests
             new(ArithmeticOperation.Division, 0, 1)
         };
 
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 5);
         var outside = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(
-            17,
+            pos,
             curriculum,
             Materialize(frontier),
             recentFacts: new[] { topCandidate }.Concat(otherHistory)));
         var inside = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(
-            17,
+            pos,
             curriculum,
             Materialize(frontier),
             recentFacts: otherHistory.Concat(new[] { topCandidate })));
@@ -371,17 +386,19 @@ public sealed class IndependentSelectorTests
     {
         var forward = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
         var reverse = new ArithmeticFact(ArithmeticOperation.Addition, 1, 0);
-        var mirrorContext = CreateSingleBandContext(17, new[] { forward, reverse }, new[] { forward });
+        var posFrontier = GetOpPosition(ArithmeticOperation.Addition, 5);
+        var mirrorContext = CreateSingleBandContext(posFrontier, new[] { forward, reverse }, new[] { forward });
         var mirror = new AdaptivePracticeSelector().SelectTargetFact(mirrorContext);
 
-        var exactContext = CreateSingleBandContext(17, new[] { forward }, new[] { forward });
+        var exactContext = CreateSingleBandContext(posFrontier, new[] { forward }, new[] { forward });
         var exact = new AdaptivePracticeSelector().SelectTargetFact(exactContext);
 
         var curriculum = new ArithmeticCurriculum();
         var dueFact = curriculum.Addition.Bands[0].Frontier[0];
         var dueMaterialized = Materialize(curriculum.Addition.Bands[0].Frontier, fsrsDuePosition: 1, dueOnlyFactId: dueFact.Id);
+        var posDue = GetOpPosition(ArithmeticOperation.Addition, 2);
         var due = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(
-            5,
+            posDue,
             curriculum,
             dueMaterialized,
             recentFacts: new[] { dueFact }));
@@ -416,12 +433,12 @@ public sealed class IndependentSelectorTests
     }
 
     [Theory]
-    [InlineData(ArithmeticOperation.Addition, 17)]
-    [InlineData(ArithmeticOperation.Multiplication, 19)]
+    [InlineData(ArithmeticOperation.Addition)]
+    [InlineData(ArithmeticOperation.Multiplication)]
     public void TargetMirrorCooldown_ExcludesBothRecentFactAndItsMirrorWhenAnAlternativeExists(
-        ArithmeticOperation operation,
-        long position)
+        ArithmeticOperation operation)
     {
+        var position = GetOpPosition(operation, 5);
         var forward = new ArithmeticFact(operation, 0, 1);
         var reverse = new ArithmeticFact(operation, 1, 0);
         var alternative = new ArithmeticFact(operation, 1, 1);
@@ -441,11 +458,12 @@ public sealed class IndependentSelectorTests
     {
         var firstCurriculum = new ArithmeticCurriculum();
         var facts = firstCurriculum.Addition.Bands[0].Frontier;
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 5);
         var first = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(17, firstCurriculum, Materialize(facts)));
+            CreateContext(pos, firstCurriculum, Materialize(facts)));
         var secondCurriculum = new ArithmeticCurriculum();
         var second = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(17, secondCurriculum, ReverseMaterialized(Materialize(facts))));
+            CreateContext(pos, secondCurriculum, ReverseMaterialized(Materialize(facts))));
 
         Assert.Equal(first.ScheduledOperation, second.ScheduledOperation);
         Assert.Equal(first.RequestedRole, second.RequestedRole);
@@ -465,19 +483,20 @@ public sealed class IndependentSelectorTests
             Assert.True(fresh.IsNewIntroduction);
         }
 
+        var posAdd5 = GetOpPosition(ArithmeticOperation.Addition, 5);
         var ongoing = new AdaptivePracticeSelector().SelectTargetFact(
-            CreateContext(5, curriculum, Materialize(curriculum.Addition.Bands[0].Frontier)));
+            CreateContext(posAdd5, curriculum, Materialize(curriculum.Addition.Bands[0].Frontier)));
         Assert.Equal(PracticeSelectionRole.Frontier, ongoing.ResolvedRole);
 
         var owned = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(10);
         var migrated = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(
-            5,
+            posAdd5,
             curriculum,
             Materialize(new[] { owned[0], new ArithmeticFact(ArithmeticOperation.Addition, 10, 10) }),
             operationProgressions: CreateProgressions((ArithmeticOperation.Addition, 10))));
         Assert.Equal(PracticeSelectionRole.Frontier, migrated.ResolvedRole);
 
-        var impossible = CreateEmptyOwnedContext(1, "none");
+        var impossible = CreateEmptyOwnedContext(posAdd5, "none");
         var firstError = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(impossible));
         var secondError = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(impossible));
         Assert.Equal(firstError.Message, secondError.Message);
@@ -506,7 +525,7 @@ public sealed class IndependentSelectorTests
         {
             var result = new AdaptivePracticeSelector().SelectTargetFact(
                 CreateContext(position, curriculum, materialized, currentSessionOrder: 100));
-            var expected = (ArithmeticOperation)(((position - 1) % 4) + 1);
+            var expected = AdaptivePracticeSelector.GetScheduledOperation(position);
             Assert.Equal(expected, result.ScheduledOperation);
             Assert.Equal(expected, result.Fact.Operation);
             if (expected != ArithmeticOperation.Addition)
@@ -521,13 +540,14 @@ public sealed class IndependentSelectorTests
 
     [Theory]
     [InlineData(1, PracticeSelectionRole.New)]
-    [InlineData(5, PracticeSelectionRole.Due)]
-    [InlineData(13, PracticeSelectionRole.Maintenance)]
-    [InlineData(17, PracticeSelectionRole.Frontier)]
+    [InlineData(2, PracticeSelectionRole.Due)]
+    [InlineData(4, PracticeSelectionRole.Maintenance)]
+    [InlineData(5, PracticeSelectionRole.Frontier)]
     public void DenseBand_UnseenFacts_RequestedRolesOverrideToNewIntroduction(
-        long position,
+        long attemptOrdinal,
         PracticeSelectionRole expectedRequestedRole)
     {
+        var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var curriculum = new ArithmeticCurriculum();
         var firstFact = curriculum.Addition.Bands[0].Frontier[0];
         var materialized = Materialize([firstFact]);
@@ -553,7 +573,12 @@ public sealed class IndependentSelectorTests
         // 1. Addition (ADD-D01: 4 facts)
         var addFrontier = curriculum.Addition.Bands[0].Frontier;
         var addSeen = new List<ArithmeticFact>();
-        var addPositions = new long[] { 1, 5, 9, 13 };
+        var addPositions = new long[] {
+            GetOpPosition(ArithmeticOperation.Addition, 1),
+            GetOpPosition(ArithmeticOperation.Addition, 2),
+            GetOpPosition(ArithmeticOperation.Addition, 3),
+            GetOpPosition(ArithmeticOperation.Addition, 4)
+        };
         foreach (var pos in addPositions)
         {
             var ctx = CreateContext(pos, curriculum, Materialize(addSeen));
@@ -568,8 +593,9 @@ public sealed class IndependentSelectorTests
         Assert.Equal(4, addSeen.Count);
         Assert.Equal(addFrontier.Select(f => f.Id).ToHashSet(), addSeen.Select(f => f.Id).ToHashSet());
 
-        // 5th turn: position 17 (requested Frontier) -> all 4 materialized -> resolved is Frontier
-        var add5thCtx = CreateContext(17, curriculum, Materialize(addSeen));
+        // 5th turn: position with attempt 5 (requested Frontier) -> all 4 materialized -> resolved is Frontier
+        var add5thPos = GetOpPosition(ArithmeticOperation.Addition, 5);
+        var add5thCtx = CreateContext(add5thPos, curriculum, Materialize(addSeen));
         var add5thRes = selector.SelectTargetFact(add5thCtx);
         Assert.NotEqual(PracticeSelectionRole.New, add5thRes.ResolvedRole);
         Assert.True(add5thRes.IsMaterialized);
@@ -578,7 +604,11 @@ public sealed class IndependentSelectorTests
         // 2. Subtraction (SUB-D01: 3 facts)
         var subFrontier = curriculum.Subtraction.Bands[0].Frontier;
         var subSeen = new List<ArithmeticFact>();
-        var subPositions = new long[] { 2, 6, 10 };
+        var subPositions = new long[] {
+            GetOpPosition(ArithmeticOperation.Subtraction, 1),
+            GetOpPosition(ArithmeticOperation.Subtraction, 2),
+            GetOpPosition(ArithmeticOperation.Subtraction, 3)
+        };
         foreach (var pos in subPositions)
         {
             var ctx = CreateContext(pos, curriculum, Materialize(subSeen));
@@ -596,7 +626,12 @@ public sealed class IndependentSelectorTests
         // 3. Multiplication (MUL-D01: 4 facts)
         var mulFrontier = curriculum.Multiplication.Bands[0].Frontier;
         var mulSeen = new List<ArithmeticFact>();
-        var mulPositions = new long[] { 3, 7, 11, 15 };
+        var mulPositions = new long[] {
+            GetOpPosition(ArithmeticOperation.Multiplication, 1),
+            GetOpPosition(ArithmeticOperation.Multiplication, 2),
+            GetOpPosition(ArithmeticOperation.Multiplication, 3),
+            GetOpPosition(ArithmeticOperation.Multiplication, 4)
+        };
         foreach (var pos in mulPositions)
         {
             var ctx = CreateContext(pos, curriculum, Materialize(mulSeen));
@@ -614,7 +649,10 @@ public sealed class IndependentSelectorTests
         // 4. Division (DIV-D01: 2 facts: 0/1, 1/1)
         var divFrontier = curriculum.Division.Bands[0].Frontier;
         var divSeen = new List<ArithmeticFact>();
-        var divPositions = new long[] { 4, 8 };
+        var divPositions = new long[] {
+            GetOpPosition(ArithmeticOperation.Division, 1),
+            GetOpPosition(ArithmeticOperation.Division, 2)
+        };
         foreach (var pos in divPositions)
         {
             var ctx = CreateContext(pos, curriculum, Materialize(divSeen));
@@ -637,14 +675,15 @@ public sealed class IndependentSelectorTests
         var f1 = curriculum.Addition.Bands[0].Frontier[0];
         var state = ItemLearningState.CreateNew(f1);
         state.NeedsRemediation = true;
-        // LastReview = 1. At prospective position 5 (5 >= 1 + 4): eligible!
+        // LastReview = 1. At prospective position posEligible (posEligible >= 1 + 4): eligible!
+        var posEligible = GetOpPosition(ArithmeticOperation.Addition, 2);
         var card = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Again);
         var materialized = new MaterializedState(
             [f1],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = card });
 
-        var contextEligible = CreateContext(5, curriculum, materialized);
+        var contextEligible = CreateContext(posEligible, curriculum, materialized);
         var resEligible = new AdaptivePracticeSelector().SelectTargetFact(contextEligible);
 
         Assert.Equal(PracticeSelectionRole.Remediation, resEligible.ResolvedRole);
@@ -652,14 +691,14 @@ public sealed class IndependentSelectorTests
         Assert.True(resEligible.IsMaterialized);
         Assert.False(resEligible.IsNewIntroduction);
 
-        // If not yet eligible (LastReview = 2, prospective = 5 => 5 < 2 + 4):
-        var cardNotYet = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 2, FsrsRating.Again);
+        // If not yet eligible (LastReview = posEligible, prospective = posEligible => posEligible < posEligible + 4):
+        var cardNotYet = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, posEligible, FsrsRating.Again);
         var materializedNotYet = new MaterializedState(
             [f1],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = cardNotYet });
 
-        var contextNotYet = CreateContext(5, curriculum, materializedNotYet);
+        var contextNotYet = CreateContext(posEligible, curriculum, materializedNotYet);
         var resNotYet = new AdaptivePracticeSelector().SelectTargetFact(contextNotYet);
 
         Assert.Equal(PracticeSelectionRole.New, resNotYet.ResolvedRole);
@@ -669,13 +708,14 @@ public sealed class IndependentSelectorTests
     }
 
     [Theory]
-    [InlineData(5, PracticeSelectionRole.Due)]
-    [InlineData(13, PracticeSelectionRole.Maintenance)]
-    [InlineData(17, PracticeSelectionRole.Frontier)]
+    [InlineData(2, PracticeSelectionRole.Due)]
+    [InlineData(4, PracticeSelectionRole.Maintenance)]
+    [InlineData(5, PracticeSelectionRole.Frontier)]
     public void StructuredBands_DoNotUseCoverageFirst_NonNewRolesFailClosedWhenNoMaterializedFacts(
-        long position,
+        long attemptOrdinal,
         PracticeSelectionRole requestedRole)
     {
+        var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var curriculum = new ArithmeticCurriculum();
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
         var context = CreateContext(
@@ -692,10 +732,11 @@ public sealed class IndependentSelectorTests
     [Fact]
     public void StructuredBands_NormalRequestedNew_StillIntroducesSample()
     {
+        var position = GetOpPosition(ArithmeticOperation.Addition, 1);
         var curriculum = new ArithmeticCurriculum();
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
         var context = CreateContext(
-            1,
+            position,
             curriculum,
             EmptyMaterialized(),
             operationProgressions: structuredProgressions);
@@ -758,7 +799,7 @@ public sealed class IndependentSelectorTests
         recentFacts ?? Array.Empty<ArithmeticFact>());
 
     private static MaterializedState Materialize(
-        IEnumerable<ArithmeticFact> facts,
+        IReadOnlyList<ArithmeticFact> facts,
         Action<ItemLearningState>? configureState = null,
         long? fsrsDuePosition = null,
         long? lastReviewPosition = null,

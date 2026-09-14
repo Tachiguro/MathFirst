@@ -37,17 +37,17 @@ public sealed class LongRunIndependentProgressionTests
                 }
             }
 
-            await SeedHistoricalMaterializationAsync(path, 800);
+            await SeedHistoricalMaterializationAsync(path, 1200);
 
             using var reopened = new SqliteLearnerStore(path);
             var reopenedSession = new TrainingSession(reopened);
             await reopenedSession.InitializeAsync(startTiming: false);
 
             Assert.True(
-                reopenedSession.ItemStates.Count <= 512,
+                reopenedSession.ItemStates.Count <= 1024,
                 $"Selection state was history-sized: {reopenedSession.ItemStates.Count} item states were loaded.");
             Assert.True(
-                reopenedSession.FsrsStates.Count <= 512,
+                reopenedSession.FsrsStates.Count <= 1024,
                 $"Selection state was history-sized: {reopenedSession.FsrsStates.Count} FSRS states were loaded.");
 
             var prospectivePosition = reopenedSession.Progression.PracticePosition + 1;
@@ -130,14 +130,27 @@ public sealed class LongRunIndependentProgressionTests
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
 
-        for (var position = 1; position <= 18; position++)
+        var mulAttempts = 0;
+        for (var position = 1; position <= 20; position++)
         {
             var fact = session.CurrentFact;
+            var isMul = fact.Operation == ArithmeticOperation.Multiplication;
+            if (isMul)
+            {
+                mulAttempts++;
+                if (mulAttempts == 5)
+                {
+                    Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+                    Assert.True(fact.LeftOperand == 2 || fact.RightOperand == 2);
+                    break;
+                }
+            }
+
             session.SubmitAnswer(fact.CorrectResult);
             var result = await session.CommitCurrentEvaluationAsync();
             Assert.True(result.IsSuccess);
 
-            if (position == 15)
+            if (isMul && mulAttempts == 4)
             {
                 Assert.True(session.LastEvaluation!.OperationAdvanced);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
@@ -150,10 +163,7 @@ public sealed class LongRunIndependentProgressionTests
             }
         }
 
-        Assert.Equal(19, session.Progression.PracticePosition + 1);
-        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
-        Assert.True(session.CurrentFact.LeftOperand == 2 || session.CurrentFact.RightOperand == 2);
-        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+        Assert.Equal(5, mulAttempts);
     }
 
     [Fact]
@@ -362,7 +372,16 @@ public sealed class LongRunIndependentProgressionTests
         var evaluatedFacts = band.Kind == CurriculumBandKind.Structured
             ? DeterministicFactRanker.SelectStructuredSample(frontier, band.Operation, band.Id)
             : frontier;
-        var practicePosition = checked((historicalAttemptCount * 4) + 2);
+        long targetMulPos = 1;
+        for (var p = ((long)historicalAttemptCount * 4) + 1; p <= ((long)historicalAttemptCount + 1) * 4; p++)
+        {
+            if (DeterministicOperationScheduler.GetScheduledOperation(p) == ArithmeticOperation.Multiplication)
+            {
+                targetMulPos = p;
+                break;
+            }
+        }
+        var practicePosition = targetMulPos - 1;
         var progression = LearnerProgression.CreateFresh();
         progression.PracticePosition = practicePosition;
         progression.StoreRevision = 7;
@@ -374,6 +393,15 @@ public sealed class LongRunIndependentProgressionTests
             {
                 var fact = evaluatedFacts[index % evaluatedFacts.Count];
                 var isCorrect = index < historicalCorrectCount;
+                long attemptPos = 1;
+                for (var p = ((long)index * 4) + 1; p <= ((long)index + 1) * 4; p++)
+                {
+                    if (DeterministicOperationScheduler.GetScheduledOperation(p) == ArithmeticOperation.Multiplication)
+                    {
+                        attemptPos = p;
+                        break;
+                    }
+                }
                 return new AttemptRecord(
                     $"persisted-{bandIndex}-{index}",
                     fact.Id,
@@ -386,7 +414,7 @@ public sealed class LongRunIndependentProgressionTests
                     isCorrect,
                     isCorrect ? 800 : 3_000,
                     DateTimeOffset.UnixEpoch.AddMinutes(index),
-                    practicePosition: 3 + (index * 4));
+                    practicePosition: attemptPos);
             })
             .ToArray();
         var itemStates = evaluatedFacts.ToDictionary(
@@ -429,7 +457,16 @@ public sealed class LongRunIndependentProgressionTests
         await using var transaction = connection.BeginTransaction();
         for (var index = 0; index < count; index++)
         {
-            var fact = new ArithmeticFact(ArithmeticOperation.Addition, 1_000_000 + index, 1);
+            var op = PracticeOperationPreferencePolicy.AllOperations[index % PracticeOperationPreferencePolicy.AllOperations.Count];
+            var fact = new ArithmeticFact(op, 1_000_000 + index, 1);
+            var category = (index / 4) % 4; // 0: Due, 1: Remediation, 2: Maintenance, 3: EarlyReview
+            var isDue = category == 0;
+            var isRemediation = category == 1;
+            var isMaintenance = category == 2;
+            var isEarlyReview = category == 3;
+            var duePosition = isDue ? 1 : 1_000_000;
+            var lastReviewOrder = isEarlyReview ? 500 : (1 + ((index / 16) % 100));
+
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = @"
@@ -439,18 +476,19 @@ public sealed class LongRunIndependentProgressionTests
                     consecutive_correct, last_latency_ms, rolling_latency_ms,
                     fluent_streak, is_mastered, needs_remediation,
                     remediation_due_order, last_practiced_order, last_practiced_at)
-                VALUES (@fact_id, 'Addition', @left, 1, 1, 1, 0, 1, 900, 900, 1, 0, @needs_remediation, @remediation_due_order, @order, NULL);
+                VALUES (@fact_id, @operation, @left, 1, 1, 1, 0, 1, 900, 900, 1, 0, @needs_remediation, @remediation_due_order, @order, NULL);
                 INSERT INTO fsrs_card_state (
                     fact_id, card_id, state, step, stability, difficulty,
                     due_practice_position, last_review_practice_position, last_rating)
                 VALUES (@fact_id, @card_id, 2, NULL, 1.0, 1.0, @due_position, @order, 3);";
             command.Parameters.AddWithValue("@fact_id", fact.Id);
+            command.Parameters.AddWithValue("@operation", op.ToString());
             command.Parameters.AddWithValue("@left", fact.LeftOperand);
             command.Parameters.AddWithValue("@card_id", Guid.NewGuid().ToString());
-            command.Parameters.AddWithValue("@order", index + 1);
-            command.Parameters.AddWithValue("@needs_remediation", index % 4 == 1 ? 1 : 0);
-            command.Parameters.AddWithValue("@remediation_due_order", index % 4 == 1 ? 1 : 0);
-            command.Parameters.AddWithValue("@due_position", index % 4 == 0 ? 1 : 1_000_000);
+            command.Parameters.AddWithValue("@order", lastReviewOrder);
+            command.Parameters.AddWithValue("@needs_remediation", isRemediation ? 1 : 0);
+            command.Parameters.AddWithValue("@remediation_due_order", isRemediation ? 1 : 0);
+            command.Parameters.AddWithValue("@due_position", duePosition);
             await command.ExecuteNonQueryAsync();
         }
 

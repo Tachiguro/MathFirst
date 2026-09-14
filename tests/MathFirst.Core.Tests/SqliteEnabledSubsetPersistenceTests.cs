@@ -112,11 +112,13 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
         var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 20);
 
-        Assert.Equal(
-            Enumerable.Range(1, 20).Select(position => position % 2 == 1
-                ? ArithmeticOperation.Addition
-                : ArithmeticOperation.Multiplication),
-            operations);
+        Assert.Equal(20, operations.Count);
+        for (var bag = 0; bag < 10; bag++)
+        {
+            var bagOps = operations.Skip(bag * 2).Take(2).ToArray();
+            Assert.Contains(ArithmeticOperation.Addition, bagOps);
+            Assert.Contains(ArithmeticOperation.Multiplication, bagOps);
+        }
         var snapshot = await store.LoadSnapshotAsync();
         Assert.Equal(20, snapshot.Progression.PracticePosition);
         Assert.DoesNotContain(snapshot.RecentAttempts, attempt =>
@@ -171,7 +173,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         var reenabledOperations = await CompleteAcceptedAttemptsAsync(session, preferences, 16);
 
         Assert.Equal(76, session.Progression.PracticePosition);
-        Assert.Equal(PracticeOperationPreferencePolicy.AllOperations, reenabledOperations.Distinct().ToArray());
+        Assert.Equal(PracticeOperationPreferencePolicy.AllOperations.ToHashSet(), reenabledOperations.ToHashSet());
         Assert.NotEqual(SessionInteractionState.PersistenceFailure, session.InteractionState);
         Assert.Equal(76, (await store.LoadSnapshotAsync()).Progression.PracticePosition);
     }

@@ -380,47 +380,57 @@ public sealed class PracticeConfigurationTests
     }
 
     [Fact]
-    public void Scheduling_TwoOperationsEnabled_AlternatesBalancedRotation()
+    public void Scheduling_TwoOperationsEnabled_BoundedBagSchedule()
     {
         var twoOps = new[] { ArithmeticOperation.Addition, ArithmeticOperation.Multiplication };
 
-        // Position 1: Addition, ordinal 1
-        Assert.Equal(ArithmeticOperation.Addition, AdaptivePracticeSelector.GetScheduledOperation(1, twoOps));
+        // Position 1 & 2 (Bag 0): both operations present, ordinal 1
+        var bag0 = new[] { AdaptivePracticeSelector.GetScheduledOperation(1, twoOps), AdaptivePracticeSelector.GetScheduledOperation(2, twoOps) };
+        Assert.Contains(ArithmeticOperation.Addition, bag0);
+        Assert.Contains(ArithmeticOperation.Multiplication, bag0);
         Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(1, 2));
-
-        // Position 2: Multiplication, ordinal 1
-        Assert.Equal(ArithmeticOperation.Multiplication, AdaptivePracticeSelector.GetScheduledOperation(2, twoOps));
         Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(2, 2));
 
-        // Position 3: Addition, ordinal 2
-        Assert.Equal(ArithmeticOperation.Addition, AdaptivePracticeSelector.GetScheduledOperation(3, twoOps));
+        // Position 3 & 4 (Bag 1): both operations present, ordinal 2
+        var bag1 = new[] { AdaptivePracticeSelector.GetScheduledOperation(3, twoOps), AdaptivePracticeSelector.GetScheduledOperation(4, twoOps) };
+        Assert.Contains(ArithmeticOperation.Addition, bag1);
+        Assert.Contains(ArithmeticOperation.Multiplication, bag1);
         Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(3, 2));
-
-        // Position 4: Multiplication, ordinal 2
-        Assert.Equal(ArithmeticOperation.Multiplication, AdaptivePracticeSelector.GetScheduledOperation(4, twoOps));
         Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(4, 2));
     }
 
     [Fact]
-    public void Scheduling_ThreeOperationsEnabled_RoundRobinSchedule()
+    public void Scheduling_ThreeOperationsEnabled_BoundedBagSchedule()
     {
         var threeOps = new[] { ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Division };
 
-        // P=1: Addition, ord=1
-        Assert.Equal(ArithmeticOperation.Addition, AdaptivePracticeSelector.GetScheduledOperation(1, threeOps));
+        // Bag 0 (P=1,2,3): all three operations present, ord=1
+        var bag0 = new[]
+        {
+            AdaptivePracticeSelector.GetScheduledOperation(1, threeOps),
+            AdaptivePracticeSelector.GetScheduledOperation(2, threeOps),
+            AdaptivePracticeSelector.GetScheduledOperation(3, threeOps)
+        };
+        Assert.Contains(ArithmeticOperation.Addition, bag0);
+        Assert.Contains(ArithmeticOperation.Subtraction, bag0);
+        Assert.Contains(ArithmeticOperation.Division, bag0);
         Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(1, 3));
-
-        // P=2: Subtraction, ord=1
-        Assert.Equal(ArithmeticOperation.Subtraction, AdaptivePracticeSelector.GetScheduledOperation(2, threeOps));
         Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(2, 3));
-
-        // P=3: Division, ord=1
-        Assert.Equal(ArithmeticOperation.Division, AdaptivePracticeSelector.GetScheduledOperation(3, threeOps));
         Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(3, 3));
 
-        // P=4: Addition, ord=2
-        Assert.Equal(ArithmeticOperation.Addition, AdaptivePracticeSelector.GetScheduledOperation(4, threeOps));
+        // Bag 1 (P=4,5,6): all three operations present, ord=2
+        var bag1 = new[]
+        {
+            AdaptivePracticeSelector.GetScheduledOperation(4, threeOps),
+            AdaptivePracticeSelector.GetScheduledOperation(5, threeOps),
+            AdaptivePracticeSelector.GetScheduledOperation(6, threeOps)
+        };
+        Assert.Contains(ArithmeticOperation.Addition, bag1);
+        Assert.Contains(ArithmeticOperation.Subtraction, bag1);
+        Assert.Contains(ArithmeticOperation.Division, bag1);
         Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(4, 3));
+        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(5, 3));
+        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(6, 3));
     }
 
     [Fact]

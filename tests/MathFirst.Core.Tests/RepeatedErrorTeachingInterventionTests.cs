@@ -247,47 +247,34 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         await session.InitializeAsync();
 
         var teachingCount = 0;
-        string? monitoredFactId = null;
 
         for (var step = 0; step < 80; step++)
         {
             var f = session.CurrentFact;
-            monitoredFactId ??= f.Id;
+            var prev = session.GetConsecutiveErrorCount(f.Id);
+            session.SubmitAnswer(f.CorrectResult + 1);
+            await session.CommitCurrentEvaluationAsync();
 
-            if (f.Id == monitoredFactId)
+            if (prev == 1)
             {
-                var prev = session.GetConsecutiveErrorCount(f.Id);
-                session.SubmitAnswer(f.CorrectResult + 1);
-                await session.CommitCurrentEvaluationAsync();
+                Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
+                Assert.Equal(0, session.GetConsecutiveErrorCount(f.Id));
+                teachingCount++;
 
-                if (prev == 1)
+                var acknowledged = session.AcknowledgeTeachingIntervention();
+                Assert.True(acknowledged);
+                Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+
+                if (teachingCount >= 2)
                 {
-                    Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
-                    Assert.Equal(0, session.GetConsecutiveErrorCount(f.Id));
-                    teachingCount++;
-
-                    var acknowledged = session.AcknowledgeTeachingIntervention();
-                    Assert.True(acknowledged);
-                    Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
-
-                    if (teachingCount >= 2)
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    Assert.Equal(1, session.GetConsecutiveErrorCount(f.Id));
-                    Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
-                    session.AdvanceToNextFact();
+                    break;
                 }
             }
             else
             {
-                // Answer correctly for other facts
-                session.SubmitAnswer(f.CorrectResult);
-                await session.CommitCurrentEvaluationAsync();
-                session.AdvanceAfterCorrectAnswer();
+                Assert.Equal(1, session.GetConsecutiveErrorCount(f.Id));
+                Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
+                session.AdvanceToNextFact();
             }
         }
 

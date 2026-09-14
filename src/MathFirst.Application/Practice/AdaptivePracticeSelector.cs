@@ -22,18 +22,9 @@ public sealed class AdaptivePracticeSelector
 
     public static ArithmeticOperation GetScheduledOperation(
         long prospectivePracticePosition,
-        IReadOnlyList<ArithmeticOperation>? enabledOperations = null)
-    {
-        if (prospectivePracticePosition <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
-        }
+        IReadOnlyList<ArithmeticOperation>? enabledOperations = null) =>
+        DeterministicOperationScheduler.GetScheduledOperation(prospectivePracticePosition, enabledOperations);
 
-        var enabled = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(enabledOperations);
-        var k = enabled.Count;
-        var index = checked((int)((prospectivePracticePosition - 1) % k));
-        return enabled[index];
-    }
 
     public static long GetOperationAttemptOrdinal(
         long prospectivePracticePosition,
