@@ -75,10 +75,10 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 10. Reconcile post-merge project state and V1 baseline documentation (`MF-DOC-003`) - complete and merged through Pull Request #19 at `6e137471a16ffced5f5a62daa1a3f5143b5bbb7a`.
 11. Standalone MathFirst Privacy Policy (`PRIVACY.md`) - complete and merged through Pull Request #20 at `c4ae75a99f7971033ca9887bb2277b217979be03`.
 12. Stabilize deterministic practice diversity, bounded operation scheduling, and review balance (`MF-STAB-002`) - complete and merged across three slices: Slice 1 (PR #21 at `7cc6caebec1798d5cfb3c48172b6f78360fb2442`), Slice 2 (PR #22 at `33d745d270745c2de65e47519cb98959278bbcbd`), and Slice 3 (PR #23 at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`).
-13. Reconcile post-stabilization project state documentation (`MF-DOC-004`) - active documentation package on branch `docs/mf-doc-004-post-stabilization-reconciliation` establishing current truth on `main` at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`.
-14. Deliver keypad press feedback and responsive validation (`MF-UX-004`) - planned future UX package.
-15. Deliver tester distribution and release hardening (`MF-REL-002`) - planned future release package.
-16. Complete final exact-candidate Native V1 validation.
+13. Reconcile post-stabilization project state documentation (`MF-DOC-004`) - complete and merged through Pull Request #24 at `3e471e20e2d452ee1e383579ed3d0831e1825d3e`.
+14. Deliver keypad press feedback and responsive validation (`MF-UX-004`) - complete and merged through Pull Request #25 at `46a7158d3c7fbdf6bc43fe120c35863ac55bb78b`.
+15. Deliver tester distribution and release hardening (`MF-REL-002`) - complete and merged through Pull Request #26 at `79e0d48c058747e8112388d31d721a049ec2857a`.
+16. Complete final exact-candidate Native V1 validation on synchronized `main` (exact candidate SHA to be established from live synchronized `main` following post-MF-REL-002 project-state documentation reconciliation merge).
 17. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
 18. Perform separately authorized final real-device verification.
 19. Make a separate later decision about Google Play upload.

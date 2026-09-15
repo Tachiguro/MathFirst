@@ -96,27 +96,31 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-`main` / `origin/main`: `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9` (MF-STAB-002 Slice 3 merged via PR #23)
 Worktrees: Exactly one normal worktree
 
-### Active Package Context
-- Active Task Branch: `docs/mf-doc-004-post-stabilization-reconciliation`
-- Package: `MF-DOC-004` - **Post-Stabilization Project State Reconciliation**
-- Base Branch / Commit: `main` at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`
-- Package Type: `Documentation`
-- Current Lifecycle: `DOCUMENT_ONLY`
-- Next Lifecycle: `REVIEW_ONLY`
-- Remote State: Branch unpushed; no Pull Request opened yet
+### Operational Baseline
+- All planned pre-release packages through `MF-REL-002` are complete and merged into `main`.
+- Historical baseline merge commit for `MF-REL-002` (PR #26): `79e0d48c058747e8112388d31d721a049ec2857a`.
+- Active implementation package: None currently in flight.
 
-### Durable Merged Baseline (MF-STAB-002 & Predecessors Summary)
-- **Delivery Status**: `MF-STAB-002` merged into `main` across three slices through PR #21 (`7cc6caebec1798d5cfb3c48172b6f78360fb2442`), PR #22 (`33d745d270745c2de65e47519cb98959278bbcbd`), and PR #23 (`2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`).
-- **Deterministic Practice Selection Diversity**: Deterministic candidate ranking, anti-ladder candidate selection when alternatives exist, preserved exact (3-fact) and mirror (3-fact) cooldowns, and deterministic role-specific ranking domains.
-- **Bounded Operation Scheduling**: Deterministic bounded operation permutation bags ensuring every enabled operation appears exactly once per bag without RNG or persisted scheduler state.
-- **Review Balance Stabilization & Restored Role Authority**: Restored requested-role authority during Dense acquisition, bounding New introductions to 4 requested slots per 10 per-operation attempts and enabling Due, Maintenance, and Frontier review opportunities without global suppression by unseen Dense material. Preserved remediation priority, FSRS virtual time, persistence, and progression rules. Full Core test suite passed with 1074 tests.
-- **Privacy Policy & Predecessors**: MathFirst standalone privacy policy merged via PR #20 (`c4ae75a99f7971033ca9887bb2277b217979be03`), MF-DOC-003 merged via PR #19 (`6e137471a16ffced5f5a62daa1a3f5143b5bbb7a`), and MF-SET-001 practice configuration merged via PR #18 (`a051518420db3b45f8ca1074bac27e9b4d1b799d`).
+### Session Discovery & Candidate Resolution Protocol
+When initializing a new session:
+1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
+2. **Verify synchronized `main`**: Ensure local `main` is clean and synchronized with `origin/main`.
+3. **Recognize completed pre-release packages**: Confirm `MF-DOC-004` (PR #24), `MF-UX-004` (PR #25), and `MF-REL-002` (PR #26) are merged.
+4. **Recognize next technical roadmap stage**: Phase 6 Final Exact-Candidate Native V1 Validation.
+5. **Resolve exact candidate commit**: Use the live, synchronized post-reconciliation `main` commit SHA as the authoritative validation candidate. Do not assume or hardcode a pre-reconciliation SHA as the final release candidate.
 
-### Immediate Next Lifecycle Steps
-- Complete `DOCUMENT_ONLY` reconciliation on `docs/mf-doc-004-post-stabilization-reconciliation`.
-- Next lifecycle step: `REVIEW_ONLY`.
+### Durable Merged Baseline Summary
+- **MF-DOC-004** (PR #24 at `3e471e20e2d452ee1e383579ed3d0831e1825d3e`): Post-stabilization project-state documentation reconciliation.
+- **MF-UX-004** (PR #25 at `46a7158d3c7fbdf6bc43fe120c35863ac55bb78b`): Keypad active press visual feedback, `:focus-visible` contract preservation, and responsive viewport validation.
+- **MF-REL-002** (PR #26 at `79e0d48c058747e8112388d31d721a049ec2857a`): Release workflow hardening, generalized `SourceCandidate` packaging, validator-approved five-file promotion (`.aab`, `.provenance.json`, `.validation.json`, `TESTER_README.md`, `SHA256SUMS`), immutable provenance bytes, ValidationReceipt Schema v1, and release profile characterization.
+- **Predecessors**: `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
+
+### Downstream Roadmap Stages
+- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Pending execution on the synchronized post-reconciliation `main` commit.
+- **Phase 6 - Production Packaging & Signing**: Separately authorized downstream work (`Distributable` profile with external production keystore).
+- **Phase 6 - Final Real-Device Verification**: Separately authorized physical target hardware validation.
+- **Phase 6 - Google Play Publication**: Separate subsequent release decision.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
