@@ -49,6 +49,17 @@ public sealed class AcquisitionOwnershipResolver
         return _owners.TryGetValue(factId, out ownerBandIndex);
     }
 
+    public bool IsEligible(string factId, int throughBandIndex)
+    {
+        if (string.IsNullOrWhiteSpace(factId) || throughBandIndex < 0)
+        {
+            return false;
+        }
+
+        return TryGetOwner(factId, throughBandIndex, out var owner)
+            && owner <= throughBandIndex;
+    }
+
     private bool EnsurePrefixThrough(int requestedBandIndex)
     {
         while (_ownedFrontiers.Count <= requestedBandIndex)
