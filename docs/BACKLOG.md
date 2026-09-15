@@ -137,15 +137,27 @@ When items are accepted into the backlog, they are recorded with:
 
 ---
 
+### MF-DOC-004: Post-Stabilization Project State Reconciliation
+
+- **ID**: `MF-DOC-004`
+- **Title**: Post-Stabilization Project State Reconciliation
+- **Type**: `Documentation`
+- **Status**: `Completed` (Merged through PR #24 at `3e471e20e2d452ee1e383579ed3d0831e1825d3e`)
+- **Dependencies**: `MF-STAB-002` complete (merged through PR #23)
+- **Description**:
+  Reconcile repository documentation after the completed merge of `MF-DOC-003` (PR #19), MathFirst Privacy Policy (PR #20), and `MF-STAB-002` (Slices 1–3 through PR #21, PR #22, and PR #23 at `2d59464fd3de8cefa5b0f404c00e9bcc74c98dc9`) across `CHANGELOG.md`, `docs/BACKLOG.md`, `docs/CURRENT_WORK.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, `docs/PROJECT_STATE.md`, and `docs/ROADMAP.md` to establish an accurate documentation baseline before downstream UX and release work.
+
+---
+
 ### MF-UX-004: Keypad Press Feedback and Responsive Validation
 
 - **ID**: `MF-UX-004`
 - **Title**: Keypad Press Feedback and Responsive Validation
 - **Type**: `Feature`
-- **Status**: `Planned`
+- **Status**: `Completed` (Merged through PR #25 at `46a7158d3c7fbdf6bc43fe120c35863ac55bb78b`)
 - **Dependencies**: `MF-STAB-002` and `MF-DOC-004` complete
 - **Description**:
-  Refine numeric keypad visual feedback on active press states and perform responsive layout validation across narrow and wide viewport dimensions.
+  Refine numeric keypad visual feedback on active press states and perform responsive layout validation across narrow and wide viewport dimensions. Implemented CSS active-press visual styling for enabled keypad buttons, preserved `:focus-visible` outline contract and disabled button opacity, and validated responsive layout contracts across viewports without introducing JavaScript or Blazor pointer-state machinery.
 
 ---
 
@@ -154,10 +166,10 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-REL-002`
 - **Title**: Tester Distribution / Release Hardening
 - **Type**: `Feature`
-- **Status**: `Planned`
+- **Status**: `Completed` (Merged through PR #26 at `79e0d48c058747e8112388d31d721a049ec2857a`)
 - **Dependencies**: `MF-UX-004` complete
 - **Description**:
-  Provide tester distribution workflows, verify release build profiles, and harden release verification artifacts prior to final candidate validation and packaging.
+  Provide tester distribution workflows, verify release build profiles, and harden release verification artifacts prior to final candidate validation and packaging. Generalized `SourceCandidate` packaging policy to accept any clean attached non-`main` branch; established strict validator-approved five-file evidence promotion (`<ArtifactId>.aab`, `<ArtifactId>.provenance.json`, `<ArtifactId>.validation.json`, `TESTER_README.md`, `SHA256SUMS`); bound immutable provenance bytes; implemented ValidationReceipt Schema v1; added deterministic `TESTER_README.md` generation; defined exact `SHA256SUMS` contract; characterized release build profiles including unpackaged Windows release properties; and confirmed no production signing, Google Play upload, or physical device verification was performed.
 
 ---
 
