@@ -30,10 +30,14 @@ public static class RepositoryPolicy
         switch (request.Profile)
         {
             case ReleaseProfile.SourceCandidate:
-                if (!string.Equals(snapshot.Branch, ReleaseConstants.SourceCandidateBranch, StringComparison.Ordinal))
+                if (string.IsNullOrWhiteSpace(snapshot.Branch))
                 {
-                    throw new ReleaseToolException(
-                        $"SourceCandidate requires branch '{ReleaseConstants.SourceCandidateBranch}'.");
+                    throw new ReleaseToolException("SourceCandidate requires an attached branch.");
+                }
+
+                if (string.Equals(snapshot.Branch, "main", StringComparison.Ordinal))
+                {
+                    throw new ReleaseToolException("SourceCandidate cannot be created from branch 'main'.");
                 }
 
                 break;

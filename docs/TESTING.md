@@ -326,3 +326,33 @@ MF-SET-001 permanent regression coverage validates the final practice-configurat
   - SessionCheckIn: 20-attempt summaries compute correct count and median correct latency accurately.
 - **Lifecycle**: `DOCUMENT_ONLY`; the next successful lifecycle is `COMMIT_ONLY`.
 - **Evidence Boundary**: Automated tests in `MathFirst.Core.Tests` execute against synthetic fixtures and isolated environments. Manual verification on physical device confirmed UI/runtime invariants. No production AAB, signing, Google Play upload, distribution, or release is implied.
+
+---
+
+## 14. MF-REL-002 Tester Distribution and Release Hardening Contracts
+
+MF-REL-002 extends the offline release-tool contract while preserving the existing ArtifactId, Android artifact hierarchy, signing architecture, and validator implementation.
+
+1. **Tester Evidence Generation (`TesterDistributionValidationTests`)**:
+   - Verifies ValidationReceipt Schema v1, stable string serialization for `SourceCandidate` / `Distributable` and `ValidatorApproved`, absence of a `checks` property, fixed UTC timestamps, exact AAB/provenance hash binding, signer evidence, and profile-specific distributable state.
+   - Verifies deterministic tester README boundaries and exact four-entry `SHA256SUMS` formatting: known filenames only, no duplicates, ordinal order, lowercase SHA-256, two-space delimiter, LF-only content, and one final LF.
+   - Verifies evidence-only `ArtifactWorkspace` promotion rejects incomplete, extra, malformed, mismatched, reparse-point, overwrite, or incorrectly classified staged evidence before the atomic directory move.
+
+2. **Packaging Integration Contract Migration (`AndroidAabValidationTests`)**:
+   - Successful `SourceCandidate` and `Distributable` packaging scenarios now require exactly five promoted files: the signed `<ArtifactId>.aab`, provenance JSON, validation receipt JSON, `TESTER_README.md`, and `SHA256SUMS`.
+   - The unsigned `com.tachiguro.mathfirst.aab` publish intermediate remains explicitly excluded.
+   - Synthetic packaging fixtures use a representative attached non-`main` branch and no longer encode the historical MF-REL-001 branch name.
+
+3. **Release Profile Characterization (`ReleaseProfileContractTests`)**:
+   - Characterizes the already-correct Windows project contract: `WindowsPackageType == None`, Windows `SupportedOSPlatformVersion == 10.0.17763.0`, and Windows `TargetPlatformMinVersion == 10.0.17763.0`.
+   - This is characterization coverage, not a manufactured RED behavioral slice; the project configuration is unchanged.
+
+4. **TDD and Evidence Boundary**:
+   - Genuine RED -> GREEN slices cover the generalized clean attached non-`main` SourceCandidate policy, evidence generation/promotion, and `AndroidPackageCommand` integration. The Windows project assertions characterize existing behavior.
+   - All automated coverage is offline and uses synthetic bundle bytes, mocked external tool processes, fixed timestamps where receipt content is asserted, and isolated temporary directories. It does not execute real packaging, production signing, upload, distribution, installation, ADB, emulator/device work, or manual verification.
+
+Focused MF-REL-002 validation can be run with:
+
+```powershell
+dotnet test tests/MathFirst.Core.Tests/MathFirst.Core.Tests.csproj -c Release --filter "FullyQualifiedName~AabPackagingScriptValidationTests|FullyQualifiedName~TesterDistributionValidationTests|FullyQualifiedName~ReleaseProfileContractTests|FullyQualifiedName~AndroidAabValidationTests"
+```

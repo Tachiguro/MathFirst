@@ -68,7 +68,7 @@ MathFirst release tooling strictly isolates two release profiles:
 
 | Profile | Target Branch | Git Baseline Requirement | Signing Mode | Promotion Target | Distribution Status |
 |---|---|---|---|---|---|
-| **`SourceCandidate`** | `feat/mf-rel-001-android-aab-packaging` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/source-candidate/<ArtifactId>/` | **Non-distributable** (development & validation only) |
+| **`SourceCandidate`** | Any attached non-`main` branch; no package-specific branch name is encoded | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/source-candidate/<ArtifactId>/` | **Non-distributable** (development & validation only) |
 | **`Distributable`** | `main` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` == `local main` == `origin/main` | Production/release keystore (`-p:AndroidKeyStore=true`) with external secret files | `artifacts/android/distributable/<ArtifactId>/` | **Distributable** (validated release candidate; does not imply upload) |
 
 ### C. Android Platform Contract & Manifest Security
@@ -106,7 +106,7 @@ Every packaged artifact is accompanied by a `<ArtifactId>.provenance.json` metad
 - **Signing**: Signing state (`development-debug` or `release-expected-pending-validation`), expected certificate fingerprint, and validated certificate fingerprint.
 - **Timestamp**: Exact UTC generation timestamp (`generatedAtUtc`).
 
-*Provenance Integrity*: Provenance JSON serves as structured evidence metadata, not cryptographic proof or self-attestation. The offline validator independently recomputes the artifact SHA-256 and verifies all properties against the bundle bytes.
+*Provenance Integrity*: Provenance JSON serves as structured evidence metadata, not cryptographic proof or self-attestation. The offline validator independently recomputes the artifact SHA-256 and verifies all properties against the bundle bytes. Packaging serializes the staged provenance exactly once; validation, the validation receipt, and `SHA256SUMS` bind those immutable staged file bytes without rewriting the provenance afterward.
 
 ### F. Packaging Automation (`scripts/package-android-aab.ps1`)
 
@@ -172,15 +172,33 @@ pwsh -File scripts/validate-android-aab.ps1 `
 ### H. Artifact Workspace & Promotion
 
 - **Fixed Destination Hierarchy**: `artifacts/android/source-candidate/<ArtifactId>/` and `artifacts/android/distributable/<ArtifactId>/`.
+- **Stable Artifact Identity**: MF-REL-002 does not change the existing `MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Classification}` ArtifactId or the Android artifact hierarchy.
 - **Isolated Staging**: Packaging occurs in an invocation-unique directory under `artifacts/android/.staging/<InvocationGuid>/`.
 - **Single-AAB Selection**: Selects exactly one `.aab` produced in the publish output; rejects ambiguous multiple outputs.
 - **No Overwrite / Force Path**: Aborts if the destination directory already exists.
-- **Validation-Gated Promotion**: Artifacts are validated before promotion; `Distributable` promotion strictly requires independent validator approval (`ValidatorApproved`).
+- **Exact Evidence Directory**: A successful promotion contains exactly `<ArtifactId>.aab`, `<ArtifactId>.provenance.json`, `<ArtifactId>.validation.json`, `TESTER_README.md`, and `SHA256SUMS`; the unsigned publish intermediate is never promoted.
+- **Validation-Gated Promotion**: The exact staged AAB and provenance are validated before promotion. Both profiles require `ValidatorApproved`; the result must agree with the requested profile and exact staged AAB hash.
 - **Atomic Move & Cleanup**: Staged artifacts are promoted via an atomic directory move (`Directory.Move`), followed by invocation staging directory deletion.
 
-### I. Release Boundary Invariants
+### I. Validation Receipt and Tester Evidence (MF-REL-002)
+
+`<ArtifactId>.validation.json` is ValidationReceipt Schema v1. It uses stable string values for `profile` (`SourceCandidate` or `Distributable`) and `status` (`ValidatorApproved`) and contains:
+
+- `schemaVersion`, `generatedAtUtc`, `profile`, `status`, and `isDistributable`;
+- `artifact.fileName` and `artifact.sha256` for the exact staged AAB bytes;
+- `provenance.fileName` and `provenance.sha256` for the exact serialized staged provenance bytes; and
+- `signer.certificateSha256` and `signer.classification` (`development-debug` or `release-distributable`).
+
+The schema intentionally has no `checks` property. `SourceCandidate` receipts are non-distributable and development/debug signed; `Distributable` receipts are distributable only after release-signer validation.
+
+`TESTER_README.md` identifies the artifact and evidence files and states the tester boundary: an AAB is not directly installable, production credentials are not distributed, and conversion, installation, Play upload, and manual device verification remain separate activities.
+
+`SHA256SUMS` contains exactly four ordinally sorted entries for the AAB, provenance JSON, validation JSON, and tester README. It excludes itself, uses lowercase SHA-256 values, an exact two-space delimiter, LF line endings, and one final LF. Hashes are computed from the final staged file bytes immediately before promotion.
+
+### J. Release Boundary Invariants
 
 1. **Packaging is Not Distribution**: Generating a `SourceCandidate` or `Distributable` package does not publish the application.
 2. **Synchronized Main for Distributable**: `Distributable` packages cannot be built from feature branches.
 3. **Google Play Upload**: Upload to Google Play internal testing or production tracks requires explicit separate user authorization.
 4. **Device Testing**: Local offline validation does not replace real-device installation testing.
+5. **Evidence Is Not Delivery**: The five-file evidence directory does not imply upload, distribution, conversion to APK, installation, manual verification, or release publication.

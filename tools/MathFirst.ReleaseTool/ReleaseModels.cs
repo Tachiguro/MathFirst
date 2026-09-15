@@ -93,6 +93,22 @@ public sealed record ProvenanceSigning(
     string? ExpectedCertificateSha256,
     string? CertificateSha256);
 
+public sealed record ValidationReceipt(
+    int SchemaVersion,
+    DateTimeOffset GeneratedAtUtc,
+    ReleaseProfile Profile,
+    ArtifactValidationStatus Status,
+    bool IsDistributable,
+    ValidationReceiptArtifact Artifact,
+    ValidationReceiptProvenance Provenance,
+    ValidationReceiptSigner Signer);
+
+public sealed record ValidationReceiptArtifact(string FileName, string Sha256);
+
+public sealed record ValidationReceiptProvenance(string FileName, string Sha256);
+
+public sealed record ValidationReceiptSigner(string CertificateSha256, string Classification);
+
 public interface IProcessRunner
 {
     ProcessResult Run(ProcessInvocation invocation);
@@ -102,7 +118,6 @@ public sealed class ReleaseToolException(string message) : InvalidOperationExcep
 
 public static class ReleaseConstants
 {
-    public const string SourceCandidateBranch = "feat/mf-rel-001-android-aab-packaging";
     public const string TargetFramework = "net10.0-android36.0";
     public const string Configuration = "Release";
 }
