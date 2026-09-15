@@ -94,11 +94,46 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 throw new ReleaseToolException("Authoritative validation failed for packaged AAB.");
             }
 
+            var provenanceFileName = Path.GetFileName(stagedProvenancePath);
+            var provenanceSha256 = ComputeSha256(stagedProvenancePath);
+            var receipt = ReleaseEvidenceGenerator.CreateValidationReceipt(
+                DateTimeOffset.UtcNow,
+                request.Profile,
+                validationResult,
+                artifactFileName,
+                artifactSha256,
+                provenanceFileName,
+                provenanceSha256);
+
+            var receiptFileName = $"{artifactId}.validation.json";
+            var receiptPath = Path.Combine(workspace.ReadyRoot, receiptFileName);
+            File.WriteAllText(
+                receiptPath,
+                ReleaseEvidenceGenerator.SerializeValidationReceipt(receipt));
+
+            const string readmeFileName = "TESTER_README.md";
+            var readmePath = Path.Combine(workspace.ReadyRoot, readmeFileName);
+            File.WriteAllText(
+                readmePath,
+                ReleaseEvidenceGenerator.CreateTesterReadme(
+                    artifactId,
+                    provenance,
+                    receipt));
+
+            var checksumPayloads = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [artifactFileName] = ComputeSha256(stagedAab),
+                [provenanceFileName] = ComputeSha256(stagedProvenancePath),
+                [receiptFileName] = ComputeSha256(receiptPath),
+                [readmeFileName] = ComputeSha256(readmePath)
+            };
+            File.WriteAllText(
+                Path.Combine(workspace.ReadyRoot, "SHA256SUMS"),
+                ReleaseEvidenceGenerator.CreateSha256Sums(artifactId, checksumPayloads));
+
             workspace.Promote(
                 request.Profile,
-                artifactId,
-                provenance,
-                ArtifactValidationStatus.ValidatorApproved);
+                artifactId);
             return workspace.GetFinalDirectory(request.Profile, artifactId);
         }
         finally

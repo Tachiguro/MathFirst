@@ -83,17 +83,22 @@ public sealed class AabPackagingScriptValidationTests
         Assert.Throws<ReleaseToolException>(() => RepositoryPolicy.Validate(request, CreateSnapshot()));
     }
 
-    [Fact]
-    public void RepositoryPolicy_SourceCandidateRequiresExactFeatureBranch()
+    [Theory]
+    [InlineData("feat/mf-rel-002-tester-distribution-release-hardening")]
+    [InlineData("fix/release-evidence")]
+    public void RepositoryPolicy_SourceCandidateAcceptsCleanAttachedNonMainBranch(string branch)
     {
-        Assert.Throws<ReleaseToolException>(() =>
-            RepositoryPolicy.Validate(CreateRequest(), CreateSnapshot(branch: "some-other-branch")));
+        RepositoryPolicy.Validate(CreateRequest(), CreateSnapshot(branch: branch));
     }
 
-    [Fact]
-    public void RepositoryPolicy_SourceCandidateAcceptsCleanExactSourceState()
+    [Theory]
+    [InlineData("main")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RepositoryPolicy_SourceCandidateRejectsMainOrDetachedBranch(string branch)
     {
-        RepositoryPolicy.Validate(CreateRequest(), CreateSnapshot());
+        Assert.Throws<ReleaseToolException>(() =>
+            RepositoryPolicy.Validate(CreateRequest(), CreateSnapshot(branch: branch)));
     }
 
     [Theory]
@@ -539,7 +544,7 @@ public sealed class AabPackagingScriptValidationTests
                 ReleaseProfile.SourceCandidate,
                 "artifact-id",
                 CreateProvenance(),
-                ArtifactValidationStatus.NotValidated));
+                ArtifactValidationStatus.ValidatorApproved));
     }
 
     [Fact]
@@ -571,36 +576,49 @@ public sealed class AabPackagingScriptValidationTests
     }
 
     [Fact]
-    public void ArtifactWorkspace_SourceCandidatePromotesReadyDirectoryAtomically()
+    public void ArtifactWorkspace_SourceCandidateCannotPromoteWithoutValidatorApproval()
     {
         using var repository = new TemporaryDirectory("mathfirst-promote");
         var workspace = new ArtifactWorkspace(repository.Path, "promote");
         File.WriteAllText(Path.Combine(workspace.ReadyRoot, "MathFirst.aab"), "synthetic-aab");
+        var provenancePath = Path.Combine(workspace.ReadyRoot, "artifact-id.provenance.json");
+        var originalProvenanceBytes = Encoding.UTF8.GetBytes("pre-existing-provenance-bytes");
+        File.WriteAllBytes(provenancePath, originalProvenanceBytes);
 
-        workspace.Promote(
-            ReleaseProfile.SourceCandidate,
-            "artifact-id",
-            CreateWorkspaceProvenance("synthetic-aab"),
-            ArtifactValidationStatus.NotValidated);
+        Assert.Throws<ReleaseToolException>(() =>
+            workspace.Promote(
+                ReleaseProfile.SourceCandidate,
+                "artifact-id",
+                CreateWorkspaceProvenance("synthetic-aab"),
+                ArtifactValidationStatus.NotValidated));
 
         var final = workspace.GetFinalDirectory(ReleaseProfile.SourceCandidate, "artifact-id");
-        Assert.True(File.Exists(Path.Combine(final, "MathFirst.aab")));
-        Assert.True(File.Exists(Path.Combine(final, "artifact-id.provenance.json")));
-        Assert.False(Directory.Exists(workspace.ReadyRoot));
+        Assert.Equal(originalProvenanceBytes, File.ReadAllBytes(provenancePath));
+        Assert.True(Directory.Exists(workspace.ReadyRoot));
+        Assert.False(Directory.Exists(final));
     }
 
     [Fact]
-    public void ArtifactWorkspace_RejectsArtifactHashThatDoesNotMatchProvenance()
+    public void ArtifactWorkspace_ValidatorApprovalCannotBypassFiveFileEvidenceGate()
     {
-        using var repository = new TemporaryDirectory("mathfirst-hash-mismatch");
-        var workspace = new ArtifactWorkspace(repository.Path, "hash-mismatch");
+        using var repository = new TemporaryDirectory("mathfirst-approved-incomplete");
+        var workspace = new ArtifactWorkspace(repository.Path, "approved-incomplete");
         File.WriteAllText(Path.Combine(workspace.ReadyRoot, "MathFirst.aab"), "synthetic-aab");
+        var provenancePath = Path.Combine(workspace.ReadyRoot, "artifact-id.provenance.json");
+        var originalProvenanceBytes = Encoding.UTF8.GetBytes("pre-existing-provenance-bytes");
+        File.WriteAllBytes(provenancePath, originalProvenanceBytes);
 
-        Assert.Throws<ReleaseToolException>(() => workspace.Promote(
-            ReleaseProfile.SourceCandidate,
-            "artifact-id",
-            CreateProvenance(),
-            ArtifactValidationStatus.NotValidated));
+        Assert.Throws<ReleaseToolException>(() =>
+            workspace.Promote(
+                ReleaseProfile.SourceCandidate,
+                "artifact-id",
+                CreateWorkspaceProvenance("synthetic-aab"),
+                ArtifactValidationStatus.ValidatorApproved));
+
+        var final = workspace.GetFinalDirectory(ReleaseProfile.SourceCandidate, "artifact-id");
+        Assert.Equal(originalProvenanceBytes, File.ReadAllBytes(provenancePath));
+        Assert.True(Directory.Exists(workspace.ReadyRoot));
+        Assert.False(Directory.Exists(final));
     }
 
     [Fact]
@@ -646,7 +664,7 @@ public sealed class AabPackagingScriptValidationTests
         Assert.Equal(1, root.GetProperty("application").GetProperty("buildNumber").GetInt32());
         Assert.Equal(FullSha, root.GetProperty("source").GetProperty("expectedCommitSha").GetString());
         Assert.Equal(FullSha, root.GetProperty("source").GetProperty("commitSha").GetString());
-        Assert.Equal(ReleaseConstants.SourceCandidateBranch, root.GetProperty("source").GetProperty("ref").GetString());
+        Assert.Equal("feat/mf-rel-002-tester-distribution-release-hardening", root.GetProperty("source").GetProperty("ref").GetString());
         Assert.Equal("source-candidate", root.GetProperty("source").GetProperty("classification").GetString());
         Assert.True(root.GetProperty("source").GetProperty("workingTreeClean").GetBoolean());
         Assert.Equal("Release", root.GetProperty("build").GetProperty("configuration").GetString());
@@ -735,7 +753,7 @@ public sealed class AabPackagingScriptValidationTests
         new(profile, expectedSha, new VersionOverrides(null, null), signingInputs);
 
     private static RepositorySnapshot CreateSnapshot(
-        string branch = ReleaseConstants.SourceCandidateBranch,
+        string branch = "feat/mf-rel-002-tester-distribution-release-hardening",
         bool trackedClean = true,
         bool indexClean = true,
         IReadOnlyList<string>? untrackedFiles = null,

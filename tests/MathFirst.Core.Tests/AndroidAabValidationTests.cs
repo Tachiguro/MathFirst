@@ -12,6 +12,7 @@ public sealed class AndroidAabValidationTests
 {
     private const string FullSha = "179273ea46caea767912e1ec3984a5162310749a";
     private const string SampleCertSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private const string TestCandidateBranch = "feat/test-source-candidate";
 
     [Fact]
     public void Validator_RejectsMissingAabFile()
@@ -588,7 +589,7 @@ public sealed class AndroidAabValidationTests
         // Configure git inspection
         fixture.ConfigureProcess("git", ["rev-parse", "--show-toplevel"], exitCode: 0, standardOutput: fixture.Root + "\n");
         fixture.ConfigureProcess("git", ["rev-parse", "HEAD"], exitCode: 0, standardOutput: FullSha + "\n");
-        fixture.ConfigureProcess("git", ["branch", "--show-current"], exitCode: 0, standardOutput: ReleaseConstants.SourceCandidateBranch + "\n");
+        fixture.ConfigureProcess("git", ["branch", "--show-current"], exitCode: 0, standardOutput: TestCandidateBranch + "\n");
         fixture.ConfigureProcess("git", ["rev-parse", "refs/heads/main"], exitCode: 0, standardOutput: FullSha + "\n");
         fixture.ConfigureProcess("git", ["rev-parse", "refs/remotes/origin/main"], exitCode: 0, standardOutput: FullSha + "\n");
         fixture.ConfigureProcess("git", ["status", "--porcelain=v2", "--untracked-files=all"], exitCode: 0, standardOutput: "");
@@ -649,7 +650,7 @@ public sealed class AndroidAabValidationTests
         // Configure git inspection
         fixture.ConfigureProcess("git", ["rev-parse", "--show-toplevel"], exitCode: 0, standardOutput: fixture.Root + "\n");
         fixture.ConfigureProcess("git", ["rev-parse", "HEAD"], exitCode: 0, standardOutput: FullSha + "\n");
-        fixture.ConfigureProcess("git", ["branch", "--show-current"], exitCode: 0, standardOutput: ReleaseConstants.SourceCandidateBranch + "\n");
+        fixture.ConfigureProcess("git", ["branch", "--show-current"], exitCode: 0, standardOutput: TestCandidateBranch + "\n");
         fixture.ConfigureProcess("git", ["rev-parse", "refs/heads/main"], exitCode: 0, standardOutput: FullSha + "\n");
         fixture.ConfigureProcess("git", ["rev-parse", "refs/remotes/origin/main"], exitCode: 0, standardOutput: FullSha + "\n");
         fixture.ConfigureProcess("git", ["status", "--porcelain=v2", "--untracked-files=all"], exitCode: 0, standardOutput: "");
@@ -691,9 +692,19 @@ public sealed class AndroidAabValidationTests
 
         Assert.True(Directory.Exists(finalDir));
         var promotedFiles = Directory.GetFiles(finalDir);
-        Assert.Equal(2, promotedFiles.Length);
-        Assert.Contains(promotedFiles, f => f.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) && !f.EndsWith("com.tachiguro.mathfirst.aab", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(promotedFiles, f => f.EndsWith(".provenance.json", StringComparison.OrdinalIgnoreCase));
+        const string artifactId = "MathFirst-v1.0-b1-179273ea46ca-source-candidate-debug-signed";
+        var promotedFileNames = promotedFiles.Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(
+            new[]
+            {
+                $"{artifactId}.aab",
+                $"{artifactId}.provenance.json",
+                $"{artifactId}.validation.json",
+                "SHA256SUMS",
+                "TESTER_README.md"
+            }.Order(StringComparer.Ordinal),
+            promotedFileNames);
+        Assert.Equal(5, promotedFiles.Length);
         Assert.DoesNotContain(promotedFiles, f => Path.GetFileName(f) == "com.tachiguro.mathfirst.aab");
     }
 
@@ -773,9 +784,19 @@ public sealed class AndroidAabValidationTests
 
             Assert.True(Directory.Exists(finalDir));
             var promotedFiles = Directory.GetFiles(finalDir);
-            Assert.Equal(2, promotedFiles.Length);
-            Assert.Contains(promotedFiles, f => f.EndsWith(".aab", StringComparison.OrdinalIgnoreCase) && !f.EndsWith("com.tachiguro.mathfirst.aab", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(promotedFiles, f => f.EndsWith(".provenance.json", StringComparison.OrdinalIgnoreCase));
+            const string artifactId = "MathFirst-v1.0-b1-179273ea46ca-distributable-release-signed-pending-validation";
+            var promotedFileNames = promotedFiles.Select(Path.GetFileName).Order(StringComparer.Ordinal).ToArray();
+            Assert.Equal(
+                new[]
+                {
+                    $"{artifactId}.aab",
+                    $"{artifactId}.provenance.json",
+                    $"{artifactId}.validation.json",
+                    "SHA256SUMS",
+                    "TESTER_README.md"
+                }.Order(StringComparer.Ordinal),
+                promotedFileNames);
+            Assert.Equal(5, promotedFiles.Length);
             Assert.DoesNotContain(promotedFiles, f => Path.GetFileName(f) == "com.tachiguro.mathfirst.aab");
         }
         finally
@@ -839,7 +860,7 @@ public sealed class AndroidAabValidationTests
                 1,
                 new ProvenanceArtifact(Path.GetFileName(AabPath), "source-candidate-debug-signed", aabBytes.Length, aabSha),
                 new ProvenanceApplication("com.tachiguro.mathfirst", "1.0", 1),
-                new ProvenanceSource(FullSha, FullSha, ReleaseConstants.SourceCandidateBranch, "source-candidate", true),
+                new ProvenanceSource(FullSha, FullSha, TestCandidateBranch, "source-candidate", true),
                 new ProvenanceBuild("Release", "net10.0-android36.0", "24.0", "36.0", new VersionOverrides(null, null),
                     new Dictionary<string, string>(StringComparer.Ordinal) { ["dotnetSdk"] = "10.0.401" }),
                 new ProvenanceSigning("development-debug", null, null),
