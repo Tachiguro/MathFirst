@@ -4,6 +4,8 @@ using MathFirst.Application.Persistence;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
+using MathFirst.Infrastructure.Sqlite;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 /// <summary>
@@ -455,5 +457,482 @@ public sealed class FactEligibilityRegressionTests
         {
             Assert.Contains(fact.Id, currentBandIds);
         }
+    }
+
+    // ===========================================================================
+    // Task 3: SQLite Store Eligibility Streaming & Anti-Poisoning Window Filtering
+    // ===========================================================================
+
+    [Fact]
+    public async Task Sqlite_Multiplication_2x8_NotReturnedInDuePoolAtBand1()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulCurriculum = curriculum.Multiplication;
+            const int currentBandIndex = 1;
+            var ownership = new AcquisitionOwnershipResolver(mulCurriculum);
+
+            // mul:2*8 is owned by BandIndex 7. At BandIndex 1, it is a future locked fact.
+            Assert.True(ownership.TryGetOwner("mul:2*8", 11, out var ownerBandIndex));
+            Assert.Equal(7, ownerBandIndex);
+            Assert.False(ownership.IsEligible("mul:2*8", currentBandIndex));
+
+            var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
+            var futureItem = ItemLearningState.CreateNew(futureFact);
+            var futureFsrs = new FsrsCardState(futureFact.Id, Guid.NewGuid(), 2, null, 30.0, 5.0, 1, 1, FsrsRating.Good);
+
+            var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
+            var eligibleItem = ItemLearningState.CreateNew(eligibleFact);
+            var eligibleFsrs = new FsrsCardState(eligibleFact.Id, Guid.NewGuid(), 2, null, 5.0, 5.0, 1, 1, FsrsRating.Good);
+
+            await SeedItemAndFsrsAsync(dbPath, [(futureItem, futureFsrs), (eligibleItem, eligibleFsrs)]);
+
+            var ownedFrontier = ownership.GetOwnedFrontier(currentBandIndex);
+            var request = new PracticeSelectionEvidenceRequest(
+                ArithmeticOperation.Multiplication,
+                prospectivePracticePosition: 11,
+                currentSessionOrder: 0,
+                currentBandOwnedFrontier: ownedFrontier,
+                introductionFrontier: ownedFrontier,
+                currentBandIndex: currentBandIndex);
+
+            var evidence = await store.LoadPracticeSelectionEvidenceAsync(request);
+
+            Assert.DoesNotContain(evidence.DueCandidates, c => c.Fact.Id == futureFact.Id);
+            Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleFact.Id);
+
+            // Verify the future fact remains persisted and dormant in the store.
+            var snapshot = await store.LoadSnapshotAsync();
+            Assert.Contains(futureFact.Id, snapshot.ItemStates.Keys, StringComparer.Ordinal);
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Sqlite_WindowPoisoning_70FutureDueFacts_DoNotStarveEligibleDueFact()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulCurriculum = curriculum.Multiplication;
+            const int currentBandIndex = 1;
+            var ownership = new AcquisitionOwnershipResolver(mulCurriculum);
+
+            var seedData = new List<(ItemLearningState Item, FsrsCardState? Fsrs)>();
+            var futureFacts = new List<ArithmeticFact>();
+            var addedIds = new HashSet<string>(StringComparer.Ordinal);
+
+            // Collect >= 70 canonical future multiplication facts from bands 2..11.
+            // Bands 2..11 have 160 facts total.
+            for (var bandIdx = 2; bandIdx <= 11; bandIdx++)
+            {
+                if (!mulCurriculum.TryGetBand(bandIdx, out var band) || band is null)
+                    continue;
+
+                foreach (var fact in band.Frontier)
+                {
+                    if (addedIds.Contains(fact.Id) || ownership.IsEligible(fact.Id, currentBandIndex))
+                        continue;
+
+                    addedIds.Add(fact.Id);
+                    futureFacts.Add(fact);
+                    var item = ItemLearningState.CreateNew(fact);
+                    var fsrs = new FsrsCardState(fact.Id, Guid.NewGuid(), 2, null, 30.0, 5.0, 1, 1, FsrsRating.Good);
+                    seedData.Add((item, fsrs));
+                }
+            }
+
+            Assert.True(futureFacts.Count >= 70, $"Expected >= 70 future facts but found {futureFacts.Count}.");
+
+            // Add exactly ONE eligible fact with DuePracticePosition = 2.
+            var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
+            Assert.True(ownership.IsEligible(eligibleFact.Id, currentBandIndex));
+
+            var eligibleItem = ItemLearningState.CreateNew(eligibleFact);
+            var eligibleFsrs = new FsrsCardState(eligibleFact.Id, Guid.NewGuid(), 2, null, 30.0, 5.0, 2, 1, FsrsRating.Good);
+            seedData.Add((eligibleItem, eligibleFsrs));
+
+            await SeedItemAndFsrsAsync(dbPath, seedData);
+
+            var ownedFrontier = ownership.GetOwnedFrontier(currentBandIndex);
+            var request = new PracticeSelectionEvidenceRequest(
+                ArithmeticOperation.Multiplication,
+                prospectivePracticePosition: 201,
+                currentSessionOrder: 0,
+                currentBandOwnedFrontier: ownedFrontier,
+                introductionFrontier: ownedFrontier,
+                currentBandIndex: currentBandIndex);
+
+            // Mechanically prove the adversarial precondition:
+            // Under pre-fix SQL Due ordering (ORDER BY due_practice_position ASC, ..., fact_id ASC),
+            // all 160 future facts (due=1) sort before the eligible fact (due=2).
+            var unfilteredDueOrder = seedData
+                .Where(x => x.Fsrs is not null && x.Fsrs.DuePracticePosition <= request.ProspectivePracticePosition)
+                .OrderBy(x => x.Fsrs!.DuePracticePosition)
+                .ThenBy(x => x.Fsrs?.LastReviewPracticePosition ?? 0)
+                .ThenBy(x => x.Item.FactId, StringComparer.Ordinal)
+                .Select(x => x.Item.FactId)
+                .ToArray();
+
+            var eligibleIndex = Array.IndexOf(unfilteredDueOrder, eligibleFact.Id);
+            Assert.True(
+                eligibleIndex >= PracticeSelectionEvidenceRequest.CandidateWindowSize,
+                $"Precondition failed: eligible index was {eligibleIndex}, expected >= {PracticeSelectionEvidenceRequest.CandidateWindowSize}.");
+
+            Assert.DoesNotContain(
+                eligibleFact.Id,
+                unfilteredDueOrder.Take(PracticeSelectionEvidenceRequest.CandidateWindowSize));
+
+            // Act
+            var evidence = await store.LoadPracticeSelectionEvidenceAsync(request);
+
+            // Assert POST-FIX behavior:
+            // 1. The eligible fact IS discovered in DueCandidates.
+            Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleFact.Id);
+
+            // 2. None of the future facts appear in DueCandidates.
+            var futureFactIds = futureFacts.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
+            Assert.DoesNotContain(evidence.DueCandidates, c => futureFactIds.Contains(c.Fact.Id));
+
+            // 3. DueCandidates count is bounded to <= 64.
+            Assert.True(evidence.DueCandidates.Count <= PracticeSelectionEvidenceRequest.CandidateWindowSize);
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Theory]
+    [InlineData(ArithmeticOperation.Addition, 0)]
+    [InlineData(ArithmeticOperation.Subtraction, 0)]
+    [InlineData(ArithmeticOperation.Multiplication, 1)]
+    [InlineData(ArithmeticOperation.Division, 0)]
+    public async Task Sqlite_AllFourOperations_FutureFactsDormant(ArithmeticOperation operation, int currentBandIndex)
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+
+            var curriculum = new ArithmeticCurriculum().GetCurriculum(operation);
+            var ownership = new AcquisitionOwnershipResolver(curriculum);
+
+            // Get an eligible fact (owned at currentBandIndex)
+            var eligibleFrontier = ownership.GetOwnedFrontier(currentBandIndex);
+            var eligibleFact = eligibleFrontier.First();
+            Assert.True(ownership.IsEligible(eligibleFact.Id, currentBandIndex));
+
+            // Get a future fact (find first fact in a band > currentBandIndex)
+            ArithmeticFact? futureFact = null;
+            for (var b = currentBandIndex + 1; ; b++)
+            {
+                if (!curriculum.TryGetBand(b, out var band) || band is null)
+                    break;
+                foreach (var f in band.Frontier)
+                {
+                    if (!ownership.IsEligible(f.Id, currentBandIndex))
+                    {
+                        futureFact = f;
+                        break;
+                    }
+                }
+                if (futureFact is not null) break;
+            }
+            Assert.NotNull(futureFact);
+            Assert.False(ownership.IsEligible(futureFact.Id, currentBandIndex));
+
+            var eligibleItem = ItemLearningState.CreateNew(eligibleFact);
+            var futureItem = ItemLearningState.CreateNew(futureFact);
+
+            var eligibleFsrs = new FsrsCardState(eligibleFact.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 1, 1, FsrsRating.Good);
+            var futureFsrs = new FsrsCardState(futureFact.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 1, 1, FsrsRating.Good);
+
+            await SeedItemAndFsrsAsync(dbPath, [(eligibleItem, eligibleFsrs), (futureItem, futureFsrs)]);
+
+            var request = new PracticeSelectionEvidenceRequest(
+                operation,
+                prospectivePracticePosition: 10,
+                currentSessionOrder: 0,
+                currentBandOwnedFrontier: eligibleFrontier,
+                introductionFrontier: eligibleFrontier,
+                currentBandIndex: currentBandIndex);
+
+            var evidence = await store.LoadPracticeSelectionEvidenceAsync(request);
+
+            Assert.DoesNotContain(evidence.DueCandidates, c => c.Fact.Id == futureFact.Id);
+            Assert.DoesNotContain(evidence.MaintenanceCandidates, c => c.Fact.Id == futureFact.Id);
+            Assert.DoesNotContain(evidence.RemediationCandidates, c => c.Fact.Id == futureFact.Id);
+            Assert.DoesNotContain(evidence.EarlyReviewCandidates, c => c.Fact.Id == futureFact.Id);
+            Assert.DoesNotContain(evidence.CurrentBandCandidates, c => c.Fact.Id == futureFact.Id);
+
+            Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleFact.Id);
+
+            var snapshot = await store.LoadSnapshotAsync();
+            Assert.Contains(futureFact.Id, snapshot.ItemStates.Keys, StringComparer.Ordinal);
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task SqliteAndSnapshot_Parity_IdenticalOutcome()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulCurriculum = curriculum.Multiplication;
+            const int currentBandIndex = 1;
+            var ownership = new AcquisitionOwnershipResolver(mulCurriculum);
+            var ownedFrontier = ownership.GetOwnedFrontier(currentBandIndex);
+
+            var seedData = new List<(ItemLearningState Item, FsrsCardState? Fsrs)>();
+            var itemStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+            var fsrsStates = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
+
+            // Eligible CurrentBand Frontier facts
+            foreach (var fact in ownedFrontier)
+            {
+                var item = ItemLearningState.CreateNew(fact);
+                item.TotalAttempts = 5;
+                item.IsProvisionallyMastered = fact.Id == "mul:2*2";
+                item.LastPracticedOrder = 1;
+                var fsrs = new FsrsCardState(fact.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 50, 10, FsrsRating.Good);
+                seedData.Add((item, fsrs));
+                itemStates[fact.Id] = item;
+                fsrsStates[fact.Id] = fsrs;
+            }
+
+            // Eligible Due fact (mul:0*2)
+            if (fsrsStates.TryGetValue("mul:0*2", out var existingDueFsrs))
+            {
+                var updatedDue = existingDueFsrs with { DuePracticePosition = 10, LastReviewPracticePosition = 5 };
+                fsrsStates["mul:0*2"] = updatedDue;
+                seedData.RemoveAll(x => x.Item.FactId == "mul:0*2");
+                seedData.Add((itemStates["mul:0*2"], updatedDue));
+            }
+
+            // Eligible Remediation fact (mul:1*2)
+            if (itemStates.TryGetValue("mul:1*2", out var remedItem))
+            {
+                remedItem.NeedsRemediation = true;
+                var updatedRemed = fsrsStates["mul:1*2"] with { LastReviewPracticePosition = 20, DuePracticePosition = 10 };
+                fsrsStates["mul:1*2"] = updatedRemed;
+                seedData.RemoveAll(x => x.Item.FactId == "mul:1*2");
+                seedData.Add((remedItem, updatedRemed));
+            }
+
+            // Eligible Maintenance fact (mul:2*0)
+            if (fsrsStates.TryGetValue("mul:2*0", out var maintFsrs))
+            {
+                var updatedMaint = maintFsrs with { DuePracticePosition = 500, LastReviewPracticePosition = 10 };
+                fsrsStates["mul:2*0"] = updatedMaint;
+                seedData.RemoveAll(x => x.Item.FactId == "mul:2*0");
+                seedData.Add((itemStates["mul:2*0"], updatedMaint));
+            }
+
+            // Eligible EarlyReview fact (mul:2*1)
+            if (fsrsStates.TryGetValue("mul:2*1", out var earlyFsrs))
+            {
+                var updatedEarly = earlyFsrs with { DuePracticePosition = 500, LastReviewPracticePosition = 80 };
+                fsrsStates["mul:2*1"] = updatedEarly;
+                seedData.RemoveAll(x => x.Item.FactId == "mul:2*1");
+                seedData.Add((itemStates["mul:2*1"], updatedEarly));
+            }
+
+            // Future facts across all 4 roles:
+            // Future Due: mul:2*8 (owner 7)
+            var futureDue = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
+            var futureDueItem = ItemLearningState.CreateNew(futureDue);
+            var futureDueFsrs = new FsrsCardState(futureDue.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 10, 5, FsrsRating.Good);
+            seedData.Add((futureDueItem, futureDueFsrs));
+            itemStates[futureDue.Id] = futureDueItem;
+            fsrsStates[futureDue.Id] = futureDueFsrs;
+
+            // Future Remediation: mul:3*8 (owner 8)
+            var futureRemed = new ArithmeticFact(ArithmeticOperation.Multiplication, 3, 8);
+            var futureRemedItem = ItemLearningState.CreateNew(futureRemed);
+            futureRemedItem.NeedsRemediation = true;
+            var futureRemedFsrs = new FsrsCardState(futureRemed.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 10, 20, FsrsRating.Good);
+            seedData.Add((futureRemedItem, futureRemedFsrs));
+            itemStates[futureRemed.Id] = futureRemedItem;
+            fsrsStates[futureRemed.Id] = futureRemedFsrs;
+
+            // Future Maintenance: mul:4*8 (owner 8)
+            var futureMaint = new ArithmeticFact(ArithmeticOperation.Multiplication, 4, 8);
+            var futureMaintItem = ItemLearningState.CreateNew(futureMaint);
+            var futureMaintFsrs = new FsrsCardState(futureMaint.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 500, 10, FsrsRating.Good);
+            seedData.Add((futureMaintItem, futureMaintFsrs));
+            itemStates[futureMaint.Id] = futureMaintItem;
+            fsrsStates[futureMaint.Id] = futureMaintFsrs;
+
+            // Future EarlyReview: mul:5*8 (owner 8)
+            var futureEarly = new ArithmeticFact(ArithmeticOperation.Multiplication, 5, 8);
+            var futureEarlyItem = ItemLearningState.CreateNew(futureEarly);
+            var futureEarlyFsrs = new FsrsCardState(futureEarly.Id, Guid.NewGuid(), 2, null, 10.0, 5.0, 500, 80, FsrsRating.Good);
+            seedData.Add((futureEarlyItem, futureEarlyFsrs));
+            itemStates[futureEarly.Id] = futureEarlyItem;
+            fsrsStates[futureEarly.Id] = futureEarlyFsrs;
+
+            await SeedItemAndFsrsAsync(dbPath, seedData);
+
+            var progression = new LearnerProgression
+            {
+                PracticePosition = 100,
+                OperationProgressions = Enum.GetValues<ArithmeticOperation>()
+                    .ToDictionary(
+                        o => o,
+                        o => new OperationProgression(
+                            o,
+                            o == ArithmeticOperation.Multiplication ? currentBandIndex : 0,
+                            0))
+            };
+
+            var snapshot = new LearnerSnapshot(
+                progression,
+                itemStates,
+                fsrsStates,
+                [],
+                1,
+                6);
+
+            var request = new PracticeSelectionEvidenceRequest(
+                ArithmeticOperation.Multiplication,
+                prospectivePracticePosition: 100,
+                currentSessionOrder: 0,
+                currentBandOwnedFrontier: ownedFrontier,
+                introductionFrontier: ownedFrontier,
+                currentBandIndex: currentBandIndex);
+
+            var sqliteEvidence = await store.LoadPracticeSelectionEvidenceAsync(request);
+            var snapshotEvidence = PracticeSelectionEvidence.FromSnapshot(snapshot, request);
+
+            Assert.Equal(
+                snapshotEvidence.CurrentBandCandidates.Select(c => c.Fact.Id),
+                sqliteEvidence.CurrentBandCandidates.Select(c => c.Fact.Id));
+            Assert.Equal(
+                snapshotEvidence.DueCandidates.Select(c => c.Fact.Id),
+                sqliteEvidence.DueCandidates.Select(c => c.Fact.Id));
+            Assert.Equal(
+                snapshotEvidence.MaintenanceCandidates.Select(c => c.Fact.Id),
+                sqliteEvidence.MaintenanceCandidates.Select(c => c.Fact.Id));
+            Assert.Equal(
+                snapshotEvidence.RemediationCandidates.Select(c => c.Fact.Id),
+                sqliteEvidence.RemediationCandidates.Select(c => c.Fact.Id));
+            Assert.Equal(
+                snapshotEvidence.EarlyReviewCandidates.Select(c => c.Fact.Id),
+                sqliteEvidence.EarlyReviewCandidates.Select(c => c.Fact.Id));
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Test helper methods
+    // ---------------------------------------------------------------------------
+
+    private static string GetTempDbPath() =>
+        Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");
+
+    private static void TryDeleteDatabase(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch { }
+    }
+
+    private static async Task SeedItemAndFsrsAsync(
+        string dbPath,
+        IEnumerable<(ItemLearningState Item, FsrsCardState? Fsrs)> seedData)
+    {
+        using var conn = new SqliteConnection($"Data Source={dbPath}");
+        await conn.OpenAsync();
+        using var tx = conn.BeginTransaction();
+        foreach (var (item, fsrs) in seedData)
+        {
+            using (var itemCmd = conn.CreateCommand())
+            {
+                itemCmd.Transaction = tx;
+                itemCmd.CommandText = @"
+                    INSERT INTO item_learning_state (
+                        fact_id, operation, left_operand, right_operand,
+                        total_attempts, correct_attempts, incorrect_attempts,
+                        consecutive_correct, last_latency_ms, rolling_latency_ms,
+                        fluent_streak, is_mastered, needs_remediation,
+                        remediation_due_order, last_practiced_order, last_practiced_at
+                    ) VALUES (
+                        @fact_id, @operation, @left_operand, @right_operand,
+                        @total_attempts, @correct_attempts, @incorrect_attempts,
+                        @consecutive_correct, @last_latency_ms, @rolling_latency_ms,
+                        @fluent_streak, @is_mastered, @needs_remediation,
+                        @remediation_due_order, @last_practiced_order, @last_practiced_at
+                    );";
+                itemCmd.Parameters.AddWithValue("@fact_id", item.FactId);
+                itemCmd.Parameters.AddWithValue("@operation", item.Operation.ToString());
+                itemCmd.Parameters.AddWithValue("@left_operand", item.LeftOperand);
+                itemCmd.Parameters.AddWithValue("@right_operand", item.RightOperand);
+                itemCmd.Parameters.AddWithValue("@total_attempts", item.TotalAttempts);
+                itemCmd.Parameters.AddWithValue("@correct_attempts", item.CorrectAttempts);
+                itemCmd.Parameters.AddWithValue("@incorrect_attempts", item.IncorrectAttempts);
+                itemCmd.Parameters.AddWithValue("@consecutive_correct", item.ConsecutiveCorrectStreak);
+                itemCmd.Parameters.AddWithValue("@last_latency_ms", item.LastLatencyMs);
+                itemCmd.Parameters.AddWithValue("@rolling_latency_ms", item.RollingLatencyMs);
+                itemCmd.Parameters.AddWithValue("@fluent_streak", item.FluentStreak);
+                itemCmd.Parameters.AddWithValue("@is_mastered", item.IsProvisionallyMastered ? 1 : 0);
+                itemCmd.Parameters.AddWithValue("@needs_remediation", item.NeedsRemediation ? 1 : 0);
+                itemCmd.Parameters.AddWithValue("@remediation_due_order", item.RemediationDueOrder);
+                itemCmd.Parameters.AddWithValue("@last_practiced_order", item.LastPracticedOrder);
+                itemCmd.Parameters.AddWithValue("@last_practiced_at", (object?)item.LastPracticedAt?.ToString("O") ?? DBNull.Value);
+                await itemCmd.ExecuteNonQueryAsync();
+            }
+
+            if (fsrs is not null)
+            {
+                using var fsrsCmd = conn.CreateCommand();
+                fsrsCmd.Transaction = tx;
+                fsrsCmd.CommandText = @"
+                    INSERT INTO fsrs_card_state (
+                        fact_id, card_id, state, step, stability, difficulty,
+                        due_practice_position, last_review_practice_position, last_rating
+                    ) VALUES (
+                        @fact_id, @card_id, @state, @step, @stability, @difficulty,
+                        @due_practice_position, @last_review_practice_position, @last_rating
+                    );";
+                fsrsCmd.Parameters.AddWithValue("@fact_id", fsrs.FactId);
+                fsrsCmd.Parameters.AddWithValue("@card_id", fsrs.CardId.ToString());
+                fsrsCmd.Parameters.AddWithValue("@state", fsrs.State);
+                fsrsCmd.Parameters.AddWithValue("@step", (object?)fsrs.Step ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@stability", (object?)fsrs.Stability ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@difficulty", (object?)fsrs.Difficulty ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@due_practice_position", fsrs.DuePracticePosition);
+                fsrsCmd.Parameters.AddWithValue("@last_review_practice_position", (object?)fsrs.LastReviewPracticePosition ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@last_rating", (object?)(int?)fsrs.LastRating ?? DBNull.Value);
+                await fsrsCmd.ExecuteNonQueryAsync();
+            }
+        }
+        await tx.CommitAsync();
     }
 }
