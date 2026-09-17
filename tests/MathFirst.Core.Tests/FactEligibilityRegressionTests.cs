@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
@@ -857,9 +858,201 @@ public sealed class FactEligibilityRegressionTests
         }
     }
 
+    // ===========================================================================
+    // Task 4: Selector Pure Defense Layer
+    // ===========================================================================
+
+    /// <summary>
+    /// Task 4: proves that the selector itself rejects a future locked fact even
+    /// when malformed bounded evidence incorrectly contains it as a legitimate
+    /// review candidate.
+    ///
+    /// Fixture: multiplication at BandIndex 1 (mul:2*2 is owned by BandIndex 1;
+    /// mul:2*8 is owned by BandIndex 7). The malformed evidence injects mul:2*8 as
+    /// the sole Due candidate; the single eligible rescue fact (mul:2*2) is only
+    /// reachable through the Frontier pool. The deterministic schedule at position
+    /// 6 targets multiplication with a Due request, so the malformed review pool is
+    /// exercised directly rather than only via fallback.
+    ///
+    /// Pre-fix the selector selects mul:2*8 and this test fails; post-fix the
+    /// pure defense layer rejects the future fact and the selector falls back to
+    /// the eligible mul:2*2, which proves rejection rather than a missing-candidate
+    /// exception.
+    /// </summary>
+    [Fact]
+    public void Selector_MalformedEvidenceWithFutureFact_RejectedByPureDefense()
+    {
+        const int currentBandIndex = 1;
+        const long prospectivePosition = 6;
+
+        var curriculum = new ArithmeticCurriculum();
+        var ownership = new AcquisitionOwnershipResolver(curriculum.Multiplication);
+
+        // Fixture precondition: canonical ownership proves the fact bands.
+        Assert.True(ownership.TryGetOwner("mul:2*8", 11, out var ownerBandIndex));
+        Assert.Equal(7, ownerBandIndex);
+        Assert.False(ownership.IsEligible("mul:2*8", currentBandIndex));
+        Assert.True(ownership.IsEligible("mul:2*2", currentBandIndex));
+
+        // Fixture precondition: the deterministic schedule targets multiplication/Due.
+        Assert.Equal(
+            ArithmeticOperation.Multiplication,
+            AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition));
+        Assert.Equal(
+            PracticeSelectionRole.Due,
+            AdaptivePracticeSelector.GetRequestedRole(prospectivePosition));
+
+        var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
+        var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
+        var futureItem = ItemLearningState.CreateNew(futureFact);
+        var eligibleItem = ItemLearningState.CreateNew(eligibleFact);
+        var futureFsrs = new FsrsCardState(
+            futureFact.Id,
+            Guid.NewGuid(),
+            State: 2,
+            Step: null,
+            Stability: 30.0,
+            Difficulty: 5.0,
+            DuePracticePosition: 1,
+            LastReviewPracticePosition: 1,
+            LastRating: FsrsRating.Good);
+
+        // Malformed evidence: the future fact is the sole Due candidate.
+        var evidence = new PracticeSelectionEvidence(
+            ArithmeticOperation.Multiplication,
+            prospectivePosition,
+            currentBandCandidates: [new PracticeSelectionCandidate(eligibleFact, eligibleItem, null)],
+            dueCandidates: [new PracticeSelectionCandidate(futureFact, futureItem, futureFsrs)],
+            maintenanceCandidates: [],
+            remediationCandidates: [],
+            earlyReviewCandidates: []);
+
+        var context = CreateSelectorContext(curriculum, prospectivePosition, currentBandIndex, evidence);
+
+        // Act
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+
+        // Assert: the future fact is rejected and the eligible rescue fact is selected.
+        Assert.NotEqual(futureFact.Id, result.Fact.Id);
+        Assert.True(ownership.IsEligible(result.Fact.Id, currentBandIndex));
+        Assert.Equal(eligibleFact.Id, result.Fact.Id);
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+    }
+
+    /// <summary>
+    /// Task 4: proves the invariant at the final selector boundary under low
+    /// multiplication progression. mul:2*8 (owner BandIndex 7) is materialized and
+    /// maliciously injected into the evidence review pools, including Remediation,
+    /// while a valid eligible candidate (mul:2*2) exists. The selector at BandIndex 1
+    /// must never return mul:2*8 regardless of its pool membership, and a future fact
+    /// must never trigger remediation preemption.
+    ///
+    /// Pre-fix the future fact triggers remediation preemption and the selector
+    /// returns mul:2*8, failing this test; post-fix the pure defense layer removes it
+    /// from every review pool, preemption does not occur, and the selector falls
+    /// back to the eligible frontier fact.
+    /// </summary>
+    [Fact]
+    public void Selector_LowMultiplication_NeverSelects2x8()
+    {
+        const int currentBandIndex = 1;
+        const long prospectivePosition = 6;
+
+        var curriculum = new ArithmeticCurriculum();
+        var ownership = new AcquisitionOwnershipResolver(curriculum.Multiplication);
+
+        // Fixture precondition: canonical ownership proves the fact bands.
+        Assert.True(ownership.TryGetOwner("mul:2*8", 11, out var ownerBandIndex));
+        Assert.Equal(7, ownerBandIndex);
+        Assert.False(ownership.IsEligible("mul:2*8", currentBandIndex));
+        Assert.True(ownership.IsEligible("mul:2*2", currentBandIndex));
+
+        // Fixture precondition: the deterministic schedule targets multiplication/Due.
+        Assert.Equal(
+            ArithmeticOperation.Multiplication,
+            AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition));
+        Assert.Equal(
+            PracticeSelectionRole.Due,
+            AdaptivePracticeSelector.GetRequestedRole(prospectivePosition));
+
+        var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
+        var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
+
+        // The future fact is maliciously flagged for remediation so that, pre-fix,
+        // it can trigger the selector's remediation preemption path.
+        var futureItem = ItemLearningState.CreateNew(futureFact);
+        futureItem.NeedsRemediation = true;
+        var eligibleItem = ItemLearningState.CreateNew(eligibleFact);
+        var futureFsrs = new FsrsCardState(
+            futureFact.Id,
+            Guid.NewGuid(),
+            State: 2,
+            Step: null,
+            Stability: 30.0,
+            Difficulty: 5.0,
+            DuePracticePosition: prospectivePosition,
+            LastReviewPracticePosition: 1,
+            LastRating: FsrsRating.Good);
+
+        // Malformed evidence: the future fact is injected into the Remediation and
+        // Due review pools; the eligible fact is only reachable via the Frontier pool.
+        var futureCandidate = new PracticeSelectionCandidate(futureFact, futureItem, futureFsrs);
+        var eligibleCandidate = new PracticeSelectionCandidate(eligibleFact, eligibleItem, null);
+        var evidence = new PracticeSelectionEvidence(
+            ArithmeticOperation.Multiplication,
+            prospectivePosition,
+            currentBandCandidates: [eligibleCandidate],
+            dueCandidates: [futureCandidate],
+            maintenanceCandidates: [],
+            remediationCandidates: [futureCandidate],
+            earlyReviewCandidates: []);
+
+        var context = CreateSelectorContext(curriculum, prospectivePosition, currentBandIndex, evidence);
+
+        // Act
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+
+        // Assert: invariant at the final boundary - the future fact is never
+        // selected, and the selected fact is eligible at BandIndex 1.
+        Assert.NotEqual(futureFact.Id, result.Fact.Id);
+        Assert.True(ownership.IsEligible(result.Fact.Id, currentBandIndex));
+        Assert.Equal(eligibleFact.Id, result.Fact.Id);
+    }
+
     // ---------------------------------------------------------------------------
     // Test helper methods
     // ---------------------------------------------------------------------------
+
+    private static PracticeSelectionContext CreateSelectorContext(
+        ArithmeticCurriculum curriculum,
+        long prospectivePosition,
+        int multiplicationBandIndex,
+        PracticeSelectionEvidence evidence)
+    {
+        var operationProgressions = Enum.GetValues<ArithmeticOperation>()
+            .ToDictionary(
+                operation => operation,
+                operation => new OperationProgression(
+                    operation,
+                    operation == ArithmeticOperation.Multiplication ? multiplicationBandIndex : 0,
+                    0));
+
+        var curricula = new Dictionary<ArithmeticOperation, OperationCurriculum>
+        {
+            [ArithmeticOperation.Addition] = curriculum.Addition,
+            [ArithmeticOperation.Subtraction] = curriculum.Subtraction,
+            [ArithmeticOperation.Multiplication] = curriculum.Multiplication,
+            [ArithmeticOperation.Division] = curriculum.Division,
+        };
+
+        return new PracticeSelectionContext(
+            prospectivePosition,
+            0,
+            operationProgressions,
+            curricula,
+            new PracticeCandidateIndex(evidence),
+            []);
+    }
 
     private static string GetTempDbPath() =>
         Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");

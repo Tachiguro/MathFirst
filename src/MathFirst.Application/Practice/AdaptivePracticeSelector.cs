@@ -83,6 +83,7 @@ public sealed class AdaptivePracticeSelector
         var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
         var remediation = context.CandidateIndex.RemediationCandidates
             .Where(candidate => candidate.Fact.Operation == operation
+                && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
                 && candidate.ItemState?.NeedsRemediation == true
                 && candidate.FsrsState?.LastReviewPracticePosition is not null
                 && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
@@ -124,8 +125,10 @@ public sealed class AdaptivePracticeSelector
             .ToArray();
         var duePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.DueFacts
+                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex))
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
+                    && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
                     && candidate.FsrsState is not null
                     && candidate.FsrsState.DuePracticePosition <= context.ProspectivePracticePosition)
                 .OrderBy(candidate => candidate.FsrsState!.DuePracticePosition)
@@ -138,8 +141,10 @@ public sealed class AdaptivePracticeSelector
             .ToArray();
         var maintenancePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.MaintenanceFacts
+                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex))
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
+                    && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
                     && candidate.ItemState?.NeedsRemediation != true
                     && candidate.FsrsState is not null
                     && candidate.FsrsState.DuePracticePosition > context.ProspectivePracticePosition
@@ -154,8 +159,10 @@ public sealed class AdaptivePracticeSelector
             .ToArray();
         var earlyReviewPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.EarlyReviewFacts
+                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex))
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
+                    && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
                     && candidate.ItemState?.NeedsRemediation != true
                     && candidate.FsrsState is not null
                     && candidate.FsrsState.DuePracticePosition > context.ProspectivePracticePosition)
