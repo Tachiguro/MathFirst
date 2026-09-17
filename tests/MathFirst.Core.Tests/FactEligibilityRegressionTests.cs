@@ -815,12 +815,21 @@ public sealed class FactEligibilityRegressionTests
                 1,
                 6);
 
+            // mul:1*2 is the eligible Remediation fact. It is deliberately scoped OUT of
+            // the request's current-band frontier so that both evidence builders apply
+            // identical frontier scoping to CurrentBandCandidates (Task 3 leaves that
+            // pool's store-side behavior unchanged). The fact is still exercised through
+            // the Remediation pool, which is role-scoped and not frontier-scoped.
+            var currentBandFrontier = ownedFrontier
+                .Where(fact => fact.Id != "mul:1*2")
+                .ToArray();
+
             var request = new PracticeSelectionEvidenceRequest(
                 ArithmeticOperation.Multiplication,
                 prospectivePracticePosition: 100,
                 currentSessionOrder: 0,
-                currentBandOwnedFrontier: ownedFrontier,
-                introductionFrontier: ownedFrontier,
+                currentBandOwnedFrontier: currentBandFrontier,
+                introductionFrontier: currentBandFrontier,
                 currentBandIndex: currentBandIndex);
 
             var sqliteEvidence = await store.LoadPracticeSelectionEvidenceAsync(request);
