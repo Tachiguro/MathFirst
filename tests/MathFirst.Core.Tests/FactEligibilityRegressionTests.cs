@@ -1240,6 +1240,302 @@ public sealed class FactEligibilityRegressionTests
         }
     }
 
+    // ===========================================================================
+    // Task 6: Migration Stale State Dormancy & Upgrade Parity
+    // ===========================================================================
+
+    [Fact]
+    public async Task Migration_V4WithFutureFacts_MigratesSuccessfullyAndKeepsFutureFactsDormant()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            var futureCardId = Guid.Parse("aaaaaaaa-1111-2222-3333-444444444444");
+            var eligibleCardId = Guid.Parse("bbbbbbbb-1111-2222-3333-444444444444");
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulCurriculum = curriculum.Multiplication;
+            var mulOwnership = new AcquisitionOwnershipResolver(mulCurriculum);
+
+            // Verify canonical owner of mul:2*8 is BandIndex 7 (MUL-D08).
+            Assert.True(mulOwnership.TryGetOwner("mul:2*8", 11, out var mul2x8Owner));
+            Assert.Equal(7, mul2x8Owner);
+
+            // Select an eligible control fact from BandIndex 1 (e.g. mul:2*2).
+            var band1Frontier = mulOwnership.GetOwnedFrontier(1);
+            var eligibleControlFact = band1Frontier.First(f => mulOwnership.IsEligible(f.Id, 1));
+            Assert.True(mulOwnership.IsEligible(eligibleControlFact.Id, 1));
+
+            const long initialPracticePosition = 17;
+            const long initialStoreRevision = 7;
+
+            // Seed genuine V4 database with future fact mul:2*8 and eligible control fact.
+            await CreateTask6V4DatabaseAsync(
+                dbPath,
+                initialStoreRevision,
+                initialPracticePosition,
+                multiplicationMaxOperand: 2, // Maps to BandIndex = 1 (max - 1)
+                futureCardId,
+                eligibleControlFact,
+                eligibleCardId);
+
+            // Act 1: Initialize SqliteLearnerStore, executing V4 -> V5 -> V6 migration.
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                await store.InitializeAsync();
+
+                var snapshot = await store.LoadSnapshotAsync();
+
+                // Invariant A & D: Migration succeeded and reached V6.
+                Assert.Equal(6, snapshot.SchemaVersion);
+                Assert.Equal(initialStoreRevision, snapshot.Revision);
+                Assert.Equal(initialPracticePosition, snapshot.Progression.PracticePosition);
+
+                // Invariant E: Migrated Multiplication BandIndex is 1 (< 7).
+                var mulProgression = snapshot.OperationProgressions![ArithmeticOperation.Multiplication];
+                Assert.Equal(1, mulProgression.BandIndex);
+                Assert.Equal(initialPracticePosition, mulProgression.BandStartedPracticePosition);
+                Assert.False(mulOwnership.IsEligible("mul:2*8", mulProgression.BandIndex));
+
+                // Invariant B, C, D: mul:2*8 item and FSRS rows survived migration losslessly with stable identity.
+                Assert.True(snapshot.ItemStates.TryGetValue("mul:2*8", out var migratedFutureItem));
+                Assert.Equal(ArithmeticOperation.Multiplication, migratedFutureItem.Operation);
+                Assert.Equal(2, migratedFutureItem.LeftOperand);
+                Assert.Equal(8, migratedFutureItem.RightOperand);
+                Assert.Equal(5, migratedFutureItem.TotalAttempts);
+                Assert.Equal(4, migratedFutureItem.CorrectAttempts);
+                Assert.Equal(1, migratedFutureItem.IncorrectAttempts);
+                Assert.False(migratedFutureItem.NeedsRemediation);
+                Assert.Equal(10, migratedFutureItem.LastPracticedOrder);
+
+                Assert.True(snapshot.FsrsStates.TryGetValue("mul:2*8", out var migratedFutureFsrs));
+                Assert.Equal(futureCardId, migratedFutureFsrs.CardId);
+                Assert.Equal(2, migratedFutureFsrs.State);
+                Assert.Equal(15.0, migratedFutureFsrs.Stability);
+                Assert.Equal(4.5, migratedFutureFsrs.Difficulty);
+                Assert.Equal(5, migratedFutureFsrs.DuePracticePosition); // Due relative to prospective position 20
+                Assert.Equal(1, migratedFutureFsrs.LastReviewPracticePosition);
+                Assert.Equal(FsrsRating.Good, migratedFutureFsrs.LastRating);
+
+                // Verify eligible control fact survived migration as well.
+                Assert.True(snapshot.ItemStates.ContainsKey(eligibleControlFact.Id));
+                Assert.True(snapshot.FsrsStates.TryGetValue(eligibleControlFact.Id, out var migratedEligibleFsrs));
+                Assert.Equal(eligibleCardId, migratedEligibleFsrs.CardId);
+
+                // Invariant F & G: Evidence request with explicit currentBandIndex = 1
+                var ownedFrontier = mulOwnership.GetOwnedFrontier(mulProgression.BandIndex);
+                var request = new PracticeSelectionEvidenceRequest(
+                    ArithmeticOperation.Multiplication,
+                    prospectivePracticePosition: 20,
+                    currentSessionOrder: 0,
+                    currentBandOwnedFrontier: ownedFrontier,
+                    introductionFrontier: ownedFrontier,
+                    currentBandIndex: mulProgression.BandIndex);
+
+                var evidence = await store.LoadPracticeSelectionEvidenceAsync(request);
+
+                // mul:2*8 must NOT appear in any review candidate pool because it is locked at BandIndex 1.
+                Assert.DoesNotContain(evidence.DueCandidates, c => c.Fact.Id == "mul:2*8");
+                Assert.DoesNotContain(evidence.MaintenanceCandidates, c => c.Fact.Id == "mul:2*8");
+                Assert.DoesNotContain(evidence.EarlyReviewCandidates, c => c.Fact.Id == "mul:2*8");
+                Assert.DoesNotContain(evidence.RemediationCandidates, c => c.Fact.Id == "mul:2*8");
+                Assert.DoesNotContain(evidence.CurrentBandCandidates, c => c.Fact.Id == "mul:2*8");
+
+                // Eligible control fact DOES appear in DueCandidates.
+                Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleControlFact.Id);
+
+                await store.CloseAsync();
+            }
+
+            // Invariant J: Reopen fresh store instance from disk and verify durability.
+            using (var reopenedStore = new SqliteLearnerStore(dbPath))
+            {
+                await reopenedStore.InitializeAsync();
+                var reopenedSnapshot = await reopenedStore.LoadSnapshotAsync();
+
+                Assert.Equal(6, reopenedSnapshot.SchemaVersion);
+                Assert.Equal(initialStoreRevision, reopenedSnapshot.Revision);
+                Assert.True(reopenedSnapshot.ItemStates.ContainsKey("mul:2*8"));
+                Assert.True(reopenedSnapshot.FsrsStates.TryGetValue("mul:2*8", out var reopenedFsrs));
+                Assert.Equal(futureCardId, reopenedFsrs.CardId);
+
+                var mulProgression = reopenedSnapshot.OperationProgressions![ArithmeticOperation.Multiplication];
+                var ownedFrontier = mulOwnership.GetOwnedFrontier(mulProgression.BandIndex);
+                var request = new PracticeSelectionEvidenceRequest(
+                    ArithmeticOperation.Multiplication,
+                    prospectivePracticePosition: 20,
+                    currentSessionOrder: 0,
+                    currentBandOwnedFrontier: ownedFrontier,
+                    introductionFrontier: ownedFrontier,
+                    currentBandIndex: mulProgression.BandIndex);
+
+                var evidence = await reopenedStore.LoadPracticeSelectionEvidenceAsync(request);
+                Assert.DoesNotContain(evidence.DueCandidates, c => c.Fact.Id == "mul:2*8");
+                Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleControlFact.Id);
+
+                await reopenedStore.CloseAsync();
+            }
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Migration_ProgressionAdvanceToBand7_UnlocksHistorical2x8()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            var futureCardId = Guid.Parse("cccccccc-1111-2222-3333-444444444444");
+            var eligibleCardId = Guid.Parse("dddddddd-1111-2222-3333-444444444444");
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulCurriculum = curriculum.Multiplication;
+            var mulOwnership = new AcquisitionOwnershipResolver(mulCurriculum);
+
+            Assert.True(mulOwnership.TryGetOwner("mul:2*8", 11, out var mul2x8Owner));
+            Assert.Equal(7, mul2x8Owner);
+
+            var band1Frontier = mulOwnership.GetOwnedFrontier(1);
+            var eligibleControlFact = band1Frontier.First(f => mulOwnership.IsEligible(f.Id, 1));
+
+            const long initialPracticePosition = 17;
+            const long initialStoreRevision = 7;
+
+            // Seed genuine V4 database.
+            await CreateTask6V4DatabaseAsync(
+                dbPath,
+                initialStoreRevision,
+                initialPracticePosition,
+                multiplicationMaxOperand: 2, // Maps to BandIndex 1
+                futureCardId,
+                eligibleControlFact,
+                eligibleCardId);
+
+            // Step 1: Migrate V4 -> V5 -> V6 and verify dormancy at low BandIndex 1.
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                await store.InitializeAsync();
+                var snapshot = await store.LoadSnapshotAsync();
+                Assert.Equal(1, snapshot.OperationProgressions![ArithmeticOperation.Multiplication].BandIndex);
+                Assert.False(mulOwnership.IsEligible("mul:2*8", 1));
+
+                var request = new PracticeSelectionEvidenceRequest(
+                    ArithmeticOperation.Multiplication,
+                    prospectivePracticePosition: 20,
+                    currentSessionOrder: 0,
+                    currentBandOwnedFrontier: mulOwnership.GetOwnedFrontier(1),
+                    introductionFrontier: mulOwnership.GetOwnedFrontier(1),
+                    currentBandIndex: 1);
+
+                var evidence = await store.LoadPracticeSelectionEvidenceAsync(request);
+                Assert.DoesNotContain(evidence.DueCandidates, c => c.Fact.Id == "mul:2*8");
+                Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleControlFact.Id);
+
+                await store.CloseAsync();
+            }
+
+            // Step 2: Advance ONLY durable Multiplication progression to BandIndex 7 via direct SQL update.
+            // Satisfies invariant: band_started_practice_position <= learner practice_position.
+            await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+            {
+                await conn.OpenAsync();
+                using var updateCmd = conn.CreateCommand();
+                updateCmd.CommandText = @"
+                    UPDATE operation_progression
+                    SET band_index = 7, band_started_practice_position = 10
+                    WHERE operation = 'Multiplication';";
+                var updatedRows = await updateCmd.ExecuteNonQueryAsync();
+                Assert.Equal(1, updatedRows);
+            }
+
+            // Step 3: Reopen fresh store instance and verify auto-unlock.
+            using (var reopenedStore = new SqliteLearnerStore(dbPath))
+            {
+                await reopenedStore.InitializeAsync();
+                var snapshot = await reopenedStore.LoadSnapshotAsync();
+
+                Assert.Equal(6, snapshot.SchemaVersion);
+                Assert.Equal(initialStoreRevision, snapshot.Revision);
+
+                var mulProgression = snapshot.OperationProgressions![ArithmeticOperation.Multiplication];
+                Assert.Equal(7, mulProgression.BandIndex);
+                Assert.Equal(10, mulProgression.BandStartedPracticePosition);
+
+                // Verify domain eligibility at BandIndex 7.
+                Assert.True(mulOwnership.IsEligible("mul:2*8", 7));
+
+                // Verify the SAME historical row and FSRS card state are preserved without duplication.
+                Assert.True(snapshot.ItemStates.TryGetValue("mul:2*8", out var historicalItem));
+                Assert.Equal(5, historicalItem.TotalAttempts);
+                Assert.Equal(4, historicalItem.CorrectAttempts);
+                Assert.Equal(1, historicalItem.IncorrectAttempts);
+
+                Assert.True(snapshot.FsrsStates.TryGetValue("mul:2*8", out var historicalFsrs));
+                Assert.Equal(futureCardId, historicalFsrs.CardId);
+                Assert.Equal(15.0, historicalFsrs.Stability);
+                Assert.Equal(4.5, historicalFsrs.Difficulty);
+                Assert.Equal(5, historicalFsrs.DuePracticePosition);
+
+                // Only 2 facts total were seeded (mul:2*8 and eligibleControlFact); verify no extra/duplicate rows.
+                Assert.Equal(2, snapshot.ItemStates.Count);
+                Assert.Equal(2, snapshot.FsrsStates.Count);
+
+                // Build evidence request at BandIndex 7.
+                var band7Frontier = mulOwnership.GetOwnedFrontier(7);
+                var request = new PracticeSelectionEvidenceRequest(
+                    ArithmeticOperation.Multiplication,
+                    prospectivePracticePosition: 20,
+                    currentSessionOrder: 0,
+                    currentBandOwnedFrontier: band7Frontier,
+                    introductionFrontier: band7Frontier,
+                    currentBandIndex: 7);
+
+                var evidence = await reopenedStore.LoadPracticeSelectionEvidenceAsync(request);
+
+                // Invariant I: mul:2*8 now automatically appears in DueCandidates without data rewrite or rematerialization.
+                Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == "mul:2*8");
+                var mul2x8Candidate = evidence.DueCandidates.First(c => c.Fact.Id == "mul:2*8");
+                Assert.Equal(futureCardId, mul2x8Candidate.FsrsState?.CardId);
+
+                // Eligible control fact also remains present in Due pool.
+                Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == eligibleControlFact.Id);
+
+                await reopenedStore.CloseAsync();
+            }
+
+            // Invariant J: Close and reopen again to verify persistence across restarts.
+            using (var secondReopen = new SqliteLearnerStore(dbPath))
+            {
+                await secondReopen.InitializeAsync();
+                var snapshot = await secondReopen.LoadSnapshotAsync();
+                Assert.Equal(7, snapshot.OperationProgressions![ArithmeticOperation.Multiplication].BandIndex);
+                Assert.True(snapshot.ItemStates.ContainsKey("mul:2*8"));
+                Assert.True(snapshot.FsrsStates.TryGetValue("mul:2*8", out var fsrs));
+                Assert.Equal(futureCardId, fsrs.CardId);
+
+                var request = new PracticeSelectionEvidenceRequest(
+                    ArithmeticOperation.Multiplication,
+                    prospectivePracticePosition: 20,
+                    currentSessionOrder: 0,
+                    currentBandOwnedFrontier: mulOwnership.GetOwnedFrontier(7),
+                    introductionFrontier: mulOwnership.GetOwnedFrontier(7),
+                    currentBandIndex: 7);
+
+                var evidence = await secondReopen.LoadPracticeSelectionEvidenceAsync(request);
+                Assert.Contains(evidence.DueCandidates, c => c.Fact.Id == "mul:2*8");
+
+                await secondReopen.CloseAsync();
+            }
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Test helper methods
     // ---------------------------------------------------------------------------
@@ -1357,5 +1653,149 @@ public sealed class FactEligibilityRegressionTests
             }
         }
         await tx.CommitAsync();
+    }
+
+    private static async Task CreateTask6V4DatabaseAsync(
+        string path,
+        long storeRevision,
+        long practicePosition,
+        int multiplicationMaxOperand,
+        Guid futureCardId,
+        ArithmeticFact eligibleFact,
+        Guid eligibleCardId)
+    {
+        await using var connection = new SqliteConnection($"Data Source={path}");
+        await connection.OpenAsync();
+        using var transaction = connection.BeginTransaction();
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = transaction;
+            cmd.CommandText = @"
+                CREATE TABLE schema_info (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                INSERT INTO schema_info VALUES ('schema_version', '4');
+                INSERT INTO schema_info VALUES ('store_revision', @store_revision);
+
+                CREATE TABLE learner_progression (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    current_operation TEXT NOT NULL,
+                    current_max_operand INTEGER NOT NULL,
+                    operation_max_operands_json TEXT NOT NULL,
+                    practice_position INTEGER NOT NULL,
+                    completed_checkpoint_level INTEGER NOT NULL,
+                    active_checkpoint_level INTEGER,
+                    checkpoint_attempt_count INTEGER NOT NULL,
+                    checkpoint_correct_count INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL);
+
+                INSERT INTO learner_progression VALUES (
+                    1, 'Multiplication', @mul_max,
+                    @max_operands_json, @practice_pos,
+                    0, NULL, 0, 0, '2026-09-09T00:00:00Z');
+
+                CREATE TABLE item_learning_state (
+                    fact_id TEXT PRIMARY KEY,
+                    operation TEXT NOT NULL,
+                    left_operand INTEGER NOT NULL,
+                    right_operand INTEGER NOT NULL,
+                    total_attempts INTEGER NOT NULL,
+                    correct_attempts INTEGER NOT NULL,
+                    incorrect_attempts INTEGER NOT NULL,
+                    consecutive_correct INTEGER NOT NULL,
+                    last_latency_ms INTEGER NOT NULL,
+                    rolling_latency_ms INTEGER NOT NULL,
+                    fluent_streak INTEGER NOT NULL,
+                    is_mastered INTEGER NOT NULL,
+                    needs_remediation INTEGER NOT NULL,
+                    remediation_due_order INTEGER NOT NULL,
+                    last_practiced_order INTEGER NOT NULL,
+                    last_practiced_at TEXT);
+
+                CREATE TABLE attempt_history (
+                    submission_id TEXT PRIMARY KEY,
+                    fact_id TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    left_operand INTEGER NOT NULL,
+                    right_operand INTEGER NOT NULL,
+                    submitted_answer INTEGER,
+                    correct_answer INTEGER NOT NULL,
+                    is_correct INTEGER NOT NULL,
+                    outcome TEXT NOT NULL,
+                    response_latency_ms INTEGER NOT NULL,
+                    timestamp TEXT NOT NULL);
+
+                CREATE TABLE fsrs_card_state (
+                    fact_id TEXT PRIMARY KEY,
+                    card_id TEXT NOT NULL,
+                    state INTEGER NOT NULL,
+                    step INTEGER,
+                    stability REAL,
+                    difficulty REAL,
+                    due_practice_position INTEGER NOT NULL,
+                    last_review_practice_position INTEGER,
+                    last_rating INTEGER);
+            ";
+            cmd.Parameters.AddWithValue("@store_revision", storeRevision.ToString());
+            cmd.Parameters.AddWithValue("@mul_max", multiplicationMaxOperand);
+            cmd.Parameters.AddWithValue("@practice_pos", practicePosition);
+            var operandsJson = $"{{\"Addition\":2,\"Subtraction\":1,\"Multiplication\":{multiplicationMaxOperand},\"Division\":1}}";
+            cmd.Parameters.AddWithValue("@max_operands_json", operandsJson);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Future fact: mul:2*8
+        using (var futureCmd = connection.CreateCommand())
+        {
+            futureCmd.Transaction = transaction;
+            futureCmd.CommandText = @"
+                INSERT INTO item_learning_state VALUES (
+                    'mul:2*8', 'Multiplication', 2, 8,
+                    5, 4, 1, 3,
+                    950, 950, 3, 0, 0,
+                    0, 10, '2026-09-09T00:00:00Z');
+
+                INSERT INTO attempt_history VALUES (
+                    'sub-future-1', 'mul:2*8', 'Multiplication', 2, 8,
+                    16, 16, 1, 'Correct',
+                    950, '2026-09-09T00:00:00Z');
+
+                INSERT INTO fsrs_card_state VALUES (
+                    'mul:2*8', @future_card_id, 2, NULL,
+                    15.0, 4.5, 5, 1, 3);
+            ";
+            futureCmd.Parameters.AddWithValue("@future_card_id", futureCardId.ToString());
+            await futureCmd.ExecuteNonQueryAsync();
+        }
+
+        // Eligible control fact
+        using (var eligibleCmd = connection.CreateCommand())
+        {
+            eligibleCmd.Transaction = transaction;
+            eligibleCmd.CommandText = @"
+                INSERT INTO item_learning_state VALUES (
+                    @fact_id, @operation, @left, @right,
+                    4, 4, 0, 4,
+                    800, 800, 4, 0, 0,
+                    0, 9, '2026-09-09T00:00:00Z');
+
+                INSERT INTO attempt_history VALUES (
+                    'sub-eligible-1', @fact_id, @operation, @left, @right,
+                    @correct_result, @correct_result, 1, 'Correct',
+                    800, '2026-09-09T00:00:00Z');
+
+                INSERT INTO fsrs_card_state VALUES (
+                    @fact_id, @eligible_card_id, 2, NULL,
+                    10.0, 4.0, 5, 1, 3);
+            ";
+            eligibleCmd.Parameters.AddWithValue("@fact_id", eligibleFact.Id);
+            eligibleCmd.Parameters.AddWithValue("@operation", eligibleFact.Operation.ToString());
+            eligibleCmd.Parameters.AddWithValue("@left", eligibleFact.LeftOperand);
+            eligibleCmd.Parameters.AddWithValue("@right", eligibleFact.RightOperand);
+            eligibleCmd.Parameters.AddWithValue("@correct_result", eligibleFact.CorrectResult);
+            eligibleCmd.Parameters.AddWithValue("@eligible_card_id", eligibleCardId.ToString());
+            await eligibleCmd.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
     }
 }
