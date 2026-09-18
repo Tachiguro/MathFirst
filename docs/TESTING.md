@@ -356,3 +356,42 @@ Focused MF-REL-002 validation can be run with:
 ```powershell
 dotnet test tests/MathFirst.Core.Tests/MathFirst.Core.Tests.csproj -c Release --filter "FullyQualifiedName~AabPackagingScriptValidationTests|FullyQualifiedName~TesterDistributionValidationTests|FullyQualifiedName~ReleaseProfileContractTests|FullyQualifiedName~AndroidAabValidationTests"
 ```
+
+---
+
+## 15. Forensic Remediation: Fact Eligibility Invariant and Startup Recovery Contracts
+
+The forensic remediation following native V1 candidate rejection (`REAL_DEVICE_VERIFICATION_FAILED`) establishes permanent regression and evidence coverage for the Practice Fact Eligibility Invariant ($\text{owner}_O(F) \le B$) and session startup resilience across `MathFirst.Core.Tests`:
+
+1. **Practice Fact Eligibility Regression Coverage (`FactEligibilityRegressionTests`)**:
+   - **Concrete $2 \times 8$ Multiplication Regression**: Verifies that `mul:2*8` (owned by BandIndex 7, `MUL-D08`) is strictly excluded from `Due`, `Maintenance`, `Early Review`, and `Remediation` selection at Stage 2 (`MUL-D02`, BandIndex 1) and Stage 3 (`MUL-D03`, BandIndex 2), but becomes eligible when progression reaches BandIndex 7.
+   - **Universal 4-Operation Scope**: Verifies curriculum-bounded eligibility across Addition (tens facts vs dense band 0), Subtraction (inverse facts vs triangular band 0), Multiplication, and Division (large divisors vs band 1).
+   - **Candidate-Window Anti-Poisoning & Starvation Defense**: Verifies that `SqliteLearnerStore.ReadCandidatesAsync` streams rows and applies `IsEligible` before window truncation, ensuring eligible reviews are discovered and returned even when preceded in FSRS due order by 70+ ineligible future due facts.
+   - **Snapshot Fallback Parity**: Verifies that `PracticeSelectionEvidence.FromSnapshot` filters item states by `IsEligible` with identical candidate output as the SQLite streaming query.
+   - **Selector Pure Defense**: Verifies that `AdaptivePracticeSelector.SelectTargetFact` defensively filters all semantic review pools against current `progression.BandIndex`, preventing future-fact presentation even if malformed evidence is injected.
+   - **Persistence Gate Defense**: Verifies that `SqliteLearnerStore.ValidateNewAcceptedSubmission` validates `IsEligible(attempt.FactId, storedBandIndex)` before writing, throwing `InvalidOperationException` and rolling back attempts for future locked, malformed, or cross-operation facts (`PersistenceResult.InvalidSubmission`).
+   - **Migration Stale-State Dormancy**: Verifies that Schema V4 $\to$ V5 $\to$ V6 migrations preserve historical future-band rows losslessly, while queries keep them dormant until progression unlocks their band.
+   - **Band Unlock Transition**: Verifies that advancing progression immediately activates dormant historical facts for review with their prior FSRS intervals intact.
+   - **Long-Run Deterministic Simulation**: 500-step continuous practice simulations across all 4 operations verify that 100% of presented `CurrentFact` instances satisfy $\text{owner}_O(F) \le \text{BandIndex}_O$ at the exact moment of presentation.
+
+2. **Startup Initialization & Recovery Coverage (`StartupRecoveryRegressionTests`)**:
+   - **Fail-Closed Initialization**: Verifies that store initialization or evidence loading failure leaves `TrainingSession.IsInitialized == false`.
+   - **Safe UI Rendering Without `CurrentFact`**: Verifies that `Home.razor` catches initialization exceptions and renders a dedicated startup error boundary (`_startupFailed`) without evaluating `Session.CurrentFact`, `LastEvaluation`, or `LastPersistenceResult`, avoiding `NullReferenceException`.
+   - **Non-Destructive Retry**: Verifies that activating retry re-invokes `Session.InitializeAsync` cleanly, produces a valid `CurrentFact` upon transient failure recovery, transitions to `InitialReadyGate`, and never deletes or resets learner progress.
+   - **Dormancy Across Restart**: Verifies that application restart preserves stored learner state and maintains the fact eligibility invariant.
+
+### Verified Automated Test Evidence (Remediation Task 8 Baseline)
+
+- **Full Core Automated Suite**: 1169 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Targeted Suite Breakdown**:
+  - `FactEligibilityRegressionTests`: 23 passed
+  - `StartupRecoveryRegressionTests`: 6 passed
+  - `LongRunIndependentProgressionTests`: 7 passed
+  - `AcquisitionOwnershipResolverTests`: 18 passed
+  - `DeterministicSelectorTerminalLivenessTests`: 11 passed
+
+### Evidence Boundary Principles
+- This automated evidence establishes domain, application, and persistence invariant conformance in `MathFirst.Core.Tests` using synthetic fixtures and isolated temporary databases.
+- It is Core automated regression evidence only. It does **not** claim execution of the post-remediation `FULL_VALIDATION` lifecycle.
+- It does **not** claim that release builds for Android or Windows were recompiled or validated following remediation.
+- It does **not** claim that physical-device remediation verification has occurred.

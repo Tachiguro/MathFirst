@@ -2,6 +2,7 @@ namespace MathFirst.Application.Persistence;
 
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 
 public sealed class PracticeSelectionEvidenceRequest
 {
@@ -12,7 +13,8 @@ public sealed class PracticeSelectionEvidenceRequest
         long prospectivePracticePosition,
         int currentSessionOrder,
         IEnumerable<ArithmeticFact> currentBandOwnedFrontier,
-        IEnumerable<ArithmeticFact> introductionFrontier)
+        IEnumerable<ArithmeticFact> introductionFrontier,
+        int currentBandIndex = int.MaxValue)
     {
         if (prospectivePracticePosition <= 0)
         {
@@ -24,11 +26,20 @@ public sealed class PracticeSelectionEvidenceRequest
             throw new ArgumentOutOfRangeException(nameof(currentSessionOrder));
         }
 
+        if (currentBandIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(currentBandIndex),
+                currentBandIndex,
+                "Current band index must be non-negative.");
+        }
+
         Operation = operation;
         ProspectivePracticePosition = prospectivePracticePosition;
         CurrentSessionOrder = currentSessionOrder;
         CurrentBandOwnedFrontier = CopyFacts(currentBandOwnedFrontier, operation, nameof(currentBandOwnedFrontier));
         IntroductionFrontier = CopyFacts(introductionFrontier, operation, nameof(introductionFrontier));
+        CurrentBandIndex = currentBandIndex;
     }
 
     public ArithmeticOperation Operation { get; }
@@ -36,6 +47,15 @@ public sealed class PracticeSelectionEvidenceRequest
     public int CurrentSessionOrder { get; }
     public IReadOnlyList<ArithmeticFact> CurrentBandOwnedFrontier { get; }
     public IReadOnlyList<ArithmeticFact> IntroductionFrontier { get; }
+
+    /// <summary>
+    /// The canonical curriculum BandIndex of the learner's current progression for this operation.
+    /// When set to <see cref="int.MaxValue"/> (the default), eligibility filtering is bypassed
+    /// to preserve compile-time and runtime compatibility with existing callers that are not yet
+    /// wired to pass the real progression BandIndex (Task 7).
+    /// Must be &gt;= 0 when explicitly provided.
+    /// </summary>
+    public int CurrentBandIndex { get; }
 
     private static IReadOnlyList<ArithmeticFact> CopyFacts(
         IEnumerable<ArithmeticFact> facts,
@@ -157,6 +177,25 @@ public sealed class PracticeSelectionEvidence
                 state,
                 snapshot.FsrsStates.GetValueOrDefault(state.FactId)))
             .ToArray();
+
+        // Task 2: Apply canonical curriculum eligibility filter BEFORE constructing
+        // semantic review pools and truncating to CandidateWindowSize. This prevents
+        // future-band (owner > CurrentBandIndex) materialized facts from poisoning
+        // the bounded candidate window and starving eligible earlier facts.
+        //
+        // When CurrentBandIndex == int.MaxValue (the default compatibility sentinel),
+        // filtering is bypassed so that existing callers not yet wired to pass the
+        // real progression BandIndex (Task 7) continue to compile and behave correctly
+        // without accidentally acquiring a false low progression value such as BandIndex 0.
+        if (request.CurrentBandIndex != int.MaxValue)
+        {
+            var operationCurriculum = new ArithmeticCurriculum().GetCurriculum(request.Operation);
+            var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
+            candidates = candidates
+                .Where(candidate => ownership.IsEligible(candidate.Fact.Id, request.CurrentBandIndex))
+                .ToArray();
+        }
+
         var byId = candidates.ToDictionary(candidate => candidate.Fact.Id, StringComparer.Ordinal);
 
         var remediationCandidates = candidates

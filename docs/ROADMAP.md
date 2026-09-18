@@ -78,7 +78,13 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 13. Reconcile post-stabilization project state documentation (`MF-DOC-004`) - complete and merged through Pull Request #24 at `3e471e20e2d452ee1e383579ed3d0831e1825d3e`.
 14. Deliver keypad press feedback and responsive validation (`MF-UX-004`) - complete and merged through Pull Request #25 at `46a7158d3c7fbdf6bc43fe120c35863ac55bb78b`.
 15. Deliver tester distribution and release hardening (`MF-REL-002`) - complete and merged through Pull Request #26 at `79e0d48c058747e8112388d31d721a049ec2857a`.
-16. Complete final exact-candidate Native V1 validation on synchronized `main` (exact candidate SHA to be established from live synchronized `main` following post-MF-REL-002 project-state documentation reconciliation merge).
-17. Perform separately authorized build, package, and signing steps. AAB generation is not publication.
-18. Perform separately authorized final real-device verification.
-19. Make a separate later decision about Google Play upload.
+16. Physical-device verification of native V1 candidate `bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10` and signed Android AAB SHA-256 `0d188406aa32001a354c140587a7c4355b44bccee879d73e7975d5737cf53cfe` resulted in rejection (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`) due to future-fact review eligibility and in-place startup recovery defects.
+17. Forensic remediation ([Remediation Plan](superpowers/plans/2026-09-15-native-v1-release-blocker-fact-eligibility-and-startup-recovery.md)): Tasks 1–8 completed on task branch `handoff/task3-partial-laptop-20260916`; Task 9 documentation reconciliation active in this slice.
+18. Perform comprehensive technical review (`REVIEW_ONLY`) of Task 9 documentation and remediation branch state.
+19. Execute full automated validation (`FULL_VALIDATION`) on the remediation branch.
+20. Author Pull Request and obtain explicit user merge authorization to `main`.
+21. Synchronize canonical local checkout and establish new exact candidate SHA from synchronized `main`.
+22. Perform separately authorized production packaging and signing (`Distributable` AAB).
+23. Perform technical smoke verification on clean physical Android device (install, IME suppression, touch keypad, database).
+24. Perform manual physical-device functional verification (confirming strictly bounded curriculum presentation across progression stages).
+25. Reconsider Google Play upload under a separately authorized release gate.

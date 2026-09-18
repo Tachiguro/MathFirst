@@ -265,23 +265,32 @@ public sealed class TrainingSession
         CancellationToken cancellationToken = default,
         bool startTiming = true)
     {
-        await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        ApplyRuntimeSnapshot(snapshot);
-        _sessionConsecutiveErrors.Clear();
-        ResetSessionCheckInSegment();
-        PendingCheckIn = null;
-        SessionOrderCounter = 0;
-        SessionCorrectCount = 0;
-        SessionTotalCount = 0;
-        LastResponseLatencyMs = 0;
-        LastPersistenceResult = null;
-        _requiresBackgroundResumeAfterAdvance = false;
-        IsInitialized = true;
-        CurrentAnswerInput = string.Empty;
+        IsInitialized = false;
+        try
+        {
+            await _store.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await _store.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            ApplyRuntimeSnapshot(snapshot);
+            _sessionConsecutiveErrors.Clear();
+            ResetSessionCheckInSegment();
+            PendingCheckIn = null;
+            SessionOrderCounter = 0;
+            SessionCorrectCount = 0;
+            SessionTotalCount = 0;
+            LastResponseLatencyMs = 0;
+            LastPersistenceResult = null;
+            _requiresBackgroundResumeAfterAdvance = false;
+            CurrentAnswerInput = string.Empty;
 
-        await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
-        AdvanceToNextFact(startTiming);
+            await LoadNextSelectionEvidenceAsync(cancellationToken).ConfigureAwait(false);
+            AdvanceToNextFact(startTiming);
+            IsInitialized = true;
+        }
+        catch
+        {
+            IsInitialized = false;
+            throw;
+        }
     }
 
     public void ResetItemReadyTiming()
@@ -1180,7 +1189,8 @@ public sealed class TrainingSession
             prospectivePosition,
             checked(SessionOrderCounter + 1),
             ownedFrontier,
-            introductionFrontier);
+            introductionFrontier,
+            currentBandIndex: progression.BandIndex);
         var evidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
         foreach (var (factId, state) in evidence.ItemStates)
         {

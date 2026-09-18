@@ -8,6 +8,7 @@ using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
 using MathFirst.Infrastructure.Sqlite;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
@@ -787,43 +788,19 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var items = new List<ArithmeticFact>();
-        var itemStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
-        var fsrsStates = new Dictionary<string, FsrsCardState>(StringComparer.Ordinal);
-
-        var curPosition = 0L;
+        var seedData = new List<(ItemLearningState Item, FsrsCardState? Fsrs)>();
         for (var i = 0; i < 70; i++)
         {
             var fact = new ArithmeticFact(ArithmeticOperation.Addition, i, 0);
-            items.Add(fact);
             var state = ItemLearningState.CreateNew(fact);
             state.NeedsRemediation = false;
             var lastReview = 70 - i;
             var card = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 1000, lastReview, FsrsRating.Good);
 
-            itemStates[fact.Id] = state;
-            fsrsStates[fact.Id] = card;
-
-            for (var op = 0; op < 4; op++)
-            {
-                curPosition++;
-                var opEnum = (ArithmeticOperation)(op + 1);
-                var opFact = opEnum == ArithmeticOperation.Addition ? fact : new ArithmeticFact(opEnum, 0, op == 3 ? 1 : 0);
-                var opState = opEnum == ArithmeticOperation.Addition ? state : ItemLearningState.CreateNew(opFact);
-                var opCard = opEnum == ArithmeticOperation.Addition ? card : new FsrsCardState(opFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 1000, 1, FsrsRating.Good);
-
-                var changeSet = new SubmissionChangeSet(
-                    Guid.NewGuid().ToString("N"),
-                    curPosition,
-                    new AttemptRecord(Guid.NewGuid().ToString("N"), opFact.Id, opFact.Operation, opFact.LeftOperand, opFact.RightOperand, opFact.CorrectResult, opFact.CorrectResult, true, true, 500, DateTimeOffset.UtcNow, AttemptOutcome.Correct, curPosition),
-                    opState,
-                    new LearnerProgression { PracticePosition = curPosition },
-                    opCard,
-                    Enum.GetValues<ArithmeticOperation>().ToDictionary(o => o, o => new OperationProgression(o, 0, 0)));
-                var commitResult = await store.CommitSubmissionAsync(changeSet);
-                Assert.True(commitResult.IsSuccess);
-            }
+            seedData.Add((state, card));
         }
+
+        await SeedItemAndFsrsAsync(dbPath, seedData);
 
         var request = new PracticeSelectionEvidenceRequest(
             ArithmeticOperation.Addition,
@@ -1231,4 +1208,76 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         IReadOnlyList<ArithmeticFact> Facts,
         IReadOnlyDictionary<string, ItemLearningState> ItemStates,
         IReadOnlyDictionary<string, FsrsCardState> FsrsStates);
+
+    private static async Task SeedItemAndFsrsAsync(
+        string dbPath,
+        IEnumerable<(ItemLearningState Item, FsrsCardState? Fsrs)> seedData)
+    {
+        using var conn = new SqliteConnection($"Data Source={dbPath}");
+        await conn.OpenAsync();
+        using var tx = conn.BeginTransaction();
+        foreach (var (item, fsrs) in seedData)
+        {
+            using (var itemCmd = conn.CreateCommand())
+            {
+                itemCmd.Transaction = tx;
+                itemCmd.CommandText = @"
+                    INSERT INTO item_learning_state (
+                        fact_id, operation, left_operand, right_operand,
+                        total_attempts, correct_attempts, incorrect_attempts,
+                        consecutive_correct, last_latency_ms, rolling_latency_ms,
+                        fluent_streak, is_mastered, needs_remediation,
+                        remediation_due_order, last_practiced_order, last_practiced_at
+                    ) VALUES (
+                        @fact_id, @operation, @left_operand, @right_operand,
+                        @total_attempts, @correct_attempts, @incorrect_attempts,
+                        @consecutive_correct, @last_latency_ms, @rolling_latency_ms,
+                        @fluent_streak, @is_mastered, @needs_remediation,
+                        @remediation_due_order, @last_practiced_order, @last_practiced_at
+                    );";
+                itemCmd.Parameters.AddWithValue("@fact_id", item.FactId);
+                itemCmd.Parameters.AddWithValue("@operation", item.Operation.ToString());
+                itemCmd.Parameters.AddWithValue("@left_operand", item.LeftOperand);
+                itemCmd.Parameters.AddWithValue("@right_operand", item.RightOperand);
+                itemCmd.Parameters.AddWithValue("@total_attempts", item.TotalAttempts);
+                itemCmd.Parameters.AddWithValue("@correct_attempts", item.CorrectAttempts);
+                itemCmd.Parameters.AddWithValue("@incorrect_attempts", item.IncorrectAttempts);
+                itemCmd.Parameters.AddWithValue("@consecutive_correct", item.ConsecutiveCorrectStreak);
+                itemCmd.Parameters.AddWithValue("@last_latency_ms", item.LastLatencyMs);
+                itemCmd.Parameters.AddWithValue("@rolling_latency_ms", item.RollingLatencyMs);
+                itemCmd.Parameters.AddWithValue("@fluent_streak", item.FluentStreak);
+                itemCmd.Parameters.AddWithValue("@is_mastered", item.IsProvisionallyMastered ? 1 : 0);
+                itemCmd.Parameters.AddWithValue("@needs_remediation", item.NeedsRemediation ? 1 : 0);
+                itemCmd.Parameters.AddWithValue("@remediation_due_order", item.RemediationDueOrder);
+                itemCmd.Parameters.AddWithValue("@last_practiced_order", item.LastPracticedOrder);
+                itemCmd.Parameters.AddWithValue("@last_practiced_at", (object?)item.LastPracticedAt?.ToString("O") ?? DBNull.Value);
+                await itemCmd.ExecuteNonQueryAsync();
+            }
+
+            if (fsrs is not null)
+            {
+                using var fsrsCmd = conn.CreateCommand();
+                fsrsCmd.Transaction = tx;
+                fsrsCmd.CommandText = @"
+                    INSERT INTO fsrs_card_state (
+                        fact_id, card_id, state, step, stability, difficulty,
+                        due_practice_position, last_review_practice_position, last_rating
+                    ) VALUES (
+                        @fact_id, @card_id, @state, @step, @stability, @difficulty,
+                        @due_practice_position, @last_review_practice_position, @last_rating
+                    );";
+                fsrsCmd.Parameters.AddWithValue("@fact_id", fsrs.FactId);
+                fsrsCmd.Parameters.AddWithValue("@card_id", fsrs.CardId.ToString());
+                fsrsCmd.Parameters.AddWithValue("@state", fsrs.State);
+                fsrsCmd.Parameters.AddWithValue("@step", (object?)fsrs.Step ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@stability", (object?)fsrs.Stability ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@difficulty", (object?)fsrs.Difficulty ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@due_practice_position", fsrs.DuePracticePosition);
+                fsrsCmd.Parameters.AddWithValue("@last_review_practice_position", (object?)fsrs.LastReviewPracticePosition ?? DBNull.Value);
+                fsrsCmd.Parameters.AddWithValue("@last_rating", (object?)(int?)fsrs.LastRating ?? DBNull.Value);
+                await fsrsCmd.ExecuteNonQueryAsync();
+            }
+        }
+        await tx.CommitAsync();
+    }
 }

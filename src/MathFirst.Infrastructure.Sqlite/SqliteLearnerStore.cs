@@ -6,6 +6,7 @@ using System.Text.Json;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 using Microsoft.Data.Sqlite;
 
 public sealed class SqliteLearnerStore : ILearnerStore
@@ -409,6 +410,13 @@ public sealed class SqliteLearnerStore : ILearnerStore
         ArgumentNullException.ThrowIfNull(request);
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
+        AcquisitionOwnershipResolver? ownership = null;
+        if (request.CurrentBandIndex != int.MaxValue)
+        {
+            var operationCurriculum = new ArithmeticCurriculum().GetCurriculum(request.Operation);
+            ownership = new AcquisitionOwnershipResolver(operationCurriculum);
+        }
+
         var currentBand = await ReadCurrentBandCandidatesAsync(request, cancellationToken).ConfigureAwait(false);
         var due = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
@@ -418,8 +426,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             ORDER BY card.due_practice_position ASC,
                      CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
                      card.last_review_practice_position ASC,
-                     item.fact_id ASC
-            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+                     item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
         var maintenance = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 0
@@ -429,8 +436,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
               AND @practice_position >= card.last_review_practice_position + 40
             ORDER BY card.last_review_practice_position ASC,
                      card.due_practice_position ASC,
-                     item.fact_id ASC
-            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+                     item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
         var remediation = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 1
@@ -438,8 +444,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
               AND card.last_review_practice_position IS NOT NULL
               AND @practice_position >= card.last_review_practice_position + 4
             ORDER BY card.last_review_practice_position ASC,
-                     item.fact_id ASC
-            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+                     item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
         var earlyReview = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 0
@@ -448,8 +453,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             ORDER BY CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
                      card.last_review_practice_position ASC,
                      card.due_practice_position ASC,
-                     item.fact_id ASC
-            LIMIT @limit;", request, cancellationToken).ConfigureAwait(false);
+                     item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
 
         return new PracticeSelectionEvidence(
             request.Operation,
@@ -956,6 +960,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 throw new InvalidOperationException("An advancing attempted operation must start its new band at the accepted practice position.");
             }
         }
+
+        var storedAttemptProgression = storedOperationProgressions[changeSet.Attempt.Operation];
+        var curriculum = new ArithmeticCurriculum().GetCurriculum(changeSet.Attempt.Operation);
+        var ownership = new AcquisitionOwnershipResolver(curriculum);
+        if (!ownership.IsEligible(changeSet.Attempt.FactId, storedAttemptProgression.BandIndex))
+        {
+            throw new InvalidOperationException("The attempted fact is not unlocked by the operation's current progression.");
+        }
     }
 
     private static void ValidateAttemptAndRelatedState(SubmissionChangeSet changeSet)
@@ -1140,12 +1152,13 @@ public sealed class SqliteLearnerStore : ILearnerStore
             command.Parameters.AddWithValue(parameters[index], request.CurrentBandOwnedFrontier[index].Id);
         }
 
-        return await ReadCandidateRowsAsync(command, cancellationToken).ConfigureAwait(false);
+        return await ReadCandidateRowsAsync(command, int.MaxValue, null, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidatesAsync(
         string predicateAndOrder,
         PracticeSelectionEvidenceRequest request,
+        AcquisitionOwnershipResolver? ownership,
         CancellationToken cancellationToken)
     {
         using var command = _connection!.CreateCommand();
@@ -1153,23 +1166,30 @@ public sealed class SqliteLearnerStore : ILearnerStore
         command.Parameters.AddWithValue("@operation", request.Operation.ToString());
         command.Parameters.AddWithValue("@practice_position", request.ProspectivePracticePosition);
         command.Parameters.AddWithValue("@session_order", request.CurrentSessionOrder);
-        command.Parameters.AddWithValue("@limit", PracticeSelectionEvidenceRequest.CandidateWindowSize);
-        return await ReadCandidateRowsAsync(command, cancellationToken).ConfigureAwait(false);
+        return await ReadCandidateRowsAsync(command, request.CurrentBandIndex, ownership, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidateRowsAsync(
         SqliteCommand command,
+        int currentBandIndex,
+        AcquisitionOwnershipResolver? ownership,
         CancellationToken cancellationToken)
     {
         var candidates = new List<PracticeSelectionCandidate>();
         using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var factId = reader.GetString(0);
+            if (ownership is not null && currentBandIndex != int.MaxValue && !ownership.IsEligible(factId, currentBandIndex))
+            {
+                continue;
+            }
+
             var operation = Enum.Parse<ArithmeticOperation>(reader.GetString(1));
             var fact = new ArithmeticFact(operation, reader.GetInt32(2), reader.GetInt32(3));
             var item = new ItemLearningState
             {
-                FactId = reader.GetString(0),
+                FactId = factId,
                 Operation = operation,
                 LeftOperand = fact.LeftOperand,
                 RightOperand = fact.RightOperand,
@@ -1202,6 +1222,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
             }
 
             candidates.Add(new PracticeSelectionCandidate(fact, item, card));
+            if (candidates.Count == PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            {
+                break;
+            }
         }
 
         return candidates;

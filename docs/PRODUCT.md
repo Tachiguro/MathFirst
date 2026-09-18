@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression, hybrid curriculum, and adaptive learning model in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), and [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, adaptive learning model, and curriculum fact eligibility invariant in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), and [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
 
 ---
 
@@ -61,12 +61,15 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 
 ### Fact-Space Semantics
 
-- **Legacy/materialized learned facts** have persisted item or FSRS state and remain reviewable regardless of the current band.
-- **Curriculum-eligible facts** belong to completed bands or the current band; eligibility does not mean mastery.
-- **Current acquisition-frontier facts** are owned by the operation's current band. Dense bands require exhaustive frontier acquisition; structured bands require a deterministic representative sample of 16 distinct owned-frontier facts.
-- **Due review facts** are materialized facts whose FSRS due Practice Position has arrived. Advancement never removes their eligibility.
+- **Persisted / Materialized Facts**: Materialized facts with historical attempt, item, or FSRS state remain durable learner evidence. They are never deleted or reset upon curriculum advancement or schema migration.
+- **Practice Fact Eligibility Invariant**: For any arithmetic fact $F$ of operation $O$ presented at current operation band $B$, presentation and review eligibility is strictly bounded by canonical acquisition ownership:
+  $$\text{owner}_O(F) \le B$$
+  A fact is eligible for practice presentation if and only if its canonical acquisition owner band has been reached or completed. Persisted facts owned by future bands ($\text{owner}_O(F) > B$) remain dormant until progression legitimately advances to their owner band.
+- **Current Acquisition-Frontier Facts**: Facts whose single acquisition owner is the operation's current band ($\text{owner}_O(F) == B$). Dense bands require exhaustive frontier acquisition; structured bands require a deterministic representative sample of 16 distinct owned-frontier facts.
+- **Due Review Facts**: Materialized facts whose FSRS due Practice Position has arrived. Due status optimizes review scheduling among eligible facts but does **not** bypass curriculum ownership: a due fact is presentable only when $\text{owner}_O(F) \le B$.
+- **Historical Preservation vs. Presentation Eligibility**: `PERSISTED != CURRENTLY PRESENTABLE` and `DUE != AUTOMATICALLY ELIGIBLE`. Advancing an operation unlocks new facts while preserving prior facts as eligible for review; locked future facts remain dormant.
 
-Unseen, non-sampled structured candidates from completed bands are not permanent acquisition debt. Exact-fact FSRS review and operation-level advancement are separate mechanisms.
+Unseen, non-sampled structured candidates from completed bands are not permanent acquisition debt. Exact-fact FSRS review and operation-level advancement are separate mechanisms governed by the Practice Fact Eligibility Invariant ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)).
 
 ---
 
@@ -465,7 +468,7 @@ The following register contains both resolved and unresolved product decisions. 
 | Decision Area | Description | Status |
 |---|---|---|
 | **Scheduler Mathematics** | FSRS-6 exact-fact scheduling with Practice Position virtual time, 95% desired retention, existing 21 parameters, and disabled fuzzing. | `RESOLVED` |
-| **Fact Catalog Strategy** | Hybrid dense/structured curriculum, deterministic procedural generation, unique acquisition ownership, stable identities, and lazy materialization. | `RESOLVED` |
+| **Fact Catalog Strategy** | Hybrid dense/structured curriculum, deterministic procedural generation, unique acquisition ownership, stable identities, lazy materialization, and curriculum-bounded practice fact eligibility ($\text{owner}_O(F) \le B$) with dormant future-fact preservation ([ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)). | `RESOLVED` |
 | **Telemetry, Analytics, and Crash Diagnostics** | Whether and how telemetry, analytics, and crash diagnostics should operate. | `UNRESOLVED` |
 | **Exact Fluency Thresholds & Rating Mapping** | Adaptive expected pace $P_{\text{fact}}$ with Easy $\le 0.85 \cdot P_{\text{fact}}$ (clamp 600..2000 ms), Fluency $\le 1.25 \cdot P_{\text{fact}}$ (clamp 1500..4000 ms), Hard $> \text{FluencyThreshold}$, and persisted `IsFluent` in Schema V6 ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
 | **Adaptive Answer Deadline & Pace Model** | Hierarchical shrinkage pace estimation ($P_0=4500$, $P_{\text{learner}}$, $P_{\text{operation}}$, $P_{\text{band}}$, $P_{\text{fact}}$), instability allowance, entry allowance, digit-aware novelty floors (15s/20s/25s/30s) for unproven facts, clamped 3000..30000 ms ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md)). | `RESOLVED` |
