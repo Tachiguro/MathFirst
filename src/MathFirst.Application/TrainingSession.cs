@@ -32,6 +32,7 @@ public sealed class TrainingSession
     private readonly BandAdvancementEvaluator _bandAdvancementEvaluator = new();
     private readonly Dictionary<string, int> _sessionConsecutiveErrors = new(StringComparer.Ordinal);
     private readonly List<AttemptRecord> _sessionCheckInAttempts = [];
+    private readonly List<long> _sessionCorrectLatencies = [];
     private Dictionary<ArithmeticOperation, OperationProgression> _sessionCheckInProgressionBaseline = [];
     private List<AttemptRecord> _recentAttempts = [];
     private IReadOnlyList<AttemptRecord> _currentDenseFrontierAttempts = [];
@@ -53,6 +54,12 @@ public sealed class TrainingSession
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
     public int SessionTotalCount { get; private set; }
+    public int CurrentCorrectStreak { get; private set; }
+    public PracticeSessionSummary GetSessionSummary() => new(
+        SessionTotalCount,
+        SessionCorrectCount,
+        CurrentCorrectStreak,
+        _sessionCorrectLatencies.Count > 0 ? AdaptivePacePolicy.Median(_sessionCorrectLatencies) : null);
     public ArithmeticFact CurrentFact { get; private set; } = null!;
     public long ItemReadyTimestamp { get; private set; }
     public long CurrentFactExpectedPaceMs { get; private set; } = AdaptivePacePolicy.StaticPriorMs;
@@ -764,6 +771,15 @@ public sealed class TrainingSession
                 }
                 SessionTotalCount++;
                 SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
+                if (LastEvaluation.Outcome == AttemptOutcome.Correct)
+                {
+                    CurrentCorrectStreak++;
+                    _sessionCorrectLatencies.Add(LastEvaluation.LatencyMs);
+                }
+                else
+                {
+                    CurrentCorrectStreak = 0;
+                }
                 LastResponseLatencyMs = LastEvaluation.LatencyMs;
                 Progression.StoreRevision = result.NewRevision.Value;
                 LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
@@ -1072,6 +1088,8 @@ public sealed class TrainingSession
         PendingCheckIn = null;
         SessionCorrectCount = 0;
         SessionTotalCount = 0;
+        CurrentCorrectStreak = 0;
+        _sessionCorrectLatencies.Clear();
         SessionOrderCounter = 0;
         LastResponseLatencyMs = 0;
         LastPersistenceResult = null;

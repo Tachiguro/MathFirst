@@ -10,7 +10,7 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Slice 5 — No Time Pressure Mode
+- **Active Task**: Slice 6 — Restrained Streak Feedback and Pause Session Summary
 - **Current Operation Mode**: `IMPLEMENT_SLICE`
 - **Active Task Branch**: `feat/mf-ux-005-practice-performance-keypad-reliability`
 - **Baseline Commit**: `156d5afd32299ba19d8ca2a8f2f56a7babfe31d8` (merged PR #29)
@@ -35,13 +35,19 @@ This document provides operational context for current repository work.
   3. Preference Persistence & Reset Workflows: Added persisted boolean `Haptic Feedback Enabled` (default `true`) to `IPreferenceStore` and `MauiPreferenceStore` (`mathfirst.haptic_feedback_enabled`), restored to enabled on Restore Defaults and Full Local Reset, preserved on Reset Learning Progress.
   4. Onboarding & Settings UI Integration: Integrated haptic toggle in Settings with immediate persistence and preview cue on enable, and integrated haptic selection in Onboarding Step 2 (Keypad Layout) preserving draft choice across step transitions and maintaining the exact five-step onboarding flow.
   5. Practice Interaction Integration: Wired `KeyTap` to numeric keypad taps and backspace, `Correct` to accepted correct answer evaluation, `Incorrect` to accepted incorrect answer evaluation, and `Timeout` to session timeout, with auto-submit double feedback handling and no re-render duplicate cues.
-- **Slice 5 Progress (Current Slice)**:
+- **Slice 5 Progress (Completed & Validated)**:
   1. No Time Pressure Domain & Policy Model: Extended `PracticeTimeSetting` with `NoTimePressure = -1`, `PracticeTimePreferencePolicy.HasEnforcedDeadline`, `IsNoTimePressure`, safe normalization of unknown/corrupt values to `Standard`, zero deadline floor, and backward compatibility with `Standard`, `30s`, `45s`, and `60s`.
   2. Deadline Enforcement & Timeout Hardening: Explicitly modeled `HasEnforcedDeadline` in `TrainingSession`. In No Time Pressure mode, automatic timeout is impossible, `IsCurrentItemTimedOut()` returns `false`, `SubmitAnswer` evaluates answers after arbitrary latency (e.g. 47s, 120s) as `Correct`/`Incorrect` normally, `RecordTimeout()` throws `InvalidOperationException`, and `HandleTimeoutAsync` in `Home.razor` is guarded by `HasEnforcedDeadline`. Timed modes retain standard deadline enforcement and timeout semantics.
   3. Response Latency & Learning Integrity: Active elapsed response time continues to be measured monotonically, excluding pauses, Settings, background/suspend, and feedback gates. Actual measured latency is persisted uncapped into attempt records, FSRS ratings, item states, and adaptive pace history without synthetic "unlimited = fluent" bias.
   4. Count-Up Elapsed Presentation & Accessibility: `PracticeCountdownTimer.razor` conditionally renders count-up elapsed time (`LearningPolicy.FormatElapsedTimerDisplay`) with neutral timer container (`role="timer"`, localized elapsed aria-label), eliminating countdown bars, color-draining transitions, and fake progressbar maximums in No Time Pressure mode, while preserving 10 Hz render isolation and Slice 3 modern pill typography.
   5. Settings UI & Localization Parity: Added "No Time Pressure" (`PracticeTime_NoTimePressure`) option to Practice Time settings with accessible selection state and responsive grid layout (`.choice-grid-practice-time`), complete localization parity in English, German (`Ohne Zeitdruck`), and Russian (`Без спешки`), preserved across Reset Learning Progress, and restored to `Standard` on Restore Defaults and Full Local Reset.
-- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 5
+- **Slice 6 Progress (Current Slice)**:
+  1. Restrained Current Correct Streak Feedback: Implemented transient `TrainingSession.CurrentCorrectStreak` (+1 on Correct, 0 on Incorrect/Timeout, 0 on Reset Learning Progress and cold start). During active practice, a subtle `.practice-streak-badge` appears in `.training-meta-row` only when streak $\ge 3$ (e.g. `🔥 3`, `🔥 7`) with localized accessible labels (`Training_Streak`, `Training_StreakAriaLabel`), disappearing instantly upon error/timeout without celebratory fanfare, XP, or gamification.
+  2. Truthful Pause Session Summary: Implemented immutable `PracticeSessionSummary` and `TrainingSession.GetSessionSummary()` displaying Completed count, Correct count, Current streak, and Median correct response time (`LearningPolicy.FormatLatencySeconds` / `AdaptivePacePolicy.Median`) in `.pause-session-summary` within the Manual Pause overlay. Neutral placeholder `—` when 0 correct attempts.
+  3. Strict Non-Mutation and Zero Schema Changes: Streak and pause summary state is purely transient in-memory presentation state. Zero SQLite schema changes, zero database writes/reads during render loops, zero impact on FSRS-6 spaced repetition, adaptive pace calculation, novel fact progression, or band advancement.
+  4. Full Localization Parity: Added keys for English, German (`Serie`, `Pause-Übersicht`, `Abgeschlossen`, `Richtig`, `Aktuelle Serie`, `Mittlere Zeit`), and Russian (`Серия`, `Итоги паузы`, `Завершено`, `Правильно`, `Текущая серия`, `Среднее время`).
+  5. Comprehensive Verification: 25 new targeted unit tests in `SessionStreakAndSummaryTests.cs` (1269 total passing tests across the test suite).
+- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 6
 
 ---
 
@@ -59,9 +65,9 @@ The following 18 product and UX decisions are authoritative across all subsequen
 8. **Error Remediation Spacing**: KEEP CURRENT BEHAVIOR. Retain existing spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`); incorrect facts do not immediately repeat on the consecutive turn.
 9. **Repeated-Error Teaching Lock**: IMPLEMENTED IN SLICE 3. On second consecutive error for the exact FactId, TeachingIntervention displays canonical equation with Continue initially disabled for a 3-second visible lockout with localized countdown feedback, acknowledging with zero scoring or learning mutations.
 10. **Haptic Feedback**: IMPLEMENTED IN SLICE 4. Provided distinguishable tactile feedback for keypad tap (`Click`), correct answer (`40ms pulse`), and incorrect/timeout (`120ms pulse`); subtle, respects platform capabilities with only normal `VIBRATE` manifest permission, no-ops safely on unsupported platforms, configurable in Settings and Onboarding Step 2, persisted locally, default enabled.
-11. **Streak Feedback**: ACCEPTED CHANGE — PENDING LATER SLICE. Positive, age-neutral consecutive correct streak feedback without manipulative pressure, fake praise, or learning mutations; session presentation only.
+11. **Streak Feedback**: IMPLEMENTED IN SLICE 6. Positive, age-neutral consecutive correct streak feedback without manipulative pressure, fake praise, or learning mutations; session presentation only (visible in HUD when streak $\ge 3$).
 12. **Confirmation / Learning Mode**: REJECTED. Do NOT add answer confirmation buttons, checkmark submit buttons, or separate Learning/Sprint modes. Smart auto-submit remains authoritative.
-13. **Pause Information**: ACCEPTED — PENDING LATER SLICE. Lightweight current-session stats on Pause overlay (completed/correct attempts, streak, valid progression changes, median correct latency) without invented percentages.
+13. **Pause Information**: IMPLEMENTED IN SLICE 6. Lightweight current-session stats on Pause overlay (Completed, Correct, Current streak, Median correct latency) without invented percentages.
 14. **Startup White Flash**: ACCEPTED DEFECT INVESTIGATION — PENDING LATER SLICE. Investigate native MAUI/Android launch theme, splash background, and BlazorWebView initialization to eliminate white flash before dark UI renders, including portable guidance for KnownFirst and other MAUI Blazor apps.
 15. **Installed Size / App Data**: ACCEPTED INVESTIGATION — PENDING LATER SLICE. Separate analysis of debug vs release APK/AAB payloads, native libraries, WebView runtime, SQLite storage, and cache. Debug APK size is not production evidence.
 16. **Tester Ergonomics**: PENDING MF-UX-005 SCOPE. Source/build identity display, easy diagnostic copy, repeatable tester artifacts without release build leaks.
@@ -74,12 +80,10 @@ The following 18 product and UX decisions are authoritative across all subsequen
 
 The following accepted items under `MF-UX-005` remain pending for subsequent implementation slices:
 
-1. **Restrained Streak Feedback**: Positive consecutive correct streak presentation.
-2. **Pause Overlay Information**: Extended session statistics on the manual pause dialog.
-3. **Native Startup White-Flash / Root-Theme Correction**: Elimination of native window/activity white flash during initial splash/theme launch with KnownFirst portability guidance.
-4. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis and runtime app data profiling.
-5. **Tester Ergonomics**: Streamlined tester diagnostics and feedback mechanisms.
-6. **Physical Android Device Verification**: Physical confirmation of Android system-Back navigation, haptic feel, and cumulative UX behaviors on hardware.
+1. **Native Startup White-Flash / Root-Theme Correction**: Elimination of native window/activity white flash during initial splash/theme launch with KnownFirst portability guidance.
+2. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis and runtime app data profiling.
+3. **Tester Ergonomics**: Streamlined tester diagnostics and feedback mechanisms.
+4. **Physical Android Device Verification**: Physical confirmation of Android system-Back navigation, haptic feel, and cumulative UX behaviors on hardware.
 
 ---
 

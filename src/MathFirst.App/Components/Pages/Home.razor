@@ -97,6 +97,28 @@
                                     </div>
                                 </section>
                             }
+                            else if (Session.PracticeGate == PracticeGateState.ManualPause)
+                            {
+                                var summary = Session.GetSessionSummary();
+                                <div class="pause-session-summary" role="region" aria-label="@Localizer["Training_PauseSummaryTitle"]">
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryCompleted"]</span>
+                                        <span class="pause-summary-value">@summary.CompletedCount</span>
+                                    </div>
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryCorrect"]</span>
+                                        <span class="pause-summary-value">@summary.CorrectCount</span>
+                                    </div>
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryStreak"]</span>
+                                        <span class="pause-summary-value">@summary.CurrentCorrectStreak</span>
+                                    </div>
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryMedianSpeed"]</span>
+                                        <span class="pause-summary-value">@LearningPolicy.FormatLatencySeconds(summary.MedianCorrectLatencyMs, Localizer["Training_Unavailable"])</span>
+                                    </div>
+                                </div>
+                            }
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
@@ -235,6 +257,13 @@
                                     </span>
                                 }
                             </div>
+                            @if (Session.CurrentCorrectStreak >= 3)
+                            {
+                                <span class="practice-streak-badge"
+                                      aria-label="@Localizer["Training_StreakAriaLabel", Session.CurrentCorrectStreak]">
+                                    @Localizer["Training_Streak", Session.CurrentCorrectStreak]
+                                </span>
+                            }
                         </div>
 
                         <PracticeCountdownTimer Session="Session"

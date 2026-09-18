@@ -971,6 +971,21 @@ select:disabled {
     color: var(--color-text);
 }
 
+.practice-streak-badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    padding: 0.2rem clamp(0.45rem, 1vw, 0.65rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.4rem;
+    background: var(--color-surface-elevated);
+    color: var(--color-muted);
+    font-size: clamp(0.8rem, 1.2vw, 0.925rem);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+}
+
 @media (max-width: 480px) {
     .mathfirst-header {
         align-items: flex-start;
@@ -1049,6 +1064,35 @@ select:disabled {
     margin: 0;
     color: var(--color-text);
     line-height: 1.4;
+}
+
+.pause-session-summary {
+    width: min(100%, 22rem);
+    display: grid;
+    gap: clamp(0.35rem, 1vh, 0.55rem);
+    padding: clamp(0.75rem, 2vw, 1rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.85rem;
+    background: var(--color-surface-muted);
+    text-align: left;
+}
+
+.pause-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+}
+
+.pause-summary-label {
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.pause-summary-value {
+    color: var(--color-text);
+    font-weight: 700;
 }
 
 .practice-overlay-action {

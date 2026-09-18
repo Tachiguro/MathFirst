@@ -192,9 +192,9 @@ When items are accepted into the backlog, they are recorded with:
   8. **Error Remediation Spacing**: Keep current spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`).
   9. **Repeated-Error Teaching Lock**: Implemented in Slice 3 — 3-second visible lockout with localized countdown feedback on teaching intervention modal before Continue enables.
   10. **Haptic Feedback**: Implemented in Slice 4 — distinguishable tactile feedback for KeyTap (`Click`), Correct (`40ms pulse`), and Incorrect/Timeout (`120ms pulse`); default enabled, local persisted preference, Settings On/Off toggle with preview, Onboarding Step 2 integration without adding a sixth step, restored to enabled on Restore Defaults and Full Local Reset, preserved on Reset Learning Progress, unsupported platforms safely no-op; physical tactile-quality verification remains pending on Android hardware.
-  11. **Streak Feedback**: Accepted change (pending later slice) — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations.
+  11. **Streak Feedback**: Implemented in Slice 6 — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations (visible at $\ge 3$).
   12. **Confirmation / Learning Mode**: Rejected — auto-submit remains authoritative.
-  13. **Pause Information**: Accepted change (pending later slice) — lightweight current-session metrics on Pause overlay.
+  13. **Pause Information**: Implemented in Slice 6 — lightweight current-session metrics on Pause overlay (Completed, Correct, Current streak, Median correct latency).
   14. **Startup White Flash**: Accepted defect investigation (pending later slice) — native launch theme and WebView handoff correction with KnownFirst portability guidance.
   15. **Installed Size / App Data**: Accepted investigation (pending later slice) — analysis of debug vs release payloads, native libs, WebView runtime, SQLite storage.
   16. **Tester Ergonomics**: Pending scope (build identity, diagnostic copy, repeatable tester artifacts).
