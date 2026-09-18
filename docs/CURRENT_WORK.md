@@ -10,10 +10,10 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Slice 7 — Startup White-Flash Correction
+- **Active Task**: Release Startup Resource Order Fix (Blocker Remediation)
 - **Current Operation Mode**: `IMPLEMENT_SLICE`
-- **Active Task Branch**: `feat/mf-ux-005-startup-white-flash`
-- **Baseline Commit**: `bde91a7578753f5c468d0534282edd9fd13f32a0` (merged PR #30)
+- **Active Task Branch**: `fix/mf-ux-005-release-startup-resource-order`
+- **Baseline Commit**: `15d39ac73ecdc276db2d3f1a9b6ea3ac0f8849b6`
 - **Slice 1 Progress (Completed & Validated)**:
   1. Practice timer render isolation: Extracted countdown presentation into `PracticeCountdownTimer.razor` updating at 10 Hz (100ms interval), eliminating ~20 full `Home.razor` component re-renders per second while maintaining authoritative monotonic elapsed time and timeout accuracy.
   2. Preferences hot-path removal: Removed repeated `PreferenceStore.GetEnabledOperations()` reads from `OperationProgress` during hot timer/render evaluation; enabled operations are cached at explicit initialization and lifecycle boundaries.
@@ -47,14 +47,20 @@ This document provides operational context for current repository work.
   3. Strict Non-Mutation and Zero Schema Changes: Streak and pause summary state is purely transient in-memory presentation state. Zero SQLite schema changes, zero database writes/reads during render loops, zero impact on FSRS-6 spaced repetition, adaptive pace calculation, novel fact progression, or band advancement.
   4. Full Localization Parity: Added keys for English, German (`Serie`, `Pause-Übersicht`, `Abgeschlossen`, `Richtig`, `Aktuelle Serie`, `Mittlere Zeit`), and Russian (`Серия`, `Итоги паузы`, `Завершено`, `Правильно`, `Текущая серия`, `Среднее время`).
   5. Comprehensive Verification: 25 targeted unit tests in `SessionStreakAndSummaryTests.cs` (1269 total passing tests across the test suite).
-- **Slice 7 Progress (Current Slice)**:
+- **Slice 7 Progress (Completed & Validated)**:
   1. Root-Cause Analysis: Confirmed primary white-flash sources are native Android WebView default white canvas and unstyled first-paint of `index.html` with raw `<div id="app">MathFirst</div>`. The brand splash itself (`#176B4D`) is verified healthy and retained as the continuous neutral handoff surface.
   2. Native Android BlazorWebView Handshake: Added Android-specific platform mapping via `BlazorWebViewHandler.Mapper.AppendToMapping("StartupSurfaceBackground", ...)` in `MauiProgram.cs` setting native WebView background color to `#176B4D`, eliminating the white native canvas before HTML first paint without adding permissions or custom WebViewClient.
   3. Static HTML First-Paint Synchronous Styling: Added synchronous inline `<style>` block in `<head>` of `index.html` setting `html, body, #app` to `#176B4D` (width/height 100%), beating browser defaults and external Bootstrap before runtime stylesheets load.
   4. Raw Placeholder Removal: Replaced `<div id="app">MathFirst</div>` with empty container `<div id="app"></div>`, eliminating unstyled plain-text flashes while preserving clean Blazor mounting.
   5. Authoritative Theme Preservation: Kept single source of truth in `ThemeService` / `IPreferenceStore`. Zero localStorage theme duplication, zero JS-bridge races, zero SQLite changes.
   6. Visual Handoff & Physical Verification Boundary: Established continuous visual pipeline: Native Splash (`#176B4D`) -> Native Android WebView (`#176B4D`) -> Static HTML Surface (`#176B4D`) -> Rendered MathFirst UI (Light `#F4F7F5` / Dark `#121916`). Physical hardware verification retained as `STARTUP_WHITE_FLASH_PHYSICAL_VALIDATION_PENDING`.
-- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 7
+- **Release Startup Resource Order Fix (Blocker Remediation - Completed & Validated)**:
+  1. Root-Cause Analysis: Android Release startup threw `XamlParseException` (`StaticResource not found for key NativeHostBackgroundLight`) because `App` constructor directly depended on `MainPage`, forcing DI to instantiate `MainPage` and execute `MainPage.InitializeComponent()` before `App.InitializeComponent()` populated `Application.Resources`.
+  2. Delayed Resolution Architecture: Removed `MainPage` from `App` constructor dependencies and injected `IServiceProvider` instead. `App` constructor executes `InitializeComponent()` first and then `ThemeService.Initialize(this)`. `MainPage` is resolved transiently inside `CreateWindow()` via `_services.GetRequiredService<MainPage>()`.
+  3. Transient Lifetime & Invariant Preservation: Preserved `AddTransient<MainPage>()` registration without instance caching; preserved theme initialization sequence; preserved all `#176B4D` startup backgrounds, light (`#F4F7F5`) and dark (`#121916`) host backgrounds, `AppThemeBinding`, and zero localStorage duplication.
+  4. Verification: Added 6 architectural contract regression tests in `AppConstructorDependencyContractTests.cs` (1280 total passing Core tests, 0 failed, 0 skipped); Windows Release build 0 warnings/errors; Android Release build 0 warnings/errors.
+  5. Physical Verification Boundary: Physical Android validation pending (`PHYSICAL_ANDROID_RELEASE_STARTUP_VALIDATION_PENDING`, `STARTUP_WHITE_FLASH_PHYSICAL_VALIDATION_PENDING`, `PHYSICAL_APP_WEBVIEW_BASELINE_MEASURED: NO`, `PHYSICAL_30_MB_APP_DATA_EXPLAINED: NO`).
+- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Release Startup Resource Order Fix
 
 ---
 
