@@ -1,5 +1,6 @@
 namespace MathFirst.Core.Tests;
 
+using MathFirst.Application;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
 using MathFirst.Application.Scheduling;
@@ -1529,6 +1530,219 @@ public sealed class FactEligibilityRegressionTests
 
                 await secondReopen.CloseAsync();
             }
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    // ===========================================================================
+    // Task 8: Long-Run Deterministic Simulation & Full Regression Suite
+    // ===========================================================================
+
+    [Fact]
+    public async Task LongRun_500Steps_LowProgression_ZeroIneligiblePresentations()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            var session = new TrainingSession(store);
+            await session.InitializeAsync(startTiming: false);
+
+            var curriculum = new ArithmeticCurriculum();
+            var resolvers = Enum.GetValues<ArithmeticOperation>()
+                .ToDictionary(
+                    op => op,
+                    op => new AcquisitionOwnershipResolver(curriculum.GetCurriculum(op)));
+
+            var operationPresentationCounts = Enum.GetValues<ArithmeticOperation>()
+                .ToDictionary(op => op, _ => 0);
+
+            // Starting state: verify all operations begin at low progression (BandIndex 0).
+            foreach (var op in Enum.GetValues<ArithmeticOperation>())
+            {
+                var initialBandIndex = session.Progression.OperationProgressions[op].BandIndex;
+                Assert.Equal(0, initialBandIndex);
+            }
+
+            for (var step = 1; step <= 500; step++)
+            {
+                // 1. Capture Session.CurrentFact BEFORE submitting the answer
+                var fact = session.CurrentFact;
+                Assert.NotNull(fact);
+
+                // 2. Identify its operation
+                var operation = fact.Operation;
+                operationPresentationCounts[operation]++;
+
+                // 3. Read that operation's current progression BandIndex BEFORE submission
+                var progression = session.Progression.OperationProgressions[operation];
+                var currentBandIndex = progression.BandIndex;
+
+                // 4. Use canonical ArithmeticCurriculum and AcquisitionOwnershipResolver
+                var ownership = resolvers[operation];
+
+                // 5. Assert the fact is eligible at that exact BandIndex
+                var isEligible = ownership.IsEligible(fact.Id, currentBandIndex);
+                ownership.TryGetOwner(fact.Id, 50, out var ownerBandIndex);
+
+                Assert.True(
+                    isEligible,
+                    $"Ineligible fact presentation detected at step {step} (Position={session.Progression.PracticePosition}): " +
+                    $"FactId='{fact.Id}', Operation={operation}, CurrentBandIndex={currentBandIndex}, OwnerBandIndex={ownerBandIndex}.");
+
+                // Submit deterministic valid answer and commit through real runtime pipeline
+                session.SubmitAnswer(fact.CorrectResult);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(
+                    commitResult.IsSuccess,
+                    $"Failed to commit submission at step {step}: {commitResult.Status} - {commitResult.Message}");
+
+                // Advance through normal TrainingSession lifecycle, handling check-in summaries
+                if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                {
+                    Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                    session.ContinuePractice(startTiming: false);
+                }
+            }
+
+            // Post-simulation verifications:
+            // 1. All 500 practice steps were completed and accepted.
+            Assert.Equal(500, session.Progression.PracticePosition);
+
+            // 2. All four operations were observed and scheduled deterministically.
+            Assert.All(Enum.GetValues<ArithmeticOperation>(), op =>
+            {
+                Assert.True(operationPresentationCounts[op] > 0, $"Operation {op} was not observed during the 500-step run.");
+                Assert.Equal(125, operationPresentationCounts[op]);
+            });
+
+            // 3. Natural progression advancement occurred across all operations from low progression.
+            Assert.All(Enum.GetValues<ArithmeticOperation>(), op =>
+            {
+                var finalBandIndex = session.Progression.OperationProgressions[op].BandIndex;
+                Assert.True(
+                    finalBandIndex > 0,
+                    $"Operation {op} was expected to advance beyond initial BandIndex 0, but remained at {finalBandIndex}.");
+            });
+
+            await store.CloseAsync();
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task UnlockTransition_FactBecomesEligibleImmediatelyUponBandAdvance()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            var session = new TrainingSession(store);
+            await session.InitializeAsync(startTiming: false);
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulCurriculum = curriculum.Multiplication;
+            var mulOwnership = new AcquisitionOwnershipResolver(mulCurriculum);
+            var resolvers = Enum.GetValues<ArithmeticOperation>()
+                .ToDictionary(
+                    op => op,
+                    op => new AcquisitionOwnershipResolver(curriculum.GetCurriculum(op)));
+
+            // Choose canonical fact from BandIndex 1 (MUL-D02), e.g. mul:2*2.
+            const string targetFactId = "mul:2*2";
+            Assert.True(mulOwnership.TryGetOwner(targetFactId, 11, out var targetOwnerBandIndex));
+            Assert.Equal(1, targetOwnerBandIndex);
+
+            // A. Immediately before band advancement:
+            // Initial progression for Multiplication is BandIndex 0.
+            var initialMulProgression = session.Progression.OperationProgressions[ArithmeticOperation.Multiplication];
+            Assert.Equal(0, initialMulProgression.BandIndex);
+            Assert.True(targetOwnerBandIndex > initialMulProgression.BandIndex);
+            Assert.False(mulOwnership.IsEligible(targetFactId, initialMulProgression.BandIndex));
+
+            // B. Perform real TrainingSession practice steps to satisfy the progression gate
+            // and advance the operation band.
+            var bandAdvanced = false;
+            for (var step = 1; step <= 40; step++)
+            {
+                var fact = session.CurrentFact;
+                Assert.NotNull(fact);
+
+                var op = fact.Operation;
+                var opProgression = session.Progression.OperationProgressions[op];
+                var ownership = resolvers[op];
+
+                // Ensure NO fact presented during the transition violates the eligibility invariant
+                var isEligible = ownership.IsEligible(fact.Id, opProgression.BandIndex);
+                ownership.TryGetOwner(fact.Id, 50, out var ownerBandIndex);
+                Assert.True(
+                    isEligible,
+                    $"Fact {fact.Id} (owner: {ownerBandIndex}) was ineligible for {op} at BandIndex {opProgression.BandIndex} before submission.");
+
+                session.SubmitAnswer(fact.CorrectResult);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(commitResult.IsSuccess);
+
+                var currentMulBandIndex = session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex;
+                if (currentMulBandIndex > initialMulProgression.BandIndex)
+                {
+                    // C. Immediately after progression advances:
+                    // Progression BandIndex has reached the target fact's owner band (1)
+                    Assert.Equal(targetOwnerBandIndex, currentMulBandIndex);
+
+                    // Target fact is immediately eligible under the new BandIndex
+                    Assert.True(
+                        mulOwnership.IsEligible(targetFactId, currentMulBandIndex),
+                        $"Fact '{targetFactId}' must be immediately eligible upon reaching BandIndex {currentMulBandIndex}.");
+
+                    bandAdvanced = true;
+                    break;
+                }
+
+                if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                {
+                    Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                    session.ContinuePractice(startTiming: false);
+                }
+            }
+
+            Assert.True(bandAdvanced, "Multiplication did not advance to BandIndex 1 within the expected number of steps.");
+
+            // Post-advance continuation: verify that subsequent practice steps continue safely
+            // and maintain the eligibility invariant.
+            for (var step = 1; step <= 20; step++)
+            {
+                if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                {
+                    Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                    session.ContinuePractice(startTiming: false);
+                }
+
+                var fact = session.CurrentFact;
+                Assert.NotNull(fact);
+
+                var op = fact.Operation;
+                var opProgression = session.Progression.OperationProgressions[op];
+                var ownership = resolvers[op];
+
+                var isEligible = ownership.IsEligible(fact.Id, opProgression.BandIndex);
+                ownership.TryGetOwner(fact.Id, 50, out var ownerBandIndex);
+                Assert.True(
+                    isEligible,
+                    $"Post-advance fact {fact.Id} (owner: {ownerBandIndex}) was ineligible for {op} at BandIndex {opProgression.BandIndex} before submission.");
+
+                session.SubmitAnswer(fact.CorrectResult);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(commitResult.IsSuccess);
+            }
+
+            await store.CloseAsync();
         }
         finally
         {
