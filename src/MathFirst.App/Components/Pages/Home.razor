@@ -42,7 +42,27 @@
             </div>
         </header>
 
-        @if (!Session.IsInitialized || Session.CurrentFact is null)
+        @if (_startupFailed)
+        {
+            <main class="training-card">
+                <section class="practice-overlay startup-error-dialog"
+                         role="dialog"
+                         aria-modal="true"
+                         aria-labelledby="startup-error-title">
+                    <div class="practice-overlay-content">
+                        <h2 id="startup-error-title">@Localizer["Training_EvidencePreparationFailureTitle"]</h2>
+                        <button type="button"
+                                @ref="_primaryOverlayButton"
+                                class="button button-primary practice-overlay-action"
+                                disabled="@_isInitializing"
+                                @onclick="RetryInitializationAsync">
+                            @Localizer["Training_Retry"]
+                        </button>
+                    </div>
+                </section>
+            </main>
+        }
+        else if (!Session.IsInitialized || Session.CurrentFact is null)
         {
             <main class="training-card">
                 <div class="score-display">@Localizer["Training_Loading"]</div>
@@ -315,6 +335,8 @@
     private long _lastPreparedFactInstanceRevision = -1;
     private int _guardedInputRenderVersion = -1;
     private bool _isSubmitting;
+    private bool _startupFailed;
+    private bool _isInitializing;
     private ElementReference _inputElement;
     private ElementReference _primaryOverlayButton;
     private bool _shouldFocusInput = true;
@@ -339,16 +361,37 @@
 
         if (!Session.IsInitialized)
         {
-            await Session.InitializeAsync(startTiming: false);
-            Session.ShowInitialReadyGate();
+            _isInitializing = true;
+            try
+            {
+                await Session.InitializeAsync(startTiming: false);
+                Session.ShowInitialReadyGate();
+                Session.SetPracticeSurfaceActive(true);
+                SyncStateWithSession();
+            }
+            catch
+            {
+                _startupFailed = true;
+                _shouldFocusPrimaryOverlay = true;
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
         }
-
-        Session.SetPracticeSurfaceActive(true);
-        SyncStateWithSession();
+        else
+        {
+            Session.SetPracticeSurfaceActive(true);
+            SyncStateWithSession();
+        }
     }
 
     private void SyncStateWithSession()
     {
+        if (_startupFailed)
+        {
+            return;
+        }
         if (Session.IsInitialized && Session.CurrentFact is not null)
         {
             if (Session.FactInstanceRevision != _lastPreparedFactInstanceRevision)
@@ -529,7 +572,11 @@
             return;
         }
 
-        if (IsAwaitingAcknowledgement)
+        if (_startupFailed)
+        {
+            await RetryInitializationAsync();
+        }
+        else if (IsAwaitingAcknowledgement)
         {
             await AdvanceAsync();
         }
@@ -548,6 +595,34 @@
         else
         {
             await Submit();
+        }
+    }
+
+    private async Task RetryInitializationAsync()
+    {
+        if (_isInitializing)
+        {
+            return;
+        }
+
+        _isInitializing = true;
+        _startupFailed = false;
+        try
+        {
+            await Session.InitializeAsync(startTiming: false);
+            Session.ShowInitialReadyGate();
+            Session.SetPracticeSurfaceActive(true);
+            SyncStateWithSession();
+        }
+        catch
+        {
+            _startupFailed = true;
+            _shouldFocusPrimaryOverlay = true;
+        }
+        finally
+        {
+            _isInitializing = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
