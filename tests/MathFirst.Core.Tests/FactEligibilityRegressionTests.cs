@@ -1019,6 +1019,227 @@ public sealed class FactEligibilityRegressionTests
         Assert.Equal(eligibleFact.Id, result.Fact.Id);
     }
 
+    // ===========================================================================
+    // Task 5: Persistence Acceptance Validation Gate
+    // ===========================================================================
+
+    [Fact]
+    public async Task Persistence_FutureLockedFactSubmission_RejectedWithoutStateMutation()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+            var before = await store.LoadSnapshotAsync();
+
+            var curriculum = new ArithmeticCurriculum();
+            var mulOwnership = new AcquisitionOwnershipResolver(curriculum.Multiplication);
+            var storedBandIndex = before.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex;
+
+            // mul:2*8 canonical owner is BandIndex 7 (MUL-D08). At BandIndex 0 (fresh store), it is future-locked.
+            Assert.True(mulOwnership.TryGetOwner("mul:2*8", 11, out var ownerBandIndex));
+            Assert.Equal(7, ownerBandIndex);
+            Assert.False(mulOwnership.IsEligible("mul:2*8", storedBandIndex));
+
+            var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
+            var item = ItemLearningState.CreateNew(futureFact);
+            item.TotalAttempts = 1;
+            item.CorrectAttempts = 1;
+            item.ConsecutiveCorrectStreak = 1;
+            item.LastLatencyMs = 900;
+
+            var progression = LearnerProgression.CreateFresh();
+            progression.PracticePosition = 1;
+
+            var submissionId = Guid.NewGuid().ToString("N");
+            var attempt = new AttemptRecord(
+                submissionId,
+                futureFact.Id,
+                futureFact.Operation,
+                futureFact.LeftOperand,
+                futureFact.RightOperand,
+                submittedAnswer: 16,
+                correctAnswer: 16,
+                isCorrect: true,
+                isFluent: true,
+                responseLatencyMs: 900,
+                timestamp: DateTimeOffset.UtcNow,
+                practicePosition: 1);
+
+            var fsrs = new FsrsCardState(
+                futureFact.Id,
+                Guid.NewGuid(),
+                State: 2,
+                Step: null,
+                Stability: 30.0,
+                Difficulty: 5.0,
+                DuePracticePosition: 5,
+                LastReviewPracticePosition: 1,
+                LastRating: FsrsRating.Good);
+
+            var changeSet = new SubmissionChangeSet(submissionId, before.Revision, attempt, item, progression, updatedFsrsState: fsrs);
+
+            var result = await store.CommitSubmissionAsync(changeSet);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(PersistenceStatus.InvalidSubmission, result.Status);
+            Assert.Equal("The attempted fact is not unlocked by the operation's current progression.", result.Message);
+
+            var after = await store.LoadSnapshotAsync();
+            Assert.Equal(before.Revision, after.Revision);
+            Assert.Equal(before.Progression.PracticePosition, after.Progression.PracticePosition);
+            Assert.Equal(before.Progression.OperationProgressions, after.Progression.OperationProgressions);
+            Assert.Empty(after.RecentAttempts);
+            Assert.DoesNotContain(futureFact.Id, after.ItemStates.Keys);
+            Assert.DoesNotContain(futureFact.Id, after.FsrsStates.Keys);
+            Assert.Empty(after.ItemStates);
+            Assert.Empty(after.FsrsStates);
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task Persistence_ValidCurrentBandSubmission_Succeeds()
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+            var before = await store.LoadSnapshotAsync();
+
+            var storedBandIndex = before.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex;
+            var curriculum = new ArithmeticCurriculum();
+            var mulOwnership = new AcquisitionOwnershipResolver(curriculum.Multiplication);
+
+            var frontier = mulOwnership.GetOwnedFrontier(storedBandIndex);
+            var validFact = frontier.First();
+            Assert.True(mulOwnership.IsEligible(validFact.Id, storedBandIndex));
+
+            var item = ItemLearningState.CreateNew(validFact);
+            item.TotalAttempts = 1;
+            item.CorrectAttempts = 1;
+            item.ConsecutiveCorrectStreak = 1;
+            item.LastLatencyMs = 850;
+
+            var progression = LearnerProgression.CreateFresh();
+            progression.PracticePosition = 1;
+
+            var submissionId = Guid.NewGuid().ToString("N");
+            var attempt = new AttemptRecord(
+                submissionId,
+                validFact.Id,
+                validFact.Operation,
+                validFact.LeftOperand,
+                validFact.RightOperand,
+                submittedAnswer: validFact.CorrectResult,
+                correctAnswer: validFact.CorrectResult,
+                isCorrect: true,
+                isFluent: true,
+                responseLatencyMs: 850,
+                timestamp: DateTimeOffset.UtcNow,
+                practicePosition: 1);
+
+            var fsrs = new FsrsCardState(
+                validFact.Id,
+                Guid.NewGuid(),
+                State: 2,
+                Step: null,
+                Stability: 10.0,
+                Difficulty: 5.0,
+                DuePracticePosition: 10,
+                LastReviewPracticePosition: 1,
+                LastRating: FsrsRating.Good);
+
+            var changeSet = new SubmissionChangeSet(submissionId, before.Revision, attempt, item, progression, updatedFsrsState: fsrs);
+
+            var result = await store.CommitSubmissionAsync(changeSet);
+
+            Assert.True(result.IsSuccess);
+            Assert.Equal(before.Revision + 1, result.NewRevision);
+
+            var after = await store.LoadSnapshotAsync();
+            Assert.Equal(before.Revision + 1, after.Revision);
+            Assert.Equal(1, after.Progression.PracticePosition);
+            Assert.Single(after.RecentAttempts);
+            Assert.Equal(validFact.Id, after.RecentAttempts[0].FactId);
+            Assert.True(after.ItemStates.ContainsKey(validFact.Id));
+            Assert.True(after.FsrsStates.ContainsKey(validFact.Id));
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
+    [Theory]
+    [InlineData("add:1+1", ArithmeticOperation.Multiplication, 1, 1, 1)]
+    [InlineData("mul:01*01", ArithmeticOperation.Multiplication, 1, 1, 1)]
+    [InlineData("invalid_id", ArithmeticOperation.Multiplication, 1, 1, 1)]
+    public async Task Persistence_MalformedOrCrossOperationFactSubmission_RejectedWithoutStateMutation(
+        string invalidFactId,
+        ArithmeticOperation operation,
+        int leftOperand,
+        int rightOperand,
+        int answer)
+    {
+        var dbPath = GetTempDbPath();
+        try
+        {
+            using var store = new SqliteLearnerStore(dbPath);
+            await store.InitializeAsync();
+            var before = await store.LoadSnapshotAsync();
+
+            var dummyFact = new ArithmeticFact(operation, leftOperand, rightOperand);
+            var item = ItemLearningState.CreateNew(dummyFact);
+            item.TotalAttempts = 1;
+            item.CorrectAttempts = 1;
+            item.ConsecutiveCorrectStreak = 1;
+            item.LastLatencyMs = 900;
+
+            var progression = LearnerProgression.CreateFresh();
+            progression.PracticePosition = 1;
+
+            var submissionId = Guid.NewGuid().ToString("N");
+            var attempt = new AttemptRecord(
+                submissionId,
+                invalidFactId,
+                operation,
+                leftOperand,
+                rightOperand,
+                submittedAnswer: answer,
+                correctAnswer: answer,
+                isCorrect: true,
+                isFluent: true,
+                responseLatencyMs: 900,
+                timestamp: DateTimeOffset.UtcNow,
+                practicePosition: 1);
+
+            var changeSet = new SubmissionChangeSet(submissionId, before.Revision, attempt, item, progression);
+
+            var result = await store.CommitSubmissionAsync(changeSet);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(PersistenceStatus.InvalidSubmission, result.Status);
+
+            var after = await store.LoadSnapshotAsync();
+            Assert.Equal(before.Revision, after.Revision);
+            Assert.Equal(before.Progression.PracticePosition, after.Progression.PracticePosition);
+            Assert.Equal(before.Progression.OperationProgressions, after.Progression.OperationProgressions);
+            Assert.Empty(after.RecentAttempts);
+            Assert.Empty(after.ItemStates);
+            Assert.Empty(after.FsrsStates);
+        }
+        finally
+        {
+            TryDeleteDatabase(dbPath);
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Test helper methods
     // ---------------------------------------------------------------------------

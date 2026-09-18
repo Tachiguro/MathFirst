@@ -960,6 +960,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 throw new InvalidOperationException("An advancing attempted operation must start its new band at the accepted practice position.");
             }
         }
+
+        var storedAttemptProgression = storedOperationProgressions[changeSet.Attempt.Operation];
+        var curriculum = new ArithmeticCurriculum().GetCurriculum(changeSet.Attempt.Operation);
+        var ownership = new AcquisitionOwnershipResolver(curriculum);
+        if (!ownership.IsEligible(changeSet.Attempt.FactId, storedAttemptProgression.BandIndex))
+        {
+            throw new InvalidOperationException("The attempted fact is not unlocked by the operation's current progression.");
+        }
     }
 
     private static void ValidateAttemptAndRelatedState(SubmissionChangeSet changeSet)
