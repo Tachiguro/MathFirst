@@ -23,6 +23,15 @@ public static class MauiProgram
 
 		builder.Services.AddMauiBlazorWebView();
 
+#if ANDROID
+		Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler.BlazorWebViewMapper.AppendToMapping(
+			"StartupSurfaceBackground",
+			(handler, _) =>
+			{
+				handler.PlatformView.SetBackgroundColor(Android.Graphics.Color.ParseColor("#176B4D"));
+			});
+#endif
+
 		builder.Services.AddSingleton<IPreferenceStore, MauiPreferenceStore>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();

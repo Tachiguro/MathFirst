@@ -195,7 +195,7 @@ When items are accepted into the backlog, they are recorded with:
   11. **Streak Feedback**: Implemented in Slice 6 — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations (visible at $\ge 3$).
   12. **Confirmation / Learning Mode**: Rejected — auto-submit remains authoritative.
   13. **Pause Information**: Implemented in Slice 6 — lightweight current-session metrics on Pause overlay (Completed, Correct, Current streak, Median correct latency).
-  14. **Startup White Flash**: Accepted defect investigation (pending later slice) — native launch theme and WebView handoff correction with KnownFirst portability guidance.
+  14. **Startup White Flash**: Implemented in Slice 7 — neutral brand-continuity startup handoff (#176B4D native splash -> #176B4D Android WebView canvas -> #176B4D static HTML surface -> first rendered Light/Dark Blazor UI), empty app root container, no localStorage theme duplication, physical verification pending.
   15. **Installed Size / App Data**: Accepted investigation (pending later slice) — analysis of debug vs release payloads, native libs, WebView runtime, SQLite storage.
   16. **Tester Ergonomics**: Pending scope (build identity, diagnostic copy, repeatable tester artifacts).
   17. **KnownFirst-Style Onboarding Action Layout**: Implemented in Slice 2 — vertically stacked actions with primary on top, Back below, 5-step flow intact, no Skip shortcut, draft state preserved.
