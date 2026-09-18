@@ -39,6 +39,7 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
+        public bool HapticFeedbackEnabled { get; set; } = true;
 
         public bool GetOnboardingCompleted() => OnboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
@@ -48,6 +49,8 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
         public void SetThemePreference(ThemePreference preference) => Theme = preference;
         public NumericKeypadLayout GetNumericKeypadLayout() => KeypadLayout;
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
+        public bool GetHapticFeedbackEnabled() => HapticFeedbackEnabled;
+        public void SetHapticFeedbackEnabled(bool enabled) => HapticFeedbackEnabled = enabled;
 
         public bool GetOperationEnabled(ArithmeticOperation operation) =>
             _boolPrefs.GetValueOrDefault($"op_{operation}", true);
@@ -86,6 +89,7 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
+            HapticFeedbackEnabled = true;
             ResetPracticePreferences();
         }
     }
@@ -335,8 +339,41 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
     {
         var homeSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
 
-        // Home.razor OperationProgress must filter by PreferenceStore.GetEnabledOperations
+        // Home.razor OperationProgress must filter by PreferenceStore.GetEnabledOperations on initialization/lifecycle boundaries
         Assert.Contains("PreferenceStore.GetEnabledOperations()", homeSource, StringComparison.Ordinal);
+        Assert.Contains("RefreshEnabledOperations()", homeSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_OperationProgress_RemovesPreferencesFromHotRenderPath()
+    {
+        var homeSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        // OperationProgress getter must NOT call PreferenceStore.GetEnabledOperations directly
+        var getterMatch = System.Text.RegularExpressions.Regex.Match(
+            homeSource,
+            @"private\s+IReadOnlyList<OperationProgressDiagnostics>\s+OperationProgress\s*\{(?<body>[^}]+)\}",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        Assert.True(getterMatch.Success, "OperationProgress property getter was not found.");
+        Assert.DoesNotContain("PreferenceStore", getterMatch.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("EnsureOperationProgressUpToDate", getterMatch.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_PracticeCountdownTimer_EncapsulatesTimerRenderingAndEliminatesFullHomeRerenders()
+    {
+        var homeSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var timerSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Shared", "PracticeCountdownTimer.razor"));
+
+        // Home.razor delegates countdown presentation to PracticeCountdownTimer
+        Assert.Contains("<PracticeCountdownTimer", homeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("using var periodicTimer = new PeriodicTimer", homeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("private void StartTimer()", homeSource, StringComparison.Ordinal);
+
+        // PracticeCountdownTimer manages its own 10 Hz (100ms) timer loop and disposal
+        Assert.Contains("PeriodicTimer(TimeSpan.FromMilliseconds(100))", timerSource, StringComparison.Ordinal);
+        Assert.Contains("@implements IDisposable", timerSource, StringComparison.Ordinal);
+        Assert.Contains("StateHasChanged()", timerSource, StringComparison.Ordinal);
     }
 
     // ============================================================

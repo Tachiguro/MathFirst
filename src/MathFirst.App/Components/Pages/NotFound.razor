@@ -1,6 +1,31 @@
-﻿@page "/not-found"
+@page "/not-found"
 @layout MainLayout
+@implements IDisposable
+@using MathFirst.Application
+@using MathFirst.Application.Navigation
 @inject ILocalizationService Localizer
+@inject NavigationManager Navigation
+@inject IAppBackNavigationCoordinator BackCoordinator
 
 <h3>@Localizer["NotFound_Title"]</h3>
 <p>@Localizer["NotFound_Description"]</p>
+
+@code {
+    private IDisposable? _backRegistration;
+
+    protected override void OnInitialized()
+    {
+        _backRegistration = BackCoordinator.RegisterHandler(HandleBack);
+    }
+
+    public void Dispose()
+    {
+        _backRegistration?.Dispose();
+    }
+
+    private bool HandleBack()
+    {
+        Navigation.NavigateTo("/");
+        return true;
+    }
+}

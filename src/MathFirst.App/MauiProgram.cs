@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MathFirst.Application;
 using MathFirst.Application.Copy;
+using MathFirst.Application.Navigation;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
 using MathFirst.App.Services;
@@ -25,6 +26,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IPreferenceStore, MauiPreferenceStore>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
+		builder.Services.AddSingleton<IHapticDriver, MauiHapticDriver>();
+		builder.Services.AddSingleton<IHapticFeedbackService, HapticFeedbackService>();
+		builder.Services.AddSingleton<IAppBackNavigationCoordinator, AppBackNavigationCoordinator>();
+		builder.Services.AddTransient<MainPage>();
 		builder.Services.AddSingleton<AppBuildInfo>();
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");

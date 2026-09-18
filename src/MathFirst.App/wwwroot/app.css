@@ -34,6 +34,14 @@
     --color-danger-contrast: #ffffff;
     --color-danger-surface: #fff3f2;
     --color-danger-border: #e2b5b1;
+    --color-warning: #b26a00;
+    --color-warning-hover: #945800;
+    --color-warning-contrast: #ffffff;
+    --color-warning-surface: #fff8eb;
+    --color-warning-border: #f0d096;
+    --color-pause: #b26a00;
+    --color-pause-hover: #945800;
+    --color-pause-contrast: #ffffff;
     --shadow-card: 0 12px 30px rgba(23, 50, 38, 0.08);
 }
 
@@ -64,6 +72,14 @@
     --color-danger-contrast: #260e0d;
     --color-danger-surface: #2b1a1a;
     --color-danger-border: #74423f;
+    --color-warning: #e09f3e;
+    --color-warning-hover: #ebb056;
+    --color-warning-contrast: #1f1402;
+    --color-warning-surface: #2b2214;
+    --color-warning-border: #735528;
+    --color-pause: #e09f3e;
+    --color-pause-hover: #ebb056;
+    --color-pause-contrast: #1f1402;
     --shadow-card: 0 14px 34px rgba(0, 0, 0, 0.28);
 }
 
@@ -206,6 +222,17 @@ select:disabled {
     background: var(--color-danger-hover);
 }
 
+.button-pause,
+.button-warning {
+    background: var(--color-pause);
+    color: var(--color-pause-contrast);
+}
+
+.button-pause:not(:disabled):hover,
+.button-warning:not(:disabled):hover {
+    background: var(--color-pause-hover);
+}
+
 /* CHOICE GRID */
 .choice-grid {
     display: grid;
@@ -223,6 +250,10 @@ select:disabled {
 
 .choice-grid-four {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
+}
+
+.choice-grid-practice-time {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
 }
 
 .settings-subsection {
@@ -391,18 +422,19 @@ select:disabled {
 
 .onboarding-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: clamp(0.5rem, 1.5vw, 0.75rem);
+    flex-direction: column;
+    width: 100%;
+    gap: clamp(0.5rem, 1.5vh, 0.75rem);
     margin-top: clamp(0.5rem, 1.5vh, 1rem);
 }
 
 .onboarding-actions .button {
-    flex: 1 1 clamp(8rem, 20vw, 12rem);
+    width: 100%;
+    min-width: 0;
 }
 
 .onboarding-actions-primary .button {
     width: 100%;
-    flex-basis: 100%;
 }
 
 .onboarding-system-language-status {
@@ -848,14 +880,14 @@ select:disabled {
     font-size: clamp(1rem, 1.6vw, 1.25rem);
 }
 
-.pause-practice-btn.button-danger {
-    background: var(--color-danger);
-    color: var(--color-danger-contrast);
+.pause-practice-btn.button-pause {
+    background: var(--color-pause);
+    color: var(--color-pause-contrast);
     border-color: transparent;
 }
 
-.pause-practice-btn.button-danger:not(:disabled):hover {
-    background: var(--color-danger-hover);
+.pause-practice-btn.button-pause:not(:disabled):hover {
+    background: var(--color-pause-hover);
 }
 
 .pause-icon {
@@ -939,6 +971,21 @@ select:disabled {
     color: var(--color-text);
 }
 
+.practice-streak-badge {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    padding: 0.2rem clamp(0.45rem, 1vw, 0.65rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.4rem;
+    background: var(--color-surface-elevated);
+    color: var(--color-muted);
+    font-size: clamp(0.8rem, 1.2vw, 0.925rem);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+}
+
 @media (max-width: 480px) {
     .mathfirst-header {
         align-items: flex-start;
@@ -1017,6 +1064,35 @@ select:disabled {
     margin: 0;
     color: var(--color-text);
     line-height: 1.4;
+}
+
+.pause-session-summary {
+    width: min(100%, 22rem);
+    display: grid;
+    gap: clamp(0.35rem, 1vh, 0.55rem);
+    padding: clamp(0.75rem, 2vw, 1rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.85rem;
+    background: var(--color-surface-muted);
+    text-align: left;
+}
+
+.pause-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+}
+
+.pause-summary-label {
+    color: var(--color-muted);
+    font-weight: 600;
+}
+
+.pause-summary-value {
+    color: var(--color-text);
+    font-weight: 700;
 }
 
 .practice-overlay-action {
@@ -1258,38 +1334,31 @@ select:disabled {
     height: 100%;
     border-radius: inherit;
     transform-origin: left center;
-    transition: transform 50ms linear, background-color 120ms linear;
+    transition: transform 100ms linear, background-color 120ms linear;
 }
 
 .timer-bar-text {
     position: relative;
     z-index: 1;
-    font-size: clamp(1.25rem, 2.8vh, 1.65rem);
-    font-weight: 800;
+    font-size: clamp(1.1rem, 2.4vh, 1.45rem);
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
     color: #ffffff;
     line-height: 1;
     pointer-events: none;
     user-select: none;
-    -webkit-text-stroke: 2px #000000;
-    paint-order: stroke fill;
-    text-shadow:
-        -1px -1px 0 #000,
-         1px -1px 0 #000,
-        -1px  1px 0 #000,
-         1px  1px 0 #000,
-        -2px  0   0 #000,
-         2px  0   0 #000,
-         0   -2px 0 #000,
-         0    2px 0 #000,
-         0    2px 6px rgba(0, 0, 0, 0.75);
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    background: rgba(18, 25, 22, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 @media (max-height: 500px) {
     .timer-bar-text {
-        font-size: clamp(1.05rem, 2.2vh, 1.25rem);
-        -webkit-text-stroke: 1.5px #000000;
+        font-size: clamp(0.95rem, 2vh, 1.15rem);
+        padding: 0.15rem 0.5rem;
     }
 }
 
@@ -1335,9 +1404,11 @@ select:disabled {
     transition: background-color 100ms ease, border-color 100ms ease, transform 60ms ease;
 }
 
-.numeric-keypad-button:not(:disabled):hover {
-    border-color: var(--color-primary);
-    background: var(--color-primary-soft);
+@media (hover: hover) and (pointer: fine) {
+    .numeric-keypad-button:not(:disabled):hover {
+        border-color: var(--color-primary);
+        background: var(--color-primary-soft);
+    }
 }
 
 .numeric-keypad-button:not(:disabled):active {
@@ -1434,8 +1505,8 @@ select:disabled {
     }
 
     .timer-bar-text {
-        font-size: 1rem;
-        -webkit-text-stroke: 1px #000000;
+        font-size: 0.95rem;
+        padding: 0.15rem 0.5rem;
     }
 
     .practice-layout {

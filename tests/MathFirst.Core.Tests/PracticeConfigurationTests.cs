@@ -18,6 +18,7 @@ public sealed class PracticeConfigurationTests
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
+        public bool HapticFeedbackEnabled { get; set; } = true;
 
         public bool GetOnboardingCompleted() => OnboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
@@ -27,6 +28,8 @@ public sealed class PracticeConfigurationTests
         public void SetThemePreference(ThemePreference preference) => Theme = preference;
         public NumericKeypadLayout GetNumericKeypadLayout() => KeypadLayout;
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
+        public bool GetHapticFeedbackEnabled() => HapticFeedbackEnabled;
+        public void SetHapticFeedbackEnabled(bool enabled) => HapticFeedbackEnabled = enabled;
 
         public bool GetOperationEnabled(ArithmeticOperation operation) =>
             _boolPrefs.GetValueOrDefault($"op_{operation}", true);
@@ -65,6 +68,7 @@ public sealed class PracticeConfigurationTests
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
+            HapticFeedbackEnabled = true;
             ResetPracticePreferences();
         }
     }
@@ -306,6 +310,8 @@ public sealed class PracticeConfigurationTests
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) { }
         public string GetLanguagePreference() => "system";
         public void SetLanguagePreference(string languageCode) { }
+        public bool GetHapticFeedbackEnabled() => true;
+        public void SetHapticFeedbackEnabled(bool enabled) { }
         public bool GetOperationEnabled(ArithmeticOperation operation) => true;
         public void SetOperationEnabled(ArithmeticOperation operation, bool enabled)
         {
@@ -519,10 +525,11 @@ public sealed class PracticeConfigurationTests
 
     [Theory]
     [InlineData(0, PracticeTimeSetting.Standard)]
+    [InlineData(-1, PracticeTimeSetting.NoTimePressure)]
     [InlineData(30, PracticeTimeSetting.Seconds30)]
     [InlineData(45, PracticeTimeSetting.Seconds45)]
     [InlineData(60, PracticeTimeSetting.Seconds60)]
-    [InlineData(-1, PracticeTimeSetting.Standard)]
+    [InlineData(-2, PracticeTimeSetting.Standard)]
     [InlineData(99, PracticeTimeSetting.Standard)]
     public void PracticeTimePreferencePolicy_NormalizesCorrectly(int raw, PracticeTimeSetting expected)
     {
@@ -533,9 +540,25 @@ public sealed class PracticeConfigurationTests
     public void PracticeTimePreferencePolicy_DeadlineFloors()
     {
         Assert.Equal(0L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Standard));
+        Assert.Equal(0L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.NoTimePressure));
         Assert.Equal(30_000L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Seconds30));
         Assert.Equal(45_000L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Seconds45));
         Assert.Equal(60_000L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Seconds60));
+    }
+
+    [Theory]
+    [InlineData(PracticeTimeSetting.Standard, true, false)]
+    [InlineData(PracticeTimeSetting.NoTimePressure, false, true)]
+    [InlineData(PracticeTimeSetting.Seconds30, true, false)]
+    [InlineData(PracticeTimeSetting.Seconds45, true, false)]
+    [InlineData(PracticeTimeSetting.Seconds60, true, false)]
+    public void PracticeTimePreferencePolicy_SemanticFlags(
+        PracticeTimeSetting setting,
+        bool expectedHasEnforcedDeadline,
+        bool expectedIsNoTimePressure)
+    {
+        Assert.Equal(expectedHasEnforcedDeadline, PracticeTimePreferencePolicy.HasEnforcedDeadline(setting));
+        Assert.Equal(expectedIsNoTimePressure, PracticeTimePreferencePolicy.IsNoTimePressure(setting));
     }
 
     [Theory]

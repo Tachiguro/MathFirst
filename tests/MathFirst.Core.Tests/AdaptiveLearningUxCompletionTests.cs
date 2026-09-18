@@ -758,12 +758,13 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
     }
 
     [Fact]
-    public void S_PauseDangerStyle_HasExplicitPrecedenceInCss()
+    public void S_PauseStyle_UsesDedicatedNonDestructivePauseTreatment()
     {
         var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
 
-        Assert.Contains(".pause-practice-btn.button-danger", styles, StringComparison.Ordinal);
-        Assert.Contains("background: var(--color-danger);", styles, StringComparison.Ordinal);
+        Assert.Contains(".pause-practice-btn.button-pause", styles, StringComparison.Ordinal);
+        Assert.Contains("background: var(--color-pause);", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain(".pause-practice-btn.button-danger", styles, StringComparison.Ordinal);
     }
 
     private static string GetRepositoryPath(params string[] segments)

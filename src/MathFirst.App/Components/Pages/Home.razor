@@ -11,6 +11,7 @@
 @inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
 @inject IJSRuntime JSRuntime
+@inject IHapticFeedbackService HapticService
 
 <div class="training-host" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
@@ -26,7 +27,7 @@
                 @if (CanPausePractice)
                 {
                     <button type="button"
-                            class="button button-danger pause-practice-btn"
+                            class="button button-pause pause-practice-btn"
                             title='@Localizer["Training_Pause"]'
                             aria-label='@Localizer["Training_Pause"]'
                             @onclick="PausePractice">
@@ -96,6 +97,28 @@
                                     </div>
                                 </section>
                             }
+                            else if (Session.PracticeGate == PracticeGateState.ManualPause)
+                            {
+                                var summary = Session.GetSessionSummary();
+                                <div class="pause-session-summary" role="region" aria-label="@Localizer["Training_PauseSummaryTitle"]">
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryCompleted"]</span>
+                                        <span class="pause-summary-value">@summary.CompletedCount</span>
+                                    </div>
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryCorrect"]</span>
+                                        <span class="pause-summary-value">@summary.CorrectCount</span>
+                                    </div>
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryStreak"]</span>
+                                        <span class="pause-summary-value">@summary.CurrentCorrectStreak</span>
+                                    </div>
+                                    <div class="pause-summary-row">
+                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryMedianSpeed"]</span>
+                                        <span class="pause-summary-value">@LearningPolicy.FormatLatencySeconds(summary.MedianCorrectLatencyMs, Localizer["Training_Unavailable"])</span>
+                                    </div>
+                                </div>
+                            }
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
@@ -125,28 +148,10 @@
                 }
                 else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
                 {
-                    <section class="practice-overlay teaching-dialog"
-                             role="dialog"
-                             aria-modal="true"
-                             aria-labelledby="teaching-dialog-title">
-                        <div class="practice-overlay-content">
-                            <h2 id="teaching-dialog-title">@Localizer["Training_TeachingTitle"]</h2>
-                            <p class="teaching-explanation">@Localizer["Training_TeachingExplanation"]</p>
-                            <p class="teaching-equation" aria-label="@Session.CurrentFact.EquationText">
-                                <span>@Session.CurrentFact.LeftOperand</span>
-                                <span>@Session.CurrentFact.DisplaySymbol</span>
-                                <span>@Session.CurrentFact.RightOperand</span>
-                                <span>=</span>
-                                <span>@Session.CurrentFact.CorrectResult</span>
-                            </p>
-                            <button type="button"
-                                    @ref="_primaryOverlayButton"
-                                    class="button button-primary practice-overlay-action"
-                                    @onclick="AdvanceAsync">
-                                @Localizer["Common_Continue"] (Enter)
-                            </button>
-                        </div>
-                    </section>
+                    <TeachingInterventionDialog Session="Session"
+                                                Localizer="Localizer"
+                                                OnAcknowledge="AdvanceAsync"
+                                                @ref="_teachingDialog" />
                 }
                 else if (Session.InteractionState == SessionInteractionState.SessionCheckIn && Session.PendingCheckIn is not null)
                 {
@@ -252,21 +257,18 @@
                                     </span>
                                 }
                             </div>
+                            @if (Session.CurrentCorrectStreak >= 3)
+                            {
+                                <span class="practice-streak-badge"
+                                      aria-label="@Localizer["Training_StreakAriaLabel", Session.CurrentCorrectStreak]">
+                                    @Localizer["Training_Streak", Session.CurrentCorrectStreak]
+                                </span>
+                            }
                         </div>
 
-                        <div class="timer-container">
-                            <div class="timer-bar-track"
-                                 role="progressbar"
-                                 aria-valuemin="0"
-                                 aria-valuemax="@Session.CurrentFactDeadlineSeconds"
-                                 aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
-                                 aria-label="@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]">
-                                <div class="timer-bar-fill"
-                                     style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
-                                </div>
-                                <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
-                            </div>
-                        </div>
+                        <PracticeCountdownTimer Session="Session"
+                                                AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])'
+                                                OnTimeout="HandleTimeoutAsync" />
                     </div>
 
                     <div class="practice-layout">
@@ -305,6 +307,7 @@
                         </div>
 
                         <div class="numeric-keypad"
+                             @key="_lastPreparedFactInstanceRevision"
                              role="group"
                              aria-label="@Localizer["Keypad_NumberKeypad"]">
                             @foreach (var key in NumericKeypadLayoutPolicy.GetKeys(_keypadLayout, DecimalSeparator))
@@ -339,25 +342,21 @@
     private bool _isInitializing;
     private ElementReference _inputElement;
     private ElementReference _primaryOverlayButton;
+    private TeachingInterventionDialog? _teachingDialog;
     private bool _shouldFocusInput = true;
     private bool _shouldFocusPrimaryOverlay;
     private readonly ArithmeticCurriculum _curriculum = new();
     private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
-    private HashSet<ArithmeticOperation>? _operationProgressEnabledSet;
-
-    private CancellationTokenSource? _timerCts;
-    private double _timerFraction = 1.0;
-    private double _remainingSecondsDouble = 30.0;
-    private string _timerDisplayText = "30.000 s";
-    private string _timerColor = "hsl(135, 72%, 42%)";
+    private HashSet<ArithmeticOperation>? _enabledOperations;
 
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
+        RefreshEnabledOperations();
 
         if (!Session.IsInitialized)
         {
@@ -414,16 +413,11 @@
             {
                 _shouldFocusInput = true;
                 _shouldFocusPrimaryOverlay = false;
-                if (Session.IsTimingActive)
-                {
-                    StartTimer();
-                }
             }
             else
             {
                 _shouldFocusInput = false;
                 _shouldFocusPrimaryOverlay = true;
-                StopTimer();
             }
         }
         else if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
@@ -434,13 +428,11 @@
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
                 _submittedAnswerDisplay = _answerInput;
             }
-            StopTimer();
         }
         else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
         else if (Session.InteractionState is SessionInteractionState.IncorrectFeedback or SessionInteractionState.TimeoutFeedback)
         {
@@ -451,19 +443,16 @@
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
                 _submittedAnswerDisplay = _answerInput;
             }
-            StopTimer();
         }
         else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
         else if (Session.InteractionState == SessionInteractionState.SessionCheckIn)
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
 
         SyncPracticeGateCopy();
@@ -473,7 +462,6 @@
     {
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         Session.AppForegroundStateChanged -= OnAppForegroundChanged;
-        StopTimer();
         Session.PauseItemTiming();
     }
 
@@ -498,8 +486,6 @@
             }
             else
             {
-                StopTimer();
-                UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
                 SyncPracticeGateCopy();
             }
             StateHasChanged();
@@ -576,6 +562,13 @@
         {
             await RetryInitializationAsync();
         }
+        else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
+        {
+            if (_teachingDialog?.IsUnlocked == true)
+            {
+                await AdvanceAsync();
+            }
+        }
         else if (IsAwaitingAcknowledgement)
         {
             await AdvanceAsync();
@@ -633,6 +626,8 @@
             return;
         }
 
+        HapticService.PerformCue(HapticFeedbackCue.KeyTap);
+
         _answerInput = key == "backspace"
             ? NumericAnswerInputPolicy.Backspace(_answerInput)
             : NumericAnswerInputPolicy.Append(_answerInput, key);
@@ -654,87 +649,6 @@
         }
     }
 
-    private void StartTimer()
-    {
-        StopTimer();
-        UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
-        if (!Session.IsTimingActive)
-        {
-            return;
-        }
-        _timerCts = new CancellationTokenSource();
-        var token = _timerCts.Token;
-
-        _ = Task.Run(async () =>
-        {
-            using var periodicTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    if (!await periodicTimer.WaitForNextTickAsync(token))
-                    {
-                        break;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-
-                if (token.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                var elapsed = Session.GetCurrentItemElapsed();
-                var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
-                if (elapsed.TotalSeconds >= deadlineSeconds)
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        if (!token.IsCancellationRequested && Session.IsTimingActive)
-                        {
-                            UpdateTimerVisuals(deadlineSeconds);
-                            await HandleTimeoutAsync();
-                        }
-                    });
-                    break;
-                }
-
-                UpdateTimerVisuals(elapsed.TotalSeconds);
-                await InvokeAsync(StateHasChanged);
-            }
-        }, token);
-    }
-
-    private void StopTimer()
-    {
-        if (_timerCts is not null)
-        {
-            try
-            {
-                _timerCts.Cancel();
-                _timerCts.Dispose();
-            }
-            catch
-            {
-            }
-            _timerCts = null;
-        }
-    }
-
-    private void UpdateTimerVisuals(double elapsedSeconds)
-    {
-        var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
-        var remainingSeconds = Math.Max(0.0, deadlineSeconds - elapsedSeconds);
-        _remainingSecondsDouble = remainingSeconds;
-        _timerFraction = deadlineSeconds > 0 ? Math.Clamp(remainingSeconds / deadlineSeconds, 0.0, 1.0) : 0.0;
-        _timerDisplayText = LearningPolicy.FormatTimerDisplay(remainingSeconds, deadlineSeconds);
-        var hue = (int)(_timerFraction * 135);
-        _timerColor = $"hsl({hue}, 72%, 42%)";
-    }
-
     private async Task Submit()
     {
         if (_isSubmitting || !IsAnswerEntryVisible)
@@ -752,12 +666,19 @@
         if (NumericAnswerInputPolicy.TryParseSubmission(_answerInput, out var parsedAnswer))
         {
             _isSubmitting = true;
-            StopTimer();
             try
             {
                 _validationError = null;
                 _submittedAnswerDisplay = _answerInput;
                 var eval = Session.SubmitAnswer(parsedAnswer);
+                if (eval.IsCorrect)
+                {
+                    HapticService.PerformCue(HapticFeedbackCue.Correct);
+                }
+                else
+                {
+                    HapticService.PerformCue(HapticFeedbackCue.Incorrect);
+                }
                 var persistence = await Session.CommitCurrentEvaluationAsync();
                 var advancedAutomatically = eval.IsCorrect &&
                     persistence.IsSuccess &&
@@ -790,18 +711,19 @@
 
     private async Task HandleTimeoutAsync()
     {
-        if (_isSubmitting || !IsAnswerEntryVisible)
+        if (!Session.HasEnforcedDeadline || _isSubmitting || !IsAnswerEntryVisible)
         {
             return;
         }
 
         _isSubmitting = true;
-        StopTimer();
         try
         {
             _validationError = null;
             Session.RecordTimeout();
             _shouldFocusPrimaryOverlay = true;
+
+            HapticService.PerformCue(HapticFeedbackCue.Timeout);
 
             await Session.CommitCurrentEvaluationAsync();
         }
@@ -821,6 +743,11 @@
 
         if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
         {
+            if (_teachingDialog is not null && !_teachingDialog.IsUnlocked)
+            {
+                return;
+            }
+
             await Session.AcknowledgeTeachingInterventionAsync(startTiming: true);
         }
         else
@@ -836,7 +763,6 @@
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
     }
 
@@ -866,7 +792,6 @@
                 {
                     _shouldFocusInput = false;
                     _shouldFocusPrimaryOverlay = true;
-                    StopTimer();
                 }
             }
             else
@@ -892,16 +817,11 @@
         SyncPracticeGateCopy();
         _shouldFocusInput = true;
         _shouldFocusPrimaryOverlay = false;
-        if (Session.IsTimingActive)
-        {
-            StartTimer();
-        }
     }
 
     private void PausePractice()
     {
         Session.PausePractice();
-        StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();
@@ -913,10 +833,6 @@
         SyncPracticeGateCopy();
         _shouldFocusPrimaryOverlay = false;
         _shouldFocusInput = true;
-        if (Session.IsTimingActive)
-        {
-            StartTimer();
-        }
     }
 
     private async Task KeepGoingAsync()
@@ -934,7 +850,6 @@
         Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
-        StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();
@@ -969,25 +884,40 @@
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
 
+    private void RefreshEnabledOperations()
+    {
+        _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+        UpdateOperationProgress();
+    }
+
+    private void UpdateOperationProgress()
+    {
+        _enabledOperations ??= new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+        var learnerStateGeneration = Session.LearnerStateGenerationRevision;
+        var practicePosition = Session.Progression.PracticePosition;
+        var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+        _operationProgress = allDiagnostics.Where(d => _enabledOperations.Contains(d.Operation)).ToList();
+        _operationProgressLearnerStateGeneration = learnerStateGeneration;
+        _operationProgressPracticePosition = practicePosition;
+    }
+
+    private void EnsureOperationProgressUpToDate()
+    {
+        var learnerStateGeneration = Session.LearnerStateGenerationRevision;
+        var practicePosition = Session.Progression.PracticePosition;
+        if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
+            _operationProgressPracticePosition != practicePosition ||
+            _operationProgress.Count == 0)
+        {
+            UpdateOperationProgress();
+        }
+    }
+
     private IReadOnlyList<OperationProgressDiagnostics> OperationProgress
     {
         get
         {
-            var enabledSet = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
-            var learnerStateGeneration = Session.LearnerStateGenerationRevision;
-            var practicePosition = Session.Progression.PracticePosition;
-            if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
-                _operationProgressPracticePosition != practicePosition ||
-                _operationProgressEnabledSet is null ||
-                !_operationProgressEnabledSet.SetEquals(enabledSet))
-            {
-                var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
-                _operationProgress = allDiagnostics.Where(d => enabledSet.Contains(d.Operation)).ToList();
-                _operationProgressLearnerStateGeneration = learnerStateGeneration;
-                _operationProgressPracticePosition = practicePosition;
-                _operationProgressEnabledSet = enabledSet;
-            }
-
+            EnsureOperationProgressUpToDate();
             return _operationProgress;
         }
     }
@@ -996,7 +926,7 @@
         PracticeProgressOverview.Create(
             Session.Progression,
             _curriculum,
-            PreferenceStore.GetEnabledOperations(),
+            _enabledOperations?.ToList() ?? PreferenceStore.GetEnabledOperations(),
             Session.HasCompletedPracticeHistory);
 
     private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch

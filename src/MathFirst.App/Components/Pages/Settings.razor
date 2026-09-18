@@ -2,6 +2,7 @@
 @implements IDisposable
 @using MathFirst.App.Services
 @using MathFirst.Application
+@using MathFirst.Application.Navigation
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
@@ -10,6 +11,8 @@
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject IAppBackNavigationCoordinator BackCoordinator
+@inject IHapticFeedbackService HapticService
 
 <div class="settings-page">
     <header class="settings-header">
@@ -98,12 +101,18 @@
             <div class="settings-subsection">
                 <h3 class="settings-subsection-title">@Localizer["Settings_PracticeTimeTitle"]</h3>
                 <p class="setting-help">@Localizer["Settings_PracticeTimeHelp"]</p>
-                <div class="choice-grid choice-grid-four">
+                <div class="choice-grid choice-grid-practice-time">
                     <button type="button"
                             class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Standard ? "active" : null)"
                             aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Standard)"
                             @onclick="() => SelectPracticeTime(PracticeTimeSetting.Standard)">
                         @Localizer["PracticeTime_Standard"]
+                    </button>
+                    <button type="button"
+                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.NoTimePressure ? "active" : null)"
+                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.NoTimePressure)"
+                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.NoTimePressure)">
+                        @Localizer["PracticeTime_NoTimePressure"]
                     </button>
                     <button type="button"
                             class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds30 ? "active" : null)"
@@ -164,7 +173,31 @@
 
 
 
-        <!-- 4. RESET LEARNING PROGRESS -->
+        <!-- 5. HAPTIC FEEDBACK -->
+        <section class="settings-card haptic-settings-card" aria-labelledby="settings-haptic-title">
+            <h2 id="settings-haptic-title" class="settings-section-title">@Localizer["Settings_HapticFeedbackTitle"]</h2>
+            <p class="setting-help">@Localizer["Settings_HapticFeedbackHelp"]</p>
+            <div class="choice-grid choice-grid-two">
+                <button type="button"
+                        class="choice-button @(_hapticFeedbackEnabled ? "active" : null)"
+                        aria-pressed="@_hapticFeedbackEnabled"
+                        @onclick="() => SetHapticFeedback(true)">
+                    @Localizer["Common_On"]
+                </button>
+                <button type="button"
+                        class="choice-button @(!_hapticFeedbackEnabled ? "active" : null)"
+                        aria-pressed="@(!_hapticFeedbackEnabled)"
+                        @onclick="() => SetHapticFeedback(false)">
+                    @Localizer["Common_Off"]
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_hapticMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">@_hapticMessage</p>
+            }
+        </section>
+
+        <!-- 6. RESET LEARNING PROGRESS -->
         <section class="settings-card learning-reset-card">
             <div class="settings-action-header">
                 <h2 class="settings-section-title">@Localizer["Reset_LearningProgress_Title"]</h2>
@@ -270,21 +303,26 @@
     private string? _practiceMessage;
     private bool _practiceMessageIsError;
     private string? _keypadMessage;
+    private string? _hapticMessage;
     private string? _resetFeedbackMessage;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
+    private bool _hapticFeedbackEnabled = true;
     private HashSet<ArithmeticOperation> _enabledOperations = new(PracticeOperationPreferencePolicy.AllOperations);
     private PracticeTimeSetting _selectedPracticeTime = PracticeTimeSetting.Standard;
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
     private ElementReference _confirmationPanel;
     private bool _pendingConfirmationVisibility;
+    private IDisposable? _backRegistration;
 
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
+        _backRegistration = BackCoordinator.RegisterHandler(HandleBack);
         _selectedLanguage = Localizer.SelectedLanguagePreference;
         _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
+        _hapticFeedbackEnabled = PreferenceStore.GetHapticFeedbackEnabled();
         _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
         _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
 
@@ -300,6 +338,13 @@
     {
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
+        _backRegistration?.Dispose();
+    }
+
+    private bool HandleBack()
+    {
+        Navigation.NavigateTo("/");
+        return true;
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -328,6 +373,7 @@
         _practiceMessage = null;
         _practiceMessageIsError = false;
         _keypadMessage = null;
+        _hapticMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -345,6 +391,7 @@
         _practiceMessage = null;
         _practiceMessageIsError = false;
         _keypadMessage = null;
+        _hapticMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -379,6 +426,7 @@
         _languageMessage = null;
         _appearanceMessage = null;
         _keypadMessage = null;
+        _hapticMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -391,6 +439,7 @@
             _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
             var displayName = _selectedPracticeTime switch
             {
+                PracticeTimeSetting.NoTimePressure => Localizer["PracticeTime_NoTimePressure"],
                 PracticeTimeSetting.Seconds30 => Localizer["PracticeTime_30s"],
                 PracticeTimeSetting.Seconds45 => Localizer["PracticeTime_45s"],
                 PracticeTimeSetting.Seconds60 => Localizer["PracticeTime_60s"],
@@ -409,6 +458,7 @@
         _languageMessage = null;
         _appearanceMessage = null;
         _keypadMessage = null;
+        _hapticMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -441,6 +491,25 @@
         _languageMessage = null;
         _appearanceMessage = null;
         _practiceMessage = null;
+        _hapticMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    private void SetHapticFeedback(bool enabled)
+    {
+        PreferenceStore.SetHapticFeedbackEnabled(enabled);
+        _hapticFeedbackEnabled = PreferenceStore.GetHapticFeedbackEnabled();
+        if (enabled)
+        {
+            HapticService.PerformCue(HapticFeedbackCue.KeyTap);
+        }
+        var stateDisplay = enabled ? Localizer["Common_On"] : Localizer["Common_Off"];
+        _hapticMessage = Localizer["Settings_HapticFeedbackChangedTo", stateDisplay];
+        _languageMessage = null;
+        _appearanceMessage = null;
+        _practiceMessage = null;
+        _practiceMessageIsError = false;
+        _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
 
@@ -466,6 +535,7 @@
         _appearanceMessage = null;
         _practiceMessage = null;
         _keypadMessage = null;
+        _hapticMessage = null;
     }
 
     private void ExecuteResetUiPreferences()
@@ -475,6 +545,7 @@
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
         PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
+        PreferenceStore.SetHapticFeedbackEnabled(true);
         PreferenceStore.ResetPracticePreferences();
 
         ThemeService.ResetPreference();
@@ -486,6 +557,7 @@
         _appearanceMessage = null;
         _practiceMessage = null;
         _keypadMessage = null;
+        _hapticMessage = null;
 
         Navigation.NavigateTo("/", replace: true);
     }
@@ -499,6 +571,7 @@
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
         PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
+        PreferenceStore.SetHapticFeedbackEnabled(true);
         PreferenceStore.ResetPracticePreferences();
 
         ThemeService.ResetPreference();

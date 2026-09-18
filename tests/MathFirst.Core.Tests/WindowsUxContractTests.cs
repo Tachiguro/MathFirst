@@ -201,6 +201,23 @@ public sealed class WindowsUxContractTests
         Assert.Contains("transition: none;", rules, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Keypad_GuardsHoverWithPointerFineMediaQuery_ToPreventStickyTouchHover()
+    {
+        var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
+
+        // Hover style on numeric keypad button must be wrapped in @media (hover: hover) and (pointer: fine)
+        var hoverMatch = Regex.Match(
+            styles,
+            @"@media\s*\(\s*hover:\s*hover\s*\)\s*and\s*\(\s*pointer:\s*fine\s*\)\s*\{[^{}]*\.numeric-keypad-button:not\(:disabled\):hover\s*\{(?<rules>[^}]+)\}[^{}]*\}",
+            RegexOptions.Singleline);
+        Assert.True(hoverMatch.Success, ".numeric-keypad-button:not(:disabled):hover must be scoped to @media (hover: hover) and (pointer: fine)");
+
+        var rules = hoverMatch.Groups["rules"].Value;
+        Assert.Contains("border-color: var(--color-primary);", rules, StringComparison.Ordinal);
+        Assert.Contains("background: var(--color-primary-soft);", rules, StringComparison.Ordinal);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();

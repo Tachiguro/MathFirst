@@ -46,6 +46,8 @@ public sealed class StartupRecoveryRegressionTests
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) { }
         public string GetLanguagePreference() => LanguagePreferencePolicy.SystemPreferenceCode;
         public void SetLanguagePreference(string languageCode) { }
+        public bool GetHapticFeedbackEnabled() => true;
+        public void SetHapticFeedbackEnabled(bool enabled) { }
         public bool GetOperationEnabled(ArithmeticOperation operation) => _operations.GetValueOrDefault(operation, true);
         public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) => _operations[operation] = enabled;
         public IReadOnlyList<ArithmeticOperation> GetEnabledOperations() =>

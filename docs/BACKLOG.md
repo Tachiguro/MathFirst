@@ -173,5 +173,35 @@ When items are accepted into the backlog, they are recorded with:
 
 ---
 
+### MF-UX-005: Native UX, Responsiveness, and Interaction Polish
+
+- **ID**: `MF-UX-005`
+- **Title**: Native UX, Responsiveness, and Interaction Polish
+- **Type**: `Feature`
+- **Status**: `Active` (In flight across iterative implementation slices; operational tracking in [docs/CURRENT_WORK.md](CURRENT_WORK.md))
+- **Dependencies**: Native V1 Forensic Remediation complete (merged through PR #28)
+- **Description**:
+  Comprehensive native UX, layout responsiveness, and interaction polish package. Established authoritative decisions registry:
+  1. **Answer Submission**: Keep current single-digit auto-submit behavior. No confirmation button, no Enter-only submission, no grace period, no correction delay, no separate Learning/Sprint mode. Backspace remains for partial multi-digit editing.
+  2. **`(Enter)` Button Copy**: Keep current `(Enter)` labels on Continue / Keep Going actions.
+  3. **Pause Button Color**: Implemented in Slice 3 — amber/yellow non-destructive styling (`.button-pause`) with accessible contrast in Light and Dark modes.
+  4. **No Time Pressure Mode**: Implemented in Slice 5 — Practice Time setting measuring and persisting active latency without deadlines or automatic timeouts, displaying count-up elapsed time, preserving standard adaptive pace calculations, and supporting full localization.
+  5. **Timer Typography**: Implemented in Slice 3 — removed text stroke in favor of clean bold sans-serif with subtle translucent pill contrast backing.
+  6. **Practice Vertical Layout**: No forced compression; keypad anchored toward bottom; normal vertical whitespace acceptable.
+  7. **Didactic Tips / Visual Math Explanations**: Rejected for current scope (no zero-rule hints, mnemonic tips, ten-frames, or per-fact explanations).
+  8. **Error Remediation Spacing**: Keep current spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`).
+  9. **Repeated-Error Teaching Lock**: Implemented in Slice 3 — 3-second visible lockout with localized countdown feedback on teaching intervention modal before Continue enables.
+  10. **Haptic Feedback**: Implemented in Slice 4 — distinguishable tactile feedback for KeyTap (`Click`), Correct (`40ms pulse`), and Incorrect/Timeout (`120ms pulse`); default enabled, local persisted preference, Settings On/Off toggle with preview, Onboarding Step 2 integration without adding a sixth step, restored to enabled on Restore Defaults and Full Local Reset, preserved on Reset Learning Progress, unsupported platforms safely no-op; physical tactile-quality verification remains pending on Android hardware.
+  11. **Streak Feedback**: Implemented in Slice 6 — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations (visible at $\ge 3$).
+  12. **Confirmation / Learning Mode**: Rejected — auto-submit remains authoritative.
+  13. **Pause Information**: Implemented in Slice 6 — lightweight current-session metrics on Pause overlay (Completed, Correct, Current streak, Median correct latency).
+  14. **Startup White Flash**: Accepted defect investigation (pending later slice) — native launch theme and WebView handoff correction with KnownFirst portability guidance.
+  15. **Installed Size / App Data**: Accepted investigation (pending later slice) — analysis of debug vs release payloads, native libs, WebView runtime, SQLite storage.
+  16. **Tester Ergonomics**: Pending scope (build identity, diagnostic copy, repeatable tester artifacts).
+  17. **KnownFirst-Style Onboarding Action Layout**: Implemented in Slice 2 — vertically stacked actions with primary on top, Back below, 5-step flow intact, no Skip shortcut, draft state preserved.
+  18. **Android Back Behavior**: Implemented in Slice 2 — `IAppBackNavigationCoordinator` handling Onboarding steps 2–5 back navigation, Onboarding step 1 safe background pass-through, Settings return to `/` with question/input/timing preservation, and Root Practice safe background pass-through with timing freeze.
+
+---
+
 > [!NOTE]
 > Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).
