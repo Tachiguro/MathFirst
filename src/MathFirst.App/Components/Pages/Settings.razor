@@ -2,6 +2,7 @@
 @implements IDisposable
 @using MathFirst.App.Services
 @using MathFirst.Application
+@using MathFirst.Application.Navigation
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
@@ -10,6 +11,7 @@
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject IAppBackNavigationCoordinator BackCoordinator
 
 <div class="settings-page">
     <header class="settings-header">
@@ -278,11 +280,13 @@
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
     private ElementReference _confirmationPanel;
     private bool _pendingConfirmationVisibility;
+    private IDisposable? _backRegistration;
 
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
+        _backRegistration = BackCoordinator.RegisterHandler(HandleBack);
         _selectedLanguage = Localizer.SelectedLanguagePreference;
         _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
         _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
@@ -300,6 +304,13 @@
     {
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
+        _backRegistration?.Dispose();
+    }
+
+    private bool HandleBack()
+    {
+        Navigation.NavigateTo("/");
+        return true;
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)

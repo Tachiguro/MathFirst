@@ -173,5 +173,35 @@ When items are accepted into the backlog, they are recorded with:
 
 ---
 
+### MF-UX-005: Native UX, Responsiveness, and Interaction Polish
+
+- **ID**: `MF-UX-005`
+- **Title**: Native UX, Responsiveness, and Interaction Polish
+- **Type**: `Feature`
+- **Status**: `Active` (In flight across iterative implementation slices; operational tracking in [docs/CURRENT_WORK.md](CURRENT_WORK.md))
+- **Dependencies**: Native V1 Forensic Remediation complete (merged through PR #28)
+- **Description**:
+  Comprehensive native UX, layout responsiveness, and interaction polish package. Established authoritative decisions registry:
+  1. **Answer Submission**: Keep current single-digit auto-submit behavior. No confirmation button, no Enter-only submission, no grace period, no correction delay, no separate Learning/Sprint mode. Backspace remains for partial multi-digit editing.
+  2. **`(Enter)` Button Copy**: Keep current `(Enter)` labels on Continue / Keep Going actions.
+  3. **Pause Button Color**: Accepted change (pending later slice) — amber/yellow non-destructive styling with accessible contrast in Light and Dark modes.
+  4. **No Time Pressure Mode**: Accepted change (pending later slice) — Practice Time setting measuring and persisting latency with visible elapsed timer, but no countdown, deadline, or timeout.
+  5. **Timer Typography**: Accepted change (pending later slice) — remove text stroke in favor of clean bold sans-serif.
+  6. **Practice Vertical Layout**: No forced compression; keypad anchored toward bottom; normal vertical whitespace acceptable.
+  7. **Didactic Tips / Visual Math Explanations**: Rejected for current scope (no zero-rule hints, mnemonic tips, ten-frames, or per-fact explanations).
+  8. **Error Remediation Spacing**: Keep current spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`).
+  9. **Repeated-Error Teaching Lock**: Accepted change (pending later slice) — 3-second lockout with visible countdown/progress on teaching intervention modal before Continue enables.
+  10. **Haptic Feedback**: Accepted change (pending later slice) — distinguishable tactile feedback for tap, correct, and incorrect/timeout; configurable in Settings and Onboarding.
+  11. **Streak Feedback**: Accepted change (pending later slice) — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations.
+  12. **Confirmation / Learning Mode**: Rejected — auto-submit remains authoritative.
+  13. **Pause Information**: Accepted change (pending later slice) — lightweight current-session metrics on Pause overlay.
+  14. **Startup White Flash**: Accepted defect investigation (pending later slice) — native launch theme and WebView handoff correction with KnownFirst portability guidance.
+  15. **Installed Size / App Data**: Accepted investigation (pending later slice) — analysis of debug vs release payloads, native libs, WebView runtime, SQLite storage.
+  16. **Tester Ergonomics**: Pending scope (build identity, diagnostic copy, repeatable tester artifacts).
+  17. **KnownFirst-Style Onboarding Action Layout**: Implemented in Slice 2 — vertically stacked actions with primary on top, Back below, 5-step flow intact, no Skip shortcut, draft state preserved.
+  18. **Android Back Behavior**: Implemented in Slice 2 — `IAppBackNavigationCoordinator` handling Onboarding steps 2–5 back navigation, Onboarding step 1 safe background pass-through, Settings return to `/` with question/input/timing preservation, and Root Practice safe background pass-through with timing freeze.
+
+---
+
 > [!NOTE]
 > Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).

@@ -2,11 +2,13 @@
 @using System.Globalization
 @using MathFirst.App.Services
 @using MathFirst.Application
+@using MathFirst.Application.Navigation
 @using MathFirst.Domain
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
 @inject IPreferenceStore PreferenceStore
 @inject TrainingSession Session
+@inject IAppBackNavigationCoordinator BackCoordinator
 
 <div class="onboarding-host">
     <main class="onboarding-main">
@@ -99,7 +101,7 @@
                         <button type="button" class="button button-primary" @onclick="() => _currentStep = 3">
                             @Localizer["Common_Continue"]
                         </button>
-                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 1">
+                        <button type="button" class="button button-secondary" @onclick="() => StepBack(1)">
                             @Localizer["Common_Back"]
                         </button>
                     </div>
@@ -139,7 +141,7 @@
                         <button type="button" class="button button-primary" @onclick="ContinueFromOperationSelection">
                             @Localizer["Common_Continue"]
                         </button>
-                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 2">
+                        <button type="button" class="button button-secondary" @onclick="() => StepBack(2)">
                             @Localizer["Common_Back"]
                         </button>
                     </div>
@@ -178,7 +180,7 @@
                         <button type="button" class="button button-primary" @onclick="() => _currentStep = 5">
                             @Localizer["Common_Continue"]
                         </button>
-                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 3">
+                        <button type="button" class="button button-secondary" @onclick="() => StepBack(3)">
                             @Localizer["Common_Back"]
                         </button>
                     </div>
@@ -194,7 +196,7 @@
                         <button type="button" class="button button-primary" @onclick="CompleteOnboardingAsync">
                             @Localizer["Common_Start"]
                         </button>
-                        <button type="button" class="button button-secondary" @onclick="() => _currentStep = 4">
+                        <button type="button" class="button button-secondary" @onclick="() => StepBack(4)">
                             @Localizer["Common_Back"]
                         </button>
                     </div>
@@ -213,6 +215,7 @@
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
     private PracticeOperationSelectionDraft _operationSelection = new(PracticeOperationPreferencePolicy.AllOperations);
     private string? _operationSelectionError;
+    private IDisposable? _backRegistration;
 
     private bool IsSystemLanguageSelected =>
         LanguagePreferencePolicy.IsExplicitSystemSelector(_selectedLanguage);
@@ -230,12 +233,14 @@
 
         Localizer.UiLanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
+        _backRegistration = BackCoordinator.RegisterHandler(HandleBack);
     }
 
     public void Dispose()
     {
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
+        _backRegistration?.Dispose();
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -270,6 +275,25 @@
         {
             _operationSelectionError = null;
         }
+    }
+
+    private void StepBack(int targetStep)
+    {
+        _currentStep = targetStep;
+        _operationSelectionError = null;
+    }
+
+    private bool HandleBack()
+    {
+        if (_currentStep > 1)
+        {
+            _currentStep--;
+            _operationSelectionError = null;
+            _ = InvokeAsync(StateHasChanged);
+            return true;
+        }
+
+        return false;
     }
 
     private void ContinueFromOperationSelection()
@@ -308,6 +332,7 @@
         PreferenceStore.SetLanguagePreference(_selectedLanguage);
         PreferenceStore.SetThemePreference(_selectedTheme);
         PreferenceStore.SetNumericKeypadLayout(_selectedKeypadLayout);
+        _operationSelection.Save(PreferenceStore);
         PreferenceStore.SetOnboardingCompleted(true);
 
         Localizer.ApplyLanguagePreference(_selectedLanguage);

@@ -391,18 +391,19 @@ select:disabled {
 
 .onboarding-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: clamp(0.5rem, 1.5vw, 0.75rem);
+    flex-direction: column;
+    width: 100%;
+    gap: clamp(0.5rem, 1.5vh, 0.75rem);
     margin-top: clamp(0.5rem, 1.5vh, 1rem);
 }
 
 .onboarding-actions .button {
-    flex: 1 1 clamp(8rem, 20vw, 12rem);
+    width: 100%;
+    min-width: 0;
 }
 
 .onboarding-actions-primary .button {
     width: 100%;
-    flex-basis: 100%;
 }
 
 .onboarding-system-language-status {
