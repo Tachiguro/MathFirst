@@ -26,7 +26,7 @@
                 @if (CanPausePractice)
                 {
                     <button type="button"
-                            class="button button-danger pause-practice-btn"
+                            class="button button-pause pause-practice-btn"
                             title='@Localizer["Training_Pause"]'
                             aria-label='@Localizer["Training_Pause"]'
                             @onclick="PausePractice">
@@ -125,28 +125,10 @@
                 }
                 else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
                 {
-                    <section class="practice-overlay teaching-dialog"
-                             role="dialog"
-                             aria-modal="true"
-                             aria-labelledby="teaching-dialog-title">
-                        <div class="practice-overlay-content">
-                            <h2 id="teaching-dialog-title">@Localizer["Training_TeachingTitle"]</h2>
-                            <p class="teaching-explanation">@Localizer["Training_TeachingExplanation"]</p>
-                            <p class="teaching-equation" aria-label="@Session.CurrentFact.EquationText">
-                                <span>@Session.CurrentFact.LeftOperand</span>
-                                <span>@Session.CurrentFact.DisplaySymbol</span>
-                                <span>@Session.CurrentFact.RightOperand</span>
-                                <span>=</span>
-                                <span>@Session.CurrentFact.CorrectResult</span>
-                            </p>
-                            <button type="button"
-                                    @ref="_primaryOverlayButton"
-                                    class="button button-primary practice-overlay-action"
-                                    @onclick="AdvanceAsync">
-                                @Localizer["Common_Continue"] (Enter)
-                            </button>
-                        </div>
-                    </section>
+                    <TeachingInterventionDialog Session="Session"
+                                                Localizer="Localizer"
+                                                OnAcknowledge="AdvanceAsync"
+                                                @ref="_teachingDialog" />
                 }
                 else if (Session.InteractionState == SessionInteractionState.SessionCheckIn && Session.PendingCheckIn is not null)
                 {
@@ -330,6 +312,7 @@
     private bool _isInitializing;
     private ElementReference _inputElement;
     private ElementReference _primaryOverlayButton;
+    private TeachingInterventionDialog? _teachingDialog;
     private bool _shouldFocusInput = true;
     private bool _shouldFocusPrimaryOverlay;
     private readonly ArithmeticCurriculum _curriculum = new();
@@ -549,6 +532,13 @@
         {
             await RetryInitializationAsync();
         }
+        else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
+        {
+            if (_teachingDialog?.IsUnlocked == true)
+            {
+                await AdvanceAsync();
+            }
+        }
         else if (IsAwaitingAcknowledgement)
         {
             await AdvanceAsync();
@@ -711,6 +701,11 @@
 
         if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
         {
+            if (_teachingDialog is not null && !_teachingDialog.IsUnlocked)
+            {
+                return;
+            }
+
             await Session.AcknowledgeTeachingInterventionAsync(startTiming: true);
         }
         else

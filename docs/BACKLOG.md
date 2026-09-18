@@ -184,13 +184,13 @@ When items are accepted into the backlog, they are recorded with:
   Comprehensive native UX, layout responsiveness, and interaction polish package. Established authoritative decisions registry:
   1. **Answer Submission**: Keep current single-digit auto-submit behavior. No confirmation button, no Enter-only submission, no grace period, no correction delay, no separate Learning/Sprint mode. Backspace remains for partial multi-digit editing.
   2. **`(Enter)` Button Copy**: Keep current `(Enter)` labels on Continue / Keep Going actions.
-  3. **Pause Button Color**: Accepted change (pending later slice) — amber/yellow non-destructive styling with accessible contrast in Light and Dark modes.
+  3. **Pause Button Color**: Implemented in Slice 3 — amber/yellow non-destructive styling (`.button-pause`) with accessible contrast in Light and Dark modes.
   4. **No Time Pressure Mode**: Accepted change (pending later slice) — Practice Time setting measuring and persisting latency with visible elapsed timer, but no countdown, deadline, or timeout.
-  5. **Timer Typography**: Accepted change (pending later slice) — remove text stroke in favor of clean bold sans-serif.
+  5. **Timer Typography**: Implemented in Slice 3 — removed text stroke in favor of clean bold sans-serif with subtle translucent pill contrast backing.
   6. **Practice Vertical Layout**: No forced compression; keypad anchored toward bottom; normal vertical whitespace acceptable.
   7. **Didactic Tips / Visual Math Explanations**: Rejected for current scope (no zero-rule hints, mnemonic tips, ten-frames, or per-fact explanations).
   8. **Error Remediation Spacing**: Keep current spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`).
-  9. **Repeated-Error Teaching Lock**: Accepted change (pending later slice) — 3-second lockout with visible countdown/progress on teaching intervention modal before Continue enables.
+  9. **Repeated-Error Teaching Lock**: Implemented in Slice 3 — 3-second visible lockout with localized countdown feedback on teaching intervention modal before Continue enables.
   10. **Haptic Feedback**: Accepted change (pending later slice) — distinguishable tactile feedback for tap, correct, and incorrect/timeout; configurable in Settings and Onboarding.
   11. **Streak Feedback**: Accepted change (pending later slice) — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations.
   12. **Confirmation / Learning Mode**: Rejected — auto-submit remains authoritative.

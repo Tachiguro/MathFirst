@@ -481,13 +481,14 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
     }
 
     [Fact]
-    public void PracticeHeader_UsesDangerPauseAndRemovesPermanentScoreFromHud()
+    public void PracticeHeader_UsesDedicatedPauseButtonAndRemovesPermanentScoreFromHud()
     {
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
         var header = home[..home.IndexOf("</header>", StringComparison.Ordinal)];
 
-        Assert.Contains("class=\"button button-danger pause-practice-btn\"", header, StringComparison.Ordinal);
+        Assert.Contains("class=\"button button-pause pause-practice-btn\"", header, StringComparison.Ordinal);
+        Assert.DoesNotContain("button button-danger pause-practice-btn", home, StringComparison.Ordinal);
         Assert.DoesNotContain("button button-secondary pause-practice-btn", home, StringComparison.Ordinal);
         Assert.Contains("class=\"button button-primary practice-overlay-action\"", home, StringComparison.Ordinal);
         Assert.DoesNotContain("Training_Score", header, StringComparison.Ordinal);
