@@ -185,7 +185,7 @@ When items are accepted into the backlog, they are recorded with:
   1. **Answer Submission**: Keep current single-digit auto-submit behavior. No confirmation button, no Enter-only submission, no grace period, no correction delay, no separate Learning/Sprint mode. Backspace remains for partial multi-digit editing.
   2. **`(Enter)` Button Copy**: Keep current `(Enter)` labels on Continue / Keep Going actions.
   3. **Pause Button Color**: Implemented in Slice 3 — amber/yellow non-destructive styling (`.button-pause`) with accessible contrast in Light and Dark modes.
-  4. **No Time Pressure Mode**: Accepted change (pending later slice) — Practice Time setting measuring and persisting latency with visible elapsed timer, but no countdown, deadline, or timeout.
+  4. **No Time Pressure Mode**: Implemented in Slice 5 — Practice Time setting measuring and persisting active latency without deadlines or automatic timeouts, displaying count-up elapsed time, preserving standard adaptive pace calculations, and supporting full localization.
   5. **Timer Typography**: Implemented in Slice 3 — removed text stroke in favor of clean bold sans-serif with subtle translucent pill contrast backing.
   6. **Practice Vertical Layout**: No forced compression; keypad anchored toward bottom; normal vertical whitespace acceptable.
   7. **Didactic Tips / Visual Math Explanations**: Rejected for current scope (no zero-rule hints, mnemonic tips, ten-frames, or per-fact explanations).

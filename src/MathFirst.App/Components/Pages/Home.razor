@@ -238,7 +238,7 @@
                         </div>
 
                         <PracticeCountdownTimer Session="Session"
-                                                AriaLabel='@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]'
+                                                AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])'
                                                 OnTimeout="HandleTimeoutAsync" />
                     </div>
 
@@ -682,7 +682,7 @@
 
     private async Task HandleTimeoutAsync()
     {
-        if (_isSubmitting || !IsAnswerEntryVisible)
+        if (!Session.HasEnforcedDeadline || _isSubmitting || !IsAnswerEntryVisible)
         {
             return;
         }

@@ -36,6 +36,19 @@ public static class LearningPolicy
         return clamped.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) + " s";
     }
 
+    public static string FormatElapsedTimerDisplay(double elapsedSeconds)
+    {
+        if (double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds) || elapsedSeconds <= 0.0)
+        {
+            return "0.000 s";
+        }
+
+        return elapsedSeconds.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) + " s";
+    }
+
+    public static string FormatElapsedTimerDisplay(long elapsedMs) =>
+        FormatElapsedTimerDisplay(Math.Max(0L, elapsedMs) / 1000.0);
+
     public static bool EvaluateItemMastery(
         ItemLearningState state,
         bool isCurrentAttemptFluent)

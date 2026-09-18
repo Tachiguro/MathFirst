@@ -58,6 +58,9 @@ public sealed class TrainingSession
     public long CurrentFactExpectedPaceMs { get; private set; } = AdaptivePacePolicy.StaticPriorMs;
     public long CurrentFactEasyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumEasyThresholdMs;
     public long CurrentFactFluencyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumFluencyThresholdMs;
+    public PracticeTimeSetting CurrentPracticeTimeSetting { get; private set; } = PracticeTimeSetting.Standard;
+    public bool HasEnforcedDeadline => PracticeTimePreferencePolicy.HasEnforcedDeadline(CurrentPracticeTimeSetting);
+    public bool IsNoTimePressure => PracticeTimePreferencePolicy.IsNoTimePressure(CurrentPracticeTimeSetting);
     public long CurrentFactDeadlineMs { get; private set; } = LearningPolicy.DeadlineStreak0Ms;
     public double CurrentFactDeadlineSeconds => CurrentFactDeadlineMs / 1000.0;
     public long LastResponseLatencyMs { get; private set; }
@@ -442,10 +445,10 @@ public sealed class TrainingSession
     public TimeSpan GetCurrentItemElapsed() => TimeSpan.FromMilliseconds(GetCurrentActiveElapsedMs());
 
     public bool IsCurrentItemTimedOut() =>
-        GetCurrentActiveElapsedMs() >= CurrentFactDeadlineMs;
+        HasEnforcedDeadline && GetCurrentActiveElapsedMs() >= CurrentFactDeadlineMs;
 
     public bool IsCurrentItemTimedOut(double deadlineSeconds) =>
-        GetCurrentItemElapsed().TotalSeconds >= deadlineSeconds;
+        HasEnforcedDeadline && GetCurrentItemElapsed().TotalSeconds >= deadlineSeconds;
 
     public SubmissionEvaluation SubmitAnswer(int submittedAnswer)
         => SubmitAnswerCore(submittedAnswer, submittedAnswer);
@@ -484,7 +487,7 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = elapsedMs;
         _isTimingActive = false;
 
-        if (elapsedMs >= CurrentFactDeadlineMs)
+        if (HasEnforcedDeadline && elapsedMs >= CurrentFactDeadlineMs)
         {
             InteractionState = SessionInteractionState.TimeoutFeedback;
             return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs, null);
@@ -502,6 +505,11 @@ public sealed class TrainingSession
         if (!IsInitialized || CurrentFact is null)
         {
             throw new InvalidOperationException("Training session is not initialized.");
+        }
+
+        if (!HasEnforcedDeadline)
+        {
+            throw new InvalidOperationException("Cannot record timeout when session has no enforced deadline.");
         }
 
         if (InteractionState != SessionInteractionState.AwaitingAnswer)
@@ -919,7 +927,7 @@ public sealed class TrainingSession
         SessionOrderCounter++;
         _factInstanceRevision++;
         CurrentAnswerInput = string.Empty;
-        var practiceTimeSetting = GetCurrentPracticeTimeSetting();
+        CurrentPracticeTimeSetting = GetCurrentPracticeTimeSetting();
         var context = new PracticeSelectionContext(
             prospectivePosition,
             SessionOrderCounter,
@@ -938,7 +946,7 @@ public sealed class TrainingSession
         CurrentFactExpectedPaceMs = adaptivePace.FactPaceMs;
         CurrentFactEasyThresholdMs = adaptivePace.EasyThresholdMs;
         CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;
-        var deadlineFloorMs = PracticeTimePreferencePolicy.GetDeadlineFloorMs(practiceTimeSetting);
+        var deadlineFloorMs = PracticeTimePreferencePolicy.GetDeadlineFloorMs(CurrentPracticeTimeSetting);
         CurrentFactDeadlineMs = Math.Max(adaptivePace.DeadlineMs, deadlineFloorMs);
 
         ItemReadyTimestamp = _clock.GetTimestamp();

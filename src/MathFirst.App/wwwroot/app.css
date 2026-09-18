@@ -252,6 +252,10 @@ select:disabled {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
 }
 
+.choice-grid-practice-time {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+}
+
 .settings-subsection {
     display: grid;
     gap: var(--space-2);

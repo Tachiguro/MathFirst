@@ -101,12 +101,18 @@
             <div class="settings-subsection">
                 <h3 class="settings-subsection-title">@Localizer["Settings_PracticeTimeTitle"]</h3>
                 <p class="setting-help">@Localizer["Settings_PracticeTimeHelp"]</p>
-                <div class="choice-grid choice-grid-four">
+                <div class="choice-grid choice-grid-practice-time">
                     <button type="button"
                             class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Standard ? "active" : null)"
                             aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Standard)"
                             @onclick="() => SelectPracticeTime(PracticeTimeSetting.Standard)">
                         @Localizer["PracticeTime_Standard"]
+                    </button>
+                    <button type="button"
+                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.NoTimePressure ? "active" : null)"
+                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.NoTimePressure)"
+                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.NoTimePressure)">
+                        @Localizer["PracticeTime_NoTimePressure"]
                     </button>
                     <button type="button"
                             class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds30 ? "active" : null)"
@@ -433,6 +439,7 @@
             _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
             var displayName = _selectedPracticeTime switch
             {
+                PracticeTimeSetting.NoTimePressure => Localizer["PracticeTime_NoTimePressure"],
                 PracticeTimeSetting.Seconds30 => Localizer["PracticeTime_30s"],
                 PracticeTimeSetting.Seconds45 => Localizer["PracticeTime_45s"],
                 PracticeTimeSetting.Seconds60 => Localizer["PracticeTime_60s"],

@@ -4,17 +4,28 @@
 @implements IDisposable
 
 <div class="timer-container">
-    <div class="timer-bar-track"
-         role="progressbar"
-         aria-valuemin="0"
-         aria-valuemax="@Session.CurrentFactDeadlineSeconds"
-         aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
-         aria-label="@AriaLabel">
-        <div class="timer-bar-fill"
-             style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
+    @if (Session.HasEnforcedDeadline)
+    {
+        <div class="timer-bar-track"
+             role="progressbar"
+             aria-valuemin="0"
+             aria-valuemax="@Session.CurrentFactDeadlineSeconds"
+             aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
+             aria-label="@AriaLabel">
+            <div class="timer-bar-fill"
+                 style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
+            </div>
+            <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
         </div>
-        <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
-    </div>
+    }
+    else
+    {
+        <div class="timer-bar-track timer-track-unlimited"
+             role="timer"
+             aria-label="@AriaLabel">
+            <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
+        </div>
+    }
 </div>
 
 @code {
@@ -103,19 +114,22 @@
                 }
 
                 var elapsed = Session.GetCurrentItemElapsed();
-                var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
-                if (elapsed.TotalSeconds >= deadlineSeconds)
+                if (Session.HasEnforcedDeadline)
                 {
-                    await InvokeAsync(async () =>
+                    var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
+                    if (elapsed.TotalSeconds >= deadlineSeconds)
                     {
-                        if (!token.IsCancellationRequested && !_isDisposed && Session.IsTimingActive)
+                        await InvokeAsync(async () =>
                         {
-                            UpdateTimerVisuals(deadlineSeconds);
-                            StopTimer();
-                            await OnTimeout.InvokeAsync();
-                        }
-                    });
-                    break;
+                            if (!token.IsCancellationRequested && !_isDisposed && Session.IsTimingActive)
+                            {
+                                UpdateTimerVisuals(deadlineSeconds);
+                                StopTimer();
+                                await OnTimeout.InvokeAsync();
+                            }
+                        });
+                        break;
+                    }
                 }
 
                 UpdateTimerVisuals(elapsed.TotalSeconds);
@@ -142,13 +156,23 @@
 
     private void UpdateTimerVisuals(double elapsedSeconds)
     {
-        var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
-        var remainingSeconds = Math.Max(0.0, deadlineSeconds - elapsedSeconds);
-        _remainingSecondsDouble = remainingSeconds;
-        _timerFraction = deadlineSeconds > 0 ? Math.Clamp(remainingSeconds / deadlineSeconds, 0.0, 1.0) : 0.0;
-        _timerDisplayText = LearningPolicy.FormatTimerDisplay(remainingSeconds, deadlineSeconds);
-        var hue = (int)(_timerFraction * 135);
-        _timerColor = $"hsl({hue}, 72%, 42%)";
+        if (Session.HasEnforcedDeadline)
+        {
+            var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
+            var remainingSeconds = Math.Max(0.0, deadlineSeconds - elapsedSeconds);
+            _remainingSecondsDouble = remainingSeconds;
+            _timerFraction = deadlineSeconds > 0 ? Math.Clamp(remainingSeconds / deadlineSeconds, 0.0, 1.0) : 0.0;
+            _timerDisplayText = LearningPolicy.FormatTimerDisplay(remainingSeconds, deadlineSeconds);
+            var hue = (int)(_timerFraction * 135);
+            _timerColor = $"hsl({hue}, 72%, 42%)";
+        }
+        else
+        {
+            _remainingSecondsDouble = 0.0;
+            _timerFraction = 0.0;
+            _timerDisplayText = LearningPolicy.FormatElapsedTimerDisplay(elapsedSeconds);
+            _timerColor = "transparent";
+        }
     }
 
     private void OnAppForegroundChanged(object? sender, EventArgs e)

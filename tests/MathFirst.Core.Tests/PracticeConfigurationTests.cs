@@ -525,10 +525,11 @@ public sealed class PracticeConfigurationTests
 
     [Theory]
     [InlineData(0, PracticeTimeSetting.Standard)]
+    [InlineData(-1, PracticeTimeSetting.NoTimePressure)]
     [InlineData(30, PracticeTimeSetting.Seconds30)]
     [InlineData(45, PracticeTimeSetting.Seconds45)]
     [InlineData(60, PracticeTimeSetting.Seconds60)]
-    [InlineData(-1, PracticeTimeSetting.Standard)]
+    [InlineData(-2, PracticeTimeSetting.Standard)]
     [InlineData(99, PracticeTimeSetting.Standard)]
     public void PracticeTimePreferencePolicy_NormalizesCorrectly(int raw, PracticeTimeSetting expected)
     {
@@ -539,9 +540,25 @@ public sealed class PracticeConfigurationTests
     public void PracticeTimePreferencePolicy_DeadlineFloors()
     {
         Assert.Equal(0L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Standard));
+        Assert.Equal(0L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.NoTimePressure));
         Assert.Equal(30_000L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Seconds30));
         Assert.Equal(45_000L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Seconds45));
         Assert.Equal(60_000L, PracticeTimePreferencePolicy.GetDeadlineFloorMs(PracticeTimeSetting.Seconds60));
+    }
+
+    [Theory]
+    [InlineData(PracticeTimeSetting.Standard, true, false)]
+    [InlineData(PracticeTimeSetting.NoTimePressure, false, true)]
+    [InlineData(PracticeTimeSetting.Seconds30, true, false)]
+    [InlineData(PracticeTimeSetting.Seconds45, true, false)]
+    [InlineData(PracticeTimeSetting.Seconds60, true, false)]
+    public void PracticeTimePreferencePolicy_SemanticFlags(
+        PracticeTimeSetting setting,
+        bool expectedHasEnforcedDeadline,
+        bool expectedIsNoTimePressure)
+    {
+        Assert.Equal(expectedHasEnforcedDeadline, PracticeTimePreferencePolicy.HasEnforcedDeadline(setting));
+        Assert.Equal(expectedIsNoTimePressure, PracticeTimePreferencePolicy.IsNoTimePressure(setting));
     }
 
     [Theory]
