@@ -191,7 +191,7 @@ When items are accepted into the backlog, they are recorded with:
   7. **Didactic Tips / Visual Math Explanations**: Rejected for current scope (no zero-rule hints, mnemonic tips, ten-frames, or per-fact explanations).
   8. **Error Remediation Spacing**: Keep current spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`).
   9. **Repeated-Error Teaching Lock**: Implemented in Slice 3 — 3-second visible lockout with localized countdown feedback on teaching intervention modal before Continue enables.
-  10. **Haptic Feedback**: Accepted change (pending later slice) — distinguishable tactile feedback for tap, correct, and incorrect/timeout; configurable in Settings and Onboarding.
+  10. **Haptic Feedback**: Implemented in Slice 4 — distinguishable tactile feedback for KeyTap (`Click`), Correct (`40ms pulse`), and Incorrect/Timeout (`120ms pulse`); default enabled, local persisted preference, Settings On/Off toggle with preview, Onboarding Step 2 integration without adding a sixth step, restored to enabled on Restore Defaults and Full Local Reset, preserved on Reset Learning Progress, unsupported platforms safely no-op; physical tactile-quality verification remains pending on Android hardware.
   11. **Streak Feedback**: Accepted change (pending later slice) — positive, age-neutral consecutive correct streak feedback without gamified pressure or learning mutations.
   12. **Confirmation / Learning Mode**: Rejected — auto-submit remains authoritative.
   13. **Pause Information**: Accepted change (pending later slice) — lightweight current-session metrics on Pause overlay.
