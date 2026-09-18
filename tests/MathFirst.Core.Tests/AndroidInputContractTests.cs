@@ -26,8 +26,9 @@ public sealed class AndroidInputContractTests
     {
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
 
-        // Custom numeric keypad markup must be present
+        // Custom numeric keypad markup must be present and keyed to fact instance revision
         Assert.Contains("class=\"numeric-keypad\"", home, StringComparison.Ordinal);
+        Assert.Contains("@key=\"_lastPreparedFactInstanceRevision\"", home, StringComparison.Ordinal);
 
         // Keypad must use NumericKeypadLayoutPolicy for key enumeration
         Assert.Contains("NumericKeypadLayoutPolicy.GetKeys", home, StringComparison.Ordinal);

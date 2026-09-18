@@ -1,0 +1,172 @@
+@using MathFirst.Application
+@using MathFirst.Application.Practice
+@using MathFirst.Domain
+@implements IDisposable
+
+<div class="timer-container">
+    <div class="timer-bar-track"
+         role="progressbar"
+         aria-valuemin="0"
+         aria-valuemax="@Session.CurrentFactDeadlineSeconds"
+         aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
+         aria-label="@AriaLabel">
+        <div class="timer-bar-fill"
+             style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
+        </div>
+        <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TrainingSession Session { get; set; } = default!;
+    [Parameter] public string AriaLabel { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnTimeout { get; set; }
+
+    private CancellationTokenSource? _timerCts;
+    private double _timerFraction = 1.0;
+    private double _remainingSecondsDouble = 30.0;
+    private string _timerDisplayText = "30.000 s";
+    private string _timerColor = "hsl(135, 72%, 42%)";
+    private bool _isDisposed;
+    private long _lastFactRevision = -1;
+
+    protected override void OnInitialized()
+    {
+        Session.AppForegroundStateChanged += OnAppForegroundChanged;
+        SyncTimerState();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Session.FactInstanceRevision != _lastFactRevision)
+        {
+            _lastFactRevision = Session.FactInstanceRevision;
+            SyncTimerState();
+        }
+        else if (Session.IsTimingActive && _timerCts is null)
+        {
+            StartTimer();
+        }
+        else if (!Session.IsTimingActive && _timerCts is not null)
+        {
+            StopTimer();
+            UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
+        }
+    }
+
+    private void SyncTimerState()
+    {
+        var elapsedSeconds = Session.GetCurrentItemElapsed().TotalSeconds;
+        UpdateTimerVisuals(elapsedSeconds);
+
+        if (Session.IsTimingActive)
+        {
+            StartTimer();
+        }
+        else
+        {
+            StopTimer();
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        if (_isDisposed || !Session.IsTimingActive)
+        {
+            return;
+        }
+
+        _timerCts = new CancellationTokenSource();
+        var token = _timerCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            using var periodicTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+            while (!token.IsCancellationRequested && !_isDisposed)
+            {
+                try
+                {
+                    if (!await periodicTimer.WaitForNextTickAsync(token))
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                if (token.IsCancellationRequested || _isDisposed)
+                {
+                    break;
+                }
+
+                var elapsed = Session.GetCurrentItemElapsed();
+                var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
+                if (elapsed.TotalSeconds >= deadlineSeconds)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!token.IsCancellationRequested && !_isDisposed && Session.IsTimingActive)
+                        {
+                            UpdateTimerVisuals(deadlineSeconds);
+                            StopTimer();
+                            await OnTimeout.InvokeAsync();
+                        }
+                    });
+                    break;
+                }
+
+                UpdateTimerVisuals(elapsed.TotalSeconds);
+                await InvokeAsync(StateHasChanged);
+            }
+        }, token);
+    }
+
+    private void StopTimer()
+    {
+        if (_timerCts is not null)
+        {
+            try
+            {
+                _timerCts.Cancel();
+                _timerCts.Dispose();
+            }
+            catch
+            {
+            }
+            _timerCts = null;
+        }
+    }
+
+    private void UpdateTimerVisuals(double elapsedSeconds)
+    {
+        var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
+        var remainingSeconds = Math.Max(0.0, deadlineSeconds - elapsedSeconds);
+        _remainingSecondsDouble = remainingSeconds;
+        _timerFraction = deadlineSeconds > 0 ? Math.Clamp(remainingSeconds / deadlineSeconds, 0.0, 1.0) : 0.0;
+        _timerDisplayText = LearningPolicy.FormatTimerDisplay(remainingSeconds, deadlineSeconds);
+        var hue = (int)(_timerFraction * 135);
+        _timerColor = $"hsl({hue}, 72%, 42%)";
+    }
+
+    private void OnAppForegroundChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (!_isDisposed)
+            {
+                SyncTimerState();
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+        Session.AppForegroundStateChanged -= OnAppForegroundChanged;
+        StopTimer();
+    }
+}

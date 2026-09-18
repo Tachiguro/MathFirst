@@ -254,19 +254,9 @@
                             </div>
                         </div>
 
-                        <div class="timer-container">
-                            <div class="timer-bar-track"
-                                 role="progressbar"
-                                 aria-valuemin="0"
-                                 aria-valuemax="@Session.CurrentFactDeadlineSeconds"
-                                 aria-valuenow="@_remainingSecondsDouble.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
-                                 aria-label="@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]">
-                                <div class="timer-bar-fill"
-                                     style="transform: scaleX(@_timerFraction.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)); background-color: @_timerColor;">
-                                </div>
-                                <span class="timer-bar-text" aria-hidden="true">@_timerDisplayText</span>
-                            </div>
-                        </div>
+                        <PracticeCountdownTimer Session="Session"
+                                                AriaLabel='@Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds]'
+                                                OnTimeout="HandleTimeoutAsync" />
                     </div>
 
                     <div class="practice-layout">
@@ -305,6 +295,7 @@
                         </div>
 
                         <div class="numeric-keypad"
+                             @key="_lastPreparedFactInstanceRevision"
                              role="group"
                              aria-label="@Localizer["Keypad_NumberKeypad"]">
                             @foreach (var key in NumericKeypadLayoutPolicy.GetKeys(_keypadLayout, DecimalSeparator))
@@ -345,19 +336,14 @@
     private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
-    private HashSet<ArithmeticOperation>? _operationProgressEnabledSet;
-
-    private CancellationTokenSource? _timerCts;
-    private double _timerFraction = 1.0;
-    private double _remainingSecondsDouble = 30.0;
-    private string _timerDisplayText = "30.000 s";
-    private string _timerColor = "hsl(135, 72%, 42%)";
+    private HashSet<ArithmeticOperation>? _enabledOperations;
 
     protected override async Task OnInitializedAsync()
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
+        RefreshEnabledOperations();
 
         if (!Session.IsInitialized)
         {
@@ -414,16 +400,11 @@
             {
                 _shouldFocusInput = true;
                 _shouldFocusPrimaryOverlay = false;
-                if (Session.IsTimingActive)
-                {
-                    StartTimer();
-                }
             }
             else
             {
                 _shouldFocusInput = false;
                 _shouldFocusPrimaryOverlay = true;
-                StopTimer();
             }
         }
         else if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
@@ -434,13 +415,11 @@
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
                 _submittedAnswerDisplay = _answerInput;
             }
-            StopTimer();
         }
         else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
         else if (Session.InteractionState is SessionInteractionState.IncorrectFeedback or SessionInteractionState.TimeoutFeedback)
         {
@@ -451,19 +430,16 @@
                 _answerInput = NumericAnswerInputPolicy.Format(submittedAnswer, DecimalSeparator);
                 _submittedAnswerDisplay = _answerInput;
             }
-            StopTimer();
         }
         else if (Session.InteractionState == SessionInteractionState.TeachingIntervention)
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
         else if (Session.InteractionState == SessionInteractionState.SessionCheckIn)
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
 
         SyncPracticeGateCopy();
@@ -473,7 +449,6 @@
     {
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         Session.AppForegroundStateChanged -= OnAppForegroundChanged;
-        StopTimer();
         Session.PauseItemTiming();
     }
 
@@ -498,8 +473,6 @@
             }
             else
             {
-                StopTimer();
-                UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
                 SyncPracticeGateCopy();
             }
             StateHasChanged();
@@ -654,87 +627,6 @@
         }
     }
 
-    private void StartTimer()
-    {
-        StopTimer();
-        UpdateTimerVisuals(Session.GetCurrentItemElapsed().TotalSeconds);
-        if (!Session.IsTimingActive)
-        {
-            return;
-        }
-        _timerCts = new CancellationTokenSource();
-        var token = _timerCts.Token;
-
-        _ = Task.Run(async () =>
-        {
-            using var periodicTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    if (!await periodicTimer.WaitForNextTickAsync(token))
-                    {
-                        break;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-
-                if (token.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                var elapsed = Session.GetCurrentItemElapsed();
-                var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
-                if (elapsed.TotalSeconds >= deadlineSeconds)
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        if (!token.IsCancellationRequested && Session.IsTimingActive)
-                        {
-                            UpdateTimerVisuals(deadlineSeconds);
-                            await HandleTimeoutAsync();
-                        }
-                    });
-                    break;
-                }
-
-                UpdateTimerVisuals(elapsed.TotalSeconds);
-                await InvokeAsync(StateHasChanged);
-            }
-        }, token);
-    }
-
-    private void StopTimer()
-    {
-        if (_timerCts is not null)
-        {
-            try
-            {
-                _timerCts.Cancel();
-                _timerCts.Dispose();
-            }
-            catch
-            {
-            }
-            _timerCts = null;
-        }
-    }
-
-    private void UpdateTimerVisuals(double elapsedSeconds)
-    {
-        var deadlineSeconds = Session.CurrentFactDeadlineSeconds;
-        var remainingSeconds = Math.Max(0.0, deadlineSeconds - elapsedSeconds);
-        _remainingSecondsDouble = remainingSeconds;
-        _timerFraction = deadlineSeconds > 0 ? Math.Clamp(remainingSeconds / deadlineSeconds, 0.0, 1.0) : 0.0;
-        _timerDisplayText = LearningPolicy.FormatTimerDisplay(remainingSeconds, deadlineSeconds);
-        var hue = (int)(_timerFraction * 135);
-        _timerColor = $"hsl({hue}, 72%, 42%)";
-    }
-
     private async Task Submit()
     {
         if (_isSubmitting || !IsAnswerEntryVisible)
@@ -752,7 +644,6 @@
         if (NumericAnswerInputPolicy.TryParseSubmission(_answerInput, out var parsedAnswer))
         {
             _isSubmitting = true;
-            StopTimer();
             try
             {
                 _validationError = null;
@@ -796,7 +687,6 @@
         }
 
         _isSubmitting = true;
-        StopTimer();
         try
         {
             _validationError = null;
@@ -836,7 +726,6 @@
         {
             _shouldFocusInput = false;
             _shouldFocusPrimaryOverlay = true;
-            StopTimer();
         }
     }
 
@@ -866,7 +755,6 @@
                 {
                     _shouldFocusInput = false;
                     _shouldFocusPrimaryOverlay = true;
-                    StopTimer();
                 }
             }
             else
@@ -892,16 +780,11 @@
         SyncPracticeGateCopy();
         _shouldFocusInput = true;
         _shouldFocusPrimaryOverlay = false;
-        if (Session.IsTimingActive)
-        {
-            StartTimer();
-        }
     }
 
     private void PausePractice()
     {
         Session.PausePractice();
-        StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();
@@ -913,10 +796,6 @@
         SyncPracticeGateCopy();
         _shouldFocusPrimaryOverlay = false;
         _shouldFocusInput = true;
-        if (Session.IsTimingActive)
-        {
-            StartTimer();
-        }
     }
 
     private async Task KeepGoingAsync()
@@ -934,7 +813,6 @@
         Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
-        StopTimer();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();
@@ -969,25 +847,40 @@
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
 
+    private void RefreshEnabledOperations()
+    {
+        _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+        UpdateOperationProgress();
+    }
+
+    private void UpdateOperationProgress()
+    {
+        _enabledOperations ??= new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+        var learnerStateGeneration = Session.LearnerStateGenerationRevision;
+        var practicePosition = Session.Progression.PracticePosition;
+        var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
+        _operationProgress = allDiagnostics.Where(d => _enabledOperations.Contains(d.Operation)).ToList();
+        _operationProgressLearnerStateGeneration = learnerStateGeneration;
+        _operationProgressPracticePosition = practicePosition;
+    }
+
+    private void EnsureOperationProgressUpToDate()
+    {
+        var learnerStateGeneration = Session.LearnerStateGenerationRevision;
+        var practicePosition = Session.Progression.PracticePosition;
+        if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
+            _operationProgressPracticePosition != practicePosition ||
+            _operationProgress.Count == 0)
+        {
+            UpdateOperationProgress();
+        }
+    }
+
     private IReadOnlyList<OperationProgressDiagnostics> OperationProgress
     {
         get
         {
-            var enabledSet = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
-            var learnerStateGeneration = Session.LearnerStateGenerationRevision;
-            var practicePosition = Session.Progression.PracticePosition;
-            if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
-                _operationProgressPracticePosition != practicePosition ||
-                _operationProgressEnabledSet is null ||
-                !_operationProgressEnabledSet.SetEquals(enabledSet))
-            {
-                var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
-                _operationProgress = allDiagnostics.Where(d => enabledSet.Contains(d.Operation)).ToList();
-                _operationProgressLearnerStateGeneration = learnerStateGeneration;
-                _operationProgressPracticePosition = practicePosition;
-                _operationProgressEnabledSet = enabledSet;
-            }
-
+            EnsureOperationProgressUpToDate();
             return _operationProgress;
         }
     }
@@ -996,7 +889,7 @@
         PracticeProgressOverview.Create(
             Session.Progression,
             _curriculum,
-            PreferenceStore.GetEnabledOperations(),
+            _enabledOperations?.ToList() ?? PreferenceStore.GetEnabledOperations(),
             Session.HasCompletedPracticeHistory);
 
     private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
