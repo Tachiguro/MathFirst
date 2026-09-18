@@ -459,6 +459,8 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) { }
         public string GetLanguagePreference() => "system";
         public void SetLanguagePreference(string languageCode) { }
+        public bool GetHapticFeedbackEnabled() => true;
+        public void SetHapticFeedbackEnabled(bool enabled) { }
         public bool GetOperationEnabled(ArithmeticOperation operation) =>
             _operationPreferences.GetValueOrDefault(operation, true);
         public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) =>

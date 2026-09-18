@@ -39,6 +39,7 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
+        public bool HapticFeedbackEnabled { get; set; } = true;
 
         public bool GetOnboardingCompleted() => OnboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
@@ -48,6 +49,8 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
         public void SetThemePreference(ThemePreference preference) => Theme = preference;
         public NumericKeypadLayout GetNumericKeypadLayout() => KeypadLayout;
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
+        public bool GetHapticFeedbackEnabled() => HapticFeedbackEnabled;
+        public void SetHapticFeedbackEnabled(bool enabled) => HapticFeedbackEnabled = enabled;
 
         public bool GetOperationEnabled(ArithmeticOperation operation) =>
             _boolPrefs.GetValueOrDefault($"op_{operation}", true);
@@ -86,6 +89,7 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
+            HapticFeedbackEnabled = true;
             ResetPracticePreferences();
         }
     }

@@ -10,7 +10,7 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Slice 3 — Teaching Lock and Visual Feedback Polish
+- **Active Task**: Slice 4 — Configurable Haptic Feedback
 - **Current Operation Mode**: `IMPLEMENT_SLICE`
 - **Active Task Branch**: `feat/mf-ux-005-practice-performance-keypad-reliability`
 - **Baseline Commit**: `156d5afd32299ba19d8ca2a8f2f56a7babfe31d8` (merged PR #29)
@@ -25,11 +25,17 @@ This document provides operational context for current repository work.
      - Onboarding steps 2–5 navigate back to previous step; step 1 safely passes through to platform default backgrounding without losing draft state or completing onboarding.
      - Settings page navigates directly back to `/` (Home/Practice), preserving the active question, partial answer input, and remaining answer deadline semantics (Settings time excluded from answer latency).
      - Practice/Home root surface passes through to normal Android task backgrounding with active timer frozen behind the resume gate.
-- **Slice 3 Progress (Current Slice)**:
+- **Slice 3 Progress (Completed & Validated)**:
   1. Minimum 3-Second Visible Lock for Repeated-Error Teaching Intervention: Implemented `TeachingLockTracker` with monotonic clock time accumulation and `TeachingInterventionDialog.razor` with 10 Hz countdown feedback. Continue button is initially disabled with localized countdown, Enter key bypass is blocked while locked, backgrounding freezes required visible dwell time, and acknowledging upon unlock preserves zero scoring/progression mutations.
   2. Non-Destructive Amber/Yellow Pause Styling: Replaced `.button-danger` on `.pause-practice-btn` with dedicated `.button-pause` / `.button-warning` with accessible high-contrast amber palette in Light (`#b26a00`) and Dark (`#e09f3e`) modes, preserving destructive danger styling on reset controls.
   3. Modernized Timer Typography: Completely removed `-webkit-text-stroke` and heavy text shadows across all breakpoints; introduced clean, bold sans-serif timer typography with subtle dark translucent pill backing providing high contrast in Light and Dark themes across all timer fill colors.
-- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 3
+- **Slice 4 Progress (Current Slice)**:
+  1. Haptic Feedback Application Abstraction & Failure Isolation: Defined `IHapticFeedbackService`, `IHapticDriver`, `HapticFeedbackService`, `NoOpHapticDriver`, and `HapticFeedbackCue` (`KeyTap`, `Correct`, `Incorrect`, `Timeout`) in `MathFirst.Application` with complete failure isolation protecting learning and submission flow from hardware/driver exceptions.
+  2. Platform Driver & Android Manifest Normal Permission: Implemented `MauiHapticDriver` in `MathFirst.App.Services` utilizing `Microsoft.Maui.Devices.HapticFeedback` (`Click` for `KeyTap`) and `Vibration` (40ms pulse for `Correct`, 120ms pulse for `Incorrect`/`Timeout`), safe no-op on Windows/unsupported platforms, and declared only the normal `android.permission.VIBRATE` permission in `AndroidManifest.xml`.
+  3. Preference Persistence & Reset Workflows: Added persisted boolean `Haptic Feedback Enabled` (default `true`) to `IPreferenceStore` and `MauiPreferenceStore` (`mathfirst.haptic_feedback_enabled`), restored to enabled on Restore Defaults and Full Local Reset, preserved on Reset Learning Progress.
+  4. Onboarding & Settings UI Integration: Integrated haptic toggle in Settings with immediate persistence and preview cue on enable, and integrated haptic selection in Onboarding Step 2 (Keypad Layout) preserving draft choice across step transitions and maintaining the exact five-step onboarding flow.
+  5. Practice Interaction Integration: Wired `KeyTap` to numeric keypad taps and backspace, `Correct` to accepted correct answer evaluation, `Incorrect` to accepted incorrect answer evaluation, and `Timeout` to session timeout, with auto-submit double feedback handling and no re-render duplicate cues.
+- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 4
 
 ---
 
@@ -46,7 +52,7 @@ The following 18 product and UX decisions are authoritative across all subsequen
 7. **Didactic Tips / Visual Math Explanations**: REJECTED FOR CURRENT PRODUCT SCOPE. Do NOT add zero-rule hints, multiplication mnemonic tips, ten-frame graphics, dots/counters, or per-fact explanations. Canonical equation/result is sufficient.
 8. **Error Remediation Spacing**: KEEP CURRENT BEHAVIOR. Retain existing spaced in-session remediation (`LearningPolicy.RemediationInterveningCount = 3`); incorrect facts do not immediately repeat on the consecutive turn.
 9. **Repeated-Error Teaching Lock**: IMPLEMENTED IN SLICE 3. On second consecutive error for the exact FactId, TeachingIntervention displays canonical equation with Continue initially disabled for a 3-second visible lockout with localized countdown feedback, acknowledging with zero scoring or learning mutations.
-10. **Haptic Feedback**: ACCEPTED CHANGE — PENDING LATER SLICE. Provide distinguishable Android tactile feedback for keypad tap, correct answer, and incorrect/timeout; subtle, respects platform capabilities without unnecessary vibration permissions, no-ops safely on unsupported platforms, configurable in Settings and Onboarding, persisted locally, default enabled.
+10. **Haptic Feedback**: IMPLEMENTED IN SLICE 4. Provided distinguishable tactile feedback for keypad tap (`Click`), correct answer (`40ms pulse`), and incorrect/timeout (`120ms pulse`); subtle, respects platform capabilities with only normal `VIBRATE` manifest permission, no-ops safely on unsupported platforms, configurable in Settings and Onboarding Step 2, persisted locally, default enabled.
 11. **Streak Feedback**: ACCEPTED CHANGE — PENDING LATER SLICE. Positive, age-neutral consecutive correct streak feedback without manipulative pressure, fake praise, or learning mutations; session presentation only.
 12. **Confirmation / Learning Mode**: REJECTED. Do NOT add answer confirmation buttons, checkmark submit buttons, or separate Learning/Sprint modes. Smart auto-submit remains authoritative.
 13. **Pause Information**: ACCEPTED — PENDING LATER SLICE. Lightweight current-session stats on Pause overlay (completed/correct attempts, streak, valid progression changes, median correct latency) without invented percentages.
@@ -63,13 +69,12 @@ The following 18 product and UX decisions are authoritative across all subsequen
 The following accepted items under `MF-UX-005` remain pending for subsequent implementation slices:
 
 1. **No Time Pressure Mode**: Practice time option measuring latency without deadlines/timeouts.
-2. **Configurable Haptic Touch Feedback**: Platform haptic feedback with Onboarding and Settings preferences.
-3. **Restrained Streak Feedback**: Positive consecutive correct streak presentation.
-4. **Pause Overlay Information**: Extended session statistics on the manual pause dialog.
-5. **Native Startup White-Flash / Root-Theme Correction**: Elimination of native window/activity white flash during initial splash/theme launch with KnownFirst portability guidance.
-6. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis and runtime app data profiling.
-7. **Tester Ergonomics**: Streamlined tester diagnostics and feedback mechanisms.
-8. **Physical Android Device Verification**: Physical confirmation of Android system-Back navigation and cumulative UX behaviors on hardware.
+2. **Restrained Streak Feedback**: Positive consecutive correct streak presentation.
+3. **Pause Overlay Information**: Extended session statistics on the manual pause dialog.
+4. **Native Startup White-Flash / Root-Theme Correction**: Elimination of native window/activity white flash during initial splash/theme launch with KnownFirst portability guidance.
+5. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis and runtime app data profiling.
+6. **Tester Ergonomics**: Streamlined tester diagnostics and feedback mechanisms.
+7. **Physical Android Device Verification**: Physical confirmation of Android system-Back navigation, haptic feel, and cumulative UX behaviors on hardware.
 
 ---
 

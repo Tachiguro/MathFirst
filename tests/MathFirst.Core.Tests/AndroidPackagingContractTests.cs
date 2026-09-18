@@ -42,7 +42,7 @@ public sealed class AndroidPackagingContractTests
         // Enforce offline-first architecture (ADR-0002): No network permissions declared in release manifest
         Assert.DoesNotContain("android.permission.INTERNET", permissions);
         Assert.DoesNotContain("android.permission.ACCESS_NETWORK_STATE", permissions);
-        Assert.Empty(permissions);
+        Assert.Equal(["android.permission.VIBRATE"], permissions);
 
         var application = manifest.Descendants("application").Single();
         Assert.Equal("true", application.Attribute(AndroidNs + "allowBackup")?.Value);

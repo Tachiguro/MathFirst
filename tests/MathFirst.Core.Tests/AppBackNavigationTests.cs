@@ -337,6 +337,7 @@ public sealed class AppBackNavigationTests : IDisposable
         private ThemePreference _theme = ThemePreference.System;
         private NumericKeypadLayout _keypad = NumericKeypadLayout.Numpad;
         private PracticeTimeSetting _practiceTime = PracticeTimeSetting.Standard;
+        private bool _hapticEnabled = true;
 
         public bool GetOnboardingCompleted() => _onboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => _onboardingCompleted = completed;
@@ -346,6 +347,8 @@ public sealed class AppBackNavigationTests : IDisposable
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => _keypad = layout;
         public string GetLanguagePreference() => _language;
         public void SetLanguagePreference(string languageCode) => _language = languageCode;
+        public bool GetHapticFeedbackEnabled() => _hapticEnabled;
+        public void SetHapticFeedbackEnabled(bool enabled) => _hapticEnabled = enabled;
         public bool GetOperationEnabled(ArithmeticOperation operation) => _operations.GetValueOrDefault(operation, true);
         public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) => _operations[operation] = enabled;
         public IReadOnlyList<ArithmeticOperation> GetEnabledOperations() =>
@@ -362,6 +365,7 @@ public sealed class AppBackNavigationTests : IDisposable
             _theme = ThemePreference.System;
             _keypad = NumericKeypadLayout.Numpad;
             _practiceTime = PracticeTimeSetting.Standard;
+            _hapticEnabled = true;
         }
     }
 

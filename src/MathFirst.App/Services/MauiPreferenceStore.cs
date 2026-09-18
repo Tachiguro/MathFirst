@@ -16,6 +16,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore
     private const string MultiplicationEnabledKey = "mathfirst.operation.multiplication_enabled";
     private const string DivisionEnabledKey = "mathfirst.operation.division_enabled";
     private const string PracticeTimeSettingKey = "mathfirst.practice_time_setting";
+    private const string HapticFeedbackEnabledKey = "mathfirst.haptic_feedback_enabled";
 
     private static string GetOperationKey(ArithmeticOperation operation) => operation switch
     {
@@ -59,6 +60,12 @@ public sealed class MauiPreferenceStore : IPreferenceStore
 
     public void SetLanguagePreference(string languageCode) =>
         Preferences.Default.Set(LanguageKey, languageCode);
+
+    public bool GetHapticFeedbackEnabled() =>
+        Preferences.Default.Get(HapticFeedbackEnabledKey, true);
+
+    public void SetHapticFeedbackEnabled(bool enabled) =>
+        Preferences.Default.Set(HapticFeedbackEnabledKey, enabled);
 
     public bool GetOperationEnabled(ArithmeticOperation operation) =>
         Preferences.Default.Get(GetOperationKey(operation), true);
@@ -106,6 +113,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         Preferences.Default.Remove(ThemeKey);
         Preferences.Default.Remove(LanguageKey);
         Preferences.Default.Remove(NumericKeypadLayoutKey);
+        Preferences.Default.Remove(HapticFeedbackEnabledKey);
         ResetPracticePreferences();
     }
 }

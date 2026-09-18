@@ -72,6 +72,9 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Phone keypad", service["Keypad_Phone"]);
         Assert.Equal("PC numpad", service["Keypad_Numpad"]);
         Assert.Equal("Backspace", service["Keypad_Backspace"]);
+        Assert.Equal("Haptic feedback", service["Settings_HapticFeedbackTitle"]);
+        Assert.Equal("Use vibration feedback for keypad taps and answer results.", service["Settings_HapticFeedbackHelp"]);
+        Assert.Equal("Haptic feedback On.", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Version 1.0 (Build 1)", service["Settings_VersionBuild", "1.0", 1]);
 
         service.ApplyLanguagePreference("de");
@@ -86,6 +89,9 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Telefon-Tastatur", service["Keypad_Phone"]);
         Assert.Equal("PC-Ziffernblock", service["Keypad_Numpad"]);
         Assert.Equal("Rücktaste", service["Keypad_Backspace"]);
+        Assert.Equal("Haptisches Feedback", service["Settings_HapticFeedbackTitle"]);
+        Assert.Equal("Vibrationsfeedback für Tastatureingaben und Antwort-Ergebnisse verwenden.", service["Settings_HapticFeedbackHelp"]);
+        Assert.Equal("Haptisches Feedback Ein.", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Version 1.0 (Build 1)", service["Settings_VersionBuild", "1.0", 1]);
 
         service.ApplyLanguagePreference("ru");
@@ -100,6 +106,9 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Телефонная клавиатура", service["Keypad_Phone"]);
         Assert.Equal("Цифровой блок ПК", service["Keypad_Numpad"]);
         Assert.Equal("Удалить символ", service["Keypad_Backspace"]);
+        Assert.Equal("Тактильный отклик", service["Settings_HapticFeedbackTitle"]);
+        Assert.Equal("Использовать вибрацию при нажатии клавиш и результатах ответов.", service["Settings_HapticFeedbackHelp"]);
+        Assert.Equal("Тактильный отклик: Вкл..", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Версия 1.0 (сборка 1)", service["Settings_VersionBuild", "1.0", 1]);
     }
 

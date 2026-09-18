@@ -11,6 +11,7 @@
 @inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
 @inject IJSRuntime JSRuntime
+@inject IHapticFeedbackService HapticService
 
 <div class="training-host" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
@@ -596,6 +597,8 @@
             return;
         }
 
+        HapticService.PerformCue(HapticFeedbackCue.KeyTap);
+
         _answerInput = key == "backspace"
             ? NumericAnswerInputPolicy.Backspace(_answerInput)
             : NumericAnswerInputPolicy.Append(_answerInput, key);
@@ -639,6 +642,14 @@
                 _validationError = null;
                 _submittedAnswerDisplay = _answerInput;
                 var eval = Session.SubmitAnswer(parsedAnswer);
+                if (eval.IsCorrect)
+                {
+                    HapticService.PerformCue(HapticFeedbackCue.Correct);
+                }
+                else
+                {
+                    HapticService.PerformCue(HapticFeedbackCue.Incorrect);
+                }
                 var persistence = await Session.CommitCurrentEvaluationAsync();
                 var advancedAutomatically = eval.IsCorrect &&
                     persistence.IsSuccess &&
@@ -682,6 +693,8 @@
             _validationError = null;
             Session.RecordTimeout();
             _shouldFocusPrimaryOverlay = true;
+
+            HapticService.PerformCue(HapticFeedbackCue.Timeout);
 
             await Session.CommitCurrentEvaluationAsync();
         }

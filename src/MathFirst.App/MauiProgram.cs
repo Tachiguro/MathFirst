@@ -26,6 +26,8 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IPreferenceStore, MauiPreferenceStore>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
+		builder.Services.AddSingleton<IHapticDriver, MauiHapticDriver>();
+		builder.Services.AddSingleton<IHapticFeedbackService, HapticFeedbackService>();
 		builder.Services.AddSingleton<IAppBackNavigationCoordinator, AppBackNavigationCoordinator>();
 		builder.Services.AddTransient<MainPage>();
 		builder.Services.AddSingleton<AppBuildInfo>();

@@ -36,6 +36,7 @@ public sealed class ResetWorkflowTests : IDisposable
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
+        public bool HapticFeedbackEnabled { get; set; } = true;
 
         public bool GetOnboardingCompleted() => OnboardingCompleted;
         public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
@@ -45,6 +46,8 @@ public sealed class ResetWorkflowTests : IDisposable
         public void SetThemePreference(ThemePreference preference) => Theme = preference;
         public NumericKeypadLayout GetNumericKeypadLayout() => KeypadLayout;
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
+        public bool GetHapticFeedbackEnabled() => HapticFeedbackEnabled;
+        public void SetHapticFeedbackEnabled(bool enabled) => HapticFeedbackEnabled = enabled;
 
         private readonly Dictionary<string, bool> _operations = new(StringComparer.Ordinal);
         private PracticeTimeSetting _practiceTimeSetting = PracticeTimeSetting.Standard;
@@ -84,6 +87,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
+            HapticFeedbackEnabled = true;
             ResetPracticePreferences();
         }
     }

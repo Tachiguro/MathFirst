@@ -23,6 +23,9 @@ public interface IPreferenceStore
     PracticeTimeSetting GetPracticeTimeSetting();
     void SetPracticeTimeSetting(PracticeTimeSetting setting);
 
+    bool GetHapticFeedbackEnabled();
+    void SetHapticFeedbackEnabled(bool enabled);
+
     void ResetPracticePreferences();
     void ResetAllPreferences();
 }
