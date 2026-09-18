@@ -10,10 +10,10 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Slice 6 — Restrained Streak Feedback and Pause Session Summary
+- **Active Task**: Slice 7 — Startup White-Flash Correction
 - **Current Operation Mode**: `IMPLEMENT_SLICE`
-- **Active Task Branch**: `feat/mf-ux-005-practice-performance-keypad-reliability`
-- **Baseline Commit**: `156d5afd32299ba19d8ca2a8f2f56a7babfe31d8` (merged PR #29)
+- **Active Task Branch**: `feat/mf-ux-005-startup-white-flash`
+- **Baseline Commit**: `bde91a7578753f5c468d0534282edd9fd13f32a0` (merged PR #30)
 - **Slice 1 Progress (Completed & Validated)**:
   1. Practice timer render isolation: Extracted countdown presentation into `PracticeCountdownTimer.razor` updating at 10 Hz (100ms interval), eliminating ~20 full `Home.razor` component re-renders per second while maintaining authoritative monotonic elapsed time and timeout accuracy.
   2. Preferences hot-path removal: Removed repeated `PreferenceStore.GetEnabledOperations()` reads from `OperationProgress` during hot timer/render evaluation; enabled operations are cached at explicit initialization and lifecycle boundaries.
@@ -41,13 +41,20 @@ This document provides operational context for current repository work.
   3. Response Latency & Learning Integrity: Active elapsed response time continues to be measured monotonically, excluding pauses, Settings, background/suspend, and feedback gates. Actual measured latency is persisted uncapped into attempt records, FSRS ratings, item states, and adaptive pace history without synthetic "unlimited = fluent" bias.
   4. Count-Up Elapsed Presentation & Accessibility: `PracticeCountdownTimer.razor` conditionally renders count-up elapsed time (`LearningPolicy.FormatElapsedTimerDisplay`) with neutral timer container (`role="timer"`, localized elapsed aria-label), eliminating countdown bars, color-draining transitions, and fake progressbar maximums in No Time Pressure mode, while preserving 10 Hz render isolation and Slice 3 modern pill typography.
   5. Settings UI & Localization Parity: Added "No Time Pressure" (`PracticeTime_NoTimePressure`) option to Practice Time settings with accessible selection state and responsive grid layout (`.choice-grid-practice-time`), complete localization parity in English, German (`Ohne Zeitdruck`), and Russian (`Без спешки`), preserved across Reset Learning Progress, and restored to `Standard` on Restore Defaults and Full Local Reset.
-- **Slice 6 Progress (Current Slice)**:
+- **Slice 6 Progress (Completed & Validated)**:
   1. Restrained Current Correct Streak Feedback: Implemented transient `TrainingSession.CurrentCorrectStreak` (+1 on Correct, 0 on Incorrect/Timeout, 0 on Reset Learning Progress and cold start). During active practice, a subtle `.practice-streak-badge` appears in `.training-meta-row` only when streak $\ge 3$ (e.g. `Streak: 3`, `Streak: 7`) with localized accessible labels (`Training_Streak`, `Training_StreakAriaLabel`), disappearing instantly upon error/timeout without celebratory fanfare, XP, or gamification.
   2. Truthful Pause Session Summary: Implemented immutable `PracticeSessionSummary` and `TrainingSession.GetSessionSummary()` displaying Completed count, Correct count, Current streak, and Median correct response time (`LearningPolicy.FormatLatencySeconds` / `AdaptivePacePolicy.Median`) in `.pause-session-summary` within the Manual Pause overlay. Neutral placeholder `—` when 0 correct attempts.
   3. Strict Non-Mutation and Zero Schema Changes: Streak and pause summary state is purely transient in-memory presentation state. Zero SQLite schema changes, zero database writes/reads during render loops, zero impact on FSRS-6 spaced repetition, adaptive pace calculation, novel fact progression, or band advancement.
   4. Full Localization Parity: Added keys for English, German (`Serie`, `Pause-Übersicht`, `Abgeschlossen`, `Richtig`, `Aktuelle Serie`, `Mittlere Zeit`), and Russian (`Серия`, `Итоги паузы`, `Завершено`, `Правильно`, `Текущая серия`, `Среднее время`).
-  5. Comprehensive Verification: 25 new targeted unit tests in `SessionStreakAndSummaryTests.cs` (1269 total passing tests across the test suite).
-- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 6
+  5. Comprehensive Verification: 25 targeted unit tests in `SessionStreakAndSummaryTests.cs` (1269 total passing tests across the test suite).
+- **Slice 7 Progress (Current Slice)**:
+  1. Root-Cause Analysis: Confirmed primary white-flash sources are native Android WebView default white canvas and unstyled first-paint of `index.html` with raw `<div id="app">MathFirst</div>`. The brand splash itself (`#176B4D`) is verified healthy and retained as the continuous neutral handoff surface.
+  2. Native Android BlazorWebView Handshake: Added Android-specific platform mapping via `BlazorWebViewHandler.Mapper.AppendToMapping("StartupSurfaceBackground", ...)` in `MauiProgram.cs` setting native WebView background color to `#176B4D`, eliminating the white native canvas before HTML first paint without adding permissions or custom WebViewClient.
+  3. Static HTML First-Paint Synchronous Styling: Added synchronous inline `<style>` block in `<head>` of `index.html` setting `html, body, #app` to `#176B4D` (width/height 100%), beating browser defaults and external Bootstrap before runtime stylesheets load.
+  4. Raw Placeholder Removal: Replaced `<div id="app">MathFirst</div>` with empty container `<div id="app"></div>`, eliminating unstyled plain-text flashes while preserving clean Blazor mounting.
+  5. Authoritative Theme Preservation: Kept single source of truth in `ThemeService` / `IPreferenceStore`. Zero localStorage theme duplication, zero JS-bridge races, zero SQLite changes.
+  6. Visual Handoff & Physical Verification Boundary: Established continuous visual pipeline: Native Splash (`#176B4D`) -> Native Android WebView (`#176B4D`) -> Static HTML Surface (`#176B4D`) -> Rendered MathFirst UI (Light `#F4F7F5` / Dark `#121916`). Physical hardware verification retained as `STARTUP_WHITE_FLASH_PHYSICAL_VALIDATION_PENDING`.
+- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Slice 7
 
 ---
 
@@ -68,7 +75,7 @@ The following 18 product and UX decisions are authoritative across all subsequen
 11. **Streak Feedback**: IMPLEMENTED IN SLICE 6. Positive, age-neutral consecutive correct streak feedback without manipulative pressure, fake praise, or learning mutations; session presentation only (visible in HUD when streak $\ge 3$).
 12. **Confirmation / Learning Mode**: REJECTED. Do NOT add answer confirmation buttons, checkmark submit buttons, or separate Learning/Sprint modes. Smart auto-submit remains authoritative.
 13. **Pause Information**: IMPLEMENTED IN SLICE 6. Lightweight current-session stats on Pause overlay (Completed, Correct, Current streak, Median correct latency) without invented percentages.
-14. **Startup White Flash**: ACCEPTED DEFECT INVESTIGATION — PENDING LATER SLICE. Investigate native MAUI/Android launch theme, splash background, and BlazorWebView initialization to eliminate white flash before dark UI renders, including portable guidance for KnownFirst and other MAUI Blazor apps.
+14. **Startup White Flash**: IMPLEMENTED IN SLICE 7. Neutral brand-continuity startup handoff (#176B4D native splash -> #176B4D Android WebView canvas -> #176B4D static HTML surface -> first rendered Light/Dark Blazor UI), empty app root container, no localStorage theme duplication, physical verification pending.
 15. **Installed Size / App Data**: ACCEPTED INVESTIGATION — PENDING LATER SLICE. Separate analysis of debug vs release APK/AAB payloads, native libraries, WebView runtime, SQLite storage, and cache. Debug APK size is not production evidence.
 16. **Tester Ergonomics**: PENDING MF-UX-005 SCOPE. Source/build identity display, easy diagnostic copy, repeatable tester artifacts without release build leaks.
 17. **KnownFirst-Style Onboarding Action Layout**: IMPLEMENTED IN SLICE 2. Vertically stacked full-width actions with primary forward action on top and Back below across all 5 steps, with in-session draft selection preservation and no Skip shortcut.
@@ -80,10 +87,9 @@ The following 18 product and UX decisions are authoritative across all subsequen
 
 The following accepted items under `MF-UX-005` remain pending for subsequent implementation slices:
 
-1. **Native Startup White-Flash / Root-Theme Correction**: Elimination of native window/activity white flash during initial splash/theme launch with KnownFirst portability guidance.
-2. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis and runtime app data profiling.
-3. **Tester Ergonomics**: Streamlined tester diagnostics and feedback mechanisms.
-4. **Physical Android Device Verification**: Physical confirmation of Android system-Back navigation, haptic feel, and cumulative UX behaviors on hardware.
+1. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis and runtime app data profiling.
+2. **Tester Ergonomics**: Streamlined tester diagnostics and feedback mechanisms.
+3. **Physical Android Device Verification**: Physical confirmation of Startup White-Flash elimination, Android system-Back navigation, haptic feel, and cumulative UX behaviors on hardware.
 
 ---
 

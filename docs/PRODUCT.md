@@ -46,7 +46,7 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 - **Product identity**: MathFirst (`com.tachiguro.mathfirst`) currently presents release version `1.0` and build `1`.
 - **Visible version information**: Settings displays localized Version/Build information.
 - **Native brand treatment**: A white geometric MF mark uses primary green `#176B4D`, companion green `#0F523A`, light native background `#F4F7F5`, and dark native background `#121916`.
-- **Fallback surfaces**: Not Found content is localized in English, German, and Russian; the native startup placeholder is the language-neutral `MathFirst`.
+- **Fallback surfaces**: Not Found content is localized in English, German, and Russian; the native startup surface uses language-neutral brand-green handoff (`#176B4D`) before Blazor mounts.
 
 ---
 

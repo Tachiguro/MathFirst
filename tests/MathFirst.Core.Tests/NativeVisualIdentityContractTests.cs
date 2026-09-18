@@ -129,7 +129,8 @@ public sealed class NativeVisualIdentityContractTests
         Assert.Contains("@Localizer[\"NotFound_Title\"]", notFound, StringComparison.Ordinal);
         Assert.Contains("@Localizer[\"NotFound_Description\"]", notFound, StringComparison.Ordinal);
         Assert.DoesNotContain("Loading...", index, StringComparison.Ordinal);
-        Assert.Contains("<div id=\"app\">MathFirst</div>", index, StringComparison.Ordinal);
+        Assert.DoesNotContain("<div id=\"app\">MathFirst</div>", index, StringComparison.Ordinal);
+        Assert.Contains("<div id=\"app\"></div>", index, StringComparison.Ordinal);
     }
 
     private static string GetRepositoryPath(params string[] segments) =>
