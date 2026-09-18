@@ -8,7 +8,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 - **Project Name**: MathFirst
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
-- **Current Status**: `MF-LEARN-001`, `MF-UX-002`, `MF-UX-003`, `MF-STAB-001`, `MF-LEARN-002`, `MF-LEARN-003`, `MF-REL-001`, `MF-SET-001`, `MF-DOC-003` (PR #19), MathFirst Privacy Policy (PR #20), `MF-STAB-002` (PR #21, #22, #23), `MF-DOC-004` (PR #24), `MF-UX-004` (PR #25), and `MF-REL-002` (PR #26 at `79e0d48c058747e8112388d31d721a049ec2857a`) are complete and merged into `main`. All planned pre-release implementation packages are complete; post-MF-REL-002 project-state documentation is reconciled in preparation for Phase 6 Final Exact-Candidate Native V1 Validation.
+- **Current Status**: All planned pre-release implementation packages through `MF-REL-002` were merged into `main`. The subsequent native V1 release candidate (`bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10`) and signed Android AAB SHA-256 `0d188406aa32001a354c140587a7c4355b44bccee879d73e7975d5737cf53cfe` were rejected during physical-device verification (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`) due to curriculum fact-eligibility and startup resilience defects. Forensic remediation is active on task branch `handoff/task3-partial-laptop-20260916`: Tasks 1–8 are implemented, Task 9 (Documentation Reconciliation & ADR-0007 Authoring) is active in this slice, and the remediation branch is not yet merged into `main`. Current `main` remains at pre-remediation commit `4e997f35b4a7884b4b0592beab682a36319ea358`. No new release candidate exists, no replacement production AAB has been packaged or signed, no post-remediation physical verification has occurred, and Google Play upload remains strictly unauthorized.
 
 ---
 
@@ -61,6 +61,17 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Teaching Interventions**: Non-mutating canonical equation teaching overlay triggers on a second consecutive session error on the same exact `FactId`, requiring the learner to press "I understand" before proceeding without generating attempt records, advancing Practice Position, or mutating FSRS card state.
 - **Session Check-ins**: Periodic checkpoint occurs every 20 accepted attempts, presenting correct count, median latency of correct attempts only, and actual Stage changes, offering Keep Going and Take a Break choices with guaranteed zero-timing pause semantics.
 - **Schema V6 Persistence & Partial Index**: Learner persistence format is **Schema V6** with partial index `ix_attempt_history_operation_fact_position` on `attempt_history(operation, fact_id, practice_position DESC) WHERE practice_position IS NOT NULL`. Store contract `LoadLatestFrontierAttemptsAsync` queries bounded latest-per-frontier attempts ($N \le 25$). Index creation and repair are idempotent physical maintenance without store revision increment.
+- **Practice Fact Eligibility Invariant & Defense-in-Depth ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md))**:
+  - For any presented arithmetic fact $F$ for operation $O$ at current progression band $B$: $\text{owner}_O(F) \le B$.
+  - Universal applicability across all presentation roles: `New`, `Frontier`, `Due`, `Maintenance`, `EarlyReview`, and `Remediation`.
+  - Canonical ownership is determined uniquely by `AcquisitionOwnershipResolver`.
+  - Persisted/materialized historical facts with $\text{owner}_O(F) > B$ remain preserved losslessly in SQLite (`item_learning_state`, `fsrs_card_state`) as dormant learner evidence; they are never deleted or reset. When progression advances to their band, they automatically become eligible for review with historical FSRS intervals intact (`PERSISTED != CURRENTLY PRESENTABLE` and `DUE != AUTOMATICALLY ELIGIBLE`).
+  - Defense-in-depth across layers: pure domain `IsEligible` resolver failing closed on invalid/future facts, snapshot filtering, SQLite candidate streaming before 64-item truncation (preventing window poisoning and candidate starvation), selector pure defense across all review pools, and persistence validation in `SqliteLearnerStore.ValidateNewAcceptedSubmission` rejecting future-fact attempts with transaction rollback (`PersistenceResult.InvalidSubmission`).
+- **Session Startup Resilience & Recovery ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md))**:
+  - `TrainingSession.InitializeAsync` fails closed on store or evidence failure, leaving `IsInitialized == false`.
+  - `Home.razor` catches initialization exceptions during `OnInitializedAsync` to render a dedicated startup error boundary (`_startupFailed`) without evaluating `CurrentFact`, `LastEvaluation`, or `LastPersistenceResult`, preventing Blazor lifecycle crashes and `NullReferenceException`.
+  - Non-destructive retry re-invokes `InitializeAsync` cleanly and transitions to `InitialReadyGate` on success without deleting or resetting learner progress.
+  - Startup recovery is architecturally separated from post-submission `PersistenceFailure` recovery.
 - Exact facts use stable, presentation-direction-sensitive canonical IDs.
 - `FSRS.Core` 1.0.7 is integrated with 95% desired retention, 21 parameters, disabled fuzzing, deterministic per-FactId card identity, and Practice Position virtual time.
 - `MathFirst.Infrastructure.Sqlite` owns the concrete native `SqliteLearnerStore` and `Microsoft.Data.Sqlite`; the Application layer owns persistence contracts. Accepted submissions commit attempt, item, FSRS, and progression changes atomically with revision checks, idempotent SubmissionId replay, and publish-after-successful-persistence session semantics.
@@ -98,6 +109,13 @@ This document records stable, verified facts about MathFirst. It excludes transi
   - separation of curriculum expansion from fluency/latency evaluations;
   - retirement of Fast Acquisition and the `MUL-D01` special bootstrap;
   - retention of Structured rolling-window advancement.
+- [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md) records the accepted and implemented Practice Fact Eligibility Invariant and Startup Resilience architecture:
+  - establishes the Practice Fact Eligibility Invariant ($\text{owner}_O(F) \le B$) across all presentation roles (`New`, `Frontier`, `Due`, `Maintenance`, `EarlyReview`, `Remediation`);
+  - explicitly supersedes the ADR-0003 fact-space review-eligibility semantics ("reviewable regardless of the current band");
+  - preserves persisted future-band facts as dormant historical evidence without data deletion or progress reset;
+  - enforces multi-layer defense-in-depth across pure domain resolver, snapshot filtering, SQLite candidate streaming, selector pure defense, and persistence validation gates;
+  - establishes startup initialization recovery and fail-closed error boundaries in `Home.razor`;
+  - records the formal rejection of former candidate `bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10` and signed Android AAB `0d188406aa32001a354c140587a7c4355b44bccee879d73e7975d5737cf53cfe` (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`).
 
 ---
 
@@ -127,10 +145,14 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **ValidationReceipt Schema v1**: Enforces fail-closed validation with string enums (`SourceCandidate`/`Distributable`, `ValidatorApproved`); rejects numeric enum representations; captures exact AAB SHA-256, staged provenance SHA-256, signer certificate SHA-256, and signer classification (`development-debug` or `release-distributable`).
 - **Release Profile Characterization**: Characterizes Release build properties for Android and unpackaged Windows targets.
 - **Downstream Release State**:
-  - Phase 6 Final Exact-Candidate Native V1 Validation: **NOT YET RUN** (exact candidate resolved from synchronized `main` post-reconciliation).
-  - Production packaging and signing: **NOT YET RUN**.
-  - Final physical-device verification: **NOT YET RUN**.
-  - Google Play publication: **NOT YET RUN**.
+  - Former native V1 candidate `bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10` and signed Android AAB `0d188406aa32001a354c140587a7c4355b44bccee879d73e7975d5737cf53cfe` were rejected during physical-device verification (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`); preserved as historical evidence only.
+  - Forensic remediation on branch `handoff/task3-partial-laptop-20260916`: Tasks 1–8 implemented, Task 9 documentation reconciliation in progress.
+  - Merging remediation branch to `main`: **NOT YET DONE**.
+  - Establishing new exact release candidate SHA from synchronized `main`: **NOT YET DONE**.
+  - Post-remediation full validation (`FULL_VALIDATION`): **NOT YET RUN**.
+  - Post-remediation production packaging and signing (`Distributable` AAB): **NOT YET RUN**.
+  - Post-remediation physical-device verification: **NOT YET RUN**.
+  - Google Play publication: **STRICTLY UNAUTHORIZED / NOT YET CONSIDERED**.
 
 ---
 
