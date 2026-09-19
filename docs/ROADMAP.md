@@ -79,12 +79,17 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 14. Deliver keypad press feedback and responsive validation (`MF-UX-004`) - complete and merged through Pull Request #25 at `46a7158d3c7fbdf6bc43fe120c35863ac55bb78b`.
 15. Deliver tester distribution and release hardening (`MF-REL-002`) - complete and merged through Pull Request #26 at `79e0d48c058747e8112388d31d721a049ec2857a`.
 16. Physical-device verification of native V1 candidate `bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10` and signed Android AAB SHA-256 `0d188406aa32001a354c140587a7c4355b44bccee879d73e7975d5737cf53cfe` resulted in rejection (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`) due to future-fact review eligibility and in-place startup recovery defects.
-17. Forensic remediation ([Remediation Plan](superpowers/plans/2026-09-15-native-v1-release-blocker-fact-eligibility-and-startup-recovery.md)): Tasks 1–8 completed on task branch `handoff/task3-partial-laptop-20260916`; Task 9 documentation reconciliation active in this slice.
-18. Perform comprehensive technical review (`REVIEW_ONLY`) of Task 9 documentation and remediation branch state.
-19. Execute full automated validation (`FULL_VALIDATION`) on the remediation branch.
-20. Author Pull Request and obtain explicit user merge authorization to `main`.
-21. Synchronize canonical local checkout and establish new exact candidate SHA from synchronized `main`.
-22. Perform separately authorized production packaging and signing (`Distributable` AAB).
-23. Perform technical smoke verification on clean physical Android device (install, IME suppression, touch keypad, database).
-24. Perform manual physical-device functional verification (confirming strictly bounded curriculum presentation across progression stages).
-25. Reconsider Google Play upload under a separately authorized release gate.
+17. Author forensic remediation plan (`docs/native-v1-release-blocker-forensic-plan`) - complete and merged through Pull Request #28 at `4e997f35b4a7884b4b0592beab682a36319ea358`.
+18. Deliver forensic remediation implementation for curriculum fact eligibility and startup resilience ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)) - complete and merged through Pull Request #29 at `156d5afd32299ba19d8ca2a8f2f56a7babfe31d8`.
+19. Deliver Native UX, Responsiveness, and Interaction Polish Slices 1–6 (`MF-UX-005`) - complete and merged through Pull Request #30 at `bde91a7578753f5c468d0534282edd9fd13f32a0`.
+20. Remove cold-launch startup white flash (`MF-UX-005 Slice 7`) - complete and merged through Pull Request #31 at `15d39ac73ecdc276db2d3f1a9b6ea3ac0f8849b6`.
+21. Remediate Android Release startup resource initialization order (`MF-UX-005 Blocker Remediation`) - complete and merged through Pull Request #32 at `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`.
+22. Deliver runtime build identity metadata (`MF-UX-005 Tester Ergonomics Slice A`) - complete and merged through Pull Request #33 at `83b767c2265c1baba560abdeaa9fedad365d70da`.
+23. Deliver tester diagnostics formatter and Settings copy action (`MF-UX-005 Tester Ergonomics Slice B`) - complete and merged through Pull Request #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`.
+24. Reconcile post-PR #34 documentation baseline (`MF-UX-005 Post-PR #34 Documentation Reconciliation`) - active documentation step.
+25. Deliver remaining accepted MF-UX-005 areas (Installed Size / App Data investigation, repeatable tester artifact / APK workflow, physical Android verification) under separately authorized dispatches.
+26. Execute full exact-candidate automated validation (`FULL_VALIDATION`) on synchronized `main`.
+27. Perform separately authorized production packaging and signing (`Distributable` AAB).
+28. Perform technical smoke verification on clean physical Android device (install, IME suppression, touch keypad, database).
+29. Perform manual physical-device functional verification (confirming strictly bounded curriculum presentation across progression stages and UX feel).
+30. Reconsider Google Play upload under a separately authorized release gate.
