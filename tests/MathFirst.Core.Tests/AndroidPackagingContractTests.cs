@@ -185,6 +185,34 @@ public sealed class AndroidPackagingContractTests
         Assert.DoesNotContain("no negative consequences", adr, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Project_ExcludesBootstrapSourceMapFromReleaseConfigurationsOnly()
+    {
+        var project = XDocument.Load(GetRepositoryPath("src", "MathFirst.App", "MathFirst.App.csproj"));
+        var releaseItemGroup = project.Descendants("ItemGroup")
+            .FirstOrDefault(group => group.Attribute("Condition")?.Value == "'$(Configuration)' == 'Release'");
+
+        Assert.NotNull(releaseItemGroup);
+
+        var removedContent = releaseItemGroup.Elements("Content")
+            .Select(element => element.Attribute("Remove")?.Value)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToList();
+
+        Assert.Contains(@"wwwroot\lib\bootstrap\dist\css\bootstrap.min.css.map", removedContent);
+
+        // Ensure runtime stylesheet is present on disk and not excluded
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "lib", "bootstrap", "dist", "css", "bootstrap.min.css");
+        Assert.True(File.Exists(cssPath), "bootstrap.min.css must exist in wwwroot.");
+
+        var allRemovedContent = project.Descendants("Content")
+            .Select(element => element.Attribute("Remove")?.Value)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToList();
+
+        Assert.DoesNotContain(@"wwwroot\lib\bootstrap\dist\css\bootstrap.min.css", allRemovedContent);
+    }
+
     private static string GetProperty(XDocument project, string name) =>
         project.Descendants(name).Single().Value;
 
