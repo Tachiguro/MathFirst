@@ -85,7 +85,6 @@ Use the live-state discovery rules above to distinguish the following cases:
 
 1. **Verified active package**: An open Pull Request, active task branch with checkpoint work, or `docs/CURRENT_WORK.md` consistent with live state identifies a package in flight. Report that package and continue only within its verified lifecycle.
 2. **No active package**: If no package is active and no explicit authorization is supplied, do not autonomously select a BACKLOG or ROADMAP item.
-
 3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package and lifecycle step, first verify live repository state, then proceed only with that authorized package under the repository governance.
 
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
@@ -99,28 +98,32 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree
 
 ### Operational Baseline
-- All planned pre-release packages through `MF-REL-002` are complete and merged into `main`.
-- Historical baseline merge commit for `MF-REL-002` (PR #26): `79e0d48c058747e8112388d31d721a049ec2857a`.
-- Active implementation package: None currently in flight.
+- Synchronized `main` commit SHA: `82c117912f72d6efe16055f8be754c9c577ae15a`
+- Active work package context: `MF-UX-005` (Native UX, Responsiveness, and Interaction Polish)
+- Active implementation branch: None currently in flight (repository is clean on synchronized `main` awaiting explicit dispatch for next slice)
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` is clean and synchronized with `origin/main`.
-3. **Recognize completed pre-release packages**: Confirm `MF-DOC-004` (PR #24), `MF-UX-004` (PR #25), and `MF-REL-002` (PR #26) are merged.
-4. **Recognize next technical roadmap stage**: Phase 6 Final Exact-Candidate Native V1 Validation.
-5. **Resolve exact candidate commit**: Use the live, synchronized post-reconciliation `main` commit SHA as the authoritative validation candidate. Do not assume or hardcode a pre-reconciliation SHA as the final release candidate.
+2. **Verify synchronized `main`**: Ensure local `main` is clean and synchronized with `origin/main` at `82c117912f72d6efe16055f8be754c9c577ae15a`.
+3. **Recognize completed baseline packages & PRs**: Confirm pre-release packages through `MF-REL-002` (PR #26), post-release reconciliation (PR #27), forensic remediation (PR #28, PR #29), and `MF-UX-005` deliverables: Slices 1–6 (PR #30), Slice 7 startup white flash (PR #31), Release startup resource order fix (PR #32), Tester Ergonomics metadata (PR #33), and Tester Ergonomics diagnostics & settings UX (PR #34) are merged.
+4. **Recognize remaining accepted `MF-UX-005` boundaries**: Installed Size / App Data investigation, repeatable tester artifact / APK workflow, and physical Android device verification.
+5. **Await explicit dispatch**: Do not autonomously select or start the next slice without explicit user orchestration.
 
 ### Durable Merged Baseline Summary
-- **MF-DOC-004** (PR #24 at `3e471e20e2d452ee1e383579ed3d0831e1825d3e`): Post-stabilization project-state documentation reconciliation.
-- **MF-UX-004** (PR #25 at `46a7158d3c7fbdf6bc43fe120c35863ac55bb78b`): Keypad active press visual feedback, `:focus-visible` contract preservation, and responsive viewport validation.
-- **MF-REL-002** (PR #26 at `79e0d48c058747e8112388d31d721a049ec2857a`): Release workflow hardening, generalized `SourceCandidate` packaging, validator-approved five-file promotion (`.aab`, `.provenance.json`, `.validation.json`, `TESTER_README.md`, `SHA256SUMS`), immutable provenance bytes, ValidationReceipt Schema v1, and release profile characterization.
-- **Predecessors**: `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
+- **MF-UX-005 Tester Diagnostics & Settings UX** (PR #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`): Support-safe deterministic diagnostics formatter, minimal platform info and clipboard abstractions (`IAppPlatformInfo`, `IClipboardService`) with MAUI implementations, Settings footer build identity display and localized "Copy diagnostic info" action with async execution and status feedback, complete EN/DE/RU localization keys.
+- **MF-UX-005 Build Identity Metadata** (PR #33 at `83b767c2265c1baba560abdeaa9fedad365d70da`): Extended runtime build metadata model/parser with `ApplicationId`, `SourceCommit`, and explicit fail-closed `BuildClassification` (`Local`, `Tester`, `SourceCandidate`, `Production`), deterministic short SHA formatting, MSBuild projection in `MathFirst.App.csproj`, and `AppBuildInfo` integration.
+- **MF-UX-005 Release Startup Order Fix** (PR #32 at `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`): Deferred `MainPage` resolution until `CreateWindow()`, ensuring `App.InitializeComponent()` loads `Application.Resources` before `MainPage` static resource resolution, eliminating startup `XamlParseException`.
+- **MF-UX-005 Startup White Flash Elimination** (PR #31 at `15d39ac73ecdc276db2d3f1a9b6ea3ac0f8849b6`): Continuous `#176B4D` background across splash, Android WebView canvas, and HTML first paint, removing raw unstyled placeholder.
+- **MF-UX-005 Native UX Polish Slices 1–6** (PR #30 at `bde91a7578753f5c468d0534282edd9fd13f32a0`): Timer render isolation (~10 Hz in child component), keypad visual reset per fact, KnownFirst onboarding vertically stacked full-width action layout, application-owned `IAppBackNavigationCoordinator` handling Android system Back across Onboarding/Settings/Practice, 3s teaching dwell lock, amber Pause styling (`.button-pause`), clean bold sans-serif timer typography with translucent pill backing, configurable haptic feedback with normal `VIBRATE` permission, No Time Pressure practice time mode with count-up elapsed display, restrained textual streak indicator ($\ge 3$), and transient Pause session summary.
+- **Native V1 Forensic Remediation** (PR #28 plan at `4e997f35b4a7884b4b0592beab682a36319ea358`, PR #29 fix at `156d5afd32299ba19d8ca2a8f2f56a7babfe31d8`): Practice Fact Eligibility Invariant ($\text{owner}_O(F) \le B$) and session startup error boundary / recovery ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)).
+- **Predecessors**: `MF-REL-002` (PR #26), `MF-UX-004` (PR #25), `MF-DOC-004` (PR #24), `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
 
 ### Downstream Roadmap Stages
-- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Pending execution on the synchronized post-reconciliation `main` commit.
+- **Remaining MF-UX-005 Slices**: Installed Size / App Data investigation, repeatable tester artifact / APK workflow, physical Android device verification.
+- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Pending execution on synchronized `main` post-MF-UX-005.
 - **Phase 6 - Production Packaging & Signing**: Separately authorized downstream work (`Distributable` profile with external production keystore).
-- **Phase 6 - Final Real-Device Verification**: Separately authorized physical target hardware validation.
+- **Phase 6 - Final Real-Device Technical and Functional Verification**: Separately authorized physical target hardware validation.
 - **Phase 6 - Google Play Publication**: Separate subsequent release decision.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
