@@ -40,6 +40,8 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IAppBackNavigationCoordinator, AppBackNavigationCoordinator>();
 		builder.Services.AddTransient<MainPage>();
 		builder.Services.AddSingleton<AppBuildInfo>();
+		builder.Services.AddSingleton<IAppPlatformInfo, MauiAppPlatformInfo>();
+		builder.Services.AddSingleton<IClipboardService, MauiClipboardService>();
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));
