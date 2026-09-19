@@ -541,7 +541,8 @@ MF-UX-006 contract coverage validates localization string integrity, reset copy 
 - **Core Test Suite**: 1476 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`)
 - **Windows Release Build**: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
 - **Android Release Build**: 0 warnings, 0 errors (`net10.0-android36.0`)
-- **NuGet Package Audit**: 0 vulnerable, 0 deprecated packages
+- **NuGet Vulnerability Audit**: 0 vulnerable packages across the solution
+- **NuGet Deprecation Audit**: 0 deprecated packages in application/runtime/tooling projects; `MathFirst.Core.Tests` references legacy deprecated `xunit 2.9.3` (NuGet alternative: `xunit.v3`)
 - **Repository Markdown Link Integrity**: All relative links valid across 27 inspected Markdown files
 - **ADR Registry Integrity**: ADR-0001 through ADR-0007 verified present
 - **Candidate Diff & Whitespace Audit**: Clean `git diff --check` against base `60dba236aa38bca138ab583f610c9ff876994b04`
