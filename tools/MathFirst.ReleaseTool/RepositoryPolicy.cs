@@ -57,6 +57,24 @@ public static class RepositoryPolicy
 
                 break;
 
+            case ReleaseProfile.Tester:
+                if (string.IsNullOrWhiteSpace(snapshot.Branch))
+                {
+                    throw new ReleaseToolException("Tester requires an attached branch.");
+                }
+
+                if (string.Equals(snapshot.Branch, "main", StringComparison.Ordinal))
+                {
+                    if (!string.Equals(snapshot.HeadSha, snapshot.LocalMainSha, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(snapshot.LocalMainSha, snapshot.OriginMainSha, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new ReleaseToolException(
+                            "Tester on main requires HEAD, local main, and origin/main to be identical.");
+                    }
+                }
+
+                break;
+
             default:
                 throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.");
         }
@@ -215,11 +233,11 @@ public static class SigningPolicy
         string repositoryRoot,
         string artifactsRoot)
     {
-        if (profile == ReleaseProfile.SourceCandidate)
+        if (profile is ReleaseProfile.SourceCandidate or ReleaseProfile.Tester)
         {
             if (signingInputs is not null)
             {
-                throw new ReleaseToolException("SourceCandidate does not accept production signing inputs.");
+                throw new ReleaseToolException($"{profile} does not accept production signing inputs.");
             }
 
             return null;

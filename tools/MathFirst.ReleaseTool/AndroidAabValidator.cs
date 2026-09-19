@@ -134,6 +134,11 @@ public sealed class AndroidAabValidator(
         var diagnostics = new List<string>();
 
         // 1. Validate Input Paths and Request Parameters
+        if (request.Profile is not (ReleaseProfile.SourceCandidate or ReleaseProfile.Distributable))
+        {
+            throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.AabPath) || !File.Exists(request.AabPath))
         {
             throw new ReleaseToolException($"AAB file does not exist at '{request.AabPath}'.");
@@ -159,11 +164,6 @@ public sealed class AndroidAabValidator(
         if (string.IsNullOrWhiteSpace(request.ExpectedCommitSha) || !FullShaPattern.IsMatch(request.ExpectedCommitSha))
         {
             throw new ReleaseToolException("ExpectedCommitSha must be a full 40-character hexadecimal Git SHA.");
-        }
-
-        if (!Enum.IsDefined(request.Profile))
-        {
-            throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.");
         }
 
         string? normalizedExpectedSignerSha = null;

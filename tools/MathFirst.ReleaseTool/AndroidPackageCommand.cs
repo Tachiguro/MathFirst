@@ -23,11 +23,16 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             root,
             artifactsRoot);
 
-        var defaults = EvaluateMetadata(root, new VersionOverrides(null, null));
+        if (request.Profile == ReleaseProfile.Tester)
+        {
+            throw new ReleaseToolException("Tester profile is not yet fully integrated in the packaging pipeline.");
+        }
+
+        var defaults = EvaluateMetadata(root, request.Profile, new VersionOverrides(null, null));
         VersionPolicy.ValidateRequestedOverrides(defaults, request.VersionOverrides);
         var effective = request.VersionOverrides is { DisplayVersion: null, BuildNumber: null }
             ? defaults
-            : EvaluateMetadata(root, request.VersionOverrides);
+            : EvaluateMetadata(root, request.Profile, request.VersionOverrides);
         var validatedMetadata = VersionPolicy.Validate(effective, request.VersionOverrides);
 
         repository = repositoryInspector.Read(root);
@@ -144,6 +149,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
 
     public static ProcessInvocation CreateMetadataEvaluationInvocation(
         string repositoryRoot,
+        ReleaseProfile profile,
         VersionOverrides requestedOverrides)
     {
         var root = Path.GetFullPath(repositoryRoot);
@@ -157,9 +163,19 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             $"-property:TargetFramework={ReleaseConstants.TargetFramework}"
         };
 
+        if (profile == ReleaseProfile.Tester)
+        {
+            arguments.Add($"-property:ApplicationId={ReleaseConstants.TesterApplicationId}");
+        }
+
         AddVersionOverrides(arguments, requestedOverrides);
         return new ProcessInvocation("dotnet", arguments, root);
     }
+
+    public static ProcessInvocation CreateMetadataEvaluationInvocation(
+        string repositoryRoot,
+        VersionOverrides requestedOverrides) =>
+        CreateMetadataEvaluationInvocation(repositoryRoot, ReleaseProfile.SourceCandidate, requestedOverrides);
 
     public static EvaluatedProjectMetadata ParseEvaluatedMetadata(string json)
     {
@@ -199,6 +215,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
         string repositoryRoot,
         string publishRoot,
         ReleaseProfile profile,
+        string expectedCommitSha,
         VersionOverrides requestedOverrides,
         SigningInputs? signingInputs)
     {
@@ -215,11 +232,9 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             "-c",
             ReleaseConstants.Configuration,
             "--output",
-            output,
-            "-p:AndroidPackageFormat=aab"
+            output
         };
 
-        AddVersionOverrides(arguments, requestedOverrides);
         switch (profile)
         {
             case ReleaseProfile.SourceCandidate:
@@ -228,6 +243,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                     throw new ReleaseToolException("SourceCandidate does not accept production signing inputs.");
                 }
 
+                arguments.Add("-p:AndroidPackageFormat=aab");
                 arguments.Add("-p:AndroidKeyStore=false");
                 break;
 
@@ -237,6 +253,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                     throw new ReleaseToolException("Distributable requires external signing inputs.");
                 }
 
+                arguments.Add("-p:AndroidPackageFormat=aab");
                 arguments.Add("-p:AndroidKeyStore=true");
                 arguments.Add($"-p:AndroidSigningKeyStore={signingInputs.KeystorePath}");
                 arguments.Add($"-p:AndroidSigningKeyAlias={signingInputs.KeyAlias}");
@@ -244,12 +261,34 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 arguments.Add($"-p:AndroidSigningKeyPass=file:{signingInputs.KeyPasswordFile}");
                 break;
 
+            case ReleaseProfile.Tester:
+                if (signingInputs is not null)
+                {
+                    throw new ReleaseToolException("Tester does not accept production signing inputs.");
+                }
+
+                arguments.Add("-p:AndroidPackageFormat=apk");
+                arguments.Add($"-p:ApplicationId={ReleaseConstants.TesterApplicationId}");
+                arguments.Add("-p:MathFirstBuildClassification=Tester");
+                arguments.Add($"-p:MathFirstSourceCommit={expectedCommitSha}");
+                arguments.Add("-p:AndroidKeyStore=false");
+                break;
+
             default:
                 throw new ReleaseToolException($"Unsupported release profile '{profile}'.");
         }
 
+        AddVersionOverrides(arguments, requestedOverrides);
         return new ProcessInvocation("dotnet", arguments, root);
     }
+
+    public static ProcessInvocation CreatePublishInvocation(
+        string repositoryRoot,
+        string publishRoot,
+        ReleaseProfile profile,
+        VersionOverrides requestedOverrides,
+        SigningInputs? signingInputs) =>
+        CreatePublishInvocation(repositoryRoot, publishRoot, profile, "local", requestedOverrides, signingInputs);
 
     public static string CreateArtifactId(
         ReleaseProfile profile,
@@ -311,9 +350,9 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             generatedAtUtc.ToUniversalTime());
     }
 
-    private EvaluatedProjectMetadata EvaluateMetadata(string root, VersionOverrides requestedOverrides)
+    private EvaluatedProjectMetadata EvaluateMetadata(string root, ReleaseProfile profile, VersionOverrides requestedOverrides)
     {
-        var invocation = CreateMetadataEvaluationInvocation(root, requestedOverrides);
+        var invocation = CreateMetadataEvaluationInvocation(root, profile, requestedOverrides);
         var result = processRunner.Run(invocation).EnsureSuccess("dotnet msbuild metadata evaluation");
         return ParseEvaluatedMetadata(result.StandardOutput);
     }
@@ -439,6 +478,7 @@ public static class ReleaseCli
 
         var profileText = GetRequired(values, "--profile");
         if (!Enum.TryParse<ReleaseProfile>(profileText, ignoreCase: false, out var profile) ||
+            profile == ReleaseProfile.Tester ||
             !Enum.IsDefined(profile))
         {
             throw new ReleaseToolException("Profile must be exactly 'SourceCandidate' or 'Distributable'.");
@@ -488,6 +528,7 @@ public static class ReleaseCli
 
         var profileText = GetRequired(values, "--profile");
         if (!Enum.TryParse<ReleaseProfile>(profileText, ignoreCase: false, out var profile) ||
+            profile == ReleaseProfile.Tester ||
             !Enum.IsDefined(profile))
         {
             throw new ReleaseToolException("Profile must be exactly 'SourceCandidate' or 'Distributable'.");

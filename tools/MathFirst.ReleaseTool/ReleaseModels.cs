@@ -3,7 +3,8 @@ namespace MathFirst.ReleaseTool;
 public enum ReleaseProfile
 {
     SourceCandidate,
-    Distributable
+    Distributable,
+    Tester
 }
 
 public enum ArtifactValidationStatus
@@ -120,4 +121,6 @@ public static class ReleaseConstants
 {
     public const string TargetFramework = "net10.0-android36.0";
     public const string Configuration = "Release";
+    public const string ProductionApplicationId = "com.tachiguro.mathfirst";
+    public const string TesterApplicationId = "com.tachiguro.mathfirst.tester";
 }
