@@ -492,3 +492,51 @@ Verified observations:
 
 - This evidence is limited to the Timer-specific run above.
 - It is not final production-candidate certification and does not replace `FULL_VALIDATION`, production packaging/signing, or final release-grade physical validation.
+
+---
+
+## 19. MF-UX-006 Privacy, Copy, and Localization Hardening Contracts (Historical Automated Evidence)
+
+MF-UX-006 contract coverage validates localization string integrity, reset copy semantics, offline in-app privacy navigation, zero-network permissions, and static multilingual host fallback across automated test suites in `MathFirst.Core.Tests`:
+
+1. **Reset Copy & Objective Localization Contracts (`PolicyAndLocalizationTests`)**:
+   - Asserts Restore Default Settings copy across English, German, and Russian explicitly specifies PC numpad (`Keypad_Numpad`) default layout restoration.
+   - Asserts Russian haptic feedback confirmation format string avoids duplicate period punctuation.
+   - Asserts Russian operation progress HUD accessibility label uses learner-facing progression terminology (`Стадия прогресса`).
+   - Asserts English, German, and Russian localization key parity and placeholder format token consistency across all dictionary entries.
+
+2. **In-App Privacy Surface & Navigation Contracts (`PolicyAndLocalizationTests`, `AppBackNavigationTests`)**:
+   - Asserts presence and structure of dedicated `/privacy` Blazor route with complete EN/DE/RU key coverage across Overview, No Remote Collection or Sharing, Local Storage and Device Transfer, Removing Local Data, and Contact sections.
+   - Asserts total absence of remote network fetch primitives, external HTTP links, or third-party tracking references in the privacy surface.
+   - Asserts Settings privacy entry point and navigation action contract.
+   - Asserts `IAppBackNavigationCoordinator` integration handling system Back from `/privacy` to `/settings`.
+
+3. **Android Zero-Network & Release Packaging Regression (`AndroidPackagingContractTests`)**:
+   - Asserts continuous absence of `android.permission.INTERNET` and `android.permission.ACCESS_NETWORK_STATE` permissions in `AndroidManifest.xml`.
+   - Asserts backup and data extraction rules remain restrictive and conformant to ADR-0006.
+
+4. **Static Fatal Host Fallback Contracts (`NativeVisualIdentityContractTests`, `StartupWhiteFlashTests`)**:
+   - Asserts `src/MathFirst.App/wwwroot/index.html` static fatal host fallback contains language-neutral error title and static reload links in English (`Reload`), German (`Neu laden`), and Russian (`Перезагрузить`).
+   - Asserts fallback operates purely via static HTML markup without runtime localization or Blazor dependencies.
+   - Asserts preservation of brand-green startup background handoff (`#176B4D`) and dark mode first-paint styles.
+
+### Historical Slice-Level Test Evidence
+
+- **Slice 1 (Objective Localization & Reset Copy)**:
+  - `PolicyAndLocalizationTests`: 54/54 passed
+  - Adjacent targeted regression (`OnboardingAndProgressFeedbackTests`, `PracticeVisibilityAndTimerLifecycleTests`): 99/99 passed
+- **Slice 2 (Offline Privacy Surface & Back Navigation)**:
+  - `PolicyAndLocalizationTests` + `AppBackNavigationTests`: 72/72 passed
+  - `AndroidPackagingContractTests`: 9/9 passed
+  - Adjacent workflow tests: 64/64 passed
+- **Slice 3 (Fatal Host Fallback Hardening)**:
+  - `NativeVisualIdentityContractTests`: 5/5 passed
+  - `StartupWhiteFlashTests`: 5/5 passed
+  - Combined Policy / Back / Android Packaging: 81/81 passed
+
+### Automated Evidence Boundary
+
+- All automated tests run offline against synthetic fixtures, source files, and isolated test environments.
+- These historical targeted slice results do **not** constitute the pending exact-candidate `FULL_VALIDATION` lifecycle.
+- They do **not** prove rendered visual appearance on native devices, native screen-reader accessibility behavior, or physical hardware execution.
+- Production packaging, signing, and Google Play publication remain separate authorized lifecycle stages.

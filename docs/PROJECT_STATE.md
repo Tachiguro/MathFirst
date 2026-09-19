@@ -8,7 +8,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 - **Project Name**: MathFirst
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
-- **Current Status**: `MF-UX-005` (Native UX, Responsiveness, and Interaction Polish) is the most recently completed package; no implementation package is active. The synchronized merged baseline is `main` at `d1705bbdc0013372e44eadf7310ff2f313ecdcef` (PR #38 merge). MF-UX-005 delivery history spans PR #30 through PR #38: PR #36 merged the repeatable Tester APK workflow, the Installed Size/App Data/RAM investigation completed with explicit evidence limitations, PR #37 merged Release source-map exclusion, and PR #38 merged Timer visual remediation that was accepted in a bounded physical Timer `TEST_ONLY` run. MF-UX-005 did not create a replacement production AAB or perform production signing. The separate `FULL_VALIDATION` lifecycle, final release-grade physical validation, and Google Play publication gate remain pending and separately authorized; this state is not a release-readiness declaration.
+- **Current Status**: `MF-UX-005` (Native UX, Responsiveness, and Interaction Polish) is the most recently completed merged package. The synchronized merged baseline is `main` at `60dba236aa38bca138ab583f610c9ff876994b04` (PR #39 merge: MF-UX-005 final documentation reconciliation). The current active package `MF-UX-006` (V1 Privacy, Copy, and Localization Hardening) is implemented across three checkpoint commits on task branch `feat/mf-ux-006-v1-privacy-copy-localization` (candidate pre-doc HEAD `130cae92032ebdfbd6f430b5cf353192d5e39ba3`), has passed consolidated review (`REVIEW_PASS`), and is undergoing `DOCUMENT_ONLY` reconciliation. MF-UX-006 is unmerged, not pushed, not in a PR, and `FULL_VALIDATION` remains pending. MF-UX-005 delivery history spans PR #30 through PR #39: PR #36 merged the repeatable Tester APK workflow, the Installed Size/App Data/RAM investigation completed with explicit evidence limitations, PR #37 merged Release source-map exclusion, PR #38 merged Timer visual remediation accepted in a bounded physical Timer `TEST_ONLY` run, and PR #39 merged post-remediation documentation state. MF-UX-005 did not create a replacement production AAB or perform production signing. The separate `FULL_VALIDATION` lifecycle, final release-grade physical validation, and Google Play publication gate remain pending and separately authorized; this state is not a release-readiness declaration.
 
 ---
 
@@ -127,6 +127,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - Native branding uses a white geometric MF mark, primary `#176B4D`, companion `#0F523A`, light host background `#F4F7F5`, dark host background `#121916`, and adaptive icon foreground scale `0.65`. The MAUI single-project `MauiIcon`/`MauiSplashScreen` architecture generates native identity assets; manually maintained Android or Windows icon sets are not used.
 - Native Not Found content is localized in English, German, and Russian; startup white-flash handoff uses a continuous `#176B4D` background across splash, Android WebView, and static HTML first paint.
 - Contract coverage verifies canonical project properties and MSBuild projection, metadata parsing including fail-closed invalid inputs, localization and version display, SVG and native-host XAML structure, Android palette/identity, Windows unpackaged identity, removed template payloads, Not Found localization, and startup identity.
+- MF-UX-006 candidate hardening aligns reset copy across English, German, and Russian to accurately specify PC numpad default restoration, resolves Russian haptic feedback punctuation formatting, replaces Russian HUD accessibility terminology with learner-appropriate progression language, implements an offline in-app `/privacy` surface accessible from Settings with `IAppBackNavigationCoordinator` Back integration, and hardens the static fatal host fallback in `index.html` with language-neutral error messaging and static English, German, and Russian reload affordances without runtime localization dependencies.
 
 ---
 
@@ -171,7 +172,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Downstream Release State**:
   - Former native V1 candidate `bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10` and signed Android AAB `0d188406aa32001a354c140587a7c4355b44bccee879d73e7975d5737cf53cfe` were rejected during physical-device verification (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`); preserved as historical evidence only.
   - Forensic remediation was merged to `main` via PR #29 (`156d5afd32299ba19d8ca2a8f2f56a7babfe31d8`).
-  - MF-UX-005 implementation and investigation scope is complete through PR #38 on synchronized `main` (`d1705bbdc0013372e44eadf7310ff2f313ecdcef`).
+  - MF-UX-005 implementation and investigation scope is complete through PR #39 on synchronized `main` (`60dba236aa38bca138ab583f610c9ff876994b04`).
   - Repeatable Tester APK Workflow was merged through PR #36 (`e908bf2fba820f4f6adf03b278861b956e5dbbd5`).
   - Release Bootstrap source-map exclusion was merged through PR #37 (`dbc6bf045454a78a1ba32793fa02245f83b50437`).
   - Timer visual remediation was merged through PR #38 (`d1705bbdc0013372e44eadf7310ff2f313ecdcef`) and accepted in the bounded physical Timer run.
@@ -221,11 +222,16 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - MF-UX-005 Timer Visual Remediation was merged to `main` through Pull Request #38 at `d1705bbdc0013372e44eadf7310ff2f313ecdcef` (head `2a7021977571e8c056a4ab2128ddc74e79b0f6b3`), removing the Timer backing pill and applying the current restrained local dark shadow to bold white tabular numerals; 9/9 targeted tests and 1463/1463 full Release Core tests passed.
 - MF-UX-005 Installed Size / App Data / RAM investigation completed with the documented attribution limits and verdicts `NO_CLEAR_LEAK_SIGNAL` and `CURRENT_PLAY_DELIVERY_SIZE_NOT_MEASURED`.
 - MF-UX-005 Timer-specific physical verification on Samsung SM-S948B, Android 16, arm64-v8a was explicitly accepted by the user. This evidence remains separate from final release-grade physical validation.
+- MF-UX-005 Final Documentation Reconciliation was merged to `main` through Pull Request #39 at `60dba236aa38bca138ab583f610c9ff876994b04` (head `abfa73ef3a5a2ef9cf0c5d3cc3e3f48a5e607a78`), establishing the synchronized post-MF-UX-005 documentation baseline on `main`.
+- **Candidate In-Flight State (MF-UX-006)**: Implemented across three checkpoint commits on task branch `feat/mf-ux-006-v1-privacy-copy-localization` (candidate pre-doc HEAD `130cae92032ebdfbd6f430b5cf353192d5e39ba3`), passing consolidated package review (`REVIEW_PASS`); currently undergoing `DOCUMENT_ONLY` reconciliation; `FULL_VALIDATION` pending.
+
 ---
 
 ## 8. Durable Product Boundaries
 
 - Core practice is offline-first and requires no account.
+- Local in-app Privacy surface (`/privacy`) is readable offline without network access, analytics, or user accounts.
+- Zero runtime networking or network permissions contract is preserved.
 - Correctness and response latency are separate learning evidence.
 - Negative subtraction, division with remainder, cloud synchronization/accounts, export/import, and larger-than-`Int32` arithmetic remain deferred.
 - Packaging, signing, store publication, and deployment require separate authorized lifecycle work.

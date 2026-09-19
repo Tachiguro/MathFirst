@@ -43,3 +43,4 @@ Every ADR must contain the following sections:
 | [ADR-0004](ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md) | Adaptive Pace, Fast Acquisition, and Practice Interventions | Accepted | 2026-09-11 |
 | [ADR-0005](ADR-0005-acclimation-timing-and-rapid-dense-progression.md) | Acclimation Timing and Rapid Dense Progression | Accepted | 2026-09-11 |
 | [ADR-0006](ADR-0006-android-packaging-signing-and-manifest-release-security.md) | Android Packaging, Signing Protocols, and Manifest Release Security | Accepted | 2026-09-11 |
+| [ADR-0007](ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md) | Curriculum Fact Eligibility Invariant and Startup Resilience | Accepted | 2026-09-18 |
