@@ -86,10 +86,11 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 21. Remediate Android Release startup resource initialization order (`MF-UX-005 Blocker Remediation`) - complete and merged through Pull Request #32 at `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`.
 22. Deliver runtime build identity metadata (`MF-UX-005 Tester Ergonomics Slice A`) - complete and merged through Pull Request #33 at `83b767c2265c1baba560abdeaa9fedad365d70da`.
 23. Deliver tester diagnostics formatter and Settings copy action (`MF-UX-005 Tester Ergonomics Slice B`) - complete and merged through Pull Request #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`.
-24. Reconcile post-PR #34 documentation baseline (`MF-UX-005 Post-PR #34 Documentation Reconciliation`) - active documentation step.
-25. Deliver remaining accepted MF-UX-005 areas (Installed Size / App Data investigation, repeatable tester artifact / APK workflow, physical Android verification) under separately authorized dispatches.
-26. Execute full exact-candidate automated validation (`FULL_VALIDATION`) on synchronized `main`.
-27. Perform separately authorized production packaging and signing (`Distributable` AAB).
-28. Perform technical smoke verification on clean physical Android device (install, IME suppression, touch keypad, database).
-29. Perform manual physical-device functional verification (confirming strictly bounded curriculum presentation across progression stages and UX feel).
-30. Reconsider Google Play upload under a separately authorized release gate.
+24. Reconcile post-PR #34 documentation baseline (`MF-UX-005 Post-PR #34 Documentation Reconciliation`) - complete and merged through Pull Request #35 at `336322b5386a872ebb726c7bdcf34bb207592650`.
+25. Deliver repeatable tester artifact / APK workflow (`MF-UX-005 Tester APK Workflow Slices 1–4`) - complete and reviewed across Slices 1–4 on `feat/mf-ux-005-tester-apk-workflow` (`REVIEW_PASS`, 1462 passing Core tests).
+26. Deliver remaining accepted MF-UX-005 areas (Installed Size / App Data investigation, physical Android verification) under separately authorized dispatches.
+27. Execute full exact-candidate automated validation (`FULL_VALIDATION`) on synchronized `main`.
+28. Perform separately authorized production packaging and signing (`Distributable` AAB).
+29. Perform technical smoke verification on clean physical Android device (install, IME suppression, touch keypad, database).
+30. Perform manual physical-device functional verification (confirming strictly bounded curriculum presentation across progression stages and UX feel).
+31. Reconsider Google Play upload under a separately authorized release gate.

@@ -23,11 +23,11 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             root,
             artifactsRoot);
 
-        var defaults = EvaluateMetadata(root, new VersionOverrides(null, null));
+        var defaults = EvaluateMetadata(root, request.Profile, new VersionOverrides(null, null));
         VersionPolicy.ValidateRequestedOverrides(defaults, request.VersionOverrides);
         var effective = request.VersionOverrides is { DisplayVersion: null, BuildNumber: null }
             ? defaults
-            : EvaluateMetadata(root, request.VersionOverrides);
+            : EvaluateMetadata(root, request.Profile, request.VersionOverrides);
         var validatedMetadata = VersionPolicy.Validate(effective, request.VersionOverrides);
 
         repository = repositoryInspector.Read(root);
@@ -40,6 +40,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 root,
                 workspace.PublishRoot,
                 request.Profile,
+                repository.HeadSha,
                 request.VersionOverrides,
                 request.SigningInputs);
             processRunner.Run(publishInvocation).EnsureSuccess("dotnet publish");
@@ -47,19 +48,32 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             repository = repositoryInspector.Read(root);
             RepositoryPolicy.Validate(request, repository);
 
-            var publishedAab = workspace.FindSingleAab();
-            var fileInfo = new FileInfo(publishedAab);
+            string publishedArtifact;
+            string artifactExtension;
+            if (request.Profile == ReleaseProfile.Tester)
+            {
+                publishedArtifact = workspace.FindSingleApk();
+                artifactExtension = ".apk";
+            }
+            else
+            {
+                publishedArtifact = workspace.FindSingleAab();
+                artifactExtension = ".aab";
+            }
+
+            var fileInfo = new FileInfo(publishedArtifact);
             if (fileInfo.Length <= 0)
             {
-                throw new ReleaseToolException("The generated AAB is empty.");
+                var artifactType = request.Profile == ReleaseProfile.Tester ? "APK" : "AAB";
+                throw new ReleaseToolException($"The generated {artifactType} is empty.");
             }
 
             var artifactId = CreateArtifactId(request.Profile, validatedMetadata, repository.HeadSha);
-            var artifactFileName = $"{artifactId}.aab";
-            var stagedAab = Path.Combine(workspace.ReadyRoot, artifactFileName);
-            File.Move(publishedAab, stagedAab);
+            var artifactFileName = $"{artifactId}{artifactExtension}";
+            var stagedArtifact = Path.Combine(workspace.ReadyRoot, artifactFileName);
+            File.Move(publishedArtifact, stagedArtifact);
 
-            var artifactSha256 = ComputeSha256(stagedAab);
+            var artifactSha256 = ComputeSha256(stagedArtifact);
             var toolVersions = ReadToolVersions(root, effective.AndroidNetSdkVersion);
             var provenance = CreateProvenance(
                 request,
@@ -77,21 +91,47 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 stagedProvenancePath,
                 JsonSerializer.Serialize(provenance, ArtifactWorkspace.ProvenanceJsonOptions) + Environment.NewLine);
 
-            var validator = new AndroidAabValidator(processRunner);
-            var validationRequest = new ValidationRequest(
-                stagedAab,
-                stagedProvenancePath,
-                repository.HeadSha,
-                request.Profile,
-                validatedMetadata.DisplayVersion,
-                validatedMetadata.BuildNumber,
-                expectedCertificateSha256,
-                root);
-
-            var validationResult = validator.Validate(validationRequest);
-            if (!validationResult.IsValid || validationResult.Status != ArtifactValidationStatus.ValidatorApproved)
+            ValidationResult validationResult;
+            if (request.Profile == ReleaseProfile.Tester)
             {
-                throw new ReleaseToolException("Authoritative validation failed for packaged AAB.");
+                var validator = new AndroidApkValidator(processRunner);
+                var validationRequest = new ApkValidationRequest(
+                    stagedArtifact,
+                    stagedProvenancePath,
+                    repository.HeadSha,
+                    ReleaseProfile.Tester,
+                    validatedMetadata.DisplayVersion,
+                    validatedMetadata.BuildNumber,
+                    root);
+
+                validationResult = validator.Validate(validationRequest);
+                if (!validationResult.IsValid ||
+                    validationResult.Status != ArtifactValidationStatus.ValidatorApproved ||
+                    validationResult.Profile != ReleaseProfile.Tester ||
+                    validationResult.IsDistributable ||
+                    validationResult.SignerClassification != "development-debug")
+                {
+                    throw new ReleaseToolException("Authoritative validation failed for packaged APK.");
+                }
+            }
+            else
+            {
+                var validator = new AndroidAabValidator(processRunner);
+                var validationRequest = new ValidationRequest(
+                    stagedArtifact,
+                    stagedProvenancePath,
+                    repository.HeadSha,
+                    request.Profile,
+                    validatedMetadata.DisplayVersion,
+                    validatedMetadata.BuildNumber,
+                    expectedCertificateSha256,
+                    root);
+
+                validationResult = validator.Validate(validationRequest);
+                if (!validationResult.IsValid || validationResult.Status != ArtifactValidationStatus.ValidatorApproved)
+                {
+                    throw new ReleaseToolException("Authoritative validation failed for packaged AAB.");
+                }
             }
 
             var provenanceFileName = Path.GetFileName(stagedProvenancePath);
@@ -122,14 +162,14 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
 
             var checksumPayloads = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [artifactFileName] = ComputeSha256(stagedAab),
+                [artifactFileName] = ComputeSha256(stagedArtifact),
                 [provenanceFileName] = ComputeSha256(stagedProvenancePath),
                 [receiptFileName] = ComputeSha256(receiptPath),
                 [readmeFileName] = ComputeSha256(readmePath)
             };
             File.WriteAllText(
                 Path.Combine(workspace.ReadyRoot, "SHA256SUMS"),
-                ReleaseEvidenceGenerator.CreateSha256Sums(artifactId, checksumPayloads));
+                ReleaseEvidenceGenerator.CreateSha256Sums(artifactId, request.Profile, checksumPayloads));
 
             workspace.Promote(
                 request.Profile,
@@ -144,6 +184,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
 
     public static ProcessInvocation CreateMetadataEvaluationInvocation(
         string repositoryRoot,
+        ReleaseProfile profile,
         VersionOverrides requestedOverrides)
     {
         var root = Path.GetFullPath(repositoryRoot);
@@ -157,9 +198,19 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             $"-property:TargetFramework={ReleaseConstants.TargetFramework}"
         };
 
+        if (profile == ReleaseProfile.Tester)
+        {
+            arguments.Add($"-property:ApplicationId={ReleaseConstants.TesterApplicationId}");
+        }
+
         AddVersionOverrides(arguments, requestedOverrides);
         return new ProcessInvocation("dotnet", arguments, root);
     }
+
+    public static ProcessInvocation CreateMetadataEvaluationInvocation(
+        string repositoryRoot,
+        VersionOverrides requestedOverrides) =>
+        CreateMetadataEvaluationInvocation(repositoryRoot, ReleaseProfile.SourceCandidate, requestedOverrides);
 
     public static EvaluatedProjectMetadata ParseEvaluatedMetadata(string json)
     {
@@ -199,6 +250,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
         string repositoryRoot,
         string publishRoot,
         ReleaseProfile profile,
+        string expectedCommitSha,
         VersionOverrides requestedOverrides,
         SigningInputs? signingInputs)
     {
@@ -215,11 +267,9 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             "-c",
             ReleaseConstants.Configuration,
             "--output",
-            output,
-            "-p:AndroidPackageFormat=aab"
+            output
         };
 
-        AddVersionOverrides(arguments, requestedOverrides);
         switch (profile)
         {
             case ReleaseProfile.SourceCandidate:
@@ -228,6 +278,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                     throw new ReleaseToolException("SourceCandidate does not accept production signing inputs.");
                 }
 
+                arguments.Add("-p:AndroidPackageFormat=aab");
                 arguments.Add("-p:AndroidKeyStore=false");
                 break;
 
@@ -237,6 +288,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                     throw new ReleaseToolException("Distributable requires external signing inputs.");
                 }
 
+                arguments.Add("-p:AndroidPackageFormat=aab");
                 arguments.Add("-p:AndroidKeyStore=true");
                 arguments.Add($"-p:AndroidSigningKeyStore={signingInputs.KeystorePath}");
                 arguments.Add($"-p:AndroidSigningKeyAlias={signingInputs.KeyAlias}");
@@ -244,12 +296,34 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 arguments.Add($"-p:AndroidSigningKeyPass=file:{signingInputs.KeyPasswordFile}");
                 break;
 
+            case ReleaseProfile.Tester:
+                if (signingInputs is not null)
+                {
+                    throw new ReleaseToolException("Tester does not accept production signing inputs.");
+                }
+
+                arguments.Add("-p:AndroidPackageFormat=apk");
+                arguments.Add($"-p:ApplicationId={ReleaseConstants.TesterApplicationId}");
+                arguments.Add("-p:MathFirstBuildClassification=Tester");
+                arguments.Add($"-p:MathFirstSourceCommit={expectedCommitSha}");
+                arguments.Add("-p:AndroidKeyStore=false");
+                break;
+
             default:
                 throw new ReleaseToolException($"Unsupported release profile '{profile}'.");
         }
 
+        AddVersionOverrides(arguments, requestedOverrides);
         return new ProcessInvocation("dotnet", arguments, root);
     }
+
+    public static ProcessInvocation CreatePublishInvocation(
+        string repositoryRoot,
+        string publishRoot,
+        ReleaseProfile profile,
+        VersionOverrides requestedOverrides,
+        SigningInputs? signingInputs) =>
+        CreatePublishInvocation(repositoryRoot, publishRoot, profile, "local", requestedOverrides, signingInputs);
 
     public static string CreateArtifactId(
         ReleaseProfile profile,
@@ -279,12 +353,20 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
         var clean = repository.TrackedWorkingTreeClean &&
                     repository.IndexClean &&
                     repository.UntrackedFiles.Count == 0;
-        var sourceClassification = request.Profile == ReleaseProfile.SourceCandidate
-            ? "source-candidate"
-            : "distributable";
-        var signingState = request.Profile == ReleaseProfile.SourceCandidate
-            ? "development-debug"
-            : "release-expected-pending-validation";
+        var sourceClassification = request.Profile switch
+        {
+            ReleaseProfile.SourceCandidate => "source-candidate",
+            ReleaseProfile.Distributable => "distributable",
+            ReleaseProfile.Tester => ReleaseConstants.TesterSourceClassification,
+            _ => throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.")
+        };
+        var signingState = request.Profile switch
+        {
+            ReleaseProfile.SourceCandidate => "development-debug",
+            ReleaseProfile.Distributable => "release-expected-pending-validation",
+            ReleaseProfile.Tester => ReleaseConstants.TesterSigningState,
+            _ => throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.")
+        };
 
         return new ArtifactProvenance(
             1,
@@ -311,9 +393,9 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
             generatedAtUtc.ToUniversalTime());
     }
 
-    private EvaluatedProjectMetadata EvaluateMetadata(string root, VersionOverrides requestedOverrides)
+    private EvaluatedProjectMetadata EvaluateMetadata(string root, ReleaseProfile profile, VersionOverrides requestedOverrides)
     {
-        var invocation = CreateMetadataEvaluationInvocation(root, requestedOverrides);
+        var invocation = CreateMetadataEvaluationInvocation(root, profile, requestedOverrides);
         var result = processRunner.Run(invocation).EnsureSuccess("dotnet msbuild metadata evaluation");
         return ParseEvaluatedMetadata(result.StandardOutput);
     }
@@ -370,6 +452,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
     {
         ReleaseProfile.SourceCandidate => "source-candidate-debug-signed",
         ReleaseProfile.Distributable => "distributable-release-signed-pending-validation",
+        ReleaseProfile.Tester => ReleaseConstants.TesterArtifactClassification,
         _ => throw new ReleaseToolException($"Unsupported release profile '{profile}'.")
     };
 
@@ -388,7 +471,7 @@ public static class ReleaseCli
         {
             if (args.Length == 0)
             {
-                throw new ReleaseToolException("No command specified. Expected 'android-package' or 'android-validate'.");
+                throw new ReleaseToolException("No command specified. Expected 'android-package', 'android-validate', or 'android-validate-apk'.");
             }
 
             var runner = new ProcessRunner();
@@ -414,7 +497,19 @@ public static class ReleaseCli
                 return Task.FromResult(0);
             }
 
-            throw new ReleaseToolException($"Unknown command '{args[0]}'. Expected 'android-package' or 'android-validate'.");
+            if (string.Equals(args[0], "android-validate-apk", StringComparison.Ordinal))
+            {
+                var validationRequest = ParseApkValidationRequest(args);
+                var validator = new AndroidApkValidator(runner);
+                var result = validator.Validate(validationRequest);
+                Console.WriteLine($"Validation PASSED for: {validationRequest.ApkPath}");
+                Console.WriteLine($"  Classification: {result.SignerClassification}");
+                Console.WriteLine($"  Signer SHA-256: {result.SignerCertificateSha256}");
+                Console.WriteLine($"  Distributable: {result.IsDistributable}");
+                return Task.FromResult(0);
+            }
+
+            throw new ReleaseToolException($"Unknown command '{args[0]}'. Expected 'android-package', 'android-validate', or 'android-validate-apk'.");
         }
         catch (Exception exception) when (exception is ReleaseToolException or ArgumentException)
         {
@@ -441,7 +536,7 @@ public static class ReleaseCli
         if (!Enum.TryParse<ReleaseProfile>(profileText, ignoreCase: false, out var profile) ||
             !Enum.IsDefined(profile))
         {
-            throw new ReleaseToolException("Profile must be exactly 'SourceCandidate' or 'Distributable'.");
+            throw new ReleaseToolException("Profile must be exactly 'SourceCandidate', 'Distributable', or 'Tester'.");
         }
 
         var expectedSha = GetRequired(values, "--expected-commit-sha");
@@ -469,6 +564,42 @@ public static class ReleaseCli
         return new PackageRequest(profile, expectedSha, versionOverrides, signingInputs);
     }
 
+    private static ApkValidationRequest ParseApkValidationRequest(string[] args)
+    {
+        var values = ParseOptions(args, [
+            "--apk-path",
+            "--provenance-path",
+            "--expected-commit-sha",
+            "--display-version",
+            "--build-number",
+            "--repository-root"
+        ]);
+
+        var apkPath = GetRequired(values, "--apk-path");
+        var provenancePath = GetRequired(values, "--provenance-path");
+        var expectedSha = GetRequired(values, "--expected-commit-sha");
+
+        int? buildNumber = null;
+        if (values.TryGetValue("--build-number", out var buildNumberText))
+        {
+            if (!int.TryParse(buildNumberText, out var parsedBuildNumber) || parsedBuildNumber <= 0)
+            {
+                throw new ReleaseToolException($"Invalid build number override '{buildNumberText}'.");
+            }
+
+            buildNumber = parsedBuildNumber;
+        }
+
+        return new ApkValidationRequest(
+            apkPath,
+            provenancePath,
+            expectedSha,
+            ReleaseProfile.Tester,
+            values.GetValueOrDefault("--display-version"),
+            buildNumber,
+            values.GetValueOrDefault("--repository-root"));
+    }
+
     private static ValidationRequest ParseValidationRequest(string[] args)
     {
         var values = ParseOptions(args, [
@@ -488,6 +619,7 @@ public static class ReleaseCli
 
         var profileText = GetRequired(values, "--profile");
         if (!Enum.TryParse<ReleaseProfile>(profileText, ignoreCase: false, out var profile) ||
+            profile == ReleaseProfile.Tester ||
             !Enum.IsDefined(profile))
         {
             throw new ReleaseToolException("Profile must be exactly 'SourceCandidate' or 'Distributable'.");

@@ -98,24 +98,42 @@ public static class ReleaseEvidenceGenerator
         builder.AppendLine();
         builder.AppendLine("## Boundaries");
         builder.AppendLine();
-        builder.AppendLine("The AAB is not directly installable as an APK.");
-        builder.AppendLine("APK conversion, installation, and manual-device verification are separate developer activities.");
-        builder.AppendLine("Production signing credentials are never distributed to testers.");
-        builder.AppendLine("Google Play testing or upload requires separate authorization.");
-        builder.AppendLine("This evidence bundle does not prove installation or real-device verification.");
+        if (receipt.Profile == ReleaseProfile.Tester)
+        {
+            builder.AppendLine("This artifact is a non-production MathFirst Tester APK directly installable on compatible Android devices.");
+            builder.AppendLine("The APK is not a Google Play release artifact and is not distributable.");
+            builder.AppendLine("Production signing credentials are never used or distributed for tester builds.");
+            builder.AppendLine($"The application package ID is '{ReleaseConstants.TesterApplicationId}', distinct from production '{ReleaseConstants.ProductionApplicationId}'.");
+            builder.AppendLine($"Tester installation can coexist with production '{ReleaseConstants.ProductionApplicationId}' because Android maintains a separate application sandbox and app data.");
+            builder.AppendLine("Installation is a separate lifecycle activity.");
+            builder.AppendLine("Physical-device verification is a separate developer activity.");
+            builder.AppendLine("This evidence does not prove installation or device verification.");
+            builder.AppendLine("In-place updates on Android require subsequent APKs to be signed with the same signing identity as the installed Tester APK.");
+        }
+        else
+        {
+            builder.AppendLine("The AAB is not directly installable as an APK.");
+            builder.AppendLine("APK conversion, installation, and manual-device verification are separate developer activities.");
+            builder.AppendLine("Production signing credentials are never distributed to testers.");
+            builder.AppendLine("Google Play testing or upload requires separate authorization.");
+            builder.AppendLine("This evidence bundle does not prove installation or real-device verification.");
+        }
+
         return NormalizeLf(builder.ToString());
     }
 
     public static string CreateSha256Sums(
         string artifactId,
+        ReleaseProfile profile,
         IEnumerable<KeyValuePair<string, string>> payloadHashes)
     {
         ValidateSafeFileName(artifactId, "artifact ID");
         ArgumentNullException.ThrowIfNull(payloadHashes);
 
+        var artifactExtension = profile == ReleaseProfile.Tester ? ".apk" : ".aab";
         var expectedNames = new HashSet<string>(StringComparer.Ordinal)
         {
-            $"{artifactId}.aab",
+            $"{artifactId}{artifactExtension}",
             $"{artifactId}.provenance.json",
             $"{artifactId}.validation.json",
             "TESTER_README.md"
@@ -156,6 +174,11 @@ public static class ReleaseEvidenceGenerator
 
         return builder.ToString();
     }
+
+    public static string CreateSha256Sums(
+        string artifactId,
+        IEnumerable<KeyValuePair<string, string>> payloadHashes) =>
+        CreateSha256Sums(artifactId, ReleaseProfile.SourceCandidate, payloadHashes);
 
     private static JsonSerializerOptions CreateReceiptJsonOptions()
     {

@@ -10,11 +10,11 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Awaiting explicit orchestration/user dispatch for next MF-UX-005 slice
-- **Current Operation Mode**: None active (`DOCUMENT_ONLY` post-PR #34 reconciliation in flight; awaiting explicit dispatch for next technical lifecycle)
-- **Active Task Branch**: None (repository synchronized on `main` at `82c117912f72d6efe16055f8be754c9c577ae15a`)
-- **Baseline Commit**: `82c117912f72d6efe16055f8be754c9c577ae15a`
-- **Completed & Merged MF-UX-005 Deliverables**:
+- **Active Task**: `MF-UX-005 — Repeatable Tester Artifact / APK Workflow` Post-Implementation Documentation Reconciliation
+- **Current Operation Mode**: `DOCUMENT_ONLY` (documentation reconciliation for completed and reviewed 4-slice Tester APK workflow)
+- **Active Task Branch**: `feat/mf-ux-005-tester-apk-workflow` (candidate HEAD `22665bc06199b6f8c8fc7f2d11975d3440cac292` during review; documentation unstaged in working tree)
+- **Baseline Commit**: `336322b5386a872ebb726c7bdcf34bb207592650` (synchronized `main` post-PR #35)
+- **Completed & Reviewed MF-UX-005 Deliverables**:
   1. **Slices 1–6 (Native UX Polish Baseline — PR #30, Merge `bde91a7578753f5c468d0534282edd9fd13f32a0`)**:
      - *Slice 1 (Practice performance & keypad reliability)*: Isolated timer presentation into child component at ~10 Hz; removed preference reads from timer render hot path; eliminated sticky touch hover in Android WebView; keyed keypad container per fact revision for clean button reset.
      - *Slice 2 (Onboarding layout & Android Back coordinator)*: Adopted KnownFirst-style vertically stacked full-width onboarding action layout preserving 5-step flow and draft selections; implemented application-owned `IAppBackNavigationCoordinator` handling Android system Back across Onboarding (steps 2–5 back, step 1 background pass-through), Settings (return to `/` preserving question/input/timing), and Root Practice (background pass-through with timing freeze).
@@ -38,7 +38,13 @@ This document provides operational context for current repository work.
      - Defined `IAppPlatformInfo` and `IClipboardService` application abstractions with MAUI implementations;
      - Extended `Settings.razor` footer with compact build classification, short source commit, and localized "Copy diagnostic info" action with async execution and feedback status;
      - Full English, German, and Russian localization parity.
-- **Next Technical Lifecycle**: Awaiting explicit orchestration/user dispatch for the next remaining MF-UX-005 slice. (Do not autonomously select a remaining implementation slice).
+  6. **Repeatable Tester Artifact / APK Workflow (Slices 1–4 — Implemented & Reviewed on `feat/mf-ux-005-tester-apk-workflow`)**:
+     - *Slice 1 (`248fc1c`)*: Tester APK profile foundation (`ReleaseProfile.Tester`, `ArtifactWorkspace` routing, deterministic naming `MathFirst-Tester-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-tester.apk`, MSBuild property matrix `ApplicationId=com.tachiguro.mathfirst.tester`, `BuildClassification=Tester`, `MathFirstSourceCommit=<SHA>`, `AndroidKeyStore=false`, debug signing, clean branch/working tree validation).
+     - *Slice 2 (`a79738c`)*: Authoritative offline APK validation (`AndroidApkValidator` using `apksigner`, `aapt2 dump xmltree`, `dexdump -f`, manifest security rules, zero network permissions, `debuggable != true`, backup rules, leaf development-debug certificate policy).
+     - *Slice 3 (`97edb4f`)*: Validation receipt schema v1 with `Tester` profile, deterministic `TESTER_README.md`, profile-aware `SHA256SUMS`, and atomic promotion of 5-file evidence bundle.
+     - *Slice 4 (`22665bc`)*: `AndroidPackageCommand` wiring for `--profile Tester`, CLI surface enablement, and PowerShell entrypoints `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1`.
+     - *Review Baseline*: `REVIEW_PASS` (Findings: `NONE`), 1462 automated tests passed in `MathFirst.Core.Tests`, ReleaseTool build clean.
+- **Next Technical Lifecycle**: `COMMIT_ONLY` (committing documentation reconciliation changes for Tester APK workflow).
 
 ---
 
@@ -61,7 +67,7 @@ The following 18 product and UX decisions are authoritative across all subsequen
 13. **Pause Information**: IMPLEMENTED IN SLICE 6. Lightweight current-session stats on Pause overlay (Completed, Correct, Current streak, Median correct latency) without invented percentages.
 14. **Startup White Flash**: IMPLEMENTED IN SLICE 7. Neutral brand-continuity startup handoff (#176B4D native splash -> #176B4D Android WebView canvas -> #176B4D static HTML surface -> first rendered Light/Dark Blazor UI), empty app root container, no localStorage theme duplication, physical verification pending.
 15. **Installed Size / App Data**: ACCEPTED INVESTIGATION — PENDING LATER SLICE. Separate analysis of debug vs release APK/AAB payloads, native libraries, WebView runtime, SQLite storage, and cache. Debug APK size is not production evidence.
-16. **Tester Ergonomics**: PARTIALLY IMPLEMENTED (SLICES A & B MERGED). Completed: runtime build identity metadata (PR #33) and safe copyable diagnostics / Settings UX (PR #34). Remaining: repeatable tester artifact / APK packaging workflow.
+16. **Tester Ergonomics & Workflow**: FULLY IMPLEMENTED & REVIEWED. Completed: runtime build identity metadata (PR #33), safe copyable diagnostics / Settings UX (PR #34), and repeatable tester artifact / APK packaging workflow (Slices 1–4 on `feat/mf-ux-005-tester-apk-workflow`).
 17. **KnownFirst-Style Onboarding Action Layout**: IMPLEMENTED IN SLICE 2. Vertically stacked full-width actions with primary forward action on top and Back below across all 5 steps, with in-session draft selection preservation and no Skip shortcut.
 18. **Android Back Navigation**: IMPLEMENTED IN SLICE 2. Application-owned `IAppBackNavigationCoordinator` handling Onboarding steps 2–5 back navigation, Onboarding step 1 safe background pass-through, Settings return to `/` with question/input/timing preservation, and Root Practice safe background pass-through with timing freeze.
 
@@ -72,8 +78,7 @@ The following 18 product and UX decisions are authoritative across all subsequen
 The following accepted items under `MF-UX-005` remain pending for subsequent implementation dispatches:
 
 1. **Installed-Size / App-Data Investigation**: APK/AAB package size analysis, native library overhead, Blazor/WebView runtime footprints, and runtime app data profiling.
-2. **Repeatable Tester Artifact Workflow**: Controlled tester APK packaging workflow if required for repeatable distribution.
-3. **Physical Android Device Verification**: Physical confirmation of Startup White-Flash elimination, Android system-Back navigation, haptic tactile feel, native clipboard diagnostic copying, and cumulative UX behaviors on hardware.
+2. **Physical Android Device Verification**: Physical confirmation of Startup White-Flash elimination, Android system-Back navigation, haptic tactile feel, native clipboard diagnostic copying, and cumulative UX behaviors on hardware.
 
 ---
 
@@ -81,11 +86,11 @@ The following accepted items under `MF-UX-005` remain pending for subsequent imp
 
 The following stages are strictly sequential and require separate authorization:
 
-1. **Subsequent MF-UX-005 Slices**: Iterative implementation of remaining UX polish/investigation slices under separate authorized dispatches.
-2. **Comprehensive Review (`REVIEW_ONLY`)**: Package-wide review of completed MF-UX-005 scope.
-3. **Full Validation (`FULL_VALIDATION`)**: Execution of automated regression and verification suites on exact candidate HEAD.
-4. **Pull Request & Explicit Merge Authorization**: Dedicated PR to `main` with affirmative user approval.
-5. **Post-Merge Synchronization & Exact Candidate Establishment**: Establishing the new exact candidate SHA on synchronized `main`.
+1. **Commitment of Tester APK Documentation (`COMMIT_ONLY`)**: Commit the reconciled documentation changes on `feat/mf-ux-005-tester-apk-workflow`.
+2. **Full Validation (`FULL_VALIDATION`)**: Execution of automated regression and verification suites on exact candidate HEAD.
+3. **Pull Request & Explicit Merge Authorization**: Dedicated PR to `main` with affirmative user approval.
+4. **Subsequent MF-UX-005 Slices**: Iterative implementation of remaining UX polish/investigation slices (Installed Size analysis, Physical Android verification) under separate dispatches.
+5. **Comprehensive Review (`REVIEW_ONLY`)**: Package-wide review of completed MF-UX-005 scope.
 6. **Production Packaging & Signing**: Creation of a production `Distributable` AAB package signed with release credentials.
 7. **Physical Android Technical Smoke Verification**: Verification on clean physical hardware.
 8. **Manual Physical-Device Functional Verification**: Verifying curriculum boundaries and UX polish in manual practice.

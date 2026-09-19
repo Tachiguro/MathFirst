@@ -1061,6 +1061,8 @@ public sealed class AndroidAabValidationTests
         public string ResolveJarsigner() => "jarsigner";
         public string ResolveKeytool() => "keytool";
         public string ResolveDexdump() => "dexdump";
+        public string ResolveAapt2() => "aapt2";
+        public string ResolveApksigner() => "apksigner";
     }
 
     private sealed class FakeProcessRunner : IProcessRunner

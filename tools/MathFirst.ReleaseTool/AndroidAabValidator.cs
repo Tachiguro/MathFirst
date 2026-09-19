@@ -13,6 +13,8 @@ public interface IValidationToolLocator
     string ResolveJarsigner();
     string ResolveKeytool();
     string ResolveDexdump();
+    string ResolveAapt2();
+    string ResolveApksigner();
 }
 
 public sealed class DefaultValidationToolLocator : IValidationToolLocator
@@ -69,15 +71,49 @@ public sealed class DefaultValidationToolLocator : IValidationToolLocator
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Android\Sdk\build-tools")
         ]) ?? "dexdump";
 
+    public string ResolveAapt2() =>
+        FindExecutable("aapt2.exe", "ANDROID_HOME", [
+            @"C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows",
+            @"C:\Program Files (x86)\Android\android-sdk\build-tools",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Android\Sdk\build-tools")
+        ]) ?? FindExecutable("aapt2", "ANDROID_HOME", [
+            @"C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows",
+            @"C:\Program Files (x86)\Android\android-sdk\build-tools",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Android\Sdk\build-tools")
+        ]) ?? "aapt2";
+
+    public string ResolveApksigner() =>
+        FindExecutable("apksigner.bat", "ANDROID_HOME", [
+            @"C:\Program Files (x86)\Android\android-sdk\build-tools",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Android\Sdk\build-tools")
+        ]) ?? FindExecutable("apksigner", "ANDROID_HOME", [
+            @"C:\Program Files (x86)\Android\android-sdk\build-tools",
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Android\Sdk\build-tools")
+        ]) ?? "apksigner";
+
     private static string? FindExecutable(string exeName, string envVar, string[] candidateRoots)
     {
-        var envPath = Environment.GetEnvironmentVariable(envVar);
-        if (!string.IsNullOrWhiteSpace(envPath))
+        var envVars = new[] { envVar, "ANDROID_SDK_ROOT", "ANDROID_HOME" }.Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var env in envVars)
         {
-            var direct = Path.Combine(envPath, "bin", exeName);
-            if (File.Exists(direct)) return direct;
-            var subDirect = Path.Combine(envPath, exeName);
-            if (File.Exists(subDirect)) return subDirect;
+            var envPath = Environment.GetEnvironmentVariable(env);
+            if (!string.IsNullOrWhiteSpace(envPath))
+            {
+                var direct = Path.Combine(envPath, "bin", exeName);
+                if (File.Exists(direct)) return direct;
+                var subDirect = Path.Combine(envPath, exeName);
+                if (File.Exists(subDirect)) return subDirect;
+                var buildTools = Path.Combine(envPath, "build-tools");
+                if (Directory.Exists(buildTools))
+                {
+                    var files = Directory.GetFiles(buildTools, exeName, SearchOption.AllDirectories);
+                    if (files.Length > 0)
+                    {
+                        Array.Sort(files, StringComparer.OrdinalIgnoreCase);
+                        return files[^1];
+                    }
+                }
+            }
         }
 
         foreach (var root in candidateRoots)
@@ -97,26 +133,6 @@ public sealed class DefaultValidationToolLocator : IValidationToolLocator
     }
 }
 
-public sealed record ValidationRequest(
-    string AabPath,
-    string ProvenancePath,
-    string ExpectedCommitSha,
-    ReleaseProfile Profile,
-    string? ExpectedDisplayVersion = null,
-    int? ExpectedBuildNumber = null,
-    string? ExpectedSignerCertificateSha256 = null,
-    string? RepositoryRoot = null);
-
-public sealed record ValidationResult(
-    bool IsValid,
-    ArtifactValidationStatus Status,
-    ReleaseProfile Profile,
-    bool IsDistributable,
-    string ArtifactSha256,
-    string SignerCertificateSha256,
-    string SignerClassification,
-    IReadOnlyList<string> Diagnostics);
-
 public sealed class AndroidAabValidator(
     IProcessRunner processRunner,
     IValidationToolLocator? toolLocator = null)
@@ -134,6 +150,11 @@ public sealed class AndroidAabValidator(
         var diagnostics = new List<string>();
 
         // 1. Validate Input Paths and Request Parameters
+        if (request.Profile is not (ReleaseProfile.SourceCandidate or ReleaseProfile.Distributable))
+        {
+            throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.AabPath) || !File.Exists(request.AabPath))
         {
             throw new ReleaseToolException($"AAB file does not exist at '{request.AabPath}'.");
@@ -159,11 +180,6 @@ public sealed class AndroidAabValidator(
         if (string.IsNullOrWhiteSpace(request.ExpectedCommitSha) || !FullShaPattern.IsMatch(request.ExpectedCommitSha))
         {
             throw new ReleaseToolException("ExpectedCommitSha must be a full 40-character hexadecimal Git SHA.");
-        }
-
-        if (!Enum.IsDefined(request.Profile))
-        {
-            throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.");
         }
 
         string? normalizedExpectedSignerSha = null;
