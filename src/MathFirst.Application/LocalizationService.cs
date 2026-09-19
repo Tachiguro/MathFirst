@@ -254,7 +254,21 @@ public sealed class LocalizationService : ILocalizationService
         ["Reset_FullLocal_Desc"] = "Resets learner data, onboarding, language, appearance, and number keypad to a fresh installation state.",
         ["Reset_FullLocal_Confirm"] = "Reset all learner data and settings? This action cannot be undone.",
         ["Reset_FullLocal_Action"] = "Reset Data",
-        ["Reset_FullLocal_Success"] = "Full reset complete. Application returned to fresh install state."
+        ["Reset_FullLocal_Success"] = "Full reset complete. Application returned to fresh install state.",
+        ["Settings_Privacy"] = "Privacy",
+        ["Settings_Privacy_Desc"] = "MathFirst operates entirely offline on this device without accounts, analytics, or remote data collection.",
+        ["Settings_Privacy_Action"] = "View Privacy Policy",
+        ["Privacy_Title"] = "Privacy",
+        ["Privacy_Overview_Title"] = "Overview",
+        ["Privacy_Overview_Body"] = "MathFirst is designed to protect learner privacy by operating locally on your device without user accounts, advertising, analytics, or remote data collection.",
+        ["Privacy_NoCollection_Title"] = "No Remote Collection or Sharing",
+        ["Privacy_NoCollection_Body"] = "MathFirst does not collect personal data, does not transmit learner data to the developer, does not use advertising or tracking, and does not sell or share user data with third parties.",
+        ["Privacy_LocalStorage_Title"] = "Local Storage and Device Transfer",
+        ["Privacy_LocalStorage_Body"] = "Learning progress and preferences are stored only on this device. On supported Android versions, direct device-to-device migration through the operating system may transfer the local learner database without sending data to MathFirst.",
+        ["Privacy_Delete_Title"] = "Removing Local Data",
+        ["Privacy_Delete_Body"] = "You can remove locally stored learner data and preferences at any time using the reset options in Settings or by uninstalling the application.",
+        ["Privacy_Contact_Title"] = "Contact",
+        ["Privacy_Contact_Body"] = "Privacy questions can be submitted through the public MathFirst GitHub Issues page:"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -396,7 +410,21 @@ public sealed class LocalizationService : ILocalizationService
         ["Reset_FullLocal_Desc"] = "Setzt Lerndaten, Onboarding, Sprache, Erscheinungsbild und Zahlentastatur auf den Zustand einer Neuinstallation zurück.",
         ["Reset_FullLocal_Confirm"] = "Alle Lerndaten und Einstellungen zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden.",
         ["Reset_FullLocal_Action"] = "Daten zurücksetzen",
-        ["Reset_FullLocal_Success"] = "Vollständiger Reset abgeschlossen. App befindet sich im Zustand der Neuinstallation."
+        ["Reset_FullLocal_Success"] = "Vollständiger Reset abgeschlossen. App befindet sich im Zustand der Neuinstallation.",
+        ["Settings_Privacy"] = "Datenschutz",
+        ["Settings_Privacy_Desc"] = "MathFirst arbeitet vollständig offline auf diesem Gerät ohne Konten, Analysen oder Datenerfassung.",
+        ["Settings_Privacy_Action"] = "Datenschutzerklärung anzeigen",
+        ["Privacy_Title"] = "Datenschutz",
+        ["Privacy_Overview_Title"] = "Übersicht",
+        ["Privacy_Overview_Body"] = "MathFirst schützt die Privatsphäre der Lernenden und arbeitet lokal auf deinem Gerät ohne Benutzerkonten, Werbung, Analysen oder Datenübertragung.",
+        ["Privacy_NoCollection_Title"] = "Keine Datenerfassung oder Weitergabe",
+        ["Privacy_NoCollection_Body"] = "MathFirst erfasst keine personenbezogenen Daten, überträgt keine Lerndaten an die Entwickler, nutzt weder Werbung noch Tracking und verkauft oder teilt keine Daten mit Dritten.",
+        ["Privacy_LocalStorage_Title"] = "Lokale Speicherung und Geräteübertragung",
+        ["Privacy_LocalStorage_Body"] = "Lernfortschritt und Einstellungen werden ausschließlich lokal auf diesem Gerät gespeichert. Bei einer direkten Geräteübertragung über Android kann die lokale Lerndatenbank ohne Beteiligung von MathFirst übertragen werden.",
+        ["Privacy_Delete_Title"] = "Daten löschen",
+        ["Privacy_Delete_Body"] = "Du kannst lokal gespeicherte Lerndaten und Einstellungen jederzeit über die Optionen in den Einstellungen oder durch Deinstallieren der App löschen.",
+        ["Privacy_Contact_Title"] = "Kontakt",
+        ["Privacy_Contact_Body"] = "Fragen zum Datenschutz können über die öffentliche GitHub-Issues-Seite von MathFirst gestellt werden:"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -538,6 +566,20 @@ public sealed class LocalizationService : ILocalizationService
         ["Reset_FullLocal_Desc"] = "Сбрасывает данные обучения, онбординг, язык, оформление и цифровую клавиатуру до состояния новой установки.",
         ["Reset_FullLocal_Confirm"] = "Сбросить все данные обучения и настройки? Это действие нельзя отменить.",
         ["Reset_FullLocal_Action"] = "Сбросить данные",
-        ["Reset_FullLocal_Success"] = "Полный сброс выполнен. Приложение возвращено в исходное состояние."
+        ["Reset_FullLocal_Success"] = "Полный сброс выполнен. Приложение возвращено в исходное состояние.",
+        ["Settings_Privacy"] = "Конфиденциальность",
+        ["Settings_Privacy_Desc"] = "MathFirst работает полностью автономно на этом устройстве без учетных записей, аналитики и сбора данных.",
+        ["Settings_Privacy_Action"] = "Политика конфиденциальности",
+        ["Privacy_Title"] = "Конфиденциальность",
+        ["Privacy_Overview_Title"] = "Обзор",
+        ["Privacy_Overview_Body"] = "MathFirst защищает конфиденциальность и работает локально на вашем устройстве без учетных записей, рекламы, аналитики и передачи данных.",
+        ["Privacy_NoCollection_Title"] = "Без сбора данных и передачи третьим лицам",
+        ["Privacy_NoCollection_Body"] = "MathFirst не собирает персональные данные, не отправляет данные разработчику, не использует рекламу или трекинг и не передает данные третьим лицам.",
+        ["Privacy_LocalStorage_Title"] = "Локальное хранение и перенос между устройствами",
+        ["Privacy_LocalStorage_Body"] = "Прогресс обучения и настройки хранятся только на этом устройстве. При прямом переносе между устройствами через Android локальная база данных может переноситься без участия MathFirst.",
+        ["Privacy_Delete_Title"] = "Удаление данных",
+        ["Privacy_Delete_Body"] = "Вы можете удалить сохраненные данные обучения и настройки в любой момент через меню настроек или удалив приложение.",
+        ["Privacy_Contact_Title"] = "Контакты",
+        ["Privacy_Contact_Body"] = "Вопросы о конфиденциальности можно отправить через страницу Issues проекта MathFirst на GitHub:"
     };
 }

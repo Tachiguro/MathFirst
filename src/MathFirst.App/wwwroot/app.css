@@ -656,6 +656,13 @@ select:disabled {
     padding: var(--space-1) var(--space-3);
 }
 
+.privacy-contact-url {
+    font-weight: 600;
+    color: var(--color-primary);
+    word-break: break-all;
+    user-select: all;
+}
+
 .settings-card {
     display: grid;
     gap: clamp(0.6rem, 1.5vh, 1rem);

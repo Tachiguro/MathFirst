@@ -353,4 +353,72 @@ public sealed class PolicyAndLocalizationTests
             Assert.False(string.IsNullOrWhiteSpace(ruDict[key]), $"Russian string for key '{key}' was empty.");
         }
     }
+
+    [Fact]
+    public void Settings_Contract_ContainsPrivacyNavigationEntry()
+    {
+        var settingsPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor");
+        Assert.True(File.Exists(settingsPath), "Settings.razor was not found.");
+        var settings = File.ReadAllText(settingsPath);
+
+        Assert.Contains("href=\"privacy\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Localizer[\"Settings_Privacy\"]", settings, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Privacy_PageContract_DeclaresSingleRouteAndOfflineLocalContent()
+    {
+        var pagesDir = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages");
+        var pageFiles = Directory.Exists(pagesDir) ? Directory.GetFiles(pagesDir, "*.razor") : [];
+        var matchingFiles = pageFiles
+            .Where(path => File.ReadAllText(path).Contains("@page \"/privacy\"", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(matchingFiles.Count == 1, $"Expected exactly one page declaring @page \"/privacy\", but found {matchingFiles.Count}.");
+
+        var privacyContent = File.ReadAllText(matchingFiles[0]);
+        Assert.DoesNotContain("HttpClient", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fetch(", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<iframe", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<webview", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("http://", privacyContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("en", "Privacy", "Overview", "No Remote Collection or Sharing", "Local Storage and Device Transfer", "Removing Local Data", "Contact")]
+    [InlineData("de", "Datenschutz", "Übersicht", "Keine Datenerfassung oder Weitergabe", "Lokale Speicherung und Geräteübertragung", "Daten löschen", "Kontakt")]
+    [InlineData("ru", "Конфиденциальность", "Обзор", "Без сбора данных и передачи третьим лицам", "Локальное хранение и перенос между устройствами", "Удаление данных", "Контакты")]
+    public void LocalizationService_PrivacyStringsHaveFullLanguageParity(
+        string language,
+        string expectedTitle,
+        string expectedOverviewTitle,
+        string expectedNoCollectionTitle,
+        string expectedLocalStorageTitle,
+        string expectedDeletionTitle,
+        string expectedContactTitle)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expectedTitle, service["Privacy_Title"]);
+        Assert.Equal(expectedOverviewTitle, service["Privacy_Overview_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_Overview_Body"]));
+        Assert.Equal(expectedNoCollectionTitle, service["Privacy_NoCollection_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_NoCollection_Body"]));
+        Assert.Equal(expectedLocalStorageTitle, service["Privacy_LocalStorage_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_LocalStorage_Body"]));
+        Assert.Equal(expectedDeletionTitle, service["Privacy_Delete_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_Delete_Body"]));
+        Assert.Equal(expectedContactTitle, service["Privacy_Contact_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_Contact_Body"]));
+        Assert.Equal(expectedTitle, service["Settings_Privacy"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Settings_Privacy_Desc"]));
+        Assert.False(string.IsNullOrWhiteSpace(service["Settings_Privacy_Action"]));
+    }
+
+    private static string GetRepositoryPath(params string[] segments) =>
+        Path.Combine([GetRepositoryRoot(), .. segments]);
+
+    private static string GetRepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
 }

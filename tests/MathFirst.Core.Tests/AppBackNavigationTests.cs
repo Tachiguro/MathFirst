@@ -313,6 +313,35 @@ public sealed class AppBackNavigationTests : IDisposable
         Assert.Contains("_backCoordinator.TryHandleBack()", mainPage, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Privacy_Contract_RegistersBackHandlerAndPointsToSettings()
+    {
+        var privacyPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Privacy.razor");
+        Assert.True(File.Exists(privacyPath), "Privacy page component 'Privacy.razor' was not found in Components/Pages.");
+
+        var privacy = File.ReadAllText(privacyPath);
+        Assert.Contains("IAppBackNavigationCoordinator BackCoordinator", privacy, StringComparison.Ordinal);
+        Assert.Contains("BackCoordinator.RegisterHandler", privacy, StringComparison.Ordinal);
+        Assert.Contains("Navigation.NavigateTo(\"/settings\")", privacy, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Privacy_BackNavigation_HandlesBackAndReturnsToSettings()
+    {
+        var navigatedPath = string.Empty;
+        var coordinator = new AppBackNavigationCoordinator();
+        using var registration = coordinator.RegisterHandler(() =>
+        {
+            navigatedPath = "/settings";
+            return true;
+        });
+
+        var handled = coordinator.TryHandleBack();
+        Assert.True(handled);
+        Assert.Equal("/settings", navigatedPath);
+    }
+
+
     private string GetTempDbPath() => Path.Combine(_testDirectory, $"test_{Guid.NewGuid():N}.db");
 
     private sealed class IncrementingClock : IClock
