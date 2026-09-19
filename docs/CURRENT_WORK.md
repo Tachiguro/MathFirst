@@ -10,10 +10,10 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Tester Ergonomics — Build Identity Metadata
+- **Active Task**: Tester Ergonomics — Diagnostics & Settings UX
 - **Current Operation Mode**: `IMPLEMENT_SLICE`
-- **Active Task Branch**: `feat/mf-ux-005-tester-ergonomics-metadata`
-- **Baseline Commit**: `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`
+- **Active Task Branch**: `feat/mf-ux-005-tester-diagnostics-settings`
+- **Baseline Commit**: `83b767c2265c1baba560abdeaa9fedad365d70da`
 - **Slice 1 Progress (Completed & Validated)**:
   1. Practice timer render isolation: Extracted countdown presentation into `PracticeCountdownTimer.razor` updating at 10 Hz (100ms interval), eliminating ~20 full `Home.razor` component re-renders per second while maintaining authoritative monotonic elapsed time and timeout accuracy.
   2. Preferences hot-path removal: Removed repeated `PreferenceStore.GetEnabledOperations()` reads from `OperationProgress` during hot timer/render evaluation; enabled operations are cached at explicit initialization and lifecycle boundaries.
@@ -66,7 +66,13 @@ This document provides operational context for current repository work.
   3. Source Commit & Short SHA Formatting: Added `MathFirst.SourceCommit` supporting real Git SHAs or deliberate `local` default. `GetShortSourceCommit` produces deterministic 8-character short SHA or preserves `local` without exceptions on short strings.
   4. MSBuild Projection & AppBuildInfo Service: Projected `MathFirst.ApplicationId`, `MathFirst.SourceCommit`, and `MathFirst.BuildClassification` in `MathFirst.App.csproj`. `AppBuildInfo` exposes `ApplicationId`, `SourceCommit`, `ShortSourceCommit`, `BuildClassification`, and `IsTesterBuild` (derived strictly from `BuildClassification == "Tester"`).
   5. Verification: 59 targeted unit tests in `AppBuildInfoMetadataParserTests` and `NativeIdentityContractTests` (1318 total passing Core tests, 0 failed, 0 skipped); Windows Release build 0 warnings/errors; Android Release build 0 warnings/errors.
-- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Tester Ergonomics — Build Identity Metadata
+- **Tester Ergonomics — Diagnostics & Settings UX Slice (Completed & Validated)**:
+  1. Safe Deterministic Diagnostic Formatter: Implemented `AppDiagnosticFormatter` in `MathFirst.Application` formatting canonical application title, display version, build number, build classification, short source commit, platform name/version, and application ID with strict exclusion of learner progress, attempt history, FSRS data, database paths, and secrets.
+  2. Platform Information & Clipboard Boundaries: Defined `IAppPlatformInfo` and `IClipboardService` in `MathFirst.Application`, implemented `MauiAppPlatformInfo` (normalizing WinUI to Windows and Android to Android) and `MauiClipboardService` in `MathFirst.App.Services`, and registered them via standard singleton DI in `MauiProgram.cs`.
+  3. Settings UX & Build Identity: Extended `Settings.razor` footer to display compact build classification and short source commit alongside version/build, added localized "Copy diagnostic info" button with safe async clipboard execution, and localized success/failure feedback status.
+  4. EN/DE/RU Localization: Added keys `Settings_Build`, `Settings_Source`, `Settings_CopyDiagnostics`, `Settings_CopyDiagnostics_Success`, `Settings_CopyDiagnostics_Failure` with complete parity across English, German, and Russian dictionaries in `LocalizationService.cs`.
+  5. Verification: 114 targeted unit and contract tests in `TesterDiagnosticsContractTests`, `NativeIdentityContractTests`, `PolicyAndLocalizationTests`, and `AppBuildInfoMetadataParserTests`; Windows build 0 warnings/errors; Android build 0 warnings/errors.
+- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Tester Ergonomics — Diagnostics & Settings UX
 
 ---
 

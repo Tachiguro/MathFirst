@@ -76,6 +76,11 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Use vibration feedback for keypad taps and answer results.", service["Settings_HapticFeedbackHelp"]);
         Assert.Equal("Haptic feedback On.", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Version 1.0 (Build 1)", service["Settings_VersionBuild", "1.0", 1]);
+        Assert.Equal("Build", service["Settings_Build"]);
+        Assert.Equal("Source", service["Settings_Source"]);
+        Assert.Equal("Copy diagnostic info", service["Settings_CopyDiagnostics"]);
+        Assert.Equal("Diagnostic information copied to clipboard.", service["Settings_CopyDiagnostics_Success"]);
+        Assert.Equal("Failed to copy diagnostic information to clipboard.", service["Settings_CopyDiagnostics_Failure"]);
 
         service.ApplyLanguagePreference("de");
         Assert.Equal("Richtig!", service["Training_Correct"]);
@@ -93,6 +98,11 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Vibrationsfeedback für Tastatureingaben und Antwort-Ergebnisse verwenden.", service["Settings_HapticFeedbackHelp"]);
         Assert.Equal("Haptisches Feedback Ein.", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Version 1.0 (Build 1)", service["Settings_VersionBuild", "1.0", 1]);
+        Assert.Equal("Build", service["Settings_Build"]);
+        Assert.Equal("Quelle", service["Settings_Source"]);
+        Assert.Equal("Diagnose-Informationen kopieren", service["Settings_CopyDiagnostics"]);
+        Assert.Equal("Diagnose-Informationen wurden in die Zwischenablage kopiert.", service["Settings_CopyDiagnostics_Success"]);
+        Assert.Equal("Diagnose-Informationen konnten nicht kopiert werden.", service["Settings_CopyDiagnostics_Failure"]);
 
         service.ApplyLanguagePreference("ru");
         Assert.Equal("Правильно!", service["Training_Correct"]);
@@ -110,6 +120,11 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Использовать вибрацию при нажатии клавиш и результатах ответов.", service["Settings_HapticFeedbackHelp"]);
         Assert.Equal("Тактильный отклик: Вкл..", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Версия 1.0 (сборка 1)", service["Settings_VersionBuild", "1.0", 1]);
+        Assert.Equal("Сборка", service["Settings_Build"]);
+        Assert.Equal("Источник", service["Settings_Source"]);
+        Assert.Equal("Скопировать данные диагностики", service["Settings_CopyDiagnostics"]);
+        Assert.Equal("Данные диагностики скопированы в буфер обмена.", service["Settings_CopyDiagnostics_Success"]);
+        Assert.Equal("Не удалось скопировать данные диагностики.", service["Settings_CopyDiagnostics_Failure"]);
     }
 
     [Fact]

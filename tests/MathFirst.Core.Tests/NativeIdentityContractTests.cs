@@ -85,10 +85,19 @@ public sealed class NativeIdentityContractTests
         Assert.Contains("Title = _buildInfo.ApplicationTitle", app, StringComparison.Ordinal);
         Assert.DoesNotContain("Title = \"MathFirst\"", app, StringComparison.Ordinal);
         Assert.Contains("AddSingleton<AppBuildInfo>()", composition, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<IAppPlatformInfo, MauiAppPlatformInfo>()", composition, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<IClipboardService, MauiClipboardService>()", composition, StringComparison.Ordinal);
         Assert.Contains("@inject AppBuildInfo BuildInfo", settings, StringComparison.Ordinal);
+        Assert.Contains("@inject IAppPlatformInfo PlatformInfo", settings, StringComparison.Ordinal);
+        Assert.Contains("@inject IClipboardService ClipboardService", settings, StringComparison.Ordinal);
         Assert.Contains("@Localizer[\"Settings_VersionBuild\", BuildInfo.DisplayVersion, BuildInfo.BuildNumber]", settings, StringComparison.Ordinal);
+        Assert.Contains("@Localizer[\"Settings_Build\"]", settings, StringComparison.Ordinal);
+        Assert.Contains("@Localizer[\"Settings_Source\"]", settings, StringComparison.Ordinal);
+        Assert.Contains("@Localizer[\"Settings_CopyDiagnostics\"]", settings, StringComparison.Ordinal);
+        Assert.Contains("CopyDiagnosticsAsync", settings, StringComparison.Ordinal);
         Assert.DoesNotContain("Version 1.0 (Build 1)", settings, StringComparison.Ordinal);
         Assert.Contains(".settings-version", styles, StringComparison.Ordinal);
+        Assert.Contains(".settings-copy-diagnostics-btn", styles, StringComparison.Ordinal);
     }
 
     [Fact]

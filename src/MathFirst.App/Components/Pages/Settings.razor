@@ -7,6 +7,8 @@
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
 @inject AppBuildInfo BuildInfo
+@inject IAppPlatformInfo PlatformInfo
+@inject IClipboardService ClipboardService
 @inject IPreferenceStore PreferenceStore
 @inject TrainingSession Session
 @inject NavigationManager Navigation
@@ -291,7 +293,21 @@
     </div>
 
     <footer class="settings-version">
-        <p>@Localizer["Settings_VersionBuild", BuildInfo.DisplayVersion, BuildInfo.BuildNumber]</p>
+        <p class="settings-version-text">@Localizer["Settings_VersionBuild", BuildInfo.DisplayVersion, BuildInfo.BuildNumber]</p>
+        <p class="settings-version-meta">@Localizer["Settings_Build"]: @BuildInfo.BuildClassification &bull; @Localizer["Settings_Source"]: @BuildInfo.ShortSourceCommit</p>
+        <div class="settings-diagnostics-action">
+            <button type="button"
+                    class="button button-secondary button-compact settings-copy-diagnostics-btn"
+                    @onclick="CopyDiagnosticsAsync">
+                @Localizer["Settings_CopyDiagnostics"]
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(_diagnosticMessage))
+        {
+            <p class="setting-feedback @(_diagnosticMessageIsError ? "setting-feedback-error" : "setting-feedback-success")" role="status">
+                @_diagnosticMessage
+            </p>
+        }
     </footer>
 </div>
 
@@ -305,6 +321,8 @@
     private string? _keypadMessage;
     private string? _hapticMessage;
     private string? _resetFeedbackMessage;
+    private string? _diagnosticMessage;
+    private bool _diagnosticMessageIsError;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
     private bool _hapticFeedbackEnabled = true;
@@ -375,6 +393,7 @@
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void SelectTheme(ThemePreference theme)
@@ -393,6 +412,7 @@
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void ToggleOperation(ArithmeticOperation operation)
@@ -428,6 +448,7 @@
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void SelectPracticeTime(PracticeTimeSetting setting)
@@ -460,6 +481,7 @@
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -493,6 +515,7 @@
         _practiceMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void SetHapticFeedback(bool enabled)
@@ -511,6 +534,7 @@
         _practiceMessageIsError = false;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void PromptConfirm(ConfirmAction action)
@@ -518,6 +542,7 @@
         _activeConfirmAction = action;
         _pendingConfirmationVisibility = true;
         _resetFeedbackMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void CancelConfirm()
@@ -536,6 +561,7 @@
         _practiceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
+        _diagnosticMessage = null;
     }
 
     private void ExecuteResetUiPreferences()
@@ -558,6 +584,7 @@
         _practiceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
+        _diagnosticMessage = null;
 
         Navigation.NavigateTo("/", replace: true);
     }
@@ -579,6 +606,38 @@
 
         _activeConfirmAction = ConfirmAction.None;
         Navigation.NavigateTo("/", replace: true);
+    }
+
+    private async Task CopyDiagnosticsAsync()
+    {
+        _languageMessage = null;
+        _appearanceMessage = null;
+        _practiceMessage = null;
+        _practiceMessageIsError = false;
+        _keypadMessage = null;
+        _hapticMessage = null;
+        _resetFeedbackMessage = null;
+
+        try
+        {
+            var diagnosticText = AppDiagnosticFormatter.Format(
+                BuildInfo.ApplicationTitle,
+                BuildInfo.DisplayVersion,
+                BuildInfo.BuildNumber,
+                BuildInfo.BuildClassification,
+                BuildInfo.ShortSourceCommit,
+                PlatformInfo.PlatformDescription,
+                BuildInfo.ApplicationId);
+
+            await ClipboardService.SetTextAsync(diagnosticText);
+            _diagnosticMessage = Localizer["Settings_CopyDiagnostics_Success"];
+            _diagnosticMessageIsError = false;
+        }
+        catch
+        {
+            _diagnosticMessage = Localizer["Settings_CopyDiagnostics_Failure"];
+            _diagnosticMessageIsError = true;
+        }
     }
 
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
