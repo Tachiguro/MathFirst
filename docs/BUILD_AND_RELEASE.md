@@ -59,23 +59,28 @@ MF-UX-003 provides the later packaging prerequisites: the MathFirst label, stabl
 The substantive release, packaging, signing policy, repository inspection, provenance generation, and validation logic is implemented in `tools/MathFirst.ReleaseTool`.
 
 The repository provides thin PowerShell entry point wrappers:
-- `scripts/package-android-aab.ps1`: orchestrates MSBuild property evaluation, `dotnet publish`, provenance emission, and atomic artifact promotion.
-- `scripts/validate-android-aab.ps1`: invokes the offline validator for structural, manifest, DEX bytecode, cryptographic signature, certificate chain, and provenance inspection.
+- `scripts/package-android-aab.ps1`: orchestrates MSBuild property evaluation, `dotnet publish` for AAB bundles (`SourceCandidate`, `Distributable`), provenance emission, and atomic artifact promotion.
+- `scripts/validate-android-aab.ps1`: invokes the offline AAB validator for structural, manifest, DEX bytecode, cryptographic signature, certificate chain, and provenance inspection.
+- `scripts/package-android-tester-apk.ps1`: orchestrates MSBuild property evaluation, `dotnet publish` for standalone Tester APKs (`Tester` profile), provenance emission, and atomic artifact promotion.
+- `scripts/validate-android-apk.ps1`: invokes the offline APK validator for structural, manifest, DEX bytecode, cryptographic signature (`apksigner`), certificate chain, and provenance inspection.
 
 ### B. Release Profiles
 
-MathFirst release tooling strictly isolates two release profiles:
+MathFirst release tooling strictly isolates three release profiles:
 
-| Profile | Target Branch | Git Baseline Requirement | Signing Mode | Promotion Target | Distribution Status |
-|---|---|---|---|---|---|
-| **`SourceCandidate`** | Any attached non-`main` branch; no package-specific branch name is encoded | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/source-candidate/<ArtifactId>/` | **Non-distributable** (development & validation only) |
-| **`Distributable`** | `main` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` == `local main` == `origin/main` | Production/release keystore (`-p:AndroidKeyStore=true`) with external secret files | `artifacts/android/distributable/<ArtifactId>/` | **Distributable** (validated release candidate; does not imply upload) |
+| Profile | Format | Target Branch | Git Baseline Requirement | Signing Mode | Promotion Target | Distribution Status |
+|---|---|---|---|---|---|---|
+| **`SourceCandidate`** | AAB | Any attached non-`main` branch; no package-specific branch name is encoded | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/source-candidate/<ArtifactId>/` | **Non-distributable** (development & validation only) |
+| **`Distributable`** | AAB | `main` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` == `local main` == `origin/main` | Production/release keystore (`-p:AndroidKeyStore=true`) with external secret files | `artifacts/android/distributable/<ArtifactId>/` | **Distributable** (validated release candidate; does not imply upload) |
+| **`Tester`** | APK | Any attached non-`main` branch OR synchronized `main` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/tester/<ArtifactId>/` | **Non-distributable** (tester distribution only; not a production release) |
 
 ### C. Android Platform Contract & Manifest Security
 
 - **Target Framework**: `net10.0-android36.0` explicitly pins Android API 36 as the compile and target platform.
 - **Minimum SDK**: `SupportedOSPlatformVersion` is pinned to `24.0` (Android 7.0 Nougat).
-- **Application ID**: `com.tachiguro.mathfirst`.
+- **Application ID**:
+  - `SourceCandidate` and `Distributable`: `com.tachiguro.mathfirst`.
+  - `Tester`: `com.tachiguro.mathfirst.tester` (ensuring side-by-side coexistence with production installs).
 - **Offline Invariant**: `src/MathFirst.App/Platforms/Android/AndroidManifest.xml` explicitly omits all network permissions (`android.permission.INTERNET`, `android.permission.ACCESS_NETWORK_STATE`). `BlazorWebView` assets are loaded locally from the packaged application.
 - **Multi-Generation Backup Boundary**:
   - `android:allowBackup="true"` is enabled in `AndroidManifest.xml` to allow controlled device-to-device data migration.
@@ -93,22 +98,23 @@ MathFirst release tooling strictly isolates two release profiles:
   -p:AndroidSigningKeyPass=file:<path-to-key-password-file>
   ```
 - **External Secret Isolation**: Keystores and password files must reside outside the repository root and outside `artifacts/`. The tool verifies absolute paths and rejects secret paths that traverse filesystem reparse points.
+- **Tester and SourceCandidate Signing**: Explicitly disable production keystores (`-p:AndroidKeyStore=false`) and rely exclusively on the local development/debug keystore. Release signing options are rejected when targeting `Tester` or `SourceCandidate`.
 - **Repository Hygiene**: `.gitignore` strictly ignores keystores (`*.keystore`, `*.jks`, `*.p12`, `*.pfx`), secret files (`signing.properties`, `.env`), and release output directories (`artifacts/`, `*.aab`, `*.apk`).
 - *Secret Risk Baseline*: While file indirection eliminates plaintext CLI exposure, operators remain responsible for external key storage and credential lifecycle management.
 
 ### E. Mandatory Provenance Schema v1
 
 Every packaged artifact is accompanied by a `<ArtifactId>.provenance.json` metadata record (Schema Version 1) capturing:
-- **Artifact**: File name, classification (`source-candidate-debug-signed` or `distributable-release-signed-pending-validation`), size in bytes, and lowercase SHA-256 hash.
-- **Application**: Application ID (`com.tachiguro.mathfirst`), display version, and build number.
+- **Artifact**: File name, classification (`source-candidate-debug-signed`, `distributable-release-signed-pending-validation`, or `tester-debug-signed`), size in bytes, and lowercase SHA-256 hash.
+- **Application**: Application ID (`com.tachiguro.mathfirst` for AAB profiles, `com.tachiguro.mathfirst.tester` for Tester APK), display version, and build number.
 - **Source**: Expected commit SHA, actual `HEAD` commit SHA, branch ref, source classification, and clean working tree status.
 - **Build**: Configuration (`Release`), target framework (`net10.0-android36.0`), minimum SDK (`24.0`), target SDK (`36.0`), requested version overrides, and tool versions (`dotnetSdk`, `msbuild`, `androidNetSdk`).
 - **Signing**: Signing state (`development-debug` or `release-expected-pending-validation`), expected certificate fingerprint, and validated certificate fingerprint.
 - **Timestamp**: Exact UTC generation timestamp (`generatedAtUtc`).
 
-*Provenance Integrity*: Provenance JSON serves as structured evidence metadata, not cryptographic proof or self-attestation. The offline validator independently recomputes the artifact SHA-256 and verifies all properties against the bundle bytes. Packaging serializes the staged provenance exactly once; validation, the validation receipt, and `SHA256SUMS` bind those immutable staged file bytes without rewriting the provenance afterward.
+*Provenance Integrity*: Provenance JSON serves as structured evidence metadata, not cryptographic proof or self-attestation. The offline validator independently recomputes the artifact SHA-256 and verifies all properties against the bundle/package bytes. Packaging serializes the staged provenance exactly once; validation, the validation receipt, and `SHA256SUMS` bind those immutable staged file bytes without rewriting the provenance afterward.
 
-### F. Packaging Automation (`scripts/package-android-aab.ps1`)
+### F. AAB Packaging Automation (`scripts/package-android-aab.ps1`)
 
 **Syntax**:
 ```powershell
@@ -134,7 +140,7 @@ pwsh -File scripts/package-android-aab.ps1 `
 **Deterministic Output Format**:
 `MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Classification}.aab`
 
-### G. Offline Local Artifact Validation (`scripts/validate-android-aab.ps1`)
+### G. Offline Local AAB Validation (`scripts/validate-android-aab.ps1`)
 
 **Syntax**:
 ```powershell
@@ -149,7 +155,7 @@ pwsh -File scripts/validate-android-aab.ps1 `
     [-RepositoryRoot <path-to-repo-root>]
 ```
 
-**Authoritative Validation Gates**:
+**Authoritative AAB Validation Gates**:
 1. **Path & Extension**: Asserts `.aab` and `.provenance.json` exist and are non-empty; verifies 40-character hexadecimal commit SHA.
 2. **Provenance Conformance**: Verifies Schema Version 1, recomputes artifact SHA-256, verifies exact byte size, and matches application/build/source fields.
 3. **Bundletool Structural Validation**: Executes `bundletool validate --bundle=<aab>`.
@@ -169,36 +175,91 @@ pwsh -File scripts/validate-android-aab.ps1 `
    - `SourceCandidate`: Accepts Android Debug certificate (classification: `development-debug`, non-distributable).
    - `Distributable`: Rejects Android Debug signers, verifies the certificate is within its valid date range (`NotBefore`..`NotAfter`), matches the 64-hexadecimal `ExpectedSignerCertificateSha256` fingerprint, and approves classification `release-distributable`.
 
-### H. Artifact Workspace & Promotion
+### H. Tester APK Packaging Automation (`scripts/package-android-tester-apk.ps1`)
 
-- **Fixed Destination Hierarchy**: `artifacts/android/source-candidate/<ArtifactId>/` and `artifacts/android/distributable/<ArtifactId>/`.
-- **Stable Artifact Identity**: MF-REL-002 does not change the existing `MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Classification}` ArtifactId or the Android artifact hierarchy.
+**Syntax**:
+```powershell
+pwsh -File scripts/package-android-tester-apk.ps1 `
+    -ExpectedCommitSha <40-character-git-sha> `
+    [-DisplayVersion <version-override>] `
+    [-BuildNumber <build-number-override>]
+```
+
+**Deterministic Output Format**:
+`MathFirst-Tester-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-tester.apk`
+
+**Deterministic Destination Hierarchy**:
+`artifacts/android/tester/<ArtifactId>/`
+
+### I. Offline Local APK Validation (`scripts/validate-android-apk.ps1`)
+
+**Syntax**:
+```powershell
+pwsh -File scripts/validate-android-apk.ps1 `
+    -ApkPath <path-to-apk> `
+    -ProvenancePath <path-to-provenance-json> `
+    -ExpectedCommitSha <40-character-git-sha> `
+    [-ExpectedDisplayVersion <version>] `
+    [-ExpectedBuildNumber <build>] `
+    [-ExpectedSignerCertificateSha256 <64-hex-fingerprint>] `
+    [-RepositoryRoot <path-to-repo-root>]
+```
+
+**Authoritative APK Validation Gates (`AndroidApkValidator`)**:
+1. **Path & Extension**: Asserts `.apk` and `.provenance.json` exist and are non-empty; verifies 40-character hexadecimal commit SHA.
+2. **Provenance Conformance**: Verifies Schema Version 1, recomputes artifact SHA-256, verifies exact byte size, matches `com.tachiguro.mathfirst.tester` application ID, `tester-debug-signed` classification, and build/source fields.
+3. **APK Signature & Certificate Verification (`apksigner`)**: Executes `apksigner verify --verbose --print-certs <apk>` (strictly rejecting `jarsigner` for APK verification). Asserts APK is signed, verifies signature scheme validity, extracts leaf certificate SHA-256 fingerprint, verifies development-debug signer classification, and enforces the exactly-one-signer policy.
+4. **Binary Manifest Inspection (`aapt2 dump xmltree`)**: Executes `aapt2 dump xmltree <apk> --file AndroidManifest.xml` and asserts:
+   - `package == "com.tachiguro.mathfirst.tester"`
+   - `versionCode` and `versionName` match provenance
+   - `minSdkVersion == "24"` and `targetSdkVersion == "36"`
+   - `android:debuggable != "true"` (omitted or false in Release)
+   - Zero network permissions (strict absence of `android.permission.INTERNET` and `android.permission.ACCESS_NETWORK_STATE`)
+   - Backup wiring: `android:allowBackup="true"`, `android:fullBackupContent="@xml/backup_rules"`, `android:dataExtractionRules="@xml/data_extraction_rules"`
+5. **Archive Resource Inspection**: Inspects APK zip entries for `res/xml/backup_rules.xml`, `res/xml-v28/backup_rules.xml`, and `res/xml/data_extraction_rules.xml` (or compiled resource table equivalents).
+6. **DEX Bytecode Validation**: Extracts `.dex` entries (`classes.dex`, `classes2.dex`, etc.) from the APK into an isolated temporary directory and executes `dexdump -f` on each DEX payload.
+
+### J. Artifact Workspace & Promotion
+
+- **Fixed Destination Hierarchy**: `artifacts/android/source-candidate/<ArtifactId>/`, `artifacts/android/distributable/<ArtifactId>/`, and `artifacts/android/tester/<ArtifactId>/`.
+- **Stable Artifact Identity**:
+  - AAB: `MathFirst-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-{Classification}.aab`
+  - Tester APK: `MathFirst-Tester-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-tester.apk`
 - **Isolated Staging**: Packaging occurs in an invocation-unique directory under `artifacts/android/.staging/<InvocationGuid>/`.
-- **Single-AAB Selection**: Selects exactly one `.aab` produced in the publish output; rejects ambiguous multiple outputs.
+- **Single-Artifact Selection**: Selects exactly one `.aab` or `.apk` produced in the publish output; rejects ambiguous multiple outputs.
 - **No Overwrite / Force Path**: Aborts if the destination directory already exists.
-- **Exact Evidence Directory**: A successful promotion contains exactly `<ArtifactId>.aab`, `<ArtifactId>.provenance.json`, `<ArtifactId>.validation.json`, `TESTER_README.md`, and `SHA256SUMS`; the unsigned publish intermediate is never promoted.
-- **Validation-Gated Promotion**: The exact staged AAB and provenance are validated before promotion. Both profiles require `ValidatorApproved`; the result must agree with the requested profile and exact staged AAB hash.
+- **Exact Evidence Directory**: A successful promotion contains exactly `<ArtifactId>.<ext>`, `<ArtifactId>.provenance.json`, `<ArtifactId>.validation.json`, `TESTER_README.md`, and `SHA256SUMS`; unsigned publish intermediates are never promoted.
+- **Validation-Gated Promotion**: The exact staged artifact and provenance are validated before promotion. All profiles require `ValidatorApproved`; the result must agree with the requested profile and exact staged artifact hash.
 - **Atomic Move & Cleanup**: Staged artifacts are promoted via an atomic directory move (`Directory.Move`), followed by invocation staging directory deletion.
 
-### I. Validation Receipt and Tester Evidence (MF-REL-002)
+### K. Validation Receipt and Tester Evidence
 
-`<ArtifactId>.validation.json` is ValidationReceipt Schema v1. It uses stable string values for `profile` (`SourceCandidate` or `Distributable`) and `status` (`ValidatorApproved`) and contains:
+`<ArtifactId>.validation.json` is ValidationReceipt Schema v1. It uses stable string values for `profile` (`SourceCandidate`, `Distributable`, or `Tester`) and `status` (`ValidatorApproved`) and contains:
 
 - `schemaVersion`, `generatedAtUtc`, `profile`, `status`, and `isDistributable`;
-- `artifact.fileName` and `artifact.sha256` for the exact staged AAB bytes;
+- `artifact.fileName` and `artifact.sha256` for the exact staged artifact bytes;
 - `provenance.fileName` and `provenance.sha256` for the exact serialized staged provenance bytes; and
 - `signer.certificateSha256` and `signer.classification` (`development-debug` or `release-distributable`).
 
-The schema intentionally has no `checks` property. `SourceCandidate` receipts are non-distributable and development/debug signed; `Distributable` receipts are distributable only after release-signer validation.
+The schema intentionally has no `checks` property. `SourceCandidate` and `Tester` receipts are non-distributable and development/debug signed (`isDistributable: false`); `Distributable` receipts are distributable only after release-signer validation (`isDistributable: true`).
 
-`TESTER_README.md` identifies the artifact and evidence files and states the tester boundary: an AAB is not directly installable, production credentials are not distributed, and conversion, installation, Play upload, and manual device verification remain separate activities.
+`TESTER_README.md` identifies the artifact and evidence files and states the tester boundaries:
+- For AAB: an AAB is not directly installable; conversion, installation, Play upload, and manual device verification remain separate activities.
+- For Tester APK: the APK is an installable tester artifact signed with local development/debug credentials, uses `com.tachiguro.mathfirst.tester` to coexist safely alongside production installs, and does not share or migrate production app data.
 
-`SHA256SUMS` contains exactly four ordinally sorted entries for the AAB, provenance JSON, validation JSON, and tester README. It excludes itself, uses lowercase SHA-256 values, an exact two-space delimiter, LF line endings, and one final LF. Hashes are computed from the final staged file bytes immediately before promotion.
+`SHA256SUMS` contains exactly four ordinally sorted entries for the artifact (AAB or APK), provenance JSON, validation JSON, and tester README. It excludes itself, uses lowercase SHA-256 values, an exact two-space delimiter, LF line endings, and one final LF. Hashes are computed from the final staged file bytes immediately before promotion.
 
-### J. Release Boundary Invariants
+### L. Signing, Update, and Coexistence Boundaries
 
-1. **Packaging is Not Distribution**: Generating a `SourceCandidate` or `Distributable` package does not publish the application.
+1. **Development/Debug Signer Invariant**: Tester APKs and SourceCandidate AABs are signed with local development/debug keystores (`~/.android/debug.keystore`). Debug keystores are generated per developer machine and are not shared.
+2. **Android In-Place Update Requirement**: Android requires that any in-place application update (`adb install -r` or sideload update) be signed with the exact same cryptographic certificate. Tester APKs built on different developer machines will fail in-place installation over each other without first uninstalling the prior build.
+3. **Application Coexistence**: Tester APKs use application ID `com.tachiguro.mathfirst.tester`, ensuring they install and execute in an isolated Android sandbox completely separate from the production application (`com.tachiguro.mathfirst`). They can be installed simultaneously on the same device without conflict.
+4. **Data Isolation**: No automatic data migration exists between `com.tachiguro.mathfirst` and `com.tachiguro.mathfirst.tester`. Each maintains its own isolated SQLite learner database.
+
+### M. Release Boundary Invariants
+
+1. **Packaging is Not Distribution**: Generating a `SourceCandidate`, `Distributable`, or `Tester` package does not publish the application.
 2. **Synchronized Main for Distributable**: `Distributable` packages cannot be built from feature branches.
 3. **Google Play Upload**: Upload to Google Play internal testing or production tracks requires explicit separate user authorization.
 4. **Device Testing**: Local offline validation does not replace real-device installation testing.
-5. **Evidence Is Not Delivery**: The five-file evidence directory does not imply upload, distribution, conversion to APK, installation, manual verification, or release publication.
+5. **Evidence Is Not Delivery**: The five-file evidence directory does not imply upload, distribution, installation, manual verification, or release publication.

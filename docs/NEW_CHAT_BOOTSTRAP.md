@@ -98,19 +98,22 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree
 
 ### Operational Baseline
-- Synchronized `main` commit SHA: `82c117912f72d6efe16055f8be754c9c577ae15a`
+- Synchronized `main` commit SHA: `336322b5386a872ebb726c7bdcf34bb207592650` (PR #35 merge)
 - Active work package context: `MF-UX-005` (Native UX, Responsiveness, and Interaction Polish)
-- Active implementation branch: None currently in flight (repository is clean on synchronized `main` awaiting explicit dispatch for next slice)
+- Active implementation branch: `feat/mf-ux-005-tester-apk-workflow` (candidate HEAD `22665bc06199b6f8c8fc7f2d11975d3440cac292` during review; documentation unstaged in working tree)
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` is clean and synchronized with `origin/main` at `82c117912f72d6efe16055f8be754c9c577ae15a`.
-3. **Recognize completed baseline packages & PRs**: Confirm pre-release packages through `MF-REL-002` (PR #26), post-release reconciliation (PR #27), forensic remediation (PR #28, PR #29), and `MF-UX-005` deliverables: Slices 1–6 (PR #30), Slice 7 startup white flash (PR #31), Release startup resource order fix (PR #32), Tester Ergonomics metadata (PR #33), and Tester Ergonomics diagnostics & settings UX (PR #34) are merged.
-4. **Recognize remaining accepted `MF-UX-005` boundaries**: Installed Size / App Data investigation, repeatable tester artifact / APK workflow, and physical Android device verification.
-5. **Await explicit dispatch**: Do not autonomously select or start the next slice without explicit user orchestration.
+2. **Verify synchronized `main`**: Ensure local `main` is clean and synchronized with `origin/main` at `336322b5386a872ebb726c7bdcf34bb207592650`.
+3. **Recognize completed baseline packages & PRs**: Confirm pre-release packages through `MF-REL-002` (PR #26), post-release reconciliation (PR #27), forensic remediation (PR #28, PR #29), and `MF-UX-005` deliverables: Slices 1–6 (PR #30), Slice 7 startup white flash (PR #31), Release startup resource order fix (PR #32), Tester Ergonomics metadata (PR #33), Tester Ergonomics diagnostics & settings UX (PR #34), and post-PR #34 reconciliation (PR #35) are merged.
+4. **Recognize completed in-flight deliverables**: Repeatable Tester Artifact / APK Workflow (Slices 1–4) implemented and reviewed with `REVIEW_PASS` across 1462 passing Core tests on `feat/mf-ux-005-tester-apk-workflow`.
+5. **Recognize remaining accepted `MF-UX-005` boundaries**: Installed Size / App Data investigation and physical Android device verification.
+6. **Await explicit dispatch**: Do not autonomously select or start the next slice without explicit user orchestration.
 
 ### Durable Merged Baseline Summary
+- **MF-UX-005 Tester APK Packaging Workflow** (Slices 1–4 on `feat/mf-ux-005-tester-apk-workflow`): Dedicated `ReleaseProfile.Tester`, deterministic APK naming and workspace routing (`artifacts/android/tester/<ArtifactId>/`), authoritative offline APK validation (`AndroidApkValidator` with `apksigner`, `aapt2 dump xmltree`, `dexdump -f`, manifest security rules, development-debug certificate policy), ValidationReceipt Schema v1 `Tester` receipts, deterministic `TESTER_README.md`, profile-aware `SHA256SUMS`, `AndroidPackageCommand` integration, and PowerShell entrypoints `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1` (1462 Core tests passing).
+- **MF-UX-005 Post-PR #34 Documentation Reconciliation** (PR #35 at `336322b5386a872ebb726c7bdcf34bb207592650`): Reconciled baseline documentation on `main` following merge of PR #34.
 - **MF-UX-005 Tester Diagnostics & Settings UX** (PR #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`): Support-safe deterministic diagnostics formatter, minimal platform info and clipboard abstractions (`IAppPlatformInfo`, `IClipboardService`) with MAUI implementations, Settings footer build identity display and localized "Copy diagnostic info" action with async execution and status feedback, complete EN/DE/RU localization keys.
 - **MF-UX-005 Build Identity Metadata** (PR #33 at `83b767c2265c1baba560abdeaa9fedad365d70da`): Extended runtime build metadata model/parser with `ApplicationId`, `SourceCommit`, and explicit fail-closed `BuildClassification` (`Local`, `Tester`, `SourceCandidate`, `Production`), deterministic short SHA formatting, MSBuild projection in `MathFirst.App.csproj`, and `AppBuildInfo` integration.
 - **MF-UX-005 Release Startup Order Fix** (PR #32 at `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`): Deferred `MainPage` resolution until `CreateWindow()`, ensuring `App.InitializeComponent()` loads `Application.Resources` before `MainPage` static resource resolution, eliminating startup `XamlParseException`.
@@ -120,7 +123,7 @@ When initializing a new session:
 - **Predecessors**: `MF-REL-002` (PR #26), `MF-UX-004` (PR #25), `MF-DOC-004` (PR #24), `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
 
 ### Downstream Roadmap Stages
-- **Remaining MF-UX-005 Slices**: Installed Size / App Data investigation, repeatable tester artifact / APK workflow, physical Android device verification.
+- **Remaining MF-UX-005 Slices**: Installed Size / App Data investigation, physical Android device verification.
 - **Phase 6 - Final Exact-Candidate Native V1 Validation**: Pending execution on synchronized `main` post-MF-UX-005.
 - **Phase 6 - Production Packaging & Signing**: Separately authorized downstream work (`Distributable` profile with external production keystore).
 - **Phase 6 - Final Real-Device Technical and Functional Verification**: Separately authorized physical target hardware validation.

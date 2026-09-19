@@ -395,3 +395,53 @@ The forensic remediation following native V1 candidate rejection (`REAL_DEVICE_V
 - It is Core automated regression evidence only. It does **not** claim execution of the post-remediation `FULL_VALIDATION` lifecycle.
 - It does **not** claim that release builds for Android or Windows were recompiled or validated following remediation.
 - It does **not** claim that physical-device remediation verification has occurred.
+
+---
+
+## 16. MF-UX-005 Repeatable Tester Artifact / APK Workflow Contracts
+
+MF-UX-005 establishes a dedicated, repeatable Tester APK workflow enabling local packaging, offline validation, and atomic evidence promotion of installable Android APKs alongside the existing AAB release pipeline across automated test suites in `MathFirst.Core.Tests`:
+
+1. **Tester APK Packaging Policy & Configuration Contracts (`TesterApkPackagingContractTests`)**:
+   - Asserts `ReleaseProfile.Tester` enforces `ApplicationId = com.tachiguro.mathfirst.tester`, `BuildClassification = Tester`, `MathFirstSourceCommit = <SHA>`, `Configuration = Release`, `TargetFramework = net10.0-android36.0`, and `AndroidKeyStore = false`.
+   - Asserts branch policy accepts any clean attached non-`main` branch or clean synchronized `main`, requiring exact full 40-character commit SHA matching `HEAD`.
+   - Asserts CLI rejects release keystore signing parameters (`--keystore-path`, `--key-alias`, `--store-pass-file`, `--key-pass-file`, `--expected-signer-sha256`) when packaging with `--profile Tester`.
+   - Asserts deterministic artifact naming: `MathFirst-Tester-v{DisplayVersion}-b{BuildNumber}-{ShortCommit}-tester.apk`.
+   - Asserts deterministic destination routing: `artifacts/android/tester/<ArtifactId>/`.
+
+2. **Authoritative Offline APK Validation Contracts (`AndroidApkValidationTests`)**:
+   - Asserts `AndroidApkValidator` enforces structural, manifest, bytecode, and cryptographic signature constraints on `.apk` packages.
+   - Asserts invocation of `apksigner verify --verbose --print-certs` (strictly rejecting `jarsigner` for APK validation) to verify APK signature schemes (v1/v2/v3/v4), extract leaf X.509 certificate fingerprints, verify development-debug certificate classification, and enforce the exactly-one-signer policy.
+   - Asserts binary manifest inspection via `aapt2 dump xmltree`: package name equals `com.tachiguro.mathfirst.tester`, version code/name match provenance, minimum SDK is 24, target SDK is 36, `android:debuggable != "true"`, and backup rules are correctly wired (`backup_rules.xml`, `xml-v28/backup_rules.xml`, `data_extraction_rules.xml`).
+   - Asserts zero network permissions: strictly rejects packages containing `android.permission.INTERNET` or `android.permission.ACCESS_NETWORK_STATE`.
+   - Asserts DEX bytecode validation: extracts `.dex` payloads and runs `dexdump -f`.
+   - Asserts provenance matching: verifies Schema Version 1, recomputes exact SHA-256 hash and byte size of the `.apk`, and checks build/source metadata consistency.
+
+3. **Tester Evidence Generation and Promotion Contracts (`TesterApkArtifactEvidenceTests`)**:
+   - Asserts ValidationReceipt Schema v1 serialization with `profile: "Tester"`, `status: "ValidatorApproved"`, `isDistributable: false`, exact artifact SHA-256, staged provenance SHA-256, signer certificate SHA-256, and signer classification `development-debug`.
+   - Asserts deterministic `TESTER_README.md` generation documenting tester distribution boundaries, development-debug signing update invariants, and coexistence with production apps.
+   - Asserts profile-aware `SHA256SUMS` generation containing exactly four ordinally sorted entries for the `.apk`, provenance JSON, validation receipt JSON, and tester README (lowercase SHA-256, two-space delimiter, LF endings).
+   - Asserts atomic directory promotion (`Directory.Move`) to `artifacts/android/tester/<ArtifactId>/` requiring exactly five promoted files and cleaning up staging directories.
+
+4. **Tester APK Workflow Integration Contracts (`TesterApkWorkflowIntegrationTests`)**:
+   - Asserts `AndroidPackageCommand` handles `--profile Tester` end-to-end: evaluating MSBuild properties, executing `dotnet publish`, writing provenance, validating the staged APK, generating evidence files, and promoting the five-file directory atomically.
+   - Asserts fail-closed behavior on build failure, manifest violation, unsigned APK, signature verification error, provenance mismatch, or destination collision.
+   - Asserts `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1` are thin wrappers delegating to `MathFirst.ReleaseTool`.
+
+### Verified Automated Test Evidence (Tester APK Workflow Baseline)
+
+- **Full Core Automated Suite**: 1462 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Targeted Suite Breakdown**:
+  - `TesterApkPackagingContractTests`: 19 passed
+  - `AndroidApkValidationTests`: 42 passed
+  - `TesterApkArtifactEvidenceTests`: 16 passed
+  - `TesterApkWorkflowIntegrationTests`: 15 passed
+  - `AndroidPackagingContractTests`: 18 passed
+  - `AabPackagingScriptValidationTests`: 23 passed
+  - `AndroidAabValidationTests`: 48 passed
+
+### Evidence Boundary Principles
+- All automated testing executes against synthetic packages, mocked tool processes, and isolated temporary filesystems.
+- It does **not** claim real packaging execution during tests.
+- It does **not** claim physical APK installation, ADB interaction, emulator testing, or device validation.
+- Full validation (`FULL_VALIDATION`), production packaging, and Google Play publication remain separate authorized lifecycle stages.
