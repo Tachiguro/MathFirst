@@ -398,7 +398,7 @@ The forensic remediation following native V1 candidate rejection (`REAL_DEVICE_V
 
 ---
 
-## 16. MF-UX-005 Repeatable Tester Artifact / APK Workflow Contracts
+## 16. MF-UX-005 Repeatable Tester Artifact / APK Workflow Contracts (Historical Automated Evidence)
 
 MF-UX-005 establishes a dedicated, repeatable Tester APK workflow enabling local packaging, offline validation, and atomic evidence promotion of installable Android APKs alongside the existing AAB release pipeline across automated test suites in `MathFirst.Core.Tests`:
 
@@ -428,7 +428,7 @@ MF-UX-005 establishes a dedicated, repeatable Tester APK workflow enabling local
    - Asserts fail-closed behavior on build failure, manifest violation, unsigned APK, signature verification error, provenance mismatch, or destination collision.
    - Asserts `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1` are thin wrappers delegating to `MathFirst.ReleaseTool`.
 
-### Verified Automated Test Evidence (Tester APK Workflow Baseline)
+### Historical Verified Automated Test Evidence (Tester APK Workflow Baseline)
 
 - **Full Core Automated Suite**: 1462 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
 - **Targeted Suite Breakdown**:
@@ -445,3 +445,50 @@ MF-UX-005 establishes a dedicated, repeatable Tester APK workflow enabling local
 - It does **not** claim real packaging execution during tests.
 - It does **not** claim physical APK installation, ADB interaction, emulator testing, or device validation.
 - Full validation (`FULL_VALIDATION`), production packaging, and Google Play publication remain separate authorized lifecycle stages.
+
+---
+
+## 17. MF-UX-005 Release Size Hygiene and Timer Remediation (Historical Automated Evidence)
+
+These results belong to their respective completed changes. They are not a new `FULL_VALIDATION` run for a later production candidate.
+
+### PR #37 — Release Bootstrap Source-Map Exclusion
+
+- `AndroidPackagingContractTests`: 9/9 passed in Release configuration.
+- Full `MathFirst.Core.Tests` Release suite: 1463/1463 passed.
+- The contract verifies the Release-only `Content Remove` rule for `wwwroot\lib\bootstrap\dist\css\bootstrap.min.css.map` while retaining the runtime Bootstrap CSS.
+
+### PR #38 — Timer Visual Remediation
+
+- `TeachingLockAndVisualFeedbackTests`: 9/9 passed in Release configuration.
+- Full `MathFirst.Core.Tests` Release suite: 1463/1463 passed.
+- The contract verifies bold white tabular Timer text with a restrained local dark shadow/contour, no backing pill, and no heavy text stroke while retaining timer rendering isolation and timing behavior.
+
+### Automated Evidence Boundary
+
+- Automated evidence is separate from physical-device observations.
+- These historical targeted and full-suite results do not constitute the pending exact-candidate `FULL_VALIDATION` lifecycle.
+- They do not establish production packaging, signing, release-grade physical validation, or Google Play readiness.
+
+---
+
+## 18. MF-UX-005 Timer-Specific Physical Evidence
+
+The physical target for this bounded `TEST_ONLY` run was a Samsung SM-S948B running Android 16 on arm64-v8a. No One UI version was recorded.
+
+Verified observations:
+
+- Replacement Tester APK installation succeeded.
+- Existing app and learner data were preserved.
+- The Timer backing pill was absent.
+- White Timer digits and restrained dark local contrast were visible.
+- Timer centering was preserved.
+- Light-theme Timer presentation was checked.
+- Dark-theme Timer presentation was checked.
+- No Time Pressure retained a visible elapsed count-up Timer presentation.
+- The user explicitly accepted the Timer result.
+
+### Physical Evidence Boundary
+
+- This evidence is limited to the Timer-specific run above.
+- It is not final production-candidate certification and does not replace `FULL_VALIDATION`, production packaging/signing, or final release-grade physical validation.

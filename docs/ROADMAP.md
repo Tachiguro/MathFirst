@@ -87,10 +87,10 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 22. Deliver runtime build identity metadata (`MF-UX-005 Tester Ergonomics Slice A`) - complete and merged through Pull Request #33 at `83b767c2265c1baba560abdeaa9fedad365d70da`.
 23. Deliver tester diagnostics formatter and Settings copy action (`MF-UX-005 Tester Ergonomics Slice B`) - complete and merged through Pull Request #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`.
 24. Reconcile post-PR #34 documentation baseline (`MF-UX-005 Post-PR #34 Documentation Reconciliation`) - complete and merged through Pull Request #35 at `336322b5386a872ebb726c7bdcf34bb207592650`.
-25. Deliver repeatable tester artifact / APK workflow (`MF-UX-005 Tester APK Workflow Slices 1–4`) - complete and reviewed across Slices 1–4 on `feat/mf-ux-005-tester-apk-workflow` (`REVIEW_PASS`, 1462 passing Core tests).
-26. Deliver remaining accepted MF-UX-005 areas (Installed Size / App Data investigation, physical Android verification) under separately authorized dispatches.
-27. Execute full exact-candidate automated validation (`FULL_VALIDATION`) on synchronized `main`.
-28. Perform separately authorized production packaging and signing (`Distributable` AAB).
-29. Perform technical smoke verification on clean physical Android device (install, IME suppression, touch keypad, database).
-30. Perform manual physical-device functional verification (confirming strictly bounded curriculum presentation across progression stages and UX feel).
-31. Reconsider Google Play upload under a separately authorized release gate.
+25. Deliver repeatable Tester APK workflow (`MF-UX-005`) - **COMPLETED** through Pull Request #36 at `e908bf2fba820f4f6adf03b278861b956e5dbbd5` (historical evidence: 1462 passing Core tests).
+26. Complete remaining MF-UX-005 areas - **COMPLETED** through Installed Size / App Data / RAM investigation, PR #37 Release source-map exclusion, Timer-specific physical UX verification, and PR #38 Timer visual remediation at `d1705bbdc0013372e44eadf7310ff2f313ecdcef`.
+27. Execute full exact-candidate automated validation (`FULL_VALIDATION`) - **PENDING** and requires explicit authorization.
+28. Perform production packaging and signing (`Distributable` AAB) - **PENDING** and separately authorized.
+29. Perform final technical smoke verification on the exact production candidate - **PENDING**.
+30. Perform final manual physical-device functional verification of the exact production candidate - **PENDING**.
+31. Google Play gate - **PENDING** and separately authorized.
