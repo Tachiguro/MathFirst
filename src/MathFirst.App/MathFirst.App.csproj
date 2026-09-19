@@ -36,6 +36,9 @@
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
         <ApplicationVersion>1</ApplicationVersion>
 
+        <MathFirstSourceCommit Condition="'$(MathFirstSourceCommit)' == ''">local</MathFirstSourceCommit>
+        <MathFirstBuildClassification Condition="'$(MathFirstBuildClassification)' == ''">Local</MathFirstBuildClassification>
+
         <Company>Tachiguro</Company>
         <Product>$(ApplicationTitle)</Product>
         <AssemblyTitle>$(ApplicationTitle)</AssemblyTitle>
@@ -52,8 +55,11 @@
 
     <ItemGroup>
         <AssemblyMetadata Include="MathFirst.ApplicationTitle" Value="$(ApplicationTitle)" />
+        <AssemblyMetadata Include="MathFirst.ApplicationId" Value="$(ApplicationId)" />
         <AssemblyMetadata Include="MathFirst.ApplicationDisplayVersion" Value="$(ApplicationDisplayVersion)" />
         <AssemblyMetadata Include="MathFirst.ApplicationVersion" Value="$(ApplicationVersion)" />
+        <AssemblyMetadata Include="MathFirst.SourceCommit" Value="$(MathFirstSourceCommit)" />
+        <AssemblyMetadata Include="MathFirst.BuildClassification" Value="$(MathFirstBuildClassification)" />
     </ItemGroup>
 
     <ItemGroup>

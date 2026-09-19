@@ -37,8 +37,21 @@ public sealed class NativeIdentityContractTests
                 StringComparer.Ordinal);
 
         Assert.Equal("$(ApplicationTitle)", metadata["MathFirst.ApplicationTitle"]);
+        Assert.Equal("$(ApplicationId)", metadata["MathFirst.ApplicationId"]);
         Assert.Equal("$(ApplicationDisplayVersion)", metadata["MathFirst.ApplicationDisplayVersion"]);
         Assert.Equal("$(ApplicationVersion)", metadata["MathFirst.ApplicationVersion"]);
+        Assert.Equal("$(MathFirstSourceCommit)", metadata["MathFirst.SourceCommit"]);
+        Assert.Equal("$(MathFirstBuildClassification)", metadata["MathFirst.BuildClassification"]);
+    }
+
+    [Fact]
+    public void Project_DeclaresDirectBuildMetadataDefaultsAsLocal()
+    {
+        var project = XDocument.Load(GetRepositoryPath("src", "MathFirst.App", "MathFirst.App.csproj"));
+
+        Assert.Equal("local", GetProperty(project, "MathFirstSourceCommit"));
+        Assert.Equal("Local", GetProperty(project, "MathFirstBuildClassification"));
+        Assert.NotEqual("Production", GetProperty(project, "MathFirstBuildClassification"));
     }
 
     [Fact]
@@ -49,9 +62,15 @@ public sealed class NativeIdentityContractTests
         Assert.Contains("AssemblyMetadataAttribute", source, StringComparison.Ordinal);
         Assert.Contains("typeof(AppBuildInfo).Assembly", source, StringComparison.Ordinal);
         Assert.Contains("AppBuildInfoMetadataParser.Parse(metadata)", source, StringComparison.Ordinal);
+        Assert.Contains("ApplicationId = parsedMetadata.ApplicationId", source, StringComparison.Ordinal);
+        Assert.Contains("SourceCommit = parsedMetadata.SourceCommit", source, StringComparison.Ordinal);
+        Assert.Contains("BuildClassification = parsedMetadata.BuildClassification", source, StringComparison.Ordinal);
+        Assert.Contains("ShortSourceCommit = AppBuildInfoMetadataParser.GetShortSourceCommit(parsedMetadata.SourceCommit)", source, StringComparison.Ordinal);
+        Assert.Contains("IsTesterBuild => string.Equals(BuildClassification, \"Tester\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("= \"MathFirst\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("= \"1.0\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("= \"1\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("= \"Production\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
