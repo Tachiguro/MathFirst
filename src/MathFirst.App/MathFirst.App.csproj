@@ -85,4 +85,8 @@
       <ProjectReference Include="..\MathFirst.Infrastructure.Sqlite\MathFirst.Infrastructure.Sqlite.csproj" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+        <Content Remove="wwwroot\lib\bootstrap\dist\css\bootstrap.min.css.map" />
+    </ItemGroup>
+
 </Project>
