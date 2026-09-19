@@ -171,8 +171,12 @@ public sealed class TesterApkPackagingContractTests
         Assert.Contains("-property:TargetFramework=net10.0-android36.0", invocation.Arguments);
     }
 
-    [Fact]
-    public async Task FailClosed_Cli_RejectsTesterProfileUntilIntegrated()
+    [Theory]
+    [InlineData("UnknownProfile")]
+    [InlineData("debug")]
+    [InlineData("tester")]
+    [InlineData("123")]
+    public async Task FailClosed_Cli_RejectsInvalidProfile(string profile)
     {
         var originalError = Console.Error;
         try
@@ -184,13 +188,13 @@ public sealed class TesterApkPackagingContractTests
             [
                 "android-package",
                 "--profile",
-                "Tester",
+                profile,
                 "--expected-commit-sha",
                 FullSha
             ]);
 
             Assert.Equal(1, packageExitCode);
-            Assert.Contains("Profile must be exactly 'SourceCandidate' or 'Distributable'", error.ToString(), StringComparison.Ordinal);
+            Assert.Contains("Profile must be exactly 'SourceCandidate', 'Distributable', or 'Tester'", error.ToString(), StringComparison.Ordinal);
         }
         finally
         {
@@ -199,7 +203,7 @@ public sealed class TesterApkPackagingContractTests
     }
 
     [Fact]
-    public async Task FailClosed_CliValidate_RejectsTesterProfileUntilIntegrated()
+    public async Task FailClosed_CliValidate_RejectsTesterProfile()
     {
         var originalError = Console.Error;
         try
@@ -242,21 +246,6 @@ public sealed class TesterApkPackagingContractTests
 
         var exception = Assert.Throws<ReleaseToolException>(() => validator.Validate(request));
         Assert.Contains("Unsupported release profile", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void FailClosed_PackageCommandExecute_RejectsTesterProfileUntilIntegrated()
-    {
-        var runner = new FakeRunner();
-        var command = new AndroidPackageCommand(runner);
-        var request = new PackageRequest(
-            ReleaseProfile.Tester,
-            FullSha,
-            new VersionOverrides(null, null),
-            null);
-
-        var exception = Assert.Throws<ReleaseToolException>(() => command.Execute(request, GetRepositoryRoot()));
-        Assert.Contains("Tester profile is not yet fully integrated", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static PackageRequest CreateRequest(
