@@ -495,7 +495,7 @@ Verified observations:
 
 ---
 
-## 19. MF-UX-006 Privacy, Copy, and Localization Hardening Contracts (Historical Automated Evidence)
+## 19. MF-UX-006 Privacy, Copy, and Localization Hardening Contracts & Full Validation Evidence
 
 MF-UX-006 contract coverage validates localization string integrity, reset copy semantics, offline in-app privacy navigation, zero-network permissions, and static multilingual host fallback across automated test suites in `MathFirst.Core.Tests`:
 
@@ -534,9 +534,23 @@ MF-UX-006 contract coverage validates localization string integrity, reset copy 
   - `StartupWhiteFlashTests`: 5/5 passed
   - Combined Policy / Back / Android Packaging: 81/81 passed
 
-### Automated Evidence Boundary
+### Exact-Candidate FULL_VALIDATION Evidence
+
+- **Candidate Commit SHA**: `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`
+- **Validation Result**: `FULL_VALIDATION_PASS`
+- **Core Test Suite**: 1476 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`)
+- **Windows Release Build**: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+- **Android Release Build**: 0 warnings, 0 errors (`net10.0-android36.0`)
+- **NuGet Package Audit**: 0 vulnerable, 0 deprecated packages
+- **Repository Markdown Link Integrity**: All relative links valid across 27 inspected Markdown files
+- **ADR Registry Integrity**: ADR-0001 through ADR-0007 verified present
+- **Candidate Diff & Whitespace Audit**: Clean `git diff --check` against base `60dba236aa38bca138ab583f610c9ff876994b04`
+- **Merge Integration**: Merged to `main` via PR #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`
+- **Tree Hash Identity**: Candidate tree `739fed4c0e9ea3565c096d95ba9d7aca114e76bc` == Merge tree `739fed4c0e9ea3565c096d95ba9d7aca114e76bc`
+
+### Evidence Boundary Principles
 
 - All automated tests run offline against synthetic fixtures, source files, and isolated test environments.
-- These historical targeted slice results do **not** constitute the pending exact-candidate `FULL_VALIDATION` lifecycle.
-- They do **not** prove rendered visual appearance on native devices, native screen-reader accessibility behavior, or physical hardware execution.
+- The merged content is Git-tree-identical to the exact candidate that passed `FULL_VALIDATION`; the merge commit itself was not separately retested.
+- Automated tests do **not** prove rendered visual appearance on native devices, native screen-reader accessibility behavior, or physical hardware execution.
 - Production packaging, signing, and Google Play publication remain separate authorized lifecycle stages.
