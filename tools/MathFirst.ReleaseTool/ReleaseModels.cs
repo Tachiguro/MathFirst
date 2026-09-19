@@ -110,6 +110,35 @@ public sealed record ValidationReceiptProvenance(string FileName, string Sha256)
 
 public sealed record ValidationReceiptSigner(string CertificateSha256, string Classification);
 
+public sealed record ValidationRequest(
+    string AabPath,
+    string ProvenancePath,
+    string ExpectedCommitSha,
+    ReleaseProfile Profile,
+    string? ExpectedDisplayVersion = null,
+    int? ExpectedBuildNumber = null,
+    string? ExpectedSignerCertificateSha256 = null,
+    string? RepositoryRoot = null);
+
+public sealed record ApkValidationRequest(
+    string ApkPath,
+    string ProvenancePath,
+    string ExpectedCommitSha,
+    ReleaseProfile Profile = ReleaseProfile.Tester,
+    string? ExpectedDisplayVersion = null,
+    int? ExpectedBuildNumber = null,
+    string? RepositoryRoot = null);
+
+public sealed record ValidationResult(
+    bool IsValid,
+    ArtifactValidationStatus Status,
+    ReleaseProfile Profile,
+    bool IsDistributable,
+    string ArtifactSha256,
+    string SignerCertificateSha256,
+    string SignerClassification,
+    IReadOnlyList<string> Diagnostics);
+
 public interface IProcessRunner
 {
     ProcessResult Run(ProcessInvocation invocation);
@@ -123,4 +152,7 @@ public static class ReleaseConstants
     public const string Configuration = "Release";
     public const string ProductionApplicationId = "com.tachiguro.mathfirst";
     public const string TesterApplicationId = "com.tachiguro.mathfirst.tester";
+    public const string TesterArtifactClassification = "tester-debug-signed";
+    public const string TesterSourceClassification = "tester";
+    public const string TesterSigningState = "development-debug";
 }
