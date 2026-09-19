@@ -111,14 +111,14 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Твой ответ: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Правильный ответ: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Добро пожаловать в MathFirst", service["Onboarding_WelcomeTitle"]);
-        Assert.Equal("Банды операций", service["Diagnostics_Group_Learning"]);
+        Assert.Equal("Прогресс по операциям", service["Diagnostics_Group_Learning"]);
         Assert.Equal("Выберите цифровую клавиатуру", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Телефонная клавиатура", service["Keypad_Phone"]);
         Assert.Equal("Цифровой блок ПК", service["Keypad_Numpad"]);
         Assert.Equal("Удалить символ", service["Keypad_Backspace"]);
         Assert.Equal("Тактильный отклик", service["Settings_HapticFeedbackTitle"]);
         Assert.Equal("Использовать вибрацию при нажатии клавиш и результатах ответов.", service["Settings_HapticFeedbackHelp"]);
-        Assert.Equal("Тактильный отклик: Вкл..", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
+        Assert.Equal("Тактильный отклик: Вкл.", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Версия 1.0 (сборка 1)", service["Settings_VersionBuild", "1.0", 1]);
         Assert.Equal("Сборка", service["Settings_Build"]);
         Assert.Equal("Источник", service["Settings_Source"]);
@@ -278,6 +278,57 @@ public sealed class PolicyAndLocalizationTests
 
         service.ClearPreview();
         Assert.Equal(2, eventCount);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("ru")]
+    public void LocalizationService_ResetUiPreferencesDescription_DescribesNumpadLayoutDefault(string language)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        var resetDesc = service["Reset_UiPreferences_Desc"];
+        var numpadName = service["Keypad_Numpad"];
+        var phoneName = service["Keypad_Phone"];
+
+        Assert.Contains(numpadName, resetDesc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(phoneName, resetDesc, StringComparison.OrdinalIgnoreCase);
+        if (language == "ru")
+        {
+            Assert.DoesNotContain("телефон", resetDesc, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Theory]
+    [InlineData("Common_On", "Вкл.")]
+    [InlineData("Common_Off", "Выкл.")]
+    public void LocalizationService_RussianHapticFeedbackChangedTo_FormatsWithoutDuplicatePunctuation(string statusKey, string expectedStatusText)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference("ru");
+
+        var statusValue = service[statusKey];
+        Assert.Equal(expectedStatusText, statusValue);
+
+        var formatted = service["Settings_HapticFeedbackChangedTo", statusValue];
+        Assert.Contains(expectedStatusText, formatted, StringComparison.Ordinal);
+        Assert.DoesNotContain("..", formatted, StringComparison.Ordinal);
+        Assert.EndsWith(".", formatted, StringComparison.Ordinal);
+        Assert.Equal(1, formatted.Count(c => c == '.'));
+    }
+
+    [Fact]
+    public void LocalizationService_RussianOperationProgressHud_UsesLearnerFacingTerminology()
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference("ru");
+
+        var hudLabel = service["Diagnostics_Group_Learning"];
+        Assert.Equal("Прогресс по операциям", hudLabel);
+        Assert.DoesNotContain("банды", hudLabel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("банд", hudLabel, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
