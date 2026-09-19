@@ -9,20 +9,21 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Package**: `MF-UX-006` — V1 Privacy, Copy, and Localization Hardening
+- **Active Package**: `MF-DOC-005` — Post-MF-UX-006 Merge State Reconciliation
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Task Branch**: `feat/mf-ux-006-v1-privacy-copy-localization`
-- **Base Baseline**: `main` / `origin/main` at `60dba236aa38bca138ab583f610c9ff876994b04` (PR #39 merge)
-- **Task Branch HEAD Before Documentation Edits**: `130cae92032ebdfbd6f430b5cf353192d5e39ba3`
-- **Package Review Status**: `REVIEW_PASS` (Consolidated package review completed with 0 BLOCKER, MAJOR, MINOR, or NIT findings)
-- **Next Lifecycle for This Documentation Change**: `COMMIT_ONLY`
-- **After Documentation Commit**: `FULL_VALIDATION` (exact-candidate validation before push/PR)
+- **Task Branch**: `docs/mf-doc-005-post-mf-ux-006-merge-reconciliation`
+- **Base Baseline**: `main` / `origin/main` at `ae69f4ae27397fc6edf36a23bb671b0410680be1` (PR #40 merge)
+- **Most Recently Completed Package**: `MF-UX-006` — V1 Privacy, Copy, and Localization Hardening (merged via PR #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`)
+- **Package Validated Candidate**: `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb` (`FULL_VALIDATION_PASS`)
+- **Merged Tree Identity**: candidate tree == merge tree == `739fed4c0e9ea3565c096d95ba9d7aca114e76bc`
+- **Active Implementation Package**: None
+- **Next Lifecycle for MF-DOC-005**: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY`
 
 ---
 
 ## 2. MF-UX-006 Implementation Checkpoints
 
-The package implementation was completed and reviewed across three structured checkpoint commits:
+The package implementation was completed, reviewed, validated, and merged across three structured checkpoint commits and a documentation reconciliation commit:
 
 1. **Slice 1: Objective Localization, Reset Copy, and Terminology Alignment**
    - Commit SHA: `582888659bc91df8aaf9b12812172aa966cca868`
@@ -52,6 +53,11 @@ The package implementation was completed and reviewed across three structured ch
      - Preserved startup brand-green handoff and dark mode CSS styling;
      - Extended contract coverage in `NativeVisualIdentityContractTests.cs`.
 
+4. **Documentation Reconciliation & Exact-Candidate FULL_VALIDATION**
+   - Candidate Commit SHA: `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`
+   - Validation Result: `FULL_VALIDATION_PASS` (1476 passed Core tests, clean Windows/Android Release builds, 0 NuGet vulnerabilities, clean Markdown links)
+   - Merge Commit: `ae69f4ae27397fc6edf36a23bb671b0410680be1` (PR #40)
+
 ---
 
 ## 3. Package Summary & Authoritative Invariants
@@ -69,16 +75,13 @@ MF-UX-006 delivers the following durable invariants:
 
 ## 4. Package Completion & Downstream Boundaries
 
-MF-UX-006 is implemented and has passed consolidated review (`REVIEW_PASS`). It is currently in `DOCUMENT_ONLY` reconciliation on the task branch.
+`MF-UX-006` is complete and merged into `main` via PR #40.
 
 It is:
-- **NOT** yet committed as documentation;
-- **NOT** pushed to origin;
-- **NOT** in a Pull Request;
-- **NOT** merged to `main`;
-- **NOT** validated through exact-candidate `FULL_VALIDATION`;
+- **MERGED** to `main` at `ae69f4ae27397fc6edf36a23bb671b0410680be1`;
+- **VALIDATED** through exact-candidate `FULL_VALIDATION` (`FULL_VALIDATION_PASS` on candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`);
 - **NOT** packaged into a production AAB or signed;
-- **NOT** validated on physical hardware;
+- **NOT** validated on physical hardware for final release certification;
 - **NOT** authorized or released on Google Play.
 
 Target-audience selection (A/B/C) and Google Play Families declarations remain unresolved and outside the scope of MF-UX-006.
@@ -87,9 +90,6 @@ Target-audience selection (A/B/C) and Google Play Families declarations remain u
 
 ## 5. Explicit Downstream Workflow Sequence
 
-1. **DOCUMENT_ONLY** (Current): Complete documentation reconciliation across repository documents.
-2. **COMMIT_ONLY**: Commit reconciled documentation changes to `feat/mf-ux-006-v1-privacy-copy-localization`.
-3. **FULL_VALIDATION**: Execute full automated test suite, build checks, and hygiene audit on the exact candidate commit.
-4. **PUSH_ONLY & PR_ONLY**: Push branch and open Pull Request targeting `main`.
-5. **REVIEW_ONLY & MERGE**: Final PR review and user-authorized merge to `main`.
-6. **Post-Merge Synchronization**: Sync local `main` with `origin/main`.
+1. **MF-DOC-005 (Current)**: Reconcile repository documentation following PR #40 merge.
+2. **Post-MF-DOC-005 Baseline**: All documentation matches synchronized `main` at `ae69f4ae...`.
+3. **Subsequent Release Stages**: Production packaging, signing, physical hardware validation, and Google Play publication remain separate authorized lifecycle steps requiring explicit user dispatch.

@@ -89,8 +89,8 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 24. Reconcile post-PR #34 documentation baseline (`MF-UX-005 Post-PR #34 Documentation Reconciliation`) - complete and merged through Pull Request #35 at `336322b5386a872ebb726c7bdcf34bb207592650`.
 25. Deliver repeatable Tester APK workflow (`MF-UX-005`) - **COMPLETED** through Pull Request #36 at `e908bf2fba820f4f6adf03b278861b956e5dbbd5` (historical evidence: 1462 passing Core tests).
 26. Complete remaining MF-UX-005 areas — **COMPLETED** through Installed Size / App Data / RAM investigation, PR #37 Release source-map exclusion, Timer-specific physical UX verification, PR #38 Timer visual remediation (`d1705bbdc0013372e44eadf7310ff2f313ecdcef`), and PR #39 final documentation reconciliation (`60dba236aa38bca138ab583f610c9ff876994b04`).
-27. Deliver V1 Privacy, Copy, and Localization Hardening (`MF-UX-006`) — **IMPLEMENTED** across Slices 1–3 on task branch `feat/mf-ux-006-v1-privacy-copy-localization` (pre-doc HEAD `130cae92032ebdfbd6f430b5cf353192d5e39ba3`), consolidated review passed (`REVIEW_PASS`); `DOCUMENT_ONLY` reconciliation in progress; unmerged.
-28. Execute full exact-candidate automated validation (`FULL_VALIDATION`) — **PENDING** and requires explicit authorization.
+27. Deliver V1 Privacy, Copy, and Localization Hardening (`MF-UX-006`) — **COMPLETED** through Pull Request #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1` (validated candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`, 1476 passing Core tests, 0 warnings/0 errors on Windows and Android Release builds, merged tree identical to candidate tree).
+28. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-UX-006 candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb` — **COMPLETED** (`FULL_VALIDATION_PASS`).
 29. Perform production packaging and signing (`Distributable` AAB) — **PENDING** and separately authorized.
 30. Perform final technical smoke verification on the exact production candidate — **PENDING**.
 31. Perform final manual physical-device functional verification of the exact production candidate — **PENDING**.

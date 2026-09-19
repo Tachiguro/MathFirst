@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Implemented on task branch `feat/mf-ux-006-v1-privacy-copy-localization` (candidate pre-doc HEAD `130cae92032ebdfbd6f430b5cf353192d5e39ba3`, review `REVIEW_PASS`, unmerged):
+- Completed and merged MF-UX-006 (V1 Privacy, Copy, and Localization Hardening) through Pull Request #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1` (validated candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`, review `REVIEW_PASS`, full validation `FULL_VALIDATION_PASS`):
   - **Objective Localization, Reset Copy & Terminology Hardening (Slice 1, `582888659bc91df8aaf9b12812172aa966cca868`)**:
     - Corrected Restore Default Settings copy across English, German, and Russian to explicitly specify PC numpad (`Keypad_Numpad`) as default layout;
     - Resolved duplicate punctuation in Russian haptic feedback confirmation message (`Settings_HapticFeedbackChangedTo`);
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Replaced English-only fatal host error text in `src/MathFirst.App/wwwroot/index.html` with language-neutral error title and static multilingual reload links in English (`Reload`), German (`Neu laden`), and Russian (`Перезагрузить`) without runtime localization dependencies;
     - Preserved startup brand-green handoff and dark mode CSS styling;
     - Added contract coverage in `NativeVisualIdentityContractTests.cs` (historical targeted test evidence: `NativeVisualIdentityContractTests` 5/5, `StartupWhiteFlashTests` 5/5, combined Policy/Back/Android packaging 81/81).
-  - *Historical Evidence Note*: Targeted test evidence recorded per slice does not constitute a fresh full-suite run on the current candidate (the prior PLAN_ONLY audit on `main` passed 1463/1463 tests before package implementation); exact-candidate `FULL_VALIDATION` remains pending.
+  - *Full Validation & Release Boundaries*: Exact-candidate `FULL_VALIDATION` passed on `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb` with 1476 passing Core tests, 0 warnings/errors on Windows and Android Release builds, 0 NuGet vulnerabilities, and tree identity on `main` (`739fed4c0e9ea3565c096d95ba9d7aca114e76bc`); no production AAB packaging, signing, or Google Play release occurred.
 - Completed and merged MF-UX-005 Final Documentation Reconciliation through Pull Request #39 at `60dba236aa38bca138ab583f610c9ff876994b04` (head `abfa73ef3a5a2ef9cf0c5d3cc3e3f48a5e607a78`):
   - Reconciled repository documentation baseline across `docs/CURRENT_WORK.md`, `docs/PROJECT_STATE.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, and `CHANGELOG.md` following the completion and merge of PR #38.
 - Completed and merged MF-UX-005 Timer Visual Remediation through Pull Request #38 at `d1705bbdc0013372e44eadf7310ff2f313ecdcef` (head `2a7021977571e8c056a4ab2128ddc74e79b0f6b3`):

@@ -206,5 +206,20 @@ When items are accepted into the backlog, they are recorded with:
 
 ---
 
+### MF-UX-006: V1 Privacy, Copy, and Localization Hardening
+
+- **ID**: `MF-UX-006`
+- **Title**: V1 Privacy, Copy, and Localization Hardening
+- **Type**: `Feature`
+- **Status**: `Completed` (Merged through PR #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`)
+- **Dependencies**: `MF-UX-005` complete (merged through PR #39)
+- **Description**:
+  Hardening of V1 privacy architecture, localization copy, and fallback surfaces:
+  1. **Reset Copy & Terminology Polish**: Restore Default Settings copy across English, German, and Russian explicitly specifies PC numpad (`Keypad_Numpad`) default layout; resolved duplicate punctuation in Russian haptic feedback confirmation; corrected Russian HUD accessibility progression terminology (`Стадия прогресса`); added format token and key parity contracts.
+  2. **Offline In-App Privacy Surface**: Added dedicated offline Blazor component at `/privacy` (`src/MathFirst.App/Components/Pages/Privacy.razor`) structured across Overview, No Remote Collection or Sharing, Local Storage and Device Transfer, Removing Local Data, and Contact sections; added Settings privacy entry card with description and action; integrated `IAppBackNavigationCoordinator` handling system Back from `/privacy` to `/settings`; complete EN/DE/RU localization dictionaries; zero-network permissions preserved.
+  3. **Fatal Host Fallback Hardening**: Replaced English-only fatal host error text in `src/MathFirst.App/wwwroot/index.html` with language-neutral error title and static multilingual reload links in English (`Reload`), German (`Neu laden`), and Russian (`Перезагрузить`), eliminating runtime localization dependencies while preserving `#176B4D` startup handoff and dark mode CSS styling.
+
+---
+
 > [!NOTE]
 > Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).
