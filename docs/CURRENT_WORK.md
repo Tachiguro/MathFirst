@@ -10,10 +10,10 @@ This document provides operational context for current repository work.
 ## 1. Operational State
 
 - **Active Work Package**: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- **Active Task**: Release Startup Resource Order Fix (Blocker Remediation)
+- **Active Task**: Tester Ergonomics — Build Identity Metadata
 - **Current Operation Mode**: `IMPLEMENT_SLICE`
-- **Active Task Branch**: `fix/mf-ux-005-release-startup-resource-order`
-- **Baseline Commit**: `15d39ac73ecdc276db2d3f1a9b6ea3ac0f8849b6`
+- **Active Task Branch**: `feat/mf-ux-005-tester-ergonomics-metadata`
+- **Baseline Commit**: `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`
 - **Slice 1 Progress (Completed & Validated)**:
   1. Practice timer render isolation: Extracted countdown presentation into `PracticeCountdownTimer.razor` updating at 10 Hz (100ms interval), eliminating ~20 full `Home.razor` component re-renders per second while maintaining authoritative monotonic elapsed time and timeout accuracy.
   2. Preferences hot-path removal: Removed repeated `PreferenceStore.GetEnabledOperations()` reads from `OperationProgress` during hot timer/render evaluation; enabled operations are cached at explicit initialization and lifecycle boundaries.
@@ -60,7 +60,13 @@ This document provides operational context for current repository work.
   3. Transient Lifetime & Invariant Preservation: Preserved `AddTransient<MainPage>()` registration without instance caching; preserved theme initialization sequence; preserved all `#176B4D` startup backgrounds, light (`#F4F7F5`) and dark (`#121916`) host backgrounds, `AppThemeBinding`, and zero localStorage duplication.
   4. Verification: Added 6 architectural contract regression tests in `AppConstructorDependencyContractTests.cs` (1280 total passing Core tests, 0 failed, 0 skipped); Windows Release build 0 warnings/errors; Android Release build 0 warnings/errors.
   5. Physical Verification Boundary: Physical Android validation pending (`PHYSICAL_ANDROID_RELEASE_STARTUP_VALIDATION_PENDING`, `STARTUP_WHITE_FLASH_PHYSICAL_VALIDATION_PENDING`, `PHYSICAL_APP_WEBVIEW_BASELINE_MEASURED: NO`, `PHYSICAL_30_MB_APP_DATA_EXPLAINED: NO`).
-- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Release Startup Resource Order Fix
+- **Tester Ergonomics — Build Identity Metadata Slice (Completed & Validated)**:
+  1. Runtime Build-Identity Metadata Model & Parser: Extended `AppBuildMetadata` and `AppBuildInfoMetadataParser` in `MathFirst.Application` to parse `ApplicationId`, `SourceCommit`, and `BuildClassification` alongside canonical `ApplicationTitle`, `DisplayVersion`, and `BuildNumber`.
+  2. Fail-Closed Validation & Safety Invariants: Missing or blank `ApplicationId` fails closed (`MISSING_APPLICATION_ID_DOES_NOT_SILENTLY_ASSUME_PRODUCTION_ID: YES`). Missing or blank build classification safely defaults to `Local` and cannot report `Production` (`MISSING_BUILD_CLASSIFICATION_CANNOT_REPORT_PRODUCTION: YES`). Controlled classifications strictly allow `Local`, `Tester`, `SourceCandidate`, and `Production`; unknown non-empty values fail closed.
+  3. Source Commit & Short SHA Formatting: Added `MathFirst.SourceCommit` supporting real Git SHAs or deliberate `local` default. `GetShortSourceCommit` produces deterministic 8-character short SHA or preserves `local` without exceptions on short strings.
+  4. MSBuild Projection & AppBuildInfo Service: Projected `MathFirst.ApplicationId`, `MathFirst.SourceCommit`, and `MathFirst.BuildClassification` in `MathFirst.App.csproj`. `AppBuildInfo` exposes `ApplicationId`, `SourceCommit`, `ShortSourceCommit`, `BuildClassification`, and `IsTesterBuild` (derived strictly from `BuildClassification == "Tester"`).
+  5. Verification: 59 targeted unit tests in `AppBuildInfoMetadataParserTests` and `NativeIdentityContractTests` (1318 total passing Core tests, 0 failed, 0 skipped); Windows Release build 0 warnings/errors; Android Release build 0 warnings/errors.
+- **Next Technical Lifecycle**: `REVIEW_ONLY` — MF-UX-005 Tester Ergonomics — Build Identity Metadata
 
 ---
 

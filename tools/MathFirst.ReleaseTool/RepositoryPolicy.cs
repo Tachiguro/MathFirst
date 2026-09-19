@@ -146,6 +146,7 @@ public static class VersionPolicy
             parsed = AppBuildInfoMetadataParser.Parse(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["MathFirst.ApplicationTitle"] = evaluated.ApplicationTitle,
+                ["MathFirst.ApplicationId"] = evaluated.ApplicationId,
                 ["MathFirst.ApplicationDisplayVersion"] = evaluated.ApplicationDisplayVersion,
                 ["MathFirst.ApplicationVersion"] = evaluated.ApplicationVersion
             });
