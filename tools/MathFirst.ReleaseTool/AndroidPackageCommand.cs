@@ -318,12 +318,20 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
         var clean = repository.TrackedWorkingTreeClean &&
                     repository.IndexClean &&
                     repository.UntrackedFiles.Count == 0;
-        var sourceClassification = request.Profile == ReleaseProfile.SourceCandidate
-            ? "source-candidate"
-            : "distributable";
-        var signingState = request.Profile == ReleaseProfile.SourceCandidate
-            ? "development-debug"
-            : "release-expected-pending-validation";
+        var sourceClassification = request.Profile switch
+        {
+            ReleaseProfile.SourceCandidate => "source-candidate",
+            ReleaseProfile.Distributable => "distributable",
+            ReleaseProfile.Tester => ReleaseConstants.TesterSourceClassification,
+            _ => throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.")
+        };
+        var signingState = request.Profile switch
+        {
+            ReleaseProfile.SourceCandidate => "development-debug",
+            ReleaseProfile.Distributable => "release-expected-pending-validation",
+            ReleaseProfile.Tester => ReleaseConstants.TesterSigningState,
+            _ => throw new ReleaseToolException($"Unsupported release profile '{request.Profile}'.")
+        };
 
         return new ArtifactProvenance(
             1,
@@ -409,6 +417,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
     {
         ReleaseProfile.SourceCandidate => "source-candidate-debug-signed",
         ReleaseProfile.Distributable => "distributable-release-signed-pending-validation",
+        ReleaseProfile.Tester => ReleaseConstants.TesterArtifactClassification,
         _ => throw new ReleaseToolException($"Unsupported release profile '{profile}'.")
     };
 

@@ -31,7 +31,8 @@ public sealed class TesterDistributionValidationTests
         Assert.NotNull(generator.GetMethod("CreateValidationReceipt"));
         Assert.NotNull(generator.GetMethod("SerializeValidationReceipt"));
         Assert.NotNull(generator.GetMethod("CreateTesterReadme"));
-        Assert.NotNull(generator.GetMethod("CreateSha256Sums"));
+        Assert.NotNull(generator.GetMethod("CreateSha256Sums", [typeof(string), typeof(IEnumerable<KeyValuePair<string, string>>)]));
+        Assert.NotNull(generator.GetMethod("CreateSha256Sums", [typeof(string), typeof(ReleaseProfile), typeof(IEnumerable<KeyValuePair<string, string>>)]));
     }
 
     [Fact]

@@ -27,6 +27,9 @@ public sealed class ArtifactWorkspace
         }
 
         if (string.IsNullOrWhiteSpace(invocationId) ||
+            invocationId == "." ||
+            invocationId == ".." ||
+            invocationId.Contains("..", StringComparison.Ordinal) ||
             invocationId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
             invocationId.Contains(Path.DirectorySeparatorChar) ||
             invocationId.Contains(Path.AltDirectorySeparatorChar))
@@ -140,9 +143,76 @@ public sealed class ArtifactWorkspace
         return EnsureContained(PublishRoot, selectedSignedAab);
     }
 
+    private const string SignedApkSuffix = "-Signed.apk";
+
+    public string FindSingleApk()
+    {
+        RejectExistingReparsePoints(ArtifactsRoot, PublishRoot);
+        var apks = Directory.GetFiles(PublishRoot, "*.apk", SearchOption.TopDirectoryOnly);
+        if (apks.Length == 0)
+        {
+            throw new ReleaseToolException("No APK files found in the invocation publish output.");
+        }
+
+        var signedCandidates = new List<string>();
+        var unsignedCandidates = new List<string>();
+
+        foreach (var apk in apks)
+        {
+            var normalized = EnsureContained(PublishRoot, apk);
+            var fileName = Path.GetFileName(normalized);
+            if (fileName.EndsWith(SignedApkSuffix, StringComparison.OrdinalIgnoreCase) &&
+                fileName.Length > SignedApkSuffix.Length)
+            {
+                signedCandidates.Add(normalized);
+            }
+            else
+            {
+                unsignedCandidates.Add(normalized);
+            }
+        }
+
+        if (signedCandidates.Count == 0)
+        {
+            throw new ReleaseToolException(
+                $"Expected exactly one signed APK candidate in the invocation publish output, but found 0 (found {apks.Length} total APK files).");
+        }
+
+        if (signedCandidates.Count > 1)
+        {
+            throw new ReleaseToolException(
+                $"Expected exactly one signed APK candidate in the invocation publish output, but found {signedCandidates.Count}.");
+        }
+
+        var selectedSignedApk = signedCandidates[0];
+        var selectedFileName = Path.GetFileName(selectedSignedApk);
+        var expectedIntermediateFileName = selectedFileName[..^SignedApkSuffix.Length] + ".apk";
+
+        if (unsignedCandidates.Count > 1)
+        {
+            throw new ReleaseToolException(
+                $"Found multiple unsigned APK files in the invocation publish output ({unsignedCandidates.Count}). Expected at most one matching intermediate.");
+        }
+
+        if (unsignedCandidates.Count == 1)
+        {
+            var intermediateFileName = Path.GetFileName(unsignedCandidates[0]);
+            if (!string.Equals(intermediateFileName, expectedIntermediateFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ReleaseToolException(
+                    $"Found unexpected or ambiguous APK file '{intermediateFileName}' alongside signed candidate '{selectedFileName}'. Expected '{expectedIntermediateFileName}'.");
+            }
+        }
+
+        return EnsureContained(PublishRoot, selectedSignedApk);
+    }
+
     public string GetFinalDirectory(ReleaseProfile profile, string artifactId)
     {
         if (string.IsNullOrWhiteSpace(artifactId) ||
+            artifactId == "." ||
+            artifactId == ".." ||
+            artifactId.Contains("..", StringComparison.Ordinal) ||
             artifactId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
             artifactId.Contains(Path.DirectorySeparatorChar) ||
             artifactId.Contains(Path.AltDirectorySeparatorChar))
@@ -154,6 +224,7 @@ public sealed class ArtifactWorkspace
         {
             ReleaseProfile.SourceCandidate => "source-candidate",
             ReleaseProfile.Distributable => "distributable",
+            ReleaseProfile.Tester => "tester",
             _ => throw new ReleaseToolException($"Unsupported release profile '{profile}'.")
         };
 
@@ -171,7 +242,8 @@ public sealed class ArtifactWorkspace
         }
 
         RejectExistingReparsePoints(ArtifactsRoot, ReadyRoot);
-        var artifactFileName = $"{artifactId}.aab";
+        var artifactExtension = profile == ReleaseProfile.Tester ? ".apk" : ".aab";
+        var artifactFileName = $"{artifactId}{artifactExtension}";
         var provenanceFileName = $"{artifactId}.provenance.json";
         var receiptFileName = $"{artifactId}.validation.json";
         var expectedFileNames = new HashSet<string>(StringComparer.Ordinal)
@@ -205,7 +277,7 @@ public sealed class ArtifactWorkspace
         ValidateCompleteProvenance(provenance);
         if (!string.Equals(provenance.Artifact.FileName, artifactFileName, StringComparison.Ordinal))
         {
-            throw new ReleaseToolException("Provenance artifact file name does not match the expected AAB.");
+            throw new ReleaseToolException("Provenance artifact file name does not match the expected artifact.");
         }
 
         ValidateStagedArtifact(provenance);
@@ -338,7 +410,7 @@ public sealed class ArtifactWorkspace
 
         _ = RequireProperty(root, "generatedAtUtc", JsonValueKind.String);
         var profile = RequireProperty(root, "profile", JsonValueKind.String).GetString();
-        if (profile is not (nameof(ReleaseProfile.SourceCandidate) or nameof(ReleaseProfile.Distributable)))
+        if (profile is not (nameof(ReleaseProfile.SourceCandidate) or nameof(ReleaseProfile.Distributable) or nameof(ReleaseProfile.Tester)))
         {
             throw new ReleaseToolException("Validation receipt profile must be a canonical supported enum name.");
         }
@@ -400,6 +472,7 @@ public sealed class ArtifactWorkspace
         var expectedSignerClassification = profile switch
         {
             ReleaseProfile.SourceCandidate => "development-debug",
+            ReleaseProfile.Tester => "development-debug",
             ReleaseProfile.Distributable => "release-distributable",
             _ => throw new ReleaseToolException($"Unsupported release profile '{profile}'.")
         };
@@ -415,7 +488,7 @@ public sealed class ArtifactWorkspace
             !string.Equals(receipt.Provenance.FileName, provenanceFileName, StringComparison.Ordinal) ||
             !string.Equals(receipt.Provenance.Sha256, provenanceSha256, StringComparison.Ordinal))
         {
-            throw new ReleaseToolException("Validation receipt does not bind the exact staged AAB and provenance bytes.");
+            throw new ReleaseToolException("Validation receipt does not bind the exact staged artifact and provenance bytes.");
         }
     }
 
