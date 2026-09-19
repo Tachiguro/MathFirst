@@ -247,11 +247,15 @@ public sealed class TeachingLockAndVisualFeedbackTests : IDisposable
         // No -webkit-text-stroke anywhere in app.css
         Assert.DoesNotContain("-webkit-text-stroke", styles, StringComparison.OrdinalIgnoreCase);
 
-        // Timer bar text uses clean modern typography with subtle pill contrast backing
+        // Timer bar text uses clean modern typography with restrained text-shadow contour without pill backing
         Assert.Contains(".timer-bar-text {", styles, StringComparison.Ordinal);
         Assert.Contains("font-variant-numeric: tabular-nums;", styles, StringComparison.Ordinal);
-        Assert.Contains("border-radius: 9999px;", styles, StringComparison.Ordinal);
-        Assert.Contains("background: rgba(18, 25, 22, 0.65);", styles, StringComparison.Ordinal);
+        Assert.Contains("color: #ffffff;", styles, StringComparison.Ordinal);
+        Assert.Contains("text-shadow:", styles, StringComparison.Ordinal);
+
+        // Pill background and backdrop-filter are completely removed from timer bar text
+        Assert.DoesNotContain("background: rgba(18, 25, 22, 0.65);", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("backdrop-filter: blur(4px);", styles, StringComparison.Ordinal);
 
         // Slice 1 timer component isolation intact (100ms PeriodicTimer)
         Assert.Contains("PeriodicTimer(TimeSpan.FromMilliseconds(100))", timerComponent, StringComparison.Ordinal);
