@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Implemented on task branch `feat/mf-ux-006-v1-privacy-copy-localization` (candidate pre-doc HEAD `130cae92032ebdfbd6f430b5cf353192d5e39ba3`, review `REVIEW_PASS`, unmerged):
+  - **Objective Localization, Reset Copy & Terminology Hardening (Slice 1, `582888659bc91df8aaf9b12812172aa966cca868`)**:
+    - Corrected Restore Default Settings copy across English, German, and Russian to explicitly specify PC numpad (`Keypad_Numpad`) as default layout;
+    - Resolved duplicate punctuation in Russian haptic feedback confirmation message (`Settings_HapticFeedbackChangedTo`);
+    - Corrected Russian learner-facing HUD accessibility progress terminology from `Стадия разработки` to `Стадия прогресса`;
+    - Added semantic localization tests and key/token parity assertions in `tests/MathFirst.Core.Tests/PolicyAndLocalizationTests.cs` (historical targeted test evidence: `PolicyAndLocalizationTests` 54/54, adjacent targeted regression 99/99).
+  - **Offline In-App Privacy Surface & Settings Entry (Slice 2, `2cc7191e9d1e0dccaf9ed1e84e4aafd715cdc8f2`)**:
+    - Added dedicated offline Blazor privacy component at `/privacy` (`src/MathFirst.App/Components/Pages/Privacy.razor`) structured across Overview, No Remote Collection or Sharing, Local Storage and Device Transfer, Removing Local Data, and Contact sections;
+    - Added Settings privacy entry card with description and action link;
+    - Integrated `IAppBackNavigationCoordinator` to navigate back to `/settings` on system Back;
+    - Added complete English, German, and Russian localized string dictionaries (`Privacy_Title`, `Privacy_Overview_Title`, `Privacy_Overview_Body`, `Privacy_NoCollection_Title`, `Privacy_NoCollection_Body`, `Privacy_LocalStorage_Title`, `Privacy_LocalStorage_Body`, `Privacy_Delete_Title`, `Privacy_Delete_Body`, `Privacy_Contact_Title`, `Privacy_Contact_Body`, `Settings_Privacy`, `Settings_Privacy_Desc`, `Settings_Privacy_Action`);
+    - Preserved zero-network architecture and permission boundaries (historical targeted test evidence: Policy + Back 72/72, `AndroidPackagingContractTests` 9/9, adjacent workflow 64/64).
+  - **Fatal Host Fallback Hardening (Slice 3, `130cae92032ebdfbd6f430b5cf353192d5e39ba3`)**:
+    - Replaced English-only fatal host error text in `src/MathFirst.App/wwwroot/index.html` with language-neutral error title and static multilingual reload links in English (`Reload`), German (`Neu laden`), and Russian (`Перезагрузить`) without runtime localization dependencies;
+    - Preserved startup brand-green handoff and dark mode CSS styling;
+    - Added contract coverage in `NativeVisualIdentityContractTests.cs` (historical targeted test evidence: `NativeVisualIdentityContractTests` 5/5, `StartupWhiteFlashTests` 5/5, combined Policy/Back/Android packaging 81/81).
+  - *Historical Evidence Note*: Targeted test evidence recorded per slice does not constitute a fresh full-suite run on the current candidate (the prior PLAN_ONLY audit on `main` passed 1463/1463 tests before package implementation); exact-candidate `FULL_VALIDATION` remains pending.
+- Completed and merged MF-UX-005 Final Documentation Reconciliation through Pull Request #39 at `60dba236aa38bca138ab583f610c9ff876994b04` (head `abfa73ef3a5a2ef9cf0c5d3cc3e3f48a5e607a78`):
+  - Reconciled repository documentation baseline across `docs/CURRENT_WORK.md`, `docs/PROJECT_STATE.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, and `CHANGELOG.md` following the completion and merge of PR #38.
 - Completed and merged MF-UX-005 Timer Visual Remediation through Pull Request #38 at `d1705bbdc0013372e44eadf7310ff2f313ecdcef` (head `2a7021977571e8c056a4ab2128ddc74e79b0f6b3`):
   - Removed the Timer backing pill from `src/MathFirst.App/wwwroot/app.css` and retained bold white tabular numerals with a restrained local dark text shadow;
   - Updated the visual contract in `tests/MathFirst.Core.Tests/TeachingLockAndVisualFeedbackTests.cs`;

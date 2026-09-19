@@ -98,25 +98,30 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree
 
 ### Operational Baseline
-- Synchronized `main` commit SHA: `d1705bbdc0013372e44eadf7310ff2f313ecdcef` (PR #38 merge)
-- Most recently completed package: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish
-- MF-UX-005 status: Completed through PR #38
-- Active implementation package: None
-- Next package: Not selected; explicit user authorization is required
+- Synchronized `main` commit SHA: `60dba236aa38bca138ab583f610c9ff876994b04` (PR #39 merge)
+- Most recently completed merged package: `MF-UX-005` — Native UX, Responsiveness, and Interaction Polish (completed through PR #39)
+- Active package: `MF-UX-006` — V1 Privacy, Copy, and Localization Hardening
+- Active task branch: `feat/mf-ux-006-v1-privacy-copy-localization`
+- Active lifecycle: `DOCUMENT_ONLY`
+- Pre-documentation candidate HEAD: `130cae92032ebdfbd6f430b5cf353192d5e39ba3`
+- Base baseline: `60dba236aa38bca138ab583f610c9ff876994b04` (PR #39 merge)
+- Package review status: `REVIEW_PASS`
+- Next expected mode after documentation reconciliation: `COMMIT_ONLY`, followed by `FULL_VALIDATION`
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `d1705bbdc0013372e44eadf7310ff2f313ecdcef` unless newer live evidence exists.
-3. **Recognize completed MF-UX-005 history**: PR #30 through PR #38 are merged. PR #36 delivered the repeatable Tester APK workflow, PR #37 delivered Release source-map exclusion, and PR #38 delivered Timer visual remediation.
-4. **Recognize completed investigation scope**: Installed Size, App Data, and RAM investigation is complete with explicit attribution limits; the Timer-specific physical acceptance evidence is not final production-candidate certification.
+2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `60dba236aa38bca138ab583f610c9ff876994b04` unless newer live evidence exists.
+3. **Recognize completed MF-UX-005 history**: PR #30 through PR #39 are merged. PR #36 delivered the repeatable Tester APK workflow, PR #37 delivered Release source-map exclusion, PR #38 delivered Timer visual remediation, and PR #39 delivered final documentation reconciliation.
+4. **Recognize MF-UX-006 candidate state**: Implemented across three checkpoint commits on `feat/mf-ux-006-v1-privacy-copy-localization` (candidate pre-doc HEAD `130cae92032ebdfbd6f430b5cf353192d5e39ba3`), passing consolidated review (`REVIEW_PASS`), with `DOCUMENT_ONLY` reconciliation active and `FULL_VALIDATION` pending.
 5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative.
 6. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
 
 ### Durable Merged Baseline Summary
-- **MF-UX-005 Repeatable Tester APK Workflow** (PR #36, merge `e908bf2fba820f4f6adf03b278861b956e5dbbd5`): Dedicated `ReleaseProfile.Tester`, deterministic APK naming and workspace routing, authoritative offline APK validation in `MathFirst.ReleaseTool`, ValidationReceipt Schema v1 evidence, and PowerShell entrypoints `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1`; historical automated evidence was 1462 passing Core tests.
-- **MF-UX-005 Release Size Hygiene** (PR #37, merge `dbc6bf045454a78a1ba32793fa02245f83b50437`): Release-only exclusion of `bootstrap.min.css.map`, with 9/9 targeted packaging tests and 1463/1463 full Release Core tests passing.
+- **MF-UX-005 Final Documentation Reconciliation** (PR #39, merge `60dba236aa38bca138ab583f610c9ff876994b04`): Established the post-MF-UX-005 synchronized documentation baseline on `main`.
 - **MF-UX-005 Timer Visual Remediation** (PR #38, merge `d1705bbdc0013372e44eadf7310ff2f313ecdcef`): Removed the Timer backing pill and retained bold white tabular numerals with a restrained dark local shadow/contour; 9/9 targeted visual-contract tests and 1463/1463 full Release Core tests passed.
+- **MF-UX-005 Release Size Hygiene** (PR #37, merge `dbc6bf045454a78a1ba32793fa02245f83b50437`): Release-only exclusion of `bootstrap.min.css.map`, with 9/9 targeted packaging tests and 1463/1463 full Release Core tests passing.
+- **MF-UX-005 Repeatable Tester APK Workflow** (PR #36, merge `e908bf2fba820f4f6adf03b278861b956e5dbbd5`): Dedicated `ReleaseProfile.Tester`, deterministic APK naming and workspace routing, authoritative offline APK validation in `MathFirst.ReleaseTool`, ValidationReceipt Schema v1 evidence, and PowerShell entrypoints `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1`; historical automated evidence was 1462 passing Core tests.
 - **MF-UX-005 Investigation and Physical Evidence**: Installed Size/App Data/RAM investigation completed with evidence limitations. A Timer-specific `TEST_ONLY` run on Samsung SM-S948B, Android 16, arm64-v8a was explicitly accepted by the user; final release-grade physical validation remains separate.
 - **MF-UX-005 Post-PR #34 Documentation Reconciliation** (PR #35 at `336322b5386a872ebb726c7bdcf34bb207592650`): Reconciled baseline documentation on `main` following merge of PR #34.
 - **MF-UX-005 Tester Diagnostics & Settings UX** (PR #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`): Support-safe deterministic diagnostics formatter, minimal platform info and clipboard abstractions (`IAppPlatformInfo`, `IClipboardService`) with MAUI implementations, Settings footer build identity display and localized "Copy diagnostic info" action with async execution and status feedback, complete EN/DE/RU localization keys.
@@ -128,8 +133,8 @@ When initializing a new session:
 - **Predecessors**: `MF-REL-002` (PR #26), `MF-UX-004` (PR #25), `MF-DOC-004` (PR #24), `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
 
 ### Downstream Roadmap Stages
-- **Active Package**: None.
-- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Pending and requires explicit authorization.
+- **Active Package**: `MF-UX-006` (under `DOCUMENT_ONLY` reconciliation on task branch).
+- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Pending after MF-UX-006 commit/merge and requires explicit authorization.
 - **Phase 6 - Production Packaging & Signing**: Separately authorized downstream work (`Distributable` profile with external production keystore).
 - **Phase 6 - Final Release-Grade Physical Validation**: Pending separately authorized validation of the exact production candidate.
 - **Phase 6 - Google Play Gate**: Pending and separately authorized.

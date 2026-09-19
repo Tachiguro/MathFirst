@@ -46,7 +46,7 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 - **Product identity**: MathFirst (`com.tachiguro.mathfirst`) currently presents release version `1.0` and build `1`.
 - **Visible version information**: Settings displays localized Version/Build information.
 - **Native brand treatment**: A white geometric MF mark uses primary green `#176B4D`, companion green `#0F523A`, light native background `#F4F7F5`, and dark native background `#121916`.
-- **Fallback surfaces**: Not Found content is localized in English, German, and Russian; the native startup surface uses language-neutral brand-green handoff (`#176B4D`) before Blazor mounts.
+- **Fallback surfaces**: Not Found content is localized in English, German, and Russian; the native startup surface uses language-neutral brand-green handoff (`#176B4D`) before Blazor mounts; fatal static host recovery in `index.html` provides static reload links in English, German, and Russian without depending on runtime localization or Blazor initialization.
 
 ---
 
@@ -356,6 +356,7 @@ Contextual copy is presentation behavior only. It does not change FactId, curric
   - *Practice Operations*: Settings always shows controls for Addition, Subtraction, Multiplication, and Division. All four are enabled by default; users may choose any non-empty subset, and the last enabled operation cannot be disabled. Disabled operations are excluded from newly generated practice and hidden from the HUD while retaining all learning progress for later resumption.
   - *Practice Time*: Standard uses the adaptive deadline unchanged. The 30 s, 45 s, and 60 s options set a minimum answer-time floor. The No Time Pressure option removes deadlines and automatic timeouts while continuing to measure active latency and display live elapsed time. None of these options change response-speed evaluation thresholds or FSRS rating rules.
   - *Statistics / Diagnostics*: The developer-facing Statistics / Diagnostics section is no longer shown in Settings. This UI removal does not delete attempt history, FSRS scheduling data, operation progress, item learning state, or progression calculations.
+  - *Privacy Policy*: Settings provides an entry card and navigation action to the offline in-app `/privacy` surface. Privacy information is readable entirely offline without requiring network connectivity, user accounts, or external browser integration. System Back navigation returns to Settings.
   - *Restore Default Settings*: Restores all four operations (Addition, Subtraction, Multiplication, Division) to enabled, Standard practice time, and Numpad keypad layout while preserving all learner progress.
   - *Reset Learning Progress*: Resets learner attempts, item states, FSRS states, and progression while preserving UI/onboarding preferences, keypad choice, operation preferences, and practice-time preferences.
   - *Full Local Reset*: Clears all learner progress and restores all settings, operation preferences, practice-time preferences, keypad layout, and UI preferences to defaults.
@@ -366,12 +367,12 @@ Contextual copy is presentation behavior only. It does not change FactId, curric
 ## 10. Offline, Accounts, and Local Progress
 
 ### Offline Baseline
-- The core learning loop, practice sessions, evaluation, and progression must function **100% offline**.
-- An active network connection must not be required to practice or maintain progress across Android, Web, or Windows.
+- The core learning loop, practice sessions, evaluation, progression, and in-app privacy surface function **100% offline**.
+- An active network connection must not be required to practice, review privacy details, or maintain progress across Android, Web, or Windows.
 
 ### User Accounts & Identity
 - An account is **NOT required** for the MVP.
-- All core learning functionality must be completely usable without registration, login, profile setup, or authentication.
+- All core learning functionality and in-app privacy information are completely usable without registration, login, profile setup, or authentication.
 
 ### Local Persistence
 - Learning state, item histories, and progression milestones must persist reliably in local device storage.

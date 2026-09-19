@@ -111,14 +111,14 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Твой ответ: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Правильный ответ: 6", service["Training_CorrectAnswer", 6]);
         Assert.Equal("Добро пожаловать в MathFirst", service["Onboarding_WelcomeTitle"]);
-        Assert.Equal("Банды операций", service["Diagnostics_Group_Learning"]);
+        Assert.Equal("Прогресс по операциям", service["Diagnostics_Group_Learning"]);
         Assert.Equal("Выберите цифровую клавиатуру", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Телефонная клавиатура", service["Keypad_Phone"]);
         Assert.Equal("Цифровой блок ПК", service["Keypad_Numpad"]);
         Assert.Equal("Удалить символ", service["Keypad_Backspace"]);
         Assert.Equal("Тактильный отклик", service["Settings_HapticFeedbackTitle"]);
         Assert.Equal("Использовать вибрацию при нажатии клавиш и результатах ответов.", service["Settings_HapticFeedbackHelp"]);
-        Assert.Equal("Тактильный отклик: Вкл..", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
+        Assert.Equal("Тактильный отклик: Вкл.", service["Settings_HapticFeedbackChangedTo", service["Common_On"]]);
         Assert.Equal("Версия 1.0 (сборка 1)", service["Settings_VersionBuild", "1.0", 1]);
         Assert.Equal("Сборка", service["Settings_Build"]);
         Assert.Equal("Источник", service["Settings_Source"]);
@@ -280,6 +280,57 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal(2, eventCount);
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("ru")]
+    public void LocalizationService_ResetUiPreferencesDescription_DescribesNumpadLayoutDefault(string language)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        var resetDesc = service["Reset_UiPreferences_Desc"];
+        var numpadName = service["Keypad_Numpad"];
+        var phoneName = service["Keypad_Phone"];
+
+        Assert.Contains(numpadName, resetDesc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(phoneName, resetDesc, StringComparison.OrdinalIgnoreCase);
+        if (language == "ru")
+        {
+            Assert.DoesNotContain("телефон", resetDesc, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Theory]
+    [InlineData("Common_On", "Вкл.")]
+    [InlineData("Common_Off", "Выкл.")]
+    public void LocalizationService_RussianHapticFeedbackChangedTo_FormatsWithoutDuplicatePunctuation(string statusKey, string expectedStatusText)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference("ru");
+
+        var statusValue = service[statusKey];
+        Assert.Equal(expectedStatusText, statusValue);
+
+        var formatted = service["Settings_HapticFeedbackChangedTo", statusValue];
+        Assert.Contains(expectedStatusText, formatted, StringComparison.Ordinal);
+        Assert.DoesNotContain("..", formatted, StringComparison.Ordinal);
+        Assert.EndsWith(".", formatted, StringComparison.Ordinal);
+        Assert.Equal(1, formatted.Count(c => c == '.'));
+    }
+
+    [Fact]
+    public void LocalizationService_RussianOperationProgressHud_UsesLearnerFacingTerminology()
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference("ru");
+
+        var hudLabel = service["Diagnostics_Group_Learning"];
+        Assert.Equal("Прогресс по операциям", hudLabel);
+        Assert.DoesNotContain("банды", hudLabel, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("банд", hudLabel, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void LocalizationService_AllLanguagesHaveIdenticalKeys()
     {
@@ -302,4 +353,72 @@ public sealed class PolicyAndLocalizationTests
             Assert.False(string.IsNullOrWhiteSpace(ruDict[key]), $"Russian string for key '{key}' was empty.");
         }
     }
+
+    [Fact]
+    public void Settings_Contract_ContainsPrivacyNavigationEntry()
+    {
+        var settingsPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor");
+        Assert.True(File.Exists(settingsPath), "Settings.razor was not found.");
+        var settings = File.ReadAllText(settingsPath);
+
+        Assert.Contains("href=\"privacy\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Localizer[\"Settings_Privacy\"]", settings, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Privacy_PageContract_DeclaresSingleRouteAndOfflineLocalContent()
+    {
+        var pagesDir = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages");
+        var pageFiles = Directory.Exists(pagesDir) ? Directory.GetFiles(pagesDir, "*.razor") : [];
+        var matchingFiles = pageFiles
+            .Where(path => File.ReadAllText(path).Contains("@page \"/privacy\"", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(matchingFiles.Count == 1, $"Expected exactly one page declaring @page \"/privacy\", but found {matchingFiles.Count}.");
+
+        var privacyContent = File.ReadAllText(matchingFiles[0]);
+        Assert.DoesNotContain("HttpClient", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fetch(", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<iframe", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<webview", privacyContent, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("http://", privacyContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("en", "Privacy", "Overview", "No Remote Collection or Sharing", "Local Storage and Device Transfer", "Removing Local Data", "Contact")]
+    [InlineData("de", "Datenschutz", "Übersicht", "Keine Datenerfassung oder Weitergabe", "Lokale Speicherung und Geräteübertragung", "Daten löschen", "Kontakt")]
+    [InlineData("ru", "Конфиденциальность", "Обзор", "Без сбора данных и передачи третьим лицам", "Локальное хранение и перенос между устройствами", "Удаление данных", "Контакты")]
+    public void LocalizationService_PrivacyStringsHaveFullLanguageParity(
+        string language,
+        string expectedTitle,
+        string expectedOverviewTitle,
+        string expectedNoCollectionTitle,
+        string expectedLocalStorageTitle,
+        string expectedDeletionTitle,
+        string expectedContactTitle)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expectedTitle, service["Privacy_Title"]);
+        Assert.Equal(expectedOverviewTitle, service["Privacy_Overview_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_Overview_Body"]));
+        Assert.Equal(expectedNoCollectionTitle, service["Privacy_NoCollection_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_NoCollection_Body"]));
+        Assert.Equal(expectedLocalStorageTitle, service["Privacy_LocalStorage_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_LocalStorage_Body"]));
+        Assert.Equal(expectedDeletionTitle, service["Privacy_Delete_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_Delete_Body"]));
+        Assert.Equal(expectedContactTitle, service["Privacy_Contact_Title"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Privacy_Contact_Body"]));
+        Assert.Equal(expectedTitle, service["Settings_Privacy"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Settings_Privacy_Desc"]));
+        Assert.False(string.IsNullOrWhiteSpace(service["Settings_Privacy_Action"]));
+    }
+
+    private static string GetRepositoryPath(params string[] segments) =>
+        Path.Combine([GetRepositoryRoot(), .. segments]);
+
+    private static string GetRepositoryRoot([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
 }

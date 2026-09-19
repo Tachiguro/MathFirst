@@ -131,6 +131,16 @@ public sealed class NativeVisualIdentityContractTests
         Assert.DoesNotContain("Loading...", index, StringComparison.Ordinal);
         Assert.DoesNotContain("<div id=\"app\">MathFirst</div>", index, StringComparison.Ordinal);
         Assert.Contains("<div id=\"app\"></div>", index, StringComparison.Ordinal);
+
+        // Fatal host fallback (#blazor-error-ui) must not contain legacy English-only copy
+        // and must provide static multilingual reload affordance across EN/DE/RU.
+        Assert.Contains("id=\"blazor-error-ui\"", index, StringComparison.Ordinal);
+        Assert.Contains("class=\"reload\"", index, StringComparison.Ordinal);
+        Assert.Contains("href=\".\"", index, StringComparison.Ordinal);
+        Assert.DoesNotContain("An unhandled error has occurred.", index, StringComparison.Ordinal);
+        Assert.Contains("Reload", index, StringComparison.Ordinal);
+        Assert.Contains("Neu laden", index, StringComparison.Ordinal);
+        Assert.Contains("Перезагрузить", index, StringComparison.Ordinal);
     }
 
     private static string GetRepositoryPath(params string[] segments) =>

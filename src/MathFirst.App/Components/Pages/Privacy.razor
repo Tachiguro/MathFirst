@@ -1,0 +1,76 @@
+@page "/privacy"
+@implements IDisposable
+@using MathFirst.Application
+@using MathFirst.Application.Navigation
+@inject ILocalizationService Localizer
+@inject NavigationManager Navigation
+@inject IAppBackNavigationCoordinator BackCoordinator
+
+<div class="settings-page privacy-page">
+    <header class="settings-header">
+        <h1 class="settings-title">@Localizer["Privacy_Title"]</h1>
+        <a class="button button-secondary" href="settings">
+            @Localizer["Common_Back"]
+        </a>
+    </header>
+
+    <div class="settings-container">
+        <!-- 1. OVERVIEW -->
+        <section class="settings-card" aria-labelledby="privacy-overview-title">
+            <h2 id="privacy-overview-title" class="settings-section-title">@Localizer["Privacy_Overview_Title"]</h2>
+            <p class="setting-help">@Localizer["Privacy_Overview_Body"]</p>
+        </section>
+
+        <!-- 2. NO REMOTE COLLECTION OR SHARING -->
+        <section class="settings-card" aria-labelledby="privacy-nocollection-title">
+            <h2 id="privacy-nocollection-title" class="settings-section-title">@Localizer["Privacy_NoCollection_Title"]</h2>
+            <p class="setting-help">@Localizer["Privacy_NoCollection_Body"]</p>
+        </section>
+
+        <!-- 3. LOCAL STORAGE AND DEVICE TRANSFER -->
+        <section class="settings-card" aria-labelledby="privacy-localstorage-title">
+            <h2 id="privacy-localstorage-title" class="settings-section-title">@Localizer["Privacy_LocalStorage_Title"]</h2>
+            <p class="setting-help">@Localizer["Privacy_LocalStorage_Body"]</p>
+        </section>
+
+        <!-- 4. REMOVING LOCAL DATA -->
+        <section class="settings-card" aria-labelledby="privacy-delete-title">
+            <h2 id="privacy-delete-title" class="settings-section-title">@Localizer["Privacy_Delete_Title"]</h2>
+            <p class="setting-help">@Localizer["Privacy_Delete_Body"]</p>
+        </section>
+
+        <!-- 5. CONTACT -->
+        <section class="settings-card" aria-labelledby="privacy-contact-title">
+            <h2 id="privacy-contact-title" class="settings-section-title">@Localizer["Privacy_Contact_Title"]</h2>
+            <p class="setting-help">@Localizer["Privacy_Contact_Body"]</p>
+            <p class="setting-help"><span class="privacy-contact-url">https://github.com/Tachiguro/MathFirst/issues</span></p>
+        </section>
+    </div>
+</div>
+
+@code {
+    private IDisposable? _backRegistration;
+
+    protected override void OnInitialized()
+    {
+        Localizer.UiLanguageChanged += OnLanguageChanged;
+        _backRegistration = BackCoordinator.RegisterHandler(HandleBack);
+    }
+
+    public void Dispose()
+    {
+        Localizer.UiLanguageChanged -= OnLanguageChanged;
+        _backRegistration?.Dispose();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private bool HandleBack()
+    {
+        Navigation.NavigateTo("/settings");
+        return true;
+    }
+}
