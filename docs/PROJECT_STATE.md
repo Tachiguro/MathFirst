@@ -8,7 +8,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 
 - **Project Name**: MathFirst
 - **Repository URL**: https://github.com/Tachiguro/MathFirst
-- **Current Status**: `MF-STAB-003` (Enabled-Subset Scheduling and Current-Fact Reconciliation) was merged to `main` through Pull Request #42 at merge commit `caffe0e883f83249bee2c9a1f2122543e88c9ab0` (validated candidate `766d8ea7692d139425e2301121f93af7901cf238`, merge tree identical to validated candidate tree `fcab56b3a886ed0c5018d4f8a16304ee83378b26`, `REVIEW_APPROVED` with 0 Blocker, 0 Major, 1 Minor non-production test-helper semantic finding, `FULL_VALIDATION_PASS` on candidate with 1,516 Core tests passed, Schema V6 preserved, and ADR-0008 authoritative). The authoritative baseline `main` / `origin/main` is `caffe0e883f83249bee2c9a1f2122543e88c9ab0`. Prior native V1 Build 2 remains rejected (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`): Step 30 (technical smoke) previously passed (`TECHNICAL_SMOKE_PASS`) for historical Build 2 only, but Step 31 (physical-device verification) failed (`REAL_DEVICE_VERIFICATION_FAILED`) on physical hardware due to the restart role-misassignment blocker. The root cause is fixed in merged code. No replacement production candidate exists yet, no new AAB has been produced or signed (next candidate `versionCode` must be $\ge 3$), Step 30 and Step 31 reruns have not yet been performed, and Google Play publication remains blocked and separately authorized. Target-audience selection (A/B/C) remains unresolved.
+- **Current Status**: `MF-DOC-006` (Post-MF-STAB-003 Merge State Reconciliation) was merged to `main` through Pull Request #43 at merge commit `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`. Predecessor implementation package `MF-STAB-003` (Enabled-Subset Scheduling and Current-Fact Reconciliation) was merged to `main` through Pull Request #42 at merge commit `caffe0e883f83249bee2c9a1f2122543e88c9ab0` (validated candidate `766d8ea7692d139425e2301121f93af7901cf238`, merge tree identical to validated candidate tree `fcab56b3a886ed0c5018d4f8a16304ee83378b26`, Schema V6 preserved, and ADR-0008 authoritative). The authoritative baseline `main` / `origin/main` is `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`. The active candidate package `MF-LEARN-004` (Guided Four-Operation Number-Space Gate, [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)) is implementation-complete on task branch `codex/mf-learn-004-guided-number-space-gate` at checkpoint commit `c962c33fe62edd633bcae003728391bec502e7eb` (tree `a855f249f9cd34fcca0e4a989a199ebdcb708f27`), verified `REVIEW_APPROVED` with 1,590 Core tests passed, 0 warnings/errors, and Schema V6 preserved, awaiting documentation reconciliation, exact-candidate validation, and PR merge. Prior native V1 Build 2 remains rejected (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`). Build 3 historically passed technical smoke (Step 30) and manual physical-device verification (Step 31); however, its source predates `MF-LEARN-004` and therefore no longer represents current repository source. Any future production candidate after `MF-LEARN-004` merge requires `versionCode >= 4`. Build 4 does not exist yet (not packaged, not signed, not tested). Technical release preparation (release build generation, packaging, signing, Step 30 smoke, and Step 31 physical-device verification) is agent-executable when explicitly authorized; Google Play Console upload and publishing remain user responsibility. Target-audience selection (A/B/C) remains unresolved.
 
 ---
 
@@ -78,7 +78,28 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - `FSRS.Core` 1.0.7 is integrated with 95% desired retention, 21 parameters, disabled fuzzing, deterministic per-FactId card identity, and Practice Position virtual time.
 - `MathFirst.Infrastructure.Sqlite` owns the concrete native `SqliteLearnerStore` and `Microsoft.Data.Sqlite`; the Application layer owns persistence contracts. Accepted submissions commit attempt, item, FSRS, and progression changes atomically with revision checks, idempotent SubmissionId replay, and publish-after-successful-persistence session semantics.
 - **Answer Entry Reliability & Reset Semantics**: Typing a wrong first digit of a multi-digit answer leaves the buffer editable without premature submission; Backspace deletes trailing digits; single-digit correct answers auto-submit immediately; and every newly generated fact starts with an empty answer input buffer. Reset Learning Progress clears learner attempts, item state, FSRS state, and progression while preserving UI/onboarding preferences, operation preferences, and practice-time preferences. Restore Default Settings restores all four operations and Standard practice time while preserving learner progress. Full Local Reset additionally restores all UI, onboarding, operation, and practice-time preferences to defaults. Ready, Pause, and Background-Resume gates are transient and are not stored in the learner schema.
-- Practice UI provides a clean, distraction-free environment: the transient session score is absent, while the compact operation progress HUD remains and shows only enabled operations. The Pause button is styled in non-destructive amber/yellow (`.button-pause`), while destructive reset actions retain danger red.
+- **Practice UI Cleanliness & Ergonomics**: Practice UI provides a clean, distraction-free environment: the transient session score is absent, while the compact operation progress HUD remains and shows only enabled operations. The Pause button is styled in non-destructive amber/yellow (`.button-pause`), while destructive reset actions retain danger red.
+- **Guided Four-Operation Number-Space Gate (MF-LEARN-004, [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md))**:
+  - **Guided Mode vs. Custom Mode**: Guided Mode is active **if and only if** exactly all four operations are enabled (`Addition`, `Subtraction`, `Multiplication`, `Division`). Custom Mode is active whenever any other valid non-empty subset is enabled.
+  - **Addition Ceiling Authority & Multiplicative Presentation Eligibility**:
+    - In Guided Mode, the maximum represented number across the complete unlocked canonical Addition curriculum prefix ($0..\text{BandIndex}_{\text{ADD}}$) defines the ceiling: $\max(F.\text{LeftOperand}, F.\text{RightOperand}, F.\text{CorrectResult})$ across all facts in bands $0..\text{BandIndex}_{\text{ADD}}$.
+    - Multiplication presentation requires $\text{owner}_{\text{MUL}}(F) \le \text{BandIndex}_{\text{MUL}}$ AND $\text{CorrectResult} \le \text{AdditionCeiling}$.
+    - Division presentation requires $\text{owner}_{\text{DIV}}(F) \le \text{BandIndex}_{\text{DIV}}$ AND $\text{LeftOperand} \le \text{AdditionCeiling}$ (since dividend is `LeftOperand`).
+    - Addition and Subtraction are invariant under cross-operation gating (gate always allows).
+    - Custom Mode operates completely unrestricted (`GuidedNumberSpaceGate.Unrestricted`), permitting focused single- or multi-operation practice without an Addition ceiling.
+  - **State & Schema Preservation (`PERSISTED != CURRENTLY PRESENTABLE`)**:
+    - The Guided gate restricts presentation eligibility only.
+    - Progression `BandIndex`, `ItemLearningState`, attempt history, FSRS card states, fluency evidence, remediation queues, accepted attempt counts, and global `PracticePosition` are preserved losslessly in Schema V6 without migration.
+    - Historical facts exceeding the ceiling remain dormant in SQLite and automatically regain presentation eligibility when the Addition ceiling expands or when switching to Custom Mode.
+  - **Candidate-Window Anti-Poisoning & Multi-Layer Defense**:
+    - Enforced defense-in-depth across SQLite candidate streaming (`ReadCandidateRowsAsync` excludes Guided-ineligible facts before candidate partitioning and window truncation, ensuring dormant higher-number facts do not consume any of the bounded 64 candidate window slots), snapshot evidence filtering, selector candidate pools (`New`, `Useful Frontier`, `Due`, `Maintenance`, `Early Review`, `Remediation`), and final selection boundary assertions.
+  - **Evidence Cache Semantic Identity**:
+    - In-memory selection evidence cache incorporates semantic gate identity (`GateIdentity(bool IsActive, int? AdditionCeiling)`). Equivalent semantic states compare by value equality of active status and ceiling. Addition and Subtraction remain gate-invariant (`GateIdentity(false, null)`). No gate identity is persisted.
+  - **Settings Reconciliation Integration**:
+    - Integrated with MF-STAB-003 `TrainingSession.ReconcilePracticeConfigurationAsync`: unsubmitted active questions that become Guided-ineligible are discarded and replaced at the same prospective `PracticePosition` with zero learning mutations. Valid questions preserve exact identity, partial input, and timer state. Accepted feedback is preserved until deliberate dismissal.
+  - **Scheduler & Role Invariants**:
+    - `DeterministicOperationScheduler` bounded permutation bag turn scheduling remains unchanged (25% nominal turn share per operation in all-four mode).
+    - Per-operation role progression remains derived strictly from $\text{AcceptedAttemptCount}(O) + 1$ across the 10-slot cycle.
 
 ---
 
@@ -125,6 +146,12 @@ This document records stable, verified facts about MathFirst. It excludes transi
   - establishes authoritative Settings/current-fact reconciliation: valid unsubmitted facts are retained, while invalid unsubmitted facts are replaced immediately with zero learning mutations;
   - defers configuration reconciliation during post-accepted feedback states until preparation of the next exercise;
   - replaces fire-and-forget reconciliation with awaited reconciliation before Settings navigation.
+- [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md) records the accepted and implemented Guided Four-Operation Number-Space Gate architecture (`MF-LEARN-004`):
+  - establishes an Addition-governed multiplicative number-space ceiling in Guided Mode (active iff all four operations are enabled);
+  - preserves unrestricted number spaces for Custom Mode subsets;
+  - restricts presentation eligibility only ($\text{owner}_O(F) \le B$ and product/dividend $\le \text{AdditionCeiling}$) while preserving all persisted learner progress and Schema V6;
+  - enforces multi-layer candidate window anti-poisoning during SQLite candidate streaming, preventing dormant facts from choking the 64-item review window;
+  - integrates semantic gate identity into in-memory evidence caching and connects with zero-mutation Settings reconciliation.
 
 ---
 
@@ -181,11 +208,12 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Downstream Release State**:
   - Former native V1 candidate `bf1d1cb5c7ceab8b4c18dd1bc9204ec0444b1f10` (Build 1) was rejected during physical-device verification (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`) due to future-fact review eligibility and startup recovery defects.
   - Native V1 candidate Build 2 was subsequently rejected during physical-device verification (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`): Step 30 (technical smoke) passed (`TECHNICAL_SMOKE_PASS`), but Step 31 (physical-device verification) failed due to the 26-Addition $\to$ Subtraction-only restart role-misassignment blocker.
-  - MF-STAB-003 addresses and resolves this blocker in merged code on `main` (PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`, validated candidate `766d8ea7692d139425e2301121f93af7901cf238`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`).
-  - No replacement candidate AAB has been produced or signed; the next candidate `versionCode` must be $\ge 3$.
-  - Production packaging and signing (`Distributable` AAB): **PENDING / SEPARATELY AUTHORIZED**.
-  - Final technical smoke (Step 30) and manual physical-device functional verification (Step 31) of the exact new production candidate: **PENDING**.
-  - Google Play publication gate (Step 32): **PENDING / SEPARATELY AUTHORIZED** and blocked until validation succeeds.
+  - MF-STAB-003 resolved this blocker in merged code on `main` (PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`, validated candidate `766d8ea7692d139425e2301121f93af7901cf238`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`).
+  - Production candidate Build 3 (`versionCode 3`) historically passed Step 30 technical smoke (`TECHNICAL_SMOKE_PASS`) and Step 31 manual physical-device verification on Samsung SM-S948B, Android 16. However, its source predates `MF-LEARN-004` and therefore no longer represents current repository source.
+  - Any future production candidate after `MF-LEARN-004` merge requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
+  - Production packaging and signing (`Distributable` AAB): **PENDING / SEPARATELY AUTHORIZED** following `MF-LEARN-004` merge (agent-executable when explicitly authorized).
+  - Final technical smoke (Step 30) and manual physical-device functional verification (Step 31) of the exact future production candidate (`versionCode >= 4`): **PENDING** (agent-executable when explicitly authorized).
+  - Google Play publication gate (Step 32): **PENDING / SEPARATELY AUTHORIZED** (Google Play Console upload, rollout, and publishing remain user responsibility, blocked until Step 31 verification succeeds).
 
 ---
 
@@ -242,7 +270,13 @@ This document records stable, verified facts about MathFirst. It excludes transi
   - *Full Exact-Candidate Validation (`FULL_VALIDATION_PASS` on `766d8ea7692d139425e2301121f93af7901cf238`)*: 1,516 Core unit, integration, and regression tests passed, clean Windows and Android Release builds (0 warnings / 0 errors), 0 vulnerable NuGet packages, 0 deprecated packages in application/runtime/tooling projects (legacy `xunit 2.9.3` retained in test project), 28/28 valid relative Markdown links, intact ADR registry (including ADR-0008), clean `git diff --check`.
   - *Tree Identity*: Merged `main` tree (`fcab56b3a886ed0c5018d4f8a16304ee83378b26`) is Git-tree-identical to validated candidate tree `fcab56b3a886ed0c5018d4f8a16304ee83378b26`. Exact validation was performed on candidate `766d8ea7692d139425e2301121f93af7901cf238`.
   - *Review Status*: `REVIEW_APPROVED` with 1,516 passing Core tests in `MathFirst.Core.Tests` (0 Blocker, 0 Major, 1 Minor non-production test-helper semantic finding).
-  - *Boundaries*: Schema V6 preserved. No production AAB packaging, signing, Step 30/31 rerun, or Google Play publication was performed. Post-merge synchronization on `main` is complete.
+- **MF-DOC-006 (Post-MF-STAB-003 Documentation Reconciliation)** was merged to `main` through Pull Request #43 at `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`: reconciled repository baseline documentation following PR #42 merge.
+- **MF-LEARN-004 (Guided Four-Operation Number-Space Gate)** task-branch delivery and review evidence (branch `codex/mf-learn-004-guided-number-space-gate`, checkpoint `c962c33fe62edd633bcae003728391bec502e7eb`, tree `a855f249f9cd34fcca0e4a989a199ebdcb708f27`, base `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`):
+  - *Slice 1 (`d3a0e2fc194e45655498c957c7b694c3fec931ee`)*: Implemented `GuidedNumberSpaceGate` domain entity, active Guided Mode predicate (all 4 operations enabled), deterministic Addition ceiling derivation over canonical prefix, and multiplication/division eligibility checks.
+  - *Slice 2 (`052b1bb82bf071a39b08d22468dbc5a5f0c80c92`)*: Integrated gate into selection evidence, streaming SQLite candidate anti-poisoning in `ReadCandidateRowsAsync` (filtering before window truncation to protect the 64-item window), selector semantic pools defense-in-depth, and final selection boundary assertions.
+  - *Slice 3 (`2eef22ff047f2f94aee8210b20bad57e5ddc720b`)*: Wired gate derivation into `TrainingSession`, implemented `GateIdentity` selection evidence caching, and integrated Settings/current-fact reconciliation Case C.
+  - *Slice 4 (`c962c33fe62edd633bcae003728391bec502e7eb`)*: Closed 100-attempt simulations, Custom mode independence, >64 SQLite anti-poisoning, and corrected test-helper prospective position alignment in `BoundedSelectionIntegrationTests.cs`.
+  - *Review Status*: Verified `REVIEW_APPROVED` with 1,590 passing Core tests in `MathFirst.Core.Tests` (0 failed, 0 skipped), 0 warnings/errors on Windows and Android Release builds, Schema V6 preserved, and ADR-0009 authoritative. Awaiting documentation reconciliation, exact-candidate validation, and PR merge.
 
 ---
 
