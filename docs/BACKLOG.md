@@ -259,7 +259,7 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-LEARN-004`
 - **Title**: Guided Four-Operation Number-Space Gate
 - **Type**: `Feature`
-- **Status**: `Accepted`
+- **Status**: `Completed` (Merged through PR #44 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`)
 - **Dependencies**: `MF-STAB-003` complete and merged to `main` (PR #42)
 - **Description**:
   Provide guided onboarding and progression gating across arithmetic number spaces, ensuring multiplicative quantities remain grounded in the learner's established additive number space when practicing multi-operation arithmetic ([ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)):
@@ -271,7 +271,7 @@ When items are accepted into the backlog, they are recorded with:
   6. **Evidence Cache Semantic Identity**: In-memory selection evidence cache incorporates semantic gate identity (`GateIdentity(bool IsActive, int? AdditionCeiling)`), ensuring cache entries invalidate and refresh when the Addition ceiling expands while treating Addition and Subtraction as gate-invariant.
   7. **Scheduler & Role Invariants**: Bounded permutation bag operation turn scheduling via `DeterministicOperationScheduler` remains unchanged (25% nominal turn share per operation in all-four mode); per-operation role progression remains derived strictly from $\text{AcceptedAttemptCount}(O) + 1$ across the 10-slot cycle.
   8. **Test-Helper Maintenance Resolution**: Resolved the historical MF-STAB-003 test-helper maintenance item in `tests/MathFirst.Core.Tests/BoundedSelectionIntegrationTests.cs`, aligning test-helper role-ordinal derivation with per-operation attempt counts.
-  9. **Delivery & Lifecycle Status**: Implementation completed across 4 checkpoint commits on task branch `codex/mf-learn-004-guided-number-space-gate` at checkpoint `c962c33fe62edd633bcae003728391bec502e7eb` (base `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`). Verified `REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 2 Note) with 1,590 passing Core tests in `MathFirst.Core.Tests` (0 failed, 0 skipped). Documentation reconciliation is in progress/completed locally; pending final candidate validation, push, PR, and manual merge to `main`. Build 4 does not exist yet.
+  9. **Delivery & Lifecycle Status**: Implementation completed across 4 checkpoint commits on task branch `codex/mf-learn-004-guided-number-space-gate` at checkpoint `c962c33fe62edd633bcae003728391bec502e7eb` (base `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`). Verified `REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 2 Note) with 1,590 passing Core tests in `MathFirst.Core.Tests` (0 failed, 0 skipped). Validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6` achieved `FULL_VALIDATION_PASS` and exact tree identity (`053311fed6a6827af690a6138fd83cc2c63bb7de`) with merge commit `8f4ae59110abf6ea9d365733297a0c15d4c296ea` via PR #44. Build 4 does not exist yet.
 
 ---
 

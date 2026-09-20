@@ -9,21 +9,19 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Package**: `MF-LEARN-004` — Guided Four-Operation Number-Space Gate
+- **Active Package**: `MF-DOC-007` — Post-MF-LEARN-004 Merge State Reconciliation
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Task Branch**: `codex/mf-learn-004-guided-number-space-gate`
-- **Implementation Checkpoint HEAD**: `c962c33fe62edd633bcae003728391bec502e7eb`
-- **Implementation Tree SHA**: `a855f249f9cd34fcca0e4a989a199ebdcb708f27`
-- **Base Baseline (`main` / `origin/main`)**: `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303` (PR #43 merge `docs/mf-doc-006-post-mf-stab-003-merge-reconciliation`)
-- **Review Verdict**: `REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 2 Note)
-- **Active Implementation Package**: `MF-LEARN-004` (implementation complete on task branch; pending documentation reconciliation, candidate validation, and merge)
-- **Next Lifecycle for MF-LEARN-004**: `COMMIT_ONLY` (to commit reconciled documentation) $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
+- **Task Branch**: `docs/mf-doc-007-post-mf-learn-004-merge-reconciliation`
+- **Authoritative Baseline (`main` / `origin/main`)**: `8f4ae59110abf6ea9d365733297a0c15d4c296ea`
+- **Most Recently Merged Implementation Package on `main`**: `MF-LEARN-004` — Guided Four-Operation Number-Space Gate (PR #44 merge at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`, validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
+- **Active Implementation Package**: None (no implementation package is active; downstream packages must not be autonomously selected)
+- **Next Lifecycle for MF-DOC-007**: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
 
 ---
 
-## 2. MF-LEARN-004 Implementation Checkpoints
+## 2. MF-LEARN-004 Historical Implementation Checkpoints
 
-The package implementation was completed across four structured checkpoint commits on task branch `codex/mf-learn-004-guided-number-space-gate`:
+The package implementation was completed across four structured checkpoint commits on task branch `codex/mf-learn-004-guided-number-space-gate` and merged to `main` via PR #44:
 
 1. **Slice 1: Guided Number-Space Gate Contract**
    - Commit SHA: `d3a0e2fc194e45655498c957c7b694c3fec931ee`
@@ -94,9 +92,11 @@ MF-LEARN-004 delivers the following durable invariants:
 
 ---
 
-## 4. Review Status & Findings
+## 4. MF-LEARN-004 Review Status & Findings
 
 - **Verdict**: `REVIEW_APPROVED`
+- **Candidate FULL_VALIDATION**: `FULL_VALIDATION_PASS` on `51a2bd9907ebdcf738a348bc90de29d31d6b68b6` (tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`)
+- **Merge Commit**: `8f4ae59110abf6ea9d365733297a0c15d4c296ea` (PR #44)
 - **Blocker Findings**: 0
 - **Major Findings**: 0
 - **Minor Findings**: 0
@@ -127,4 +127,4 @@ MF-LEARN-004 delivers the following durable invariants:
 - *Weak-Frontier / Adaptive Practice Balance*: Deferred educational follow-up; requires separate `PLAN_ONLY` decision and is not an accepted package.
 
 > [!IMPORTANT]
-> There is currently no authorized implementation package beyond MF-LEARN-004. Downstream packages must not be autonomously activated without explicit user dispatch.
+> There is currently no active implementation package. Downstream packages must not be autonomously activated without explicit user dispatch.

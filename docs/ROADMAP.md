@@ -97,11 +97,13 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 32. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-STAB-003 candidate `766d8ea7692d139425e2301121f93af7901cf238` — **COMPLETED** (`FULL_VALIDATION_PASS`).
 33. Reconcile post-MF-STAB-003 documentation baseline (`MF-DOC-006`) — **COMPLETED** and merged to `main` through Pull Request #43 at `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`.
 34. Production Candidate Build 3 (`versionCode 3`): Candidate packaged and Step 30 technical smoke passed (`TECHNICAL_SMOKE_PASS`) and Step 31 manual physical-device verification passed on Samsung SM-S948B, Android 16. Build 3 is historical: its source predates MF-LEARN-004 and no longer represents current repository source.
-35. Deliver Guided Four-Operation Number-Space Gate (`MF-LEARN-004`) — **IN PROGRESS** on task branch `codex/mf-learn-004-guided-number-space-gate` (implementation complete across 4 slices, `REVIEW_APPROVED`, 1,590 Core tests passed, `DOCUMENT_ONLY` reconciliation active; awaiting `COMMIT_ONLY`, `FULL_VALIDATION`, PR, and merge).
-36. Perform production packaging and signing for future candidate (`versionCode` $\ge 4$) — **PENDING** and separately authorized following MF-LEARN-004 merge (agent-executable when explicitly authorized; Build 4 does not exist yet).
-37. Perform technical smoke verification (Step 30) on the new production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
-38. Perform manual physical-device functional verification (Step 31) on the new production candidate (`versionCode` $\ge 4$) (Samsung SM-S948B, Android 16) — **PENDING** (agent-executable when explicitly authorized).
-39. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
+35. Deliver Guided Four-Operation Number-Space Gate (`MF-LEARN-004`) — **COMPLETED** and merged to `main` through Pull Request #44 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea` (validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, merge tree identical to candidate tree `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, 1,590 Core tests passed, Schema V6 preserved, [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)).
+36. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-LEARN-004 candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6` — **COMPLETED** (`FULL_VALIDATION_PASS`).
+37. Reconcile post-MF-LEARN-004 documentation baseline (`MF-DOC-007`) — **IN PROGRESS** (`DOCUMENT_ONLY` on task branch `docs/mf-doc-007-post-mf-learn-004-merge-reconciliation`).
+38. Perform production packaging and signing for future candidate (`versionCode` $\ge 4$) — **PENDING** and separately authorized following MF-LEARN-004 merge (agent-executable when explicitly authorized; Build 4 does not exist yet).
+39. Perform technical smoke verification (Step 30) on the new production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
+40. Perform manual physical-device functional verification (Step 31) on the new production candidate (`versionCode` $\ge 4$) (Samsung SM-S948B, Android 16) — **PENDING** (agent-executable when explicitly authorized).
+41. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
 
 ### Future Planned Roadmap Work
 - **MF-UX-007**: Progress Presentation Cleanup (accepted in Backlog).
