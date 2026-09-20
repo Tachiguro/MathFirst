@@ -234,19 +234,58 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
     // ===========================================================================
 
     [Fact]
-    public async Task TrainingSession_PersistenceFailure_DoesNotAdvanceRuntimeCount()
+    public async Task TrainingSession_PersistenceFailure_DoesNotAdvanceRuntimeCount_AndMaintainsRecoveryConsistency()
     {
+        var preferences = new TestPreferenceStore();
+        preferences.SetOperations([ArithmeticOperation.Addition]);
+
         var failingStore = new FailingLearnerStore();
-        var session = new TrainingSession(failingStore, new FixedClock());
+        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        Assert.Equal(0, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        var op = session.CurrentFact.Operation;
+        Assert.Equal(ArithmeticOperation.Addition, op);
+        Assert.Equal(0, session.GetOperationAcceptedAttemptCount(op));
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        // 1. Evaluate a new answer
+        var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True(evaluation.IsCorrect);
+        Assert.NotNull(evaluation.ChangeSet);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // 2. CommitSubmissionAsync returns a non-success persistence failure
         var result = await session.CommitCurrentEvaluationAsync();
-
         Assert.False(result.IsSuccess);
-        Assert.Equal(0, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+
+        // 3. _operationAcceptedAttemptCounts for the attempted operation does NOT increment
+        Assert.Equal(0, session.GetOperationAcceptedAttemptCount(op));
+
+        // 4. Global authoritative learner state is not published as committed
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+        Assert.Equal(SessionInteractionState.PersistenceFailure, session.InteractionState);
+        Assert.False(session.HasCompletedPracticeHistory);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+
+        // 5. Retry/recovery behavior remains consistent while store is still failing
+        var retryResult = await session.RecoverFromPersistenceFailureAsync();
+        Assert.False(retryResult);
+        Assert.Equal(0, session.GetOperationAcceptedAttemptCount(op));
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+        Assert.Equal(SessionInteractionState.PersistenceFailure, session.InteractionState);
+
+        // 6. When the underlying store becomes healthy, recovery commits the evaluated submission
+        failingStore.ShouldFail = false;
+        var recoveryResult = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recoveryResult);
+        Assert.Equal(1, session.GetOperationAcceptedAttemptCount(op));
+        Assert.Equal(1, session.Progression.PracticePosition);
+        Assert.True(session.IsCurrentSubmissionCommitted);
+        Assert.Equal(SessionInteractionState.CorrectFeedback, session.InteractionState);
     }
 
     // ===========================================================================
@@ -269,23 +308,50 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         await session1.InitializeAsync(startTiming: false);
         await session2.InitializeAsync(startTiming: false);
 
-        // Session2 commits first, advancing revision and counts
+        // Session 1 completes 2 attempts (count N = 2)
+        for (var i = 0; i < 2; i++)
+        {
+            session1.SubmitAnswer(session1.CurrentFact.CorrectResult);
+            var res1 = await session1.CommitCurrentEvaluationAsync();
+            Assert.True(res1.IsSuccess);
+            session1.AdvanceAfterCorrectAnswer(startTiming: false);
+        }
+
+        Assert.Equal(2, session1.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(2, session1.Progression.PracticePosition);
+
+        // Session 2 reinitializes / catches up, then commits a 3rd attempt
+        await session2.InitializeAsync(startTiming: false);
+        Assert.Equal(2, session2.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
         session2.SubmitAnswer(session2.CurrentFact.CorrectResult);
         var result2 = await session2.CommitCurrentEvaluationAsync();
         Assert.True(result2.IsSuccess);
-        Assert.Equal(1, session2.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(3, session2.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
 
-        // Session1 attempts to commit with stale revision -> conflict
+        // Session 1 attempts to commit with stale revision -> conflict
         session1.SubmitAnswer(session1.CurrentFact.CorrectResult);
-        var result1 = await session1.CommitCurrentEvaluationAsync();
-        Assert.False(result1.IsSuccess);
-        Assert.Equal(PersistenceStatus.RevisionConflict, result1.Status);
-        Assert.Equal(0, session1.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        var conflictResult = await session1.CommitCurrentEvaluationAsync();
+        Assert.False(conflictResult.IsSuccess);
+        Assert.Equal(PersistenceStatus.RevisionConflict, conflictResult.Status);
+        // Session 1 does NOT increment to N+1 (remains at 2, not 3)
+        Assert.Equal(2, session1.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(2, session1.Progression.PracticePosition);
+        Assert.False(session1.IsCurrentSubmissionCommitted);
+        Assert.Equal(SessionInteractionState.PersistenceFailure, session1.InteractionState);
 
-        // Recover session1 -> reloads authoritative durable state
+        // Authoritative recovery reloads the actual persisted operation count (3)
         var recovered = await session1.RecoverFromPersistenceFailureAsync();
         Assert.True(recovered);
-        Assert.Equal(1, session1.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(3, session1.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(3, session1.Progression.PracticePosition);
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, session1.InteractionState);
+
+        // Subsequent ScheduledOperationAttemptOrdinal uses durableCount + 1 (i.e. 3 + 1 = 4)
+        session1.SubmitAnswer(session1.CurrentFact.CorrectResult);
+        var nextResult = await session1.CommitCurrentEvaluationAsync();
+        Assert.True(nextResult.IsSuccess);
+        Assert.Equal(4, session1.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(4, session1.Progression.PracticePosition);
     }
 
     // ===========================================================================
@@ -302,7 +368,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        // Complete 4 attempts across operations
+        // Complete 4 attempts across operations (1 attempt for each of Addition, Subtraction, Multiplication, Division)
         for (var i = 0; i < 4; i++)
         {
             session.SubmitAnswer(session.CurrentFact.CorrectResult);
@@ -312,20 +378,42 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         }
 
         Assert.Equal(4, session.Progression.PracticePosition);
-        Assert.True(session.OperationAcceptedAttemptCounts.Values.Sum() > 0);
+        // At least two operations (in fact all four) have nonzero accepted-attempt counts
+        Assert.All(
+            PracticeOperationPreferencePolicy.AllOperations,
+            op => Assert.Equal(1, session.GetOperationAcceptedAttemptCount(op)));
 
+        // Execute Reset Learning Progress
         await session.ResetLearningProgressAsync();
 
+        // Authoritative reload produces exactly four zero counts
         Assert.Equal(0, session.Progression.PracticePosition);
         Assert.All(
             PracticeOperationPreferencePolicy.AllOperations,
             op => Assert.Equal(0, session.GetOperationAcceptedAttemptCount(op)));
 
+        // Next ordinal for each operation is 1 (0 + 1)
+        Assert.All(
+            PracticeOperationPreferencePolicy.AllOperations,
+            op => Assert.Equal(1, session.GetOperationAcceptedAttemptCount(op) + 1));
+
+        // Durable snapshot verification: Schema remains V6, position is 0, counts are all 0
         var durableSnapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(6, durableSnapshot.SchemaVersion);
         Assert.Equal(0, durableSnapshot.Progression.PracticePosition);
+        Assert.NotNull(durableSnapshot.OperationAcceptedAttemptCounts);
+        Assert.Equal(4, durableSnapshot.OperationAcceptedAttemptCounts.Count);
         Assert.All(
             PracticeOperationPreferencePolicy.AllOperations,
             op => Assert.Equal(0, durableSnapshot.OperationAcceptedAttemptCounts![op]));
+
+        // Submitting an answer after reset cleanly advances with ordinal 1
+        var postResetOp = session.CurrentFact.Operation;
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var postResetResult = await session.CommitCurrentEvaluationAsync();
+        Assert.True(postResetResult.IsSuccess);
+        Assert.Equal(1, session.Progression.PracticePosition);
+        Assert.Equal(1, session.GetOperationAcceptedAttemptCount(postResetOp));
     }
 
     // ===========================================================================
@@ -343,7 +431,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        // 3 Subtraction attempts
+        // 3 Subtraction attempts (ordinals 1, 2, 3)
         for (var i = 0; i < 3; i++)
         {
             Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
@@ -356,7 +444,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         Assert.Equal(3, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
         Assert.Equal(0, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
 
-        // Switch to Addition only for 5 attempts
+        // Switch to Addition only for 5 attempts (global positions 4 through 8)
         preferences.SetOperations([ArithmeticOperation.Addition]);
         session.ClearCurrentAnswerInput();
 
@@ -375,6 +463,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
 
         Assert.Equal(3, session2.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
         Assert.Equal(5, session2.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+        Assert.Equal(8, session2.Progression.PracticePosition);
 
         // Re-enable Subtraction only
         preferences.SetOperations([ArithmeticOperation.Subtraction]);
@@ -382,14 +471,21 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         var session3 = new TrainingSession(store3, new FixedClock(), preferenceStore: preferences);
         await session3.InitializeAsync(startTiming: false);
 
+        // Subtraction resumes with previous count 3; next ordinal is 3 + 1 = 4
         Assert.Equal(3, session3.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
         Assert.Equal(ArithmeticOperation.Subtraction, session3.CurrentFact.Operation);
+
+        // Ordinal 4 in the 10-slot cycle is Maintenance ((4-1)%10 = 3 => Maintenance)
+        // If global position 9 were used, (9-1)%10 = 8 => Due.
+        // Independent attempt ordinal 4 ensures role cycle is NOT shifted by the 5 Addition attempts.
+        Assert.Equal(PracticeSelectionRole.Maintenance, AdaptivePracticeSelector.GetRequestedRole(4));
 
         // Complete 4th Subtraction attempt
         session3.SubmitAnswer(session3.CurrentFact.CorrectResult);
         var commitRes = await session3.CommitCurrentEvaluationAsync();
         Assert.True(commitRes.IsSuccess);
         Assert.Equal(4, session3.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
+        Assert.Equal(9, session3.Progression.PracticePosition);
     }
 
     // ===========================================================================
@@ -624,6 +720,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
 
     private sealed class FailingLearnerStore : ILearnerStore
     {
+        public bool ShouldFail { get; set; } = true;
         public string StoragePath => "inmemory://failing";
         public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
@@ -660,7 +757,9 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(PersistenceResult.Unavailable("Simulated commit failure."));
+            Task.FromResult(ShouldFail
+                ? PersistenceResult.Unavailable("Simulated commit failure.")
+                : PersistenceResult.Success(changeSet.ExpectedRevision + 1));
         public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Dispose() { }
