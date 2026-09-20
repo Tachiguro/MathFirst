@@ -18,7 +18,7 @@ However, independent introduction created a pedagogical friction point:
 - Presenting multiplicative quantities beyond the learner's current addition number space creates cognitive disorientation for elementary learners who rely on additive grounding to understand multiplication as repeated addition and division as sharing/partitioning.
 - Conversely, experienced learners or older students often choose specialized subsets (e.g. Multiplication and Division only) to remediate specific operations; such custom selections must not be artificially constrained by unpracticed Addition progress.
 
-This decision defines the architecture implemented in `MF-LEARN-004`: the **Guided Four-Operation Number-Space Gate**, establishing an Addition-governed multiplicative ceiling in Guided Mode, complete preservation of learner progress and persistence schema, multi-layer candidate anti-poisoning, and seamless integration with practice configuration reconciliation. (Implementation exists and is `REVIEW_APPROVED` on task branch `codex/mf-learn-004-guided-number-space-gate`; pending candidate validation and merge to `main`).
+This decision defines the architecture implemented in `MF-LEARN-004`: the **Guided Four-Operation Number-Space Gate**, establishing an Addition-governed multiplicative ceiling in Guided Mode, complete preservation of learner progress and persistence schema, multi-layer candidate anti-poisoning, and seamless integration with practice configuration reconciliation. (Implemented by `MF-LEARN-004` and merged to `main` through Pull Request #44 at merge commit `8f4ae59110abf6ea9d365733297a0c15d4c296ea`).
 
 ---
 

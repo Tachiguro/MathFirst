@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Completed implementation and review of MF-LEARN-004 (Guided Four-Operation Number-Space Gate) on task branch `codex/mf-learn-004-guided-number-space-gate` (`REVIEW_APPROVED`, awaiting documentation reconciliation, validation, and merge):
+- Completed and merged MF-LEARN-004 (Guided Four-Operation Number-Space Gate) through Pull Request #44 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea` (validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`, review `REVIEW_APPROVED`, full validation `FULL_VALIDATION_PASS`, Schema V6 preserved):
   - **All-Four Guided Mode**: Enforces cross-operation number-space gating when exactly all four operations (Addition, Subtraction, Multiplication, Division) are enabled ([ADR-0009](docs/decisions/ADR-0009-guided-four-operation-number-space-gate.md)).
   - **Addition-Governed Multiplicative Ceiling**: Derives the multiplicative ceiling as the maximum represented number across the complete unlocked canonical Addition curriculum prefix ($0..\text{BandIndex}_{\text{ADD}}$). Multiplication presentation requires $\text{CorrectResult} \le \text{AdditionCeiling}$ and Division requires $\text{LeftOperand} \le \text{AdditionCeiling}$, preventing exposure to multiplicative quantities beyond the learner's demonstrated additive number space. Addition and Subtraction remain invariant under cross-operation gating.
   - **Independent Custom Subsets**: Custom Mode (any non-empty subset other than all four) operates unrestricted, ensuring targeted single- or multi-operation practice is not constrained by unpracticed Addition progress.
