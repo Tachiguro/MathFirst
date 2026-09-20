@@ -69,6 +69,7 @@ public sealed class AdaptivePracticeSelector
         var remediation = context.CandidateIndex.RemediationCandidates
             .Where(candidate => candidate.Fact.Operation == operation
                 && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
+                && context.GuidedNumberSpaceGate.Allows(candidate.Fact)
                 && candidate.ItemState?.NeedsRemediation == true
                 && candidate.FsrsState?.LastReviewPracticePosition is not null
                 && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
@@ -92,13 +93,16 @@ public sealed class AdaptivePracticeSelector
             ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
             : ownedFrontier;
         var newPool = introductionFrontier
-            .Where(fact => fact.Operation == operation && !context.CandidateIndex.IsMaterialized(fact.Id))
+            .Where(fact => fact.Operation == operation
+                && context.GuidedNumberSpaceGate.Allows(fact)
+                && !context.CandidateIndex.IsMaterialized(fact.Id))
             .ToArray();
         var frontierPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.CurrentBandMaterializedFacts
             : ownedFrontier
                 .Where(fact => context.CandidateIndex.IsMaterialized(fact.Id))
                 .Select(fact => context.CandidateIndex.GetCandidate(fact.Id))
+                .Where(candidate => context.GuidedNumberSpaceGate.Allows(candidate.Fact))
                 .OrderBy(candidate => candidate.ItemState?.IsProvisionallyMastered == true ? 1 : 0)
                 .ThenBy(candidate => candidate.ItemState?.TotalAttempts ?? 0)
                 .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition is null ? 0 : 1)
@@ -106,14 +110,17 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
                 .Select(candidate => candidate.Fact))
-            .Where(fact => fact.Operation == operation)
+            .Where(fact => fact.Operation == operation
+                && context.GuidedNumberSpaceGate.Allows(fact))
             .ToArray();
         var duePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.DueFacts
-                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex))
+                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex)
+                    && context.GuidedNumberSpaceGate.Allows(fact))
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
                     && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
+                    && context.GuidedNumberSpaceGate.Allows(candidate.Fact)
                     && candidate.FsrsState is not null
                     && candidate.FsrsState.DuePracticePosition <= context.ProspectivePracticePosition)
                 .OrderBy(candidate => candidate.FsrsState!.DuePracticePosition)
@@ -122,14 +129,17 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
                 .Select(candidate => candidate.Fact))
-            .Where(fact => fact.Operation == operation)
+            .Where(fact => fact.Operation == operation
+                && context.GuidedNumberSpaceGate.Allows(fact))
             .ToArray();
         var maintenancePool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.MaintenanceFacts
-                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex))
+                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex)
+                    && context.GuidedNumberSpaceGate.Allows(fact))
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
                     && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
+                    && context.GuidedNumberSpaceGate.Allows(candidate.Fact)
                     && candidate.ItemState?.NeedsRemediation != true
                     && candidate.FsrsState is not null
                     && candidate.FsrsState.DuePracticePosition > context.ProspectivePracticePosition
@@ -140,14 +150,17 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
                 .Select(candidate => candidate.Fact))
-            .Where(fact => fact.Operation == operation)
+            .Where(fact => fact.Operation == operation
+                && context.GuidedNumberSpaceGate.Allows(fact))
             .ToArray();
         var earlyReviewPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.EarlyReviewFacts
-                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex))
+                .Where(fact => ownership.IsEligible(fact.Id, progression.BandIndex)
+                    && context.GuidedNumberSpaceGate.Allows(fact))
             : context.CandidateIndex.Candidates
                 .Where(candidate => candidate.Fact.Operation == operation
                     && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
+                    && context.GuidedNumberSpaceGate.Allows(candidate.Fact)
                     && candidate.ItemState?.NeedsRemediation != true
                     && candidate.FsrsState is not null
                     && candidate.FsrsState.DuePracticePosition > context.ProspectivePracticePosition)
@@ -157,7 +170,8 @@ public sealed class AdaptivePracticeSelector
                 .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
                 .Take(TargetCandidateWindowSize)
                 .Select(candidate => candidate.Fact))
-            .Where(fact => fact.Operation == operation)
+            .Where(fact => fact.Operation == operation
+                && context.GuidedNumberSpaceGate.Allows(fact))
             .ToArray();
 
         var pools = new Dictionary<PracticeSelectionRole, IReadOnlyList<ArithmeticFact>>
@@ -242,6 +256,12 @@ public sealed class AdaptivePracticeSelector
         {
             throw new InvalidOperationException(
                 $"Selected target candidate {fact.Id} operation {fact.Operation} does not match scheduled operation {operation}.");
+        }
+
+        if (!context.GuidedNumberSpaceGate.Allows(fact))
+        {
+            throw new InvalidOperationException(
+                $"Selected target candidate {fact.Id} is outside the active Guided number space.");
         }
 
         var isMaterialized = context.CandidateIndex.IsMaterialized(fact.Id);
