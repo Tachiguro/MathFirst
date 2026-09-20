@@ -98,26 +98,27 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree
 
 ### Operational Baseline
-- Synchronized `main` commit SHA: `ae69f4ae27397fc6edf36a23bb671b0410680be1` (PR #40 merge)
-- Most recently completed merged package: `MF-UX-006` — V1 Privacy, Copy, and Localization Hardening (completed through PR #40)
-- Active package: `MF-DOC-005` — Post-MF-UX-006 Merge State Reconciliation (or None after merge)
-- Active task branch: `docs/mf-doc-005-post-mf-ux-006-merge-reconciliation`
+- Synchronized `main` commit SHA: `284d7cf2c50be6e2d4f219c00aa20d92387338f9` (PR #41 merge)
+- Most recently completed merged package on `main`: `MF-DOC-005` — Post-MF-UX-006 Merge State Reconciliation (PR #41 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`)
+- Active package: `MF-STAB-003` — Enabled-Subset Scheduling and Current-Fact Reconciliation
+- Active task branch: `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation`
 - Active lifecycle: `DOCUMENT_ONLY`
-- Pre-documentation candidate HEAD: `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb` (PR #40 head, `FULL_VALIDATION_PASS`)
-- Base baseline: `ae69f4ae27397fc6edf36a23bb671b0410680be1` (PR #40 merge)
-- Package review status: `REVIEW_PASS`
+- Pre-documentation candidate HEAD: `cb2d984916ff080509713ae3b73b04a1fd8aa4bc`
+- Base baseline: `284d7cf2c50be6e2d4f219c00aa20d92387338f9` (PR #41 merge)
+- Package review status: `REVIEW_APPROVED` (0 Blocker, 0 Major, 1 Minor test-helper finding; 1,516 Core tests passed; clean Release builds; Schema V6)
 - Next expected mode after documentation reconciliation: `COMMIT_ONLY`, followed by `FULL_VALIDATION`
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `ae69f4ae27397fc6edf36a23bb671b0410680be1` unless newer live evidence exists.
-3. **Recognize completed MF-UX-006 history**: PR #40 is merged to `main` at `ae69f4ae27397fc6edf36a23bb671b0410680be1`, candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb` passed exact-candidate `FULL_VALIDATION` (1476 tests passed, clean Release builds), and the merged `main` tree is Git-tree-identical to the candidate tree (`739fed4c0e9ea3565c096d95ba9d7aca114e76bc`).
-4. **Recognize completed MF-UX-005 history**: PR #30 through PR #39 are merged. PR #36 delivered the repeatable Tester APK workflow, PR #37 delivered Release source-map exclusion, PR #38 delivered Timer visual remediation, and PR #39 delivered final documentation reconciliation.
+2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `284d7cf2c50be6e2d4f219c00aa20d92387338f9` unless newer live evidence exists.
+3. **Recognize Build 2 Rejection and MF-STAB-003 Remediation**: Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to selector crash/starvation when operations were disabled after practice and the session restarted. `MF-STAB-003` on branch `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation` resolves this defect via independent per-operation role ordinals ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)), durable Schema V6 count reconstruction, and deterministic zero-mutation current-fact configuration reconciliation.
+4. **Recognize completed MF-DOC-005 and MF-UX-006 history**: PR #41 merged MF-DOC-005 documentation reconciliation to `main` at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`. PR #40 merged MF-UX-006 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`.
 5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative.
 6. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
 
 ### Durable Merged Baseline Summary
+- **MF-DOC-005 Post-MF-UX-006 Documentation Reconciliation** (PR #41, merge `284d7cf2c50be6e2d4f219c00aa20d92387338f9`): Reconciled repository baseline documentation following PR #40 merge.
 - **MF-UX-006 V1 Privacy, Copy, and Localization Hardening** (PR #40, merge `ae69f4ae27397fc6edf36a23bb671b0410680be1`, candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`): Delivered PC numpad reset copy alignment, Russian localization formatting and progression terminology polish, offline in-app `/privacy` surface and Settings entry with system Back integration, language-neutral and multilingual static fatal host fallback in `index.html`, and exact-candidate `FULL_VALIDATION_PASS` (1476 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity).
 - **MF-UX-005 Final Documentation Reconciliation** (PR #39, merge `60dba236aa38bca138ab583f610c9ff876994b04`): Established the post-MF-UX-005 synchronized documentation baseline on `main`.
 - **MF-UX-005 Timer Visual Remediation** (PR #38, merge `d1705bbdc0013372e44eadf7310ff2f313ecdcef`): Removed the Timer backing pill and retained bold white tabular numerals with a restrained dark local shadow/contour; 9/9 targeted visual-contract tests and 1463/1463 full Release Core tests passed.
@@ -134,9 +135,10 @@ When initializing a new session:
 - **Predecessors**: `MF-REL-002` (PR #26), `MF-UX-004` (PR #25), `MF-DOC-004` (PR #24), `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
 
 ### Downstream Roadmap Stages
-- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Completed for MF-UX-006 (`FULL_VALIDATION_PASS` on candidate `606158a...`).
-- **Phase 6 - Production Packaging & Signing**: Separately authorized downstream work (`Distributable` profile with external production keystore).
-- **Phase 6 - Final Release-Grade Physical Validation**: Pending separately authorized validation of the exact production candidate.
+- **Phase 6 - Native V1 Remediation (`MF-STAB-003`)**: Implemented on task branch, `REVIEW_APPROVED` with 1,516 Core tests passing; in `DOCUMENT_ONLY` reconciliation.
+- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Required on exact candidate before PR/merge.
+- **Phase 6 - Production Packaging & Signing (Candidate `versionCode` $\ge 3$)**: Separately authorized downstream work (`Distributable` profile with external production keystore).
+- **Phase 6 - Final Release-Grade Physical Validation (Steps 30 & 31)**: Pending separately authorized repetition on physical hardware (Samsung SM-S948B, Android 16) following Build 2 rejection.
 - **Phase 6 - Google Play Gate**: Pending and separately authorized.
 
 This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

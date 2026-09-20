@@ -91,7 +91,11 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 26. Complete remaining MF-UX-005 areas — **COMPLETED** through Installed Size / App Data / RAM investigation, PR #37 Release source-map exclusion, Timer-specific physical UX verification, PR #38 Timer visual remediation (`d1705bbdc0013372e44eadf7310ff2f313ecdcef`), and PR #39 final documentation reconciliation (`60dba236aa38bca138ab583f610c9ff876994b04`).
 27. Deliver V1 Privacy, Copy, and Localization Hardening (`MF-UX-006`) — **COMPLETED** through Pull Request #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1` (validated candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`, 1476 passing Core tests, 0 warnings/0 errors on Windows and Android Release builds, merged tree identical to candidate tree).
 28. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-UX-006 candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb` — **COMPLETED** (`FULL_VALIDATION_PASS`).
-29. Perform production packaging and signing (`Distributable` AAB) — **PENDING** and separately authorized.
-30. Perform final technical smoke verification on the exact production candidate — **PENDING**.
-31. Perform final manual physical-device functional verification of the exact production candidate — **PENDING**.
-32. Google Play gate — **PENDING** and separately authorized.
+29. Reconcile post-MF-UX-006 documentation baseline (`MF-DOC-005`) — **COMPLETED** through Pull Request #41 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`.
+30. Deliver Enabled-Subset Scheduling and Current-Fact Reconciliation (`MF-STAB-003`) — **IN PROGRESS / REVIEW_APPROVED** on task branch `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation` (independent role ordinals via ADR-0008, durable Schema V6 count reconstruction, zero-mutation Settings reconciliation, 1,516 Core tests passing).
+31. Production Candidate Packaging & Physical Device Verification (`Build 2 / versionCode 2`): Candidate packaged and Step 30 technical smoke passed; Step 31 manual physical-device verification failed (`REAL_DEVICE_VERIFICATION_FAILED`) due to selector crash/starvation when disabling operations after practice and restarting. Build 2 is **REJECTED**. Root cause resolved in code by `MF-STAB-003`.
+32. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-STAB-003 candidate — **PENDING**.
+33. Perform production packaging and signing for new candidate (`versionCode` $\ge 3$) — **PENDING** and separately authorized.
+34. Perform technical smoke verification (Step 30) on the new production candidate — **PENDING**.
+35. Perform manual physical-device functional verification (Step 31) on the new production candidate (Samsung SM-S948B, Android 16) — **PENDING**.
+36. Google Play gate — **PENDING** (BLOCKED until Step 31 passes).

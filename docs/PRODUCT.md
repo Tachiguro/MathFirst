@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression, hybrid curriculum, adaptive learning model, and curriculum fact eligibility invariant in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), and [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, and independent per-operation role ordinals in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), and [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
 
 ---
 
@@ -138,13 +138,22 @@ Negative subtraction, division with remainders, decimal-result arithmetic, and d
 
 ## 6. Adaptive Training Loop & Spaced Repetition (FSRS-6)
 
-For the next accepted global Practice Position `p`, practice rotates deterministically through the operations currently enabled in Settings, in canonical Addition, Subtraction, Multiplication, Division order. Each enabled operation independently follows this repeating role cycle:
+For the next accepted global Practice Position `p`, practice schedules the next operation from the currently enabled subset using deterministic bounded permutation bags (`MF-STAB-002`). Each enabled operation independently tracks its own requested role cycle based strictly on its authoritative per-operation accepted-attempt count (`NextOperationAttemptOrdinal(O) = AcceptedAttemptCount(O) + 1` from [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)):
 
-```text
-New, Due, New, Maintenance, Frontier, New, Due, New, Due, Frontier
-```
+$$\text{RoleOrdinal} = \text{NextOperationAttemptOrdinal}(O), \quad i = (\text{RoleOrdinal} - 1) \bmod 10$$
 
-Normal proportions are 40% New, 30% Due FSRS, 20% explicit Frontier reinforcement, and 10% Maintenance.
+| 1-Based Ordinal (mod 10) | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 (0) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **0-Based Remainder $i$** | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+| **Role** | New | Due | New | Maintenance | Frontier | New | Due | New | Due | Frontier |
+
+Partition across 0-based remainder indices $i \in \{0, \dots, 9\}$:
+- **`New`**: $i \in \{0, 2, 5, 7\}$ (40% nominal share)
+- **`Due`**: $i \in \{1, 6, 8\}$ (30% nominal share)
+- **`Maintenance`**: $i \in \{3\}$ (10% nominal share)
+- **`Frontier`**: $i \in \{4, 9\}$ (20% nominal share)
+
+**Authority Boundary**: Global `PracticePosition` remains authoritative for total attempt ordering, deterministic permutation bag operation scheduling, FSRS spaced repetition virtual time elapsed, `DuePracticePosition`, `BandStartedPracticePosition`, and persistence validation. Per-operation accepted attempt count is authoritative **strictly** for that operation's role ordinal within the 10-slot cycle. Existing curriculum, progression, coverage, pace, fluency, and item-state authorities remain unchanged.
 
 ### Semantic Candidate Pools
 The practice selector resolves candidates from five semantic pools:
@@ -338,7 +347,11 @@ Input ergonomics are critical to measuring true arithmetic recall rather than mo
   - A true save failure reports “Progress could not be saved.” A failure that occurs only while loading the next exercise after the answer was already saved reports “Next exercise could not be loaded.” Retry never saves the same completed attempt twice. Equivalent localized wording is provided in German and Russian.
   - A cold application session with onboarding already complete starts behind an opaque Ready to practice dialog (presenting returning learner progress overview when past practice exists). No problem, keypad, semantic timing, attempt, score, or Practice Position change is exposed before Start. Onboarding Get Started itself satisfies this gate and does not lead to a redundant second dialog.
   - Manual Pause is available beside Settings only during active answer entry. It uses an accessible CSS-drawn two-bar icon with danger action treatment (red in the current theme, `button-danger`), freezes monotonic semantic time, preserves the current fact and input, and conditionally removes the problem and keypad from rendering and accessibility until Resume practice. Start and Resume remain normal primary (green) actions whenever the Pause action is absent.
-  - Opening Settings freezes active timing and preserves the current question. Returning to Practice resumes that question and its remaining time; changed operation settings update the visible HUD immediately and apply to the next generated question rather than replacing the current one.
+  - Opening Settings freezes active timing and pauses the current question. Modifying practice operations or settings in Settings executes authoritative reconciliation ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)):
+    - If the unsubmitted current fact remains enabled and presentation-eligible, it is retained with its exact identity, `FactInstanceRevision`, partial answer input, and remaining timer deadline preserved;
+    - If the unsubmitted current fact becomes invalid because its operation was disabled or it is no longer presentation-eligible, it is immediately discarded and replaced with a valid fact from the updated subset for the same prospective global `PracticePosition`;
+    - Discarding an invalid unsubmitted fact creates zero durable or transient learning mutations (no attempt, no timeout, no score mutation, no FSRS mutation, no progression mutation, and no attempt-count increment);
+    - If an answer has already been accepted (in `CorrectFeedback`, `IncorrectFeedback`, `TimeoutFeedback`, `TeachingIntervention`, `SessionCheckIn`, or another post-accepted state), the accepted learner state is preserved intact and configuration changes apply to the preparation of the next exercise.
   - Leaving the application foreground converts a running awaiting-answer item to a Background Resume gate. Foreground return does not restart timing; explicit Resume is required. These transient gates require no learner SQLite schema change.
 
 ### Contextual Practice-Gate Personality
@@ -412,7 +425,7 @@ MathFirst must support three mandatory target platforms:
 MathFirst aims to maximize shared domain and application logic across Android, Web, and Windows where technically sensible, while permitting platform-specific UI or integration adaptations where justified.
 
 ### Practice Timer Lifecycle
-Answer time advances only while the application is foreground/interactive, the Practice/Home surface is active, the transient Practice gate is `Running`, and the session is awaiting an answer. Manual Pause, backgrounding, device lock, Settings, onboarding, Ready/Pause/Resume gates, and Correct/Incorrect/Timeout feedback pause semantic elapsed time without resetting the current deadline or producing an attempt. Returning from Settings resumes the preserved current question. Same-process foreground return keeps the remaining time frozen until explicit Resume practice. A cold process restart gives the in-flight question a fresh timer without resetting learning progress or stored Practice Time.
+Answer time advances only while the application is foreground/interactive, the Practice/Home surface is active, the transient Practice gate is `Running`, and the session is awaiting an answer. Manual Pause, backgrounding, device lock, Settings, onboarding, Ready/Pause/Resume gates, and Correct/Incorrect/Timeout feedback pause semantic elapsed time without resetting the current deadline or producing an attempt. Returning from Settings resumes the preserved valid question or the reconciled replacement question with fresh/preserved timer state according to the reconciliation contract ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)). Same-process foreground return keeps the remaining time frozen until explicit Resume practice. A cold process restart gives the in-flight question a fresh timer without resetting learning progress or stored Practice Time.
 
 ---
 
@@ -476,7 +489,7 @@ The following register contains both resolved and unresolved product decisions. 
 | **Exact Range Expansion Increments** | Dense bands advance via complete frontier coverage and $C \cdot 10 \ge N \cdot 9$; Structured bands advance via 40-attempt rolling window gate ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md)). | `RESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
 | **Multi-Operation Range Sequencing** | Deterministic Addition/Subtraction/Multiplication/Division scheduling interleave with fully independent per-operation band advancement and no global checkpoint. | `RESOLVED` |
-| **Manual Operation Control** | Users can independently enable/disable Addition, Subtraction, Multiplication, and Division in Settings (at least one enabled; enabled-subset scheduling `(p - 1) mod k`; progress preserved across toggles) (`MF-SET-001`). | `RESOLVED` |
+| **Manual Operation Control** | Users can independently enable/disable Addition, Subtraction, Multiplication, and Division in Settings (at least one enabled; deterministic bounded operation scheduling; independent per-operation role ordinals; progress preserved across toggles; zero-mutation Settings reconciliation) (`MF-SET-001`, `MF-STAB-002`, [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)). | `RESOLVED` |
 | **Practice Time Configuration** | Standard adaptive timing, configurable response deadline floors (30s, 45s, 60s), and No Time Pressure mode (unlimited response time with active latency measurement) without altering raw latency measurement, fluency thresholds, or FSRS ratings (`MF-SET-001`, `MF-UX-005`). | `RESOLVED` |
 | **Session Length & Bounding** | Periodic session check-in cadence every 20 accepted attempts with correctness/median-speed summary and Keep Going vs. Take a Break flow ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
 | **Answer Submission Trigger** | Deterministic smart auto-submit for complete canonical integer answers, with Enter as a valid explicit force-submit path and no permanent Submit action. | `RESOLVED` |
