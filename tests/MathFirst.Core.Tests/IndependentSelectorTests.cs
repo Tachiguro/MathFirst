@@ -812,13 +812,15 @@ public sealed class IndependentSelectorTests
         int currentSessionOrder = 0,
         IEnumerable<ArithmeticFact>? recentFacts = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
-        IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null) => new(
+        IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null,
+        long? scheduledOperationAttemptOrdinal = null) => new(
         position,
         currentSessionOrder,
         operationProgressions ?? CreateProgressions(),
         curricula ?? CreateCurricula(curriculum),
         new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
-        recentFacts ?? Array.Empty<ArithmeticFact>());
+        recentFacts ?? Array.Empty<ArithmeticFact>(),
+        scheduledOperationAttemptOrdinal ?? (((position - 1) / 4) + 1));
 
     private static MaterializedState Materialize(
         IReadOnlyList<ArithmeticFact> facts,

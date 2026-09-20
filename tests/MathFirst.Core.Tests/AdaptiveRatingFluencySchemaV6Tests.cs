@@ -424,13 +424,22 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         }
     }
 
-    private static LearnerSnapshot FreshSnapshot(IReadOnlyList<AttemptRecord>? attempts = null) => new(
-        LearnerProgression.CreateFresh(),
-        new Dictionary<string, ItemLearningState>(StringComparer.Ordinal),
-        new Dictionary<string, FsrsCardState>(StringComparer.Ordinal),
-        attempts ?? [],
-        1,
-        LearnerProgression.DefaultSchemaVersion);
+    private static LearnerSnapshot FreshSnapshot(IReadOnlyList<AttemptRecord>? attempts = null)
+    {
+        var attemptList = attempts ?? [];
+        var counts = Enum.GetValues<ArithmeticOperation>()
+            .ToDictionary(
+                op => op,
+                op => (long)attemptList.Count(a => a.Operation == op));
+        return new(
+            LearnerProgression.CreateFresh(),
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal),
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal),
+            attemptList,
+            1,
+            LearnerProgression.DefaultSchemaVersion,
+            operationAcceptedAttemptCounts: counts);
+    }
 
     private static AttemptRecord Attempt(
         string id,

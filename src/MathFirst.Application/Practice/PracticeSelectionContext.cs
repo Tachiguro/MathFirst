@@ -22,8 +22,8 @@ public sealed class PracticeSelectionContext
         IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum> curricula,
         PracticeCandidateIndex candidateIndex,
         IEnumerable<ArithmeticFact> recentAcceptedFactsOldestToNewest,
-        IEnumerable<ArithmeticOperation>? enabledOperations = null,
-        long? scheduledOperationAttemptOrdinal = null)
+        long scheduledOperationAttemptOrdinal,
+        IEnumerable<ArithmeticOperation>? enabledOperations = null)
     {
         if (prospectivePracticePosition <= 0)
         {
@@ -41,11 +41,11 @@ public sealed class PracticeSelectionContext
                 "Current session order must be non-negative.");
         }
 
-        if (scheduledOperationAttemptOrdinal.HasValue && scheduledOperationAttemptOrdinal.Value <= 0)
+        if (scheduledOperationAttemptOrdinal <= 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(scheduledOperationAttemptOrdinal),
-                scheduledOperationAttemptOrdinal.Value,
+                scheduledOperationAttemptOrdinal,
                 "Scheduled operation attempt ordinal must be positive.");
         }
 
@@ -89,6 +89,6 @@ public sealed class PracticeSelectionContext
         CandidateIndex = candidateIndex;
         RecentAcceptedFactsOldestToNewest = Array.AsReadOnly(recentFacts);
         EnabledOperations = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(enabledOperations);
-        ScheduledOperationAttemptOrdinal = scheduledOperationAttemptOrdinal ?? (((prospectivePracticePosition - 1) / Math.Max(1, EnabledOperations.Count)) + 1);
+        ScheduledOperationAttemptOrdinal = scheduledOperationAttemptOrdinal;
     }
 }

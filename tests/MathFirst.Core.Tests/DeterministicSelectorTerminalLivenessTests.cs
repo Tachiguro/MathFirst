@@ -957,22 +957,24 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var inMemoryEvidence = PracticeSelectionEvidence.FromSnapshot(snapshot, request);
 
         var contextSqlite = new PracticeSelectionContext(
-            15,
-            0,
-            snapshot.Progression.OperationProgressions,
-            Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, op => curriculum.GetCurriculum(op)),
-            new PracticeCandidateIndex(sqliteEvidence),
-            snapshot.RecentAttempts.Select(a => new ArithmeticFact(a.Operation, a.LeftOperand, a.RightOperand)),
-            [ArithmeticOperation.Addition]);
+            prospectivePracticePosition: 15,
+            currentSessionOrder: 0,
+            operationProgressions: snapshot.Progression.OperationProgressions,
+            curricula: Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, op => curriculum.GetCurriculum(op)),
+            candidateIndex: new PracticeCandidateIndex(sqliteEvidence),
+            recentAcceptedFactsOldestToNewest: snapshot.RecentAttempts.Select(a => new ArithmeticFact(a.Operation, a.LeftOperand, a.RightOperand)),
+            scheduledOperationAttemptOrdinal: 4,
+            enabledOperations: [ArithmeticOperation.Addition]);
 
         var contextInMemory = new PracticeSelectionContext(
-            15,
-            0,
-            snapshot.Progression.OperationProgressions,
-            Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, op => curriculum.GetCurriculum(op)),
-            new PracticeCandidateIndex(inMemoryEvidence),
-            snapshot.RecentAttempts.Select(a => new ArithmeticFact(a.Operation, a.LeftOperand, a.RightOperand)),
-            [ArithmeticOperation.Addition]);
+            prospectivePracticePosition: 15,
+            currentSessionOrder: 0,
+            operationProgressions: snapshot.Progression.OperationProgressions,
+            curricula: Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, op => curriculum.GetCurriculum(op)),
+            candidateIndex: new PracticeCandidateIndex(inMemoryEvidence),
+            recentAcceptedFactsOldestToNewest: snapshot.RecentAttempts.Select(a => new ArithmeticFact(a.Operation, a.LeftOperand, a.RightOperand)),
+            scheduledOperationAttemptOrdinal: 4,
+            enabledOperations: [ArithmeticOperation.Addition]);
 
         var selector = new AdaptivePracticeSelector();
         var resSqlite = selector.SelectTargetFact(contextSqlite);
@@ -1076,13 +1078,15 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         int currentSessionOrder = 0,
         IEnumerable<ArithmeticFact>? recentFacts = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
-        IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null) => new(
+        IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null,
+        long? scheduledOperationAttemptOrdinal = null) => new(
         position,
         currentSessionOrder,
         operationProgressions ?? CreateProgressions(),
         curricula ?? CreateCurricula(curriculum),
         new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
-        recentFacts ?? Array.Empty<ArithmeticFact>());
+        recentFacts ?? Array.Empty<ArithmeticFact>(),
+        scheduledOperationAttemptOrdinal ?? (((position - 1) / 4) + 1));
 
     private static MaterializedState Materialize(
         IEnumerable<ArithmeticFact> facts,

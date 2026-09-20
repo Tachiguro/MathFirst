@@ -1758,7 +1758,8 @@ public sealed class FactEligibilityRegressionTests
         ArithmeticCurriculum curriculum,
         long prospectivePosition,
         int multiplicationBandIndex,
-        PracticeSelectionEvidence evidence)
+        PracticeSelectionEvidence evidence,
+        long scheduledOperationAttemptOrdinal = 2)
     {
         var operationProgressions = Enum.GetValues<ArithmeticOperation>()
             .ToDictionary(
@@ -1782,7 +1783,8 @@ public sealed class FactEligibilityRegressionTests
             operationProgressions,
             curricula,
             new PracticeCandidateIndex(evidence),
-            []);
+            [],
+            scheduledOperationAttemptOrdinal);
     }
 
     private static string GetTempDbPath() =>

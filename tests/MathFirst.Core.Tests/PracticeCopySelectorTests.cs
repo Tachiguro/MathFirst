@@ -578,16 +578,24 @@ public sealed class PracticeCopySelectorTests
     private static LearnerSnapshot CreateSnapshot(
         LearnerProgression? progression = null,
         IReadOnlyList<AttemptRecord>? recentAttempts = null,
-        DateTimeOffset? latestAcceptedPracticeAt = null) =>
-        new(
+        DateTimeOffset? latestAcceptedPracticeAt = null)
+    {
+        var attemptList = recentAttempts ?? [];
+        var counts = Enum.GetValues<ArithmeticOperation>()
+            .ToDictionary(
+                op => op,
+                op => (long)attemptList.Count(a => a.Operation == op));
+        return new(
             progression ?? LearnerProgression.CreateFresh(),
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal),
             new Dictionary<string, MathFirst.Application.Scheduling.FsrsCardState>(StringComparer.Ordinal),
-            recentAttempts ?? [],
+            attemptList,
             1,
             LearnerProgression.DefaultSchemaVersion,
             null,
-            latestAcceptedPracticeAt);
+            latestAcceptedPracticeAt,
+            operationAcceptedAttemptCounts: counts);
+    }
 
     private static string GetRepositoryPath(params string[] segments)
     {

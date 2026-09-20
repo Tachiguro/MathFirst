@@ -351,7 +351,8 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
             curricula: curricula,
             candidateIndex: index,
             recentAcceptedFactsOldestToNewest: [],
-            enabledOperations: [ArithmeticOperation.Addition]);
+            enabledOperations: [ArithmeticOperation.Addition],
+            scheduledOperationAttemptOrdinal: 2);
 
         var result = selector.SelectTargetFact(context);
 
@@ -394,7 +395,8 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
             curricula: curricula,
             candidateIndex: index,
             recentAcceptedFactsOldestToNewest: [],
-            enabledOperations: [ArithmeticOperation.Addition]);
+            enabledOperations: [ArithmeticOperation.Addition],
+            scheduledOperationAttemptOrdinal: 2);
 
         var result = selector.SelectTargetFact(context);
 
@@ -433,7 +435,8 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
             curricula: curricula,
             candidateIndex: index,
             recentAcceptedFactsOldestToNewest: [],
-            enabledOperations: [ArithmeticOperation.Addition]);
+            enabledOperations: [ArithmeticOperation.Addition],
+            scheduledOperationAttemptOrdinal: 1);
 
         var result = selector.SelectTargetFact(context);
 

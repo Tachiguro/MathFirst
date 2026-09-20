@@ -13,7 +13,7 @@ public sealed record LearnerSnapshot
     public int SchemaVersion { get; }
     public IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? OperationProgressions { get; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; }
-    public IReadOnlyDictionary<ArithmeticOperation, long>? OperationAcceptedAttemptCounts { get; }
+    public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts { get; }
 
     public LearnerSnapshot(
         LearnerProgression progression,
@@ -52,21 +52,14 @@ public sealed record LearnerSnapshot
                     op => op,
                     op => checked(itemStates.Values.Where(state => state.Operation == op).Sum(state => (long)state.TotalAttempts)));
         }
-        else if (progression.PracticePosition == 0)
+        else if (progression.PracticePosition == 0 && recentAttempts.Count == 0 && latestAcceptedPracticeAt == null)
         {
             OperationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>()
                 .ToDictionary(op => op, _ => 0L);
         }
-        else if (recentAttempts.Count > 0)
-        {
-            OperationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>()
-                .ToDictionary(
-                    op => op,
-                    op => (long)recentAttempts.Count(attempt => attempt.Operation == op));
-        }
         else
         {
-            OperationAcceptedAttemptCounts = null;
+            throw new InvalidOperationException("Authoritative operation accepted attempt counts are required when practice history exists and item states are empty.");
         }
     }
 
@@ -82,6 +75,7 @@ public sealed record LearnerSnapshot
 
     private static void ValidateOperationAcceptedAttemptCounts(IReadOnlyDictionary<ArithmeticOperation, long> counts)
     {
+        ArgumentNullException.ThrowIfNull(counts);
         foreach (var op in Enum.GetValues<ArithmeticOperation>())
         {
             if (!counts.TryGetValue(op, out var count))
