@@ -238,7 +238,7 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-STAB-003`
 - **Title**: Enabled-Subset Scheduling and Current-Fact Reconciliation
 - **Type**: `Feature`
-- **Status**: `Completed on Task Branch` (Pending PR/Merge)
+- **Status**: `Completed` (Merged through PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`)
 - **Dependencies**: `MF-DOC-005` complete on `main`
 - **Description**:
   Resolve practice selection crash/starvation and configuration reconciliation defects when learners dynamically adjust enabled arithmetic operations:
@@ -250,7 +250,7 @@ When items are accepted into the backlog, they are recorded with:
      - **Case B (Valid unsubmitted fact)**: Retained with exact identity, `FactInstanceRevision`, partial input, and remaining timer state preserved;
      - **Accepted Feedback Deferral**: If the active exercise has already accepted submission feedback, reconciliation is deferred until next question preparation, ensuring learner feedback is never erased.
   5. **Awaited Settings Navigation**: `Settings.razor` awaits session reconciliation before navigating back to practice.
-  6. **Release Blocker Resolution**: Fixes the physical device blocker (Build 2 rejected at Step 31) where practicing Addition, disabling Addition in favor of Subtraction, and restarting crashed or starved the selector in `PracticeSelectionRole.Due`. Verified with 1,516 Core tests.
+  6. **Release Blocker Resolution**: Fixes the physical device blocker (Build 2 rejected at Step 31) where practicing Addition, disabling Addition in favor of Subtraction, and restarting crashed or starved the selector in `PracticeSelectionRole.Due`. Verified with 1,516 Core tests. Validated candidate `766d8ea7692d139425e2301121f93af7901cf238` achieved `FULL_VALIDATION_PASS` and exact tree identity with merge commit `fcab56b3a886ed0c5018d4f8a16304ee83378b26`.
 
 ---
 
@@ -262,7 +262,7 @@ When items are accepted into the backlog, they are recorded with:
 - **Status**: `Accepted`
 - **Dependencies**: `MF-STAB-003` complete and merged to `main`
 - **Description**:
-  Provide guided onboarding and progression gating across arithmetic number spaces (e.g., single-digit vs. multi-digit bounds, operation readiness gates). Also includes minor test-helper cleanup from MF-STAB-003 (`tests/MathFirst.Core.Tests/BoundedSelectionIntegrationTests.cs` prospective position parameter alignment).
+  Provide guided onboarding and progression gating across arithmetic number spaces (e.g., single-digit vs. multi-digit bounds, operation readiness gates). Also includes minor non-production test-helper maintenance from MF-STAB-003 (`tests/MathFirst.Core.Tests/BoundedSelectionIntegrationTests.cs` test-helper prospective position parameter alignment; identified as REVIEW_ONLY MINOR, does not affect merged production behavior).
 
 ---
 

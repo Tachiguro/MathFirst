@@ -98,26 +98,33 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree
 
 ### Operational Baseline
-- Synchronized `main` commit SHA: `284d7cf2c50be6e2d4f219c00aa20d92387338f9` (PR #41 merge)
-- Most recently completed merged package on `main`: `MF-DOC-005` — Post-MF-UX-006 Merge State Reconciliation (PR #41 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`)
-- Active package: `MF-STAB-003` — Enabled-Subset Scheduling and Current-Fact Reconciliation
-- Active task branch: `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation`
+- Synchronized `main` commit SHA: `caffe0e883f83249bee2c9a1f2122543e88c9ab0` (PR #42 merge)
+- Most recently completed merged implementation package on `main`: `MF-STAB-003` — Enabled-Subset Scheduling and Current-Fact Reconciliation (PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`, validated candidate `766d8ea7692d139425e2301121f93af7901cf238`, tree identity `fcab56b3a886ed0c5018d4f8a16304ee83378b26`)
+- Active package: `MF-DOC-006` — Post-MF-STAB-003 Merge State Reconciliation
+- Active task branch: `docs/mf-doc-006-post-mf-stab-003-merge-reconciliation`
 - Active lifecycle: `DOCUMENT_ONLY`
-- Pre-documentation candidate HEAD: `cb2d984916ff080509713ae3b73b04a1fd8aa4bc`
-- Base baseline: `284d7cf2c50be6e2d4f219c00aa20d92387338f9` (PR #41 merge)
-- Package review status: `REVIEW_APPROVED` (0 Blocker, 0 Major, 1 Minor test-helper finding; 1,516 Core tests passed; clean Release builds; Schema V6)
-- Next expected mode after documentation reconciliation: `COMMIT_ONLY`, followed by `FULL_VALIDATION`
+- Active implementation package: None (no implementation package is active; downstream packages must not be autonomously selected)
+- Base baseline: `caffe0e883f83249bee2c9a1f2122543e88c9ab0` (PR #42 merge)
+- Schema: V6 (preserved without migration)
+- Build 2 status: `REJECTED` (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`)
+- Next expected mode for MF-DOC-006: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY`
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `284d7cf2c50be6e2d4f219c00aa20d92387338f9` unless newer live evidence exists.
-3. **Recognize Build 2 Rejection and MF-STAB-003 Remediation**: Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to selector crash/starvation when operations were disabled after practice and the session restarted. `MF-STAB-003` on branch `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation` resolves this defect via independent per-operation role ordinals ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)), durable Schema V6 count reconstruction, and deterministic zero-mutation current-fact configuration reconciliation.
-4. **Recognize completed MF-DOC-005 and MF-UX-006 history**: PR #41 merged MF-DOC-005 documentation reconciliation to `main` at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`. PR #40 merged MF-UX-006 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`.
-5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative.
-6. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
+2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `caffe0e883f83249bee2c9a1f2122543e88c9ab0` unless newer live evidence exists.
+3. **Recognize Build 2 Rejection and Merged MF-STAB-003 Remediation**: Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to selector crash/starvation when operations were disabled after practice and the session restarted. The defect is resolved in merged source on `main` via `MF-STAB-003` (PR #42, [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)). However:
+   - no replacement production candidate exists yet;
+   - no new AAB has been produced or signed (next candidate `versionCode` must be $\ge 3$);
+   - Step 30 has not been rerun;
+   - Step 31 has not been rerun;
+   - Step 32 / Google Play is not authorized.
+4. **Recognize completed MF-STAB-003, MF-DOC-005, and MF-UX-006 history**: PR #42 merged MF-STAB-003 to `main` at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`. PR #41 merged MF-DOC-005 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`. PR #40 merged MF-UX-006 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`.
+5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative (Live Git/GitHub > documentation > chat history).
+6. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task. After MF-DOC-006 completes, new sessions must not autonomously activate MF-LEARN-004, MF-UX-007, or any other package without explicit user dispatch.
 
 ### Durable Merged Baseline Summary
+- **MF-STAB-003 Enabled-Subset Scheduling and Current-Fact Reconciliation** (PR #42, merge `caffe0e883f83249bee2c9a1f2122543e88c9ab0`, candidate `766d8ea7692d139425e2301121f93af7901cf238`): Established independent per-operation role ordinals ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)), durable Schema V6 count reconstruction, deterministic zero-mutation Settings/current-fact reconciliation, and exact-candidate `FULL_VALIDATION_PASS` (1,516 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `fcab56b3a886ed0c5018d4f8a16304ee83378b26`).
 - **MF-DOC-005 Post-MF-UX-006 Documentation Reconciliation** (PR #41, merge `284d7cf2c50be6e2d4f219c00aa20d92387338f9`): Reconciled repository baseline documentation following PR #40 merge.
 - **MF-UX-006 V1 Privacy, Copy, and Localization Hardening** (PR #40, merge `ae69f4ae27397fc6edf36a23bb671b0410680be1`, candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`): Delivered PC numpad reset copy alignment, Russian localization formatting and progression terminology polish, offline in-app `/privacy` surface and Settings entry with system Back integration, language-neutral and multilingual static fatal host fallback in `index.html`, and exact-candidate `FULL_VALIDATION_PASS` (1476 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity).
 - **MF-UX-005 Final Documentation Reconciliation** (PR #39, merge `60dba236aa38bca138ab583f610c9ff876994b04`): Established the post-MF-UX-005 synchronized documentation baseline on `main`.
@@ -135,8 +142,8 @@ When initializing a new session:
 - **Predecessors**: `MF-REL-002` (PR #26), `MF-UX-004` (PR #25), `MF-DOC-004` (PR #24), `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
 
 ### Downstream Roadmap Stages
-- **Phase 6 - Native V1 Remediation (`MF-STAB-003`)**: Implemented on task branch, `REVIEW_APPROVED` with 1,516 Core tests passing; in `DOCUMENT_ONLY` reconciliation.
-- **Phase 6 - Final Exact-Candidate Native V1 Validation**: Required on exact candidate before PR/merge.
+- **Phase 6 - Native V1 Remediation (`MF-STAB-003`)**: Complete and merged to `main` through PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`.
+- **Phase 6 - Post-MF-STAB-003 Documentation Reconciliation (`MF-DOC-006`)**: In progress on `docs/mf-doc-006-post-mf-stab-003-merge-reconciliation` (`DOCUMENT_ONLY`).
 - **Phase 6 - Production Packaging & Signing (Candidate `versionCode` $\ge 3$)**: Separately authorized downstream work (`Distributable` profile with external production keystore).
 - **Phase 6 - Final Release-Grade Physical Validation (Steps 30 & 31)**: Pending separately authorized repetition on physical hardware (Samsung SM-S948B, Android 16) following Build 2 rejection.
 - **Phase 6 - Google Play Gate**: Pending and separately authorized.
