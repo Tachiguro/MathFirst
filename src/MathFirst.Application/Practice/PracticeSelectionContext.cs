@@ -14,6 +14,7 @@ public sealed class PracticeSelectionContext
     public IReadOnlyList<ArithmeticFact> RecentAcceptedFactsOldestToNewest { get; }
     public IReadOnlyList<ArithmeticOperation> EnabledOperations { get; }
     public long ScheduledOperationAttemptOrdinal { get; }
+    public GuidedNumberSpaceGate GuidedNumberSpaceGate { get; }
 
     public PracticeSelectionContext(
         long prospectivePracticePosition,
@@ -23,7 +24,8 @@ public sealed class PracticeSelectionContext
         PracticeCandidateIndex candidateIndex,
         IEnumerable<ArithmeticFact> recentAcceptedFactsOldestToNewest,
         long scheduledOperationAttemptOrdinal,
-        IEnumerable<ArithmeticOperation>? enabledOperations = null)
+        IEnumerable<ArithmeticOperation>? enabledOperations = null,
+        GuidedNumberSpaceGate? guidedNumberSpaceGate = null)
     {
         if (prospectivePracticePosition <= 0)
         {
@@ -90,5 +92,7 @@ public sealed class PracticeSelectionContext
         RecentAcceptedFactsOldestToNewest = Array.AsReadOnly(recentFacts);
         EnabledOperations = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(enabledOperations);
         ScheduledOperationAttemptOrdinal = scheduledOperationAttemptOrdinal;
+        GuidedNumberSpaceGate = guidedNumberSpaceGate
+            ?? MathFirst.Domain.Curriculum.GuidedNumberSpaceGate.Unrestricted;
     }
 }

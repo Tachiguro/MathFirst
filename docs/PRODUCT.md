@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, and independent per-operation role ordinals in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), and [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, Coverage-First Dense acquisition, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, independent per-operation role ordinals, and Guided number-space gating in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), and [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md) (`MF-LEARN-004`), extended with practice configuration in `MF-SET-001`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, requested-role review authority during Dense acquisition, Addition-governed multiplicative number-space gating in Guided Mode, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
 
 ---
 
@@ -68,6 +68,22 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 - **Current Acquisition-Frontier Facts**: Facts whose single acquisition owner is the operation's current band ($\text{owner}_O(F) == B$). Dense bands require exhaustive frontier acquisition; structured bands require a deterministic representative sample of 16 distinct owned-frontier facts.
 - **Due Review Facts**: Materialized facts whose FSRS due Practice Position has arrived. Due status optimizes review scheduling among eligible facts but does **not** bypass curriculum ownership: a due fact is presentable only when $\text{owner}_O(F) \le B$.
 - **Historical Preservation vs. Presentation Eligibility**: `PERSISTED != CURRENTLY PRESENTABLE` and `DUE != AUTOMATICALLY ELIGIBLE`. Advancing an operation unlocks new facts while preserving prior facts as eligible for review; locked future facts remain dormant.
+- **Guided Four-Operation Number-Space Gate ([ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md))**:
+  - **Guided Mode vs. Custom Mode**:
+    - **Guided Mode**: Active **if and only if** exactly all four operations are enabled (`Addition`, `Subtraction`, `Multiplication`, `Division`). Enforces cross-operation number-space gating to ensure multiplicative concepts remain grounded in the learner's demonstrated additive number space.
+    - **Custom Mode**: Active whenever any other valid non-empty subset is selected (e.g. Multiplication only, Multiplication + Division, Addition + Subtraction). Cross-operation gating is inactive, and operations progress independently without an Addition ceiling.
+  - **Addition Ceiling Authority**:
+    - The Addition ceiling is the maximum represented number across all facts in the complete unlocked canonical Addition curriculum prefix (from the initial band through the learner's current Addition band):
+      $$\text{AdditionCeiling} = \max_{b \in [0, B_{\text{ADD}}]} \left( \max_{F \in \text{Frontier}(b)} \left( \max(F.\text{LeftOperand}, F.\text{RightOperand}, F.\text{CorrectResult}) \right) \right)$$
+  - **Multiplicative Presentation Eligibility**:
+    - **Multiplication**: A fact $F$ is presentable in Guided Mode iff $\text{owner}_{\text{MUL}}(F) \le B_{\text{MUL}}$ AND $F.\text{CorrectResult} \le \text{AdditionCeiling}$. Facts whose product exceeds the Addition ceiling (e.g. $2 \times 2 = 4$ when the Addition ceiling is 2) cannot be presented until Addition advances.
+    - **Division**: A fact $F$ is presentable in Guided Mode iff $\text{owner}_{\text{DIV}}(F) \le B_{\text{DIV}}$ AND $F.\text{LeftOperand} \le \text{AdditionCeiling}$ (since dividend is the total quantity partitioned). Facts whose dividend exceeds the Addition ceiling (e.g. $4 \div 2 = 2$ or $6 \div 2 = 3$ when the Addition ceiling is 2) cannot be presented until Addition advances.
+    - **Addition & Subtraction Invariance**: Addition establishes the ceiling and is not cross-operation gated. Subtraction is the inverse family within the same elementary number space and is not cross-operation gated.
+  - **State and Progress Preservation**:
+    - The gate governs **presentation eligibility only**. It does not delete, demote, or alter band progression indices, item learning states, attempt history, FSRS cards, fluency evidence, remediation tracking, accepted attempt counts, or global Practice Position.
+    - Gated facts remain dormant in local storage and automatically regain presentation and review eligibility when the Addition ceiling expands or when the learner switches to Custom Mode.
+  - **Practice Configuration Reconciliation**:
+    - When practice configuration changes make an unsubmitted displayed problem Guided-ineligible, it is cleanly replaced at the same prospective practice position with zero learning mutations. Valid problems preserve partial input and timer state; accepted feedback is preserved until deliberate dismissal.
 
 Unseen, non-sampled structured candidates from completed bands are not permanent acquisition debt. Exact-fact FSRS review and operation-level advancement are separate mechanisms governed by the Practice Fact Eligibility Invariant ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)).
 
@@ -169,11 +185,12 @@ The practice selector resolves candidates from five semantic pools:
 5. **`Early Review`**: a materialized exact fact for the scheduled operation with a valid FSRS card, not in remediation, and with a future due position ($\text{DuePracticePosition} > \text{ProspectivePosition}$), ordered by `LastReviewPracticePosition` (nulls first), `DuePracticePosition`, `FactId`.
 
 ### Selector Precedence and Candidate Resolution
-For the scheduled operation, candidate selection follows a three-tiered precedence:
+For the scheduled operation, candidate selection follows an authoritative, role-governed precedence:
 
-1. **Remediation Priority Override**: A due same-session remediation overrides normal selection when a fact has `NeedsRemediation == true`, `LastReviewPracticePosition != null`, and $\text{ProspectivePosition} \ge \text{LastReviewPracticePosition} + 4$. It does not change the scheduled operation, so a weak operation cannot globally starve stronger operations.
-2. **Coverage-First Dense Acquisition**: When the scheduled operation's current band is `Dense` and its owned frontier contains unmaterialized facts, the selector immediately introduces an unseen owned-frontier fact as `PracticeSelectionRole.New` across nominal `Due`, `Maintenance`, or `Frontier` turns until first-pass coverage is complete. Structured bands do not receive Coverage-First selection.
-3. **Role-Specific Fallback Chains**: If neither Remediation nor Coverage-First applies, the scheduled role resolves through its dedicated fallback chain:
+1. **Remediation Priority Override**: A due same-session remediation overrides normal requested-role selection when a fact has `NeedsRemediation == true`, `LastReviewPracticePosition != null`, and $\text{ProspectivePosition} \ge \text{LastReviewPracticePosition} + 4$. Remediation operates within the scheduled operation and does not alter operation turn scheduling.
+2. **Authoritative Requested-Role Determination**: When remediation does not apply, the requested role is derived strictly from the operation's authoritative accepted attempt count ($\text{NextOperationAttemptOrdinal}(O) = \text{AcceptedAttemptCount}(O) + 1$) mapped across the 10-slot cycle (New at slots 1, 3, 6, 8; Due at 2, 7, 9; Maintenance at 4; Frontier at 5, 10).
+3. **Requested-Role Review Authority Preserved**: Unseen Dense material does **not** globally or unconditionally override non-New roles (`Due`, `Maintenance`, `Frontier`). Dense New introductions occur during designated `Requested New` opportunities (4 slots per 10-attempt period), giving learners balanced review and retention opportunities alongside new curriculum acquisition.
+4. **Role-Specific Fallback Chains**: The scheduled requested role resolves through its dedicated fallback chain across semantic pools, with all candidate pools filtered by the Practice Fact Eligibility Invariant ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)) and, in Guided Mode, the Guided Number-Space Gate ([ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)):
    ```text
    New role:         New -> Useful Frontier -> Due -> Stale Maintenance -> Early Review
    Due role:         Due -> Useful Frontier -> Stale Maintenance -> Early Review
@@ -182,11 +199,7 @@ For the scheduled operation, candidate selection follows a three-tiered preceden
    ```
 
 ### Authoritative Materialization Invariant
-Unmaterialized facts may enter practice **only** through explicit acquisition paths:
-- (A) Normal `Requested New` when unmaterialized candidates exist;
-- (B) `Coverage-First Dense New` for the scheduled operation's current owned frontier.
-
-Non-New resolved roles (`Due`, `Maintenance`, `Frontier`, `Early Review`, `Remediation`) strictly cannot materialize unmaterialized facts. Earlier-owned review facts receive no acquisition or current-band coverage credit.
+Unmaterialized facts may enter practice **strictly** through explicit `Requested New` turns when unmaterialized candidates exist and are presentation-eligible. Non-New resolved roles (`Due`, `Maintenance`, `Frontier`, `Early Review`, `Remediation`) strictly cannot materialize unmaterialized facts. Earlier-owned review facts receive no acquisition or current-band coverage credit.
 
 `Early Review` serves as the essential liveness bridge: when an operation has exhausted its frontier and has only future-due reviews, Early Review selects the oldest-reviewed future fact to keep PracticePosition advancing deterministically without stalling or entering an artificial Caught Up state.
 

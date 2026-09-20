@@ -15,7 +15,46 @@ public sealed class PracticeSelectionEvidenceRequest
         IEnumerable<ArithmeticFact> currentBandOwnedFrontier,
         IEnumerable<ArithmeticFact> introductionFrontier,
         int currentBandIndex = int.MaxValue)
+        : this(
+            operation,
+            prospectivePracticePosition,
+            currentSessionOrder,
+            currentBandOwnedFrontier,
+            introductionFrontier,
+            currentBandIndex,
+            GuidedNumberSpaceGate.Unrestricted)
     {
+    }
+
+    public PracticeSelectionEvidenceRequest(
+        ArithmeticOperation operation,
+        long prospectivePracticePosition,
+        int currentSessionOrder,
+        IEnumerable<ArithmeticFact> currentBandOwnedFrontier,
+        IEnumerable<ArithmeticFact> introductionFrontier,
+        GuidedNumberSpaceGate guidedNumberSpaceGate)
+        : this(
+            operation,
+            prospectivePracticePosition,
+            currentSessionOrder,
+            currentBandOwnedFrontier,
+            introductionFrontier,
+            int.MaxValue,
+            guidedNumberSpaceGate)
+    {
+    }
+
+    public PracticeSelectionEvidenceRequest(
+        ArithmeticOperation operation,
+        long prospectivePracticePosition,
+        int currentSessionOrder,
+        IEnumerable<ArithmeticFact> currentBandOwnedFrontier,
+        IEnumerable<ArithmeticFact> introductionFrontier,
+        int currentBandIndex,
+        GuidedNumberSpaceGate guidedNumberSpaceGate)
+    {
+        ArgumentNullException.ThrowIfNull(guidedNumberSpaceGate);
+
         if (prospectivePracticePosition <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
@@ -40,6 +79,7 @@ public sealed class PracticeSelectionEvidenceRequest
         CurrentBandOwnedFrontier = CopyFacts(currentBandOwnedFrontier, operation, nameof(currentBandOwnedFrontier));
         IntroductionFrontier = CopyFacts(introductionFrontier, operation, nameof(introductionFrontier));
         CurrentBandIndex = currentBandIndex;
+        GuidedNumberSpaceGate = guidedNumberSpaceGate;
     }
 
     public ArithmeticOperation Operation { get; }
@@ -56,6 +96,7 @@ public sealed class PracticeSelectionEvidenceRequest
     /// Must be &gt;= 0 when explicitly provided.
     /// </summary>
     public int CurrentBandIndex { get; }
+    public GuidedNumberSpaceGate GuidedNumberSpaceGate { get; }
 
     private static IReadOnlyList<ArithmeticFact> CopyFacts(
         IEnumerable<ArithmeticFact> facts,
@@ -195,6 +236,10 @@ public sealed class PracticeSelectionEvidence
                 .Where(candidate => ownership.IsEligible(candidate.Fact.Id, request.CurrentBandIndex))
                 .ToArray();
         }
+
+        candidates = candidates
+            .Where(candidate => request.GuidedNumberSpaceGate.Allows(candidate.Fact))
+            .ToArray();
 
         var byId = candidates.ToDictionary(candidate => candidate.Fact.Id, StringComparer.Ordinal);
 

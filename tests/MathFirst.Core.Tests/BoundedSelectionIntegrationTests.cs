@@ -140,6 +140,50 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
         Assert.Equal(primary.Progression.StoreRevision, afterConflict.Revision);
     }
 
+    [Fact]
+    public async Task MultiOperationSequence_RolesDivergeFromGlobalPosition_AndFollowPerOperationSchedule()
+    {
+        var run = await RunSequenceAsync(Path.Combine(_directory, "role-divergence.db"), 40, restartCadence: null);
+
+        var expectedTenSlotSchedule = new[]
+        {
+            PracticeSelectionRole.New,
+            PracticeSelectionRole.Due,
+            PracticeSelectionRole.New,
+            PracticeSelectionRole.Maintenance,
+            PracticeSelectionRole.Frontier,
+            PracticeSelectionRole.New,
+            PracticeSelectionRole.Due,
+            PracticeSelectionRole.New,
+            PracticeSelectionRole.Due,
+            PracticeSelectionRole.Frontier
+        };
+
+        var rolesByOperation = Enum.GetValues<ArithmeticOperation>()
+            .ToDictionary(op => op, _ => new List<PracticeSelectionRole>());
+
+        var globalRoles = new List<PracticeSelectionRole>();
+
+        for (var i = 0; i < run.Selections.Count; i++)
+        {
+            var parts = run.Selections[i].Split('|');
+            var operation = Enum.Parse<ArithmeticOperation>(parts[0]);
+            var role = Enum.Parse<PracticeSelectionRole>(parts[1]);
+            rolesByOperation[operation].Add(role);
+            globalRoles.Add(AdaptivePracticeSelector.GetRequestedRole(i + 1));
+        }
+
+        // Prove that global PracticePosition role schedule diverges from per-operation role schedule:
+        // Position 2 has global role Due, whereas Subtraction ordinal 1 requires New.
+        Assert.Equal(PracticeSelectionRole.Due, globalRoles[1]);
+
+        foreach (var operation in Enum.GetValues<ArithmeticOperation>())
+        {
+            Assert.Equal(10, rolesByOperation[operation].Count);
+            Assert.Equal(expectedTenSlotSchedule, rolesByOperation[operation]);
+        }
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_directory, recursive: true); } catch { }
@@ -149,6 +193,8 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
     {
         var selections = new List<string>();
         var clock = new ScriptedClock();
+        var operationAcceptedCounts = Enum.GetValues<ArithmeticOperation>()
+            .ToDictionary(operation => operation, _ => 0L);
         SqliteLearnerStore? store = null;
         TrainingSession? session = null;
         try
@@ -158,16 +204,22 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
                 store = new SqliteLearnerStore(path);
                 session = new TrainingSession(store, clock);
                 await session.InitializeAsync(startTiming: false);
+                operationAcceptedCounts = session.OperationAcceptedAttemptCounts.ToDictionary(pair => pair.Key, pair => pair.Value);
             }
 
             await OpenAsync();
             for (var position = 1; position <= length; position++)
             {
                 var fact = session!.CurrentFact;
-                selections.Add($"{fact.Operation}|{AdaptivePracticeSelector.GetRequestedRole(position)}|{fact.Id}");
+                var scheduledOperation = fact.Operation;
+                var requestedRole = AdaptivePracticeSelector.GetRequestedRole(
+                    operationAcceptedCounts[scheduledOperation] + 1);
+                selections.Add($"{scheduledOperation}|{requestedRole}|{fact.Id}");
                 clock.LatencyMs = position % 19 == 0 ? 3_000 : 900;
                 session.SubmitAnswer(fact.CorrectResult);
-                Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(commitResult.IsSuccess);
+                operationAcceptedCounts[scheduledOperation]++;
                 if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
                 {
                     Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
@@ -181,12 +233,16 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
                 }
             }
 
+            var nextOperation = session!.CurrentFact.Operation;
+            var nextRole = AdaptivePracticeSelector.GetRequestedRole(
+                operationAcceptedCounts[nextOperation] + 1);
+
             return new SequenceRun(
                 selections,
-                session!.Progression.PracticePosition,
+                session.Progression.PracticePosition,
                 session.Progression.StoreRevision,
                 session.Progression.OperationProgressions.OrderBy(pair => pair.Key).Select(pair => pair.Value).ToArray(),
-                $"{session.CurrentFact.Operation}|{AdaptivePracticeSelector.GetRequestedRole(session.Progression.PracticePosition + 1)}|{session.CurrentFact.Id}");
+                $"{nextOperation}|{nextRole}|{session.CurrentFact.Id}");
         }
         finally
         {

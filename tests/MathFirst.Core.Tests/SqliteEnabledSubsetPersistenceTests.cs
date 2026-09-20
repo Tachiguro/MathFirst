@@ -108,7 +108,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
             SetOnly(preferences, ArithmeticOperation.Addition);
             Assert.Equal([ArithmeticOperation.Addition], preferences.GetEnabledOperations());
-            AdvanceAfterAcceptedAttempt(session);
+            await AdvanceAfterAcceptedAttemptAsync(session);
 
             var postSwitchOperations = await CompleteAcceptedAttemptsAsync(session, preferences, 40);
 
@@ -201,7 +201,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         var beforeDisabledPhase = await store.LoadSnapshotAsync();
 
         SetOnly(preferences, ArithmeticOperation.Addition);
-        AdvanceAfterAcceptedAttempt(session);
+        await AdvanceAfterAcceptedAttemptAsync(session);
         var disabledPhaseOperations = await CompleteAcceptedAttemptsAsync(
             session,
             preferences,
@@ -213,7 +213,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         AssertDisabledOperationStateUnchanged(beforeDisabledPhase, afterDisabledPhase);
 
         SetEnabled(preferences, PracticeOperationPreferencePolicy.AllOperations.ToArray());
-        AdvanceAfterAcceptedAttempt(session);
+        await AdvanceAfterAcceptedAttemptAsync(session);
         var reenabledOperations = await CompleteAcceptedAttemptsAsync(session, preferences, 16);
 
         Assert.Equal(76, session.Progression.PracticePosition);
@@ -382,24 +382,24 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
             if (index < count - 1 || advanceAfterFinal)
             {
-                AdvanceAfterAcceptedAttempt(session);
+                await AdvanceAfterAcceptedAttemptAsync(session);
             }
         }
 
         return selectedOperations;
     }
 
-    private static void AdvanceAfterAcceptedAttempt(TrainingSession session)
+    private static async Task AdvanceAfterAcceptedAttemptAsync(TrainingSession session)
     {
         if (session.PendingCheckIn is not null)
         {
             Assert.False(session.AdvanceAfterCorrectAnswer(startTiming: false));
             Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
-            session.ContinuePractice(startTiming: false);
+            await session.ContinuePracticeAsync(startTiming: false);
             return;
         }
 
-        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: false));
+        await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
     }
 
     private static void SetOnly(TestPreferenceStore preferences, ArithmeticOperation operation) =>

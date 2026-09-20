@@ -40,9 +40,23 @@ public sealed class TrainingSession
     private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
     private Dictionary<ArithmeticOperation, long> _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
 
+    private readonly record struct GateIdentity(bool IsActive, int? AdditionCeiling)
+    {
+        public static GateIdentity ForOperation(ArithmeticOperation operation, GuidedNumberSpaceGate gate)
+        {
+            if (operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction)
+            {
+                return new GateIdentity(false, null);
+            }
+
+            return new GateIdentity(gate.IsActive, gate.AdditionCeiling);
+        }
+    }
+
     private sealed record CachedOperationEvidence(
         ArithmeticOperation Operation,
         long ProspectivePracticePosition,
+        GateIdentity GateIdentity,
         PracticeSelectionEvidence Evidence,
         IReadOnlyList<AttemptRecord> DenseFrontierAttempts);
 
@@ -927,15 +941,32 @@ public sealed class TrainingSession
     private PracticeTimeSetting GetCurrentPracticeTimeSetting() =>
         _preferenceStore?.GetPracticeTimeSetting() ?? PracticeTimeSetting.Standard;
 
+    private GuidedNumberSpaceGate DeriveEffectiveGuidedNumberSpaceGate(
+        IReadOnlyList<ArithmeticOperation>? enabledOperations = null)
+    {
+        var operations = enabledOperations ?? GetCurrentEnabledOperations();
+        if (!GuidedNumberSpaceGate.IsGuidedMode(operations))
+        {
+            return GuidedNumberSpaceGate.Unrestricted;
+        }
+
+        var additionProgression = Progression.OperationProgressions[ArithmeticOperation.Addition];
+        var additionCurriculum = _curriculum.GetCurriculum(ArithmeticOperation.Addition);
+        return GuidedNumberSpaceGate.ForGuided(additionCurriculum, additionProgression.BandIndex);
+    }
+
     public void AdvanceToNextFact(bool startTiming = true)
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);
         var enabledOperations = GetCurrentEnabledOperations();
         var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
+        var effectiveGateIdentity = GateIdentity.ForOperation(scheduledOperation, effectiveGate);
 
         if (!_selectionEvidenceCache.TryGetValue(scheduledOperation, out var cached)
             || cached.Operation != scheduledOperation
-            || cached.ProspectivePracticePosition != prospectivePosition)
+            || cached.ProspectivePracticePosition != prospectivePosition
+            || cached.GateIdentity != effectiveGateIdentity)
         {
             throw new InvalidOperationException(
                 $"Bounded selection evidence for operation {scheduledOperation} at prospective position {prospectivePosition} is not loaded.");
@@ -958,7 +989,8 @@ public sealed class TrainingSession
             new PracticeCandidateIndex(_selectionEvidence),
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
             scheduledOperationAttemptOrdinal: scheduledOperationOrdinal,
-            enabledOperations: enabledOperations);
+            enabledOperations: enabledOperations,
+            guidedNumberSpaceGate: effectiveGate);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
@@ -1045,12 +1077,15 @@ public sealed class TrainingSession
         var prospectivePosition = checked(Progression.PracticePosition + 1);
         var enabledOperations = GetCurrentEnabledOperations();
         var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
+        var effectiveGateIdentity = GateIdentity.ForOperation(scheduledOperation, effectiveGate);
 
         if (!_selectionEvidenceCache.TryGetValue(scheduledOperation, out var cached)
             || cached.Operation != scheduledOperation
-            || cached.ProspectivePracticePosition != prospectivePosition)
+            || cached.ProspectivePracticePosition != prospectivePosition
+            || cached.GateIdentity != effectiveGateIdentity)
         {
-            await LoadSingleOperationEvidenceAsync(scheduledOperation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+            await LoadSingleOperationEvidenceAsync(scheduledOperation, prospectivePosition, effectiveGate, cancellationToken).ConfigureAwait(false);
         }
 
         if (_selectionEvidenceCache.TryGetValue(scheduledOperation, out var scheduledEvidence))
@@ -1077,15 +1112,22 @@ public sealed class TrainingSession
         }
 
         var enabledOperations = GetCurrentEnabledOperations();
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var currentOwnership = new AcquisitionOwnershipResolver(
             _curriculum.GetCurriculum(CurrentFact.Operation));
         var currentFactRemainsEligible =
             enabledOperations.Contains(CurrentFact.Operation) &&
-            currentOwnership.IsEligible(CurrentFact.Id, currentProgression.BandIndex);
+            currentOwnership.IsEligible(CurrentFact.Id, currentProgression.BandIndex) &&
+            effectiveGate.Allows(CurrentFact);
 
         if (currentFactRemainsEligible)
         {
+            if (_selectionEvidenceCache.Any(kvp => kvp.Value.GateIdentity != GateIdentity.ForOperation(kvp.Key, effectiveGate)))
+            {
+                _selectionEvidenceCache.Clear();
+            }
+
             return PracticeConfigurationReconciliationResult.RetainedCurrentFact;
         }
 
@@ -1098,6 +1140,7 @@ public sealed class TrainingSession
         await LoadSingleOperationEvidenceAsync(
             scheduledOperation,
             prospectivePosition,
+            effectiveGate,
             cancellationToken).ConfigureAwait(false);
         AdvanceToNextFact(startTiming);
 
@@ -1108,13 +1151,17 @@ public sealed class TrainingSession
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);
         var enabledOperations = GetCurrentEnabledOperations();
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
+
         foreach (var operation in enabledOperations)
         {
+            var effectiveGateIdentity = GateIdentity.ForOperation(operation, effectiveGate);
             if (!_selectionEvidenceCache.TryGetValue(operation, out var cached)
                 || cached.Operation != operation
-                || cached.ProspectivePracticePosition != prospectivePosition)
+                || cached.ProspectivePracticePosition != prospectivePosition
+                || cached.GateIdentity != effectiveGateIdentity)
             {
-                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, effectiveGate, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -1216,11 +1263,12 @@ public sealed class TrainingSession
 
         var enabledOperations = GetCurrentEnabledOperations();
         var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition, enabledOperations);
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
 
         // 1. Authoritatively load evidence for enabled operations.
         foreach (var operation in enabledOperations)
         {
-            await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+            await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, effectiveGate, cancellationToken).ConfigureAwait(false);
         }
 
         // 2. Best-effort defensive prefetch for disabled operations.
@@ -1232,7 +1280,7 @@ public sealed class TrainingSession
         {
             try
             {
-                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, cancellationToken).ConfigureAwait(false);
+                await LoadSingleOperationEvidenceAsync(operation, prospectivePosition, effectiveGate, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -1250,6 +1298,7 @@ public sealed class TrainingSession
     private async Task LoadSingleOperationEvidenceAsync(
         ArithmeticOperation operation,
         long prospectivePosition,
+        GuidedNumberSpaceGate gate,
         CancellationToken cancellationToken)
     {
         var progression = Progression.OperationProgressions[operation];
@@ -1270,7 +1319,8 @@ public sealed class TrainingSession
             checked(SessionOrderCounter + 1),
             ownedFrontier,
             introductionFrontier,
-            currentBandIndex: progression.BandIndex);
+            currentBandIndex: progression.BandIndex,
+            guidedNumberSpaceGate: gate);
         var evidence = await _store.LoadPracticeSelectionEvidenceAsync(request, cancellationToken).ConfigureAwait(false);
         foreach (var (factId, state) in evidence.ItemStates)
         {
@@ -1296,6 +1346,7 @@ public sealed class TrainingSession
         _selectionEvidenceCache[operation] = new CachedOperationEvidence(
             operation,
             prospectivePosition,
+            GateIdentity.ForOperation(operation, gate),
             evidence,
             denseAttempts);
     }

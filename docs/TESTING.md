@@ -156,10 +156,10 @@ MF-LEARN-003 contract, regression, and simulation coverage validates the acclima
    - Visual option order in Onboarding and Settings presents Numpad first (left) and Phone second (right).
    - Storage enum values remain `Phone = 0`, `Numpad = 1`. Explicitly stored preferences remain preserved.
    - Initial Home backing state and Full Local Reset default to Numpad.
-3. **Coverage-First Dense Selection & Materialization Safety**:
-   - Selector precedence: 1. eligible Remediation ($\ge 4$ distance); 2. Dense Coverage-First New; 3. ordinary requested-role chains.
-   - Coverage-First Dense New selects unmaterialized owned-frontier facts across nominal Due/Maintenance/Frontier turns until first-pass coverage is complete.
-   - Materialization invariant: Unmaterialized facts enter practice only via explicit `Requested New` or `Coverage-First Dense New`. Non-New resolved roles strictly cannot materialize facts.
+3. **Coverage-First Dense Selection & Materialization Safety (Historical Baseline & Reconciled Authority)**:
+   - Historical selector precedence: 1. eligible Remediation ($\ge 4$ distance); 2. Dense Coverage-First New; 3. ordinary requested-role chains.
+   - Reconciled under current requested-role review authority (MF-STAB-002 / MF-STAB-003 / MF-LEARN-004): Unseen Dense material does not globally or unconditionally override non-New roles (`Due`, `Maintenance`, `Frontier`). Dense New introductions occur during designated `Requested New` opportunities (4 slots per 10-attempt period), giving learners balanced review and retention opportunities alongside new curriculum acquisition.
+   - Materialization invariant: Unmaterialized facts enter practice strictly via explicit `Requested New` turns when unmaterialized candidates exist and are presentation-eligible. Non-New resolved roles strictly cannot materialize facts.
    - Structured bands are isolated from Coverage-First selection.
 4. **Authoritative Latest-per-Frontier Persistence & Schema V6 Index**:
    - Store contract `ILearnerStore.LoadLatestFrontierAttemptsAsync` queries at most one latest positioned attempt per requested frontier fact for `PracticePosition > BandStartedPracticePosition`.
@@ -615,3 +615,62 @@ MF-STAB-003 contract, regression, and integration coverage validates independent
 - Automated test suites execute offline against synthetic fixtures and temporary SQLite databases.
 - The 1,516 passing tests represent verified implementation on task branch `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation` during `REVIEW_ONLY` and do not claim execution of the pending exact-candidate `FULL_VALIDATION` lifecycle.
 - Automated tests do not constitute physical hardware revalidation (Steps 30/31).
+
+---
+
+## 21. MF-LEARN-004 Guided Four-Operation Number-Space Gate Contracts & Test Evidence
+
+MF-LEARN-004 contract, regression, persistence, and session integration coverage validates the cross-operation number-space gate, streaming candidate anti-poisoning in SQLite, and dynamic practice-configuration reconciliation across 1,590 automated tests in `MathFirst.Core.Tests`:
+
+1. **Guided Mode vs. Custom Mode Gate Invariants (`GuidedNumberSpaceGateTests`, `GuidedNumberSpaceSelectionTests`)**:
+   - Asserts Guided Mode is active if and only if all four operations are enabled (`Addition`, `Subtraction`, `Multiplication`, `Division`).
+   - Asserts Custom Mode is active whenever any other valid subset is selected (e.g. Multiplication + Division, Multiplication only, Addition + Subtraction); cross-operation gating is inactive and operations advance without an Addition ceiling.
+   - Asserts the Addition Ceiling formula calculates the maximum represented number across all facts in the complete unlocked canonical Addition curriculum prefix ($b \in [0, B_{\text{ADD}}]$):
+     $$\text{AdditionCeiling} = \max_{b \in [0, B_{\text{ADD}}]} \left( \max_{F \in \text{Frontier}(b)} \left( \max(F.\text{LeftOperand}, F.\text{RightOperand}, F.\text{CorrectResult}) \right) \right)$$
+   - Asserts Multiplication presentation eligibility: presentable in Guided Mode iff $\text{owner}_{\text{MUL}}(F) \le B_{\text{MUL}}$ AND $F.\text{CorrectResult} \le \text{AdditionCeiling}$.
+   - Asserts Division presentation eligibility: presentable in Guided Mode iff $\text{owner}_{\text{DIV}}(F) \le B_{\text{DIV}}$ AND $F.\text{LeftOperand} \le \text{AdditionCeiling}$ (dividend is the total quantity partitioned).
+   - Asserts Addition establishes the ceiling and is not cross-operation gated; Subtraction operates in the same elementary number space and is not cross-operation gated.
+   - Asserts pure domain factory projection `PracticeSelectionEvidence.ForGuidedNumberSpace(...)` filters in-memory review candidate pools and unmaterialized frontier facts without mutating durable state.
+
+2. **Candidate Streaming Anti-Poisoning & State Preservation (`GuidedNumberSpacePersistenceTests`)**:
+   - Asserts `SqliteLearnerStore.ReadCandidateRowsAsync` applies the `isEligible` predicate directly during row streaming before candidate buffer capping (64 rows per semantic pool), guaranteeing that eligible reviews are never starved or displaced by preceding ineligible future or gated facts.
+   - Asserts snapshot fallback `PracticeSelectionEvidence.FromSnapshot` applies identical eligibility filtering.
+   - Asserts that gated facts remain dormant in SQLite storage with full attempt history, item learning states, and FSRS intervals preserved losslessly; advancing the Addition ceiling or switching to Custom Mode dynamically unlocks them.
+   - Asserts `SqliteLearnerStore.ValidateNewAcceptedSubmission` enforces presentation eligibility at persistence commit time (`PersistenceResult.InvalidSubmission`).
+
+3. **Session Lifecycle, UI Interaction Deferral & Settings Reconciliation (`GuidedNumberSpaceSessionTests`)**:
+   - Asserts `TrainingSession.ReconcilePracticeConfigurationAsync` discards an unsubmitted active problem that becomes Guided-ineligible upon Settings modification, preparing a valid replacement at the same prospective practice position with zero learning mutations (no score change, no timeout, no FSRS update, no position increment).
+   - Asserts valid problems preserve partial answer buffer input and remaining paused timer deadline across Settings visits.
+   - Asserts interaction-state deferral: when an answer is submitted and the session is in a feedback or intervention state (`CorrectFeedback`, `IncorrectFeedback`, `TimeoutFeedback`, `TeachingIntervention`, `SessionCheckIn`), reconciliation defers next-fact replacement until explicit feedback dismissal.
+   - Asserts that gated facts in remediation (`NeedsRemediation == true`) or due status are closed to presentation until unlocked by Addition progress.
+   - Asserts restart and crash recovery re-evaluates the Guided Gate from durable state without ephemeral session leaks.
+
+4. **Integration Simulation Coverage & Test-Helper Maintenance (`GuidedNumberSpaceSessionTests`, `BoundedSelectionIntegrationTests`)**:
+   - Validates end-to-end multi-step simulations across diverse learner behaviors:
+     - Guided all-four / 100 correct simulation: Multiplication and Division progress in lockstep as Addition unlocks expanding number spaces.
+     - Guided Addition always wrong: Multiplication and Division remain strictly capped at the initial Addition ceiling (e.g. Addition ceiling 2; Multiplication presents only $1 \times 1 = 1$, $1 \times 2 = 2$, $2 \times 1 = 2$; Division presents only $1 \div 1 = 1$, $2 \div 1 = 2$, $2 \div 2 = 1$; higher facts like $2 \times 2 = 4$ or $4 \div 2 = 2$ cannot be presented).
+     - Guided Addition 50% mixed errors / slow progression.
+     - Custom Mode (Multiplication + Division only / 100 correct): Multiplicative operations advance freely without an Addition ceiling gate.
+   - Corrected test helper in `BoundedSelectionIntegrationTests.cs` to resolve requested roles via per-operation attempt ordinals ($\text{AcceptedAttemptCount}(O) + 1$) rather than legacy global practice position, aligning tests with the authoritative scheduling architecture.
+
+### Reviewed Test Suite Evidence (MF-LEARN-004 Task Branch Baseline)
+
+- **Full Core Test Suite**: 1,590 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Targeted MF-LEARN-004 Breakdown (73 new tests)**:
+  - `GuidedNumberSpaceGateTests`: 17 passed
+  - `GuidedNumberSpaceSelectionTests`: 10 passed
+  - `GuidedNumberSpacePersistenceTests`: 17 passed
+  - `GuidedNumberSpaceSessionTests`: 29 passed
+- **Adjacent Verified Test Suites**:
+  - `BoundedSelectionIntegrationTests`: passed
+  - `SqliteEnabledSubsetPersistenceTests`: passed
+  - `StartupRecoveryRegressionTests`: passed
+  - `FinalIntegrationCoverageTests`: passed
+  - `LongRunIndependentProgressionTests`: passed
+
+### Evidence Boundary Principles & Downstream Release State
+
+- All 1,590 automated tests execute offline against synthetic fixtures, pure domain models, and temporary SQLite databases.
+- Automated tests do not constitute physical hardware revalidation.
+- Build 3 (`MathFirst-v1.0-b3-739fed4-release.aab` / `MathFirst-v1.0-b3-739fed4-Distributable-evidence.zip`) is historical evidence; its source tree predates MF-LEARN-004.
+- Any future packaging candidate requires `versionCode >= 4`. Build 4 does not exist yet; no release packaging, signing, AAB/APK build, or Google Play upload is claimed.
