@@ -553,8 +553,672 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
     }
 
     // ===========================================================================
+    // PROFILE 1: GUIDED ALL-FOUR — ADDITION 50%
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile1_GuidedAllFour_AdditionFiftyPercent_MaintainsBalanceAndCompleteInitialCoverage()
+    {
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var tracker = new OperationPresentationTracker();
+        var curriculum = new ArithmeticCurriculum();
+        var initialGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 0);
+
+        var totalAttempts = 500;
+        var teachingInterventionsAcknowledged = 0;
+
+        for (var i = 1; i <= totalAttempts; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            tracker.Record(op, fact.Id, opTurn);
+
+            AssertGuidedGate(curriculum, session, fact, i);
+
+            if (op == ArithmeticOperation.Addition)
+            {
+                // Deterministic 50% pattern based on Addition attempt ordinal
+                if (opTurn % 2 == 1)
+                {
+                    session.SubmitAnswer(fact.CorrectResult);
+                }
+                else
+                {
+                    session.SubmitAnswer(fact.CorrectResult + 1);
+                }
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");
+
+            teachingInterventionsAcknowledged += CompleteTurn(session);
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        }
+
+        // Exact operation allocation: 125 each
+        Assert.Equal(500, session.Progression.PracticePosition);
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(125, session.GetOperationAcceptedAttemptCount(op));
+            Assert.Equal(125, tracker.GetPresentedFacts(op).Count);
+        }
+
+        // Complete initial Addition owned-frontier introduction
+        AssertInitialFoundationalCoverage(session, tracker, curriculum, ArithmeticOperation.Addition, initialGate);
+
+        // Subtraction and other correct operations are free to advance
+        Assert.True(session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex > 0);
+
+        _output?.WriteLine($"[Profile 1] ADD immediate repeats: {tracker.GetImmediateRepeatCount(ArithmeticOperation.Addition)}");
+        _output?.WriteLine($"[Profile 1] Teaching interventions acknowledged: {teachingInterventionsAcknowledged}");
+    }
+
+    // ===========================================================================
+    // PROFILE 2: GUIDED ALL-FOUR — ADDITION 25%
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile2_GuidedAllFour_AdditionTwentyFivePercent_MaintainsBalanceAndPreventsFalseAdvancement()
+    {
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var tracker = new OperationPresentationTracker();
+        var curriculum = new ArithmeticCurriculum();
+        var initialGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 0);
+
+        var totalAttempts = 500;
+        var teachingInterventionsAcknowledged = 0;
+
+        for (var i = 1; i <= totalAttempts; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            tracker.Record(op, fact.Id, opTurn);
+
+            AssertGuidedGate(curriculum, session, fact, i);
+
+            if (op == ArithmeticOperation.Addition)
+            {
+                // Deterministic 25% pattern: 1 correct out of 4
+                if (opTurn % 4 == 1)
+                {
+                    session.SubmitAnswer(fact.CorrectResult);
+                }
+                else
+                {
+                    session.SubmitAnswer(fact.CorrectResult + 1);
+                }
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");
+
+            teachingInterventionsAcknowledged += CompleteTurn(session);
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        }
+
+        // Exact operation allocation: 125 each
+        Assert.Equal(500, session.Progression.PracticePosition);
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(125, session.GetOperationAcceptedAttemptCount(op));
+            Assert.Equal(125, tracker.GetPresentedFacts(op).Count);
+        }
+
+        // Progression safety: final BandIndex >= starting BandIndex
+        var finalAddBand = session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
+        Assert.True(finalAddBand >= 0);
+
+        // Complete initial Addition coverage
+        AssertInitialFoundationalCoverage(session, tracker, curriculum, ArithmeticOperation.Addition, initialGate);
+
+        // Fully correct operations remain free to advance
+        Assert.True(session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex > 0);
+
+        _output?.WriteLine($"[Profile 2] Final Addition band: {finalAddBand}");
+        _output?.WriteLine($"[Profile 2] ADD immediate repeats: {tracker.GetImmediateRepeatCount(ArithmeticOperation.Addition)}");
+        _output?.WriteLine($"[Profile 2] Teaching interventions acknowledged: {teachingInterventionsAcknowledged}");
+    }
+
+    // ===========================================================================
+    // PROFILE 3: GUIDED ALL-FOUR — ALL OPERATIONS 0%
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile3_GuidedAllFour_AllOperationsZeroPercent_MaintainsLivenessAndCoverageUnderTotalFailure()
+    {
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var tracker = new OperationPresentationTracker();
+        var curriculum = new ArithmeticCurriculum();
+        var initialGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 0);
+
+        var totalAttempts = 1000;
+        var teachingInterventionsAcknowledged = 0;
+
+        for (var i = 1; i <= totalAttempts; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            tracker.Record(op, fact.Id, opTurn);
+
+            AssertGuidedGate(curriculum, session, fact, i);
+
+            // Total failure: all answers incorrect
+            session.SubmitAnswer(fact.CorrectResult + 1);
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");
+
+            teachingInterventionsAcknowledged += CompleteTurn(session);
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        }
+
+        // Allocation: 250 each across 1000 attempts
+        Assert.Equal(1000, session.Progression.PracticePosition);
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(250, session.GetOperationAcceptedAttemptCount(op));
+            Assert.Equal(250, tracker.GetPresentedFacts(op).Count);
+        }
+
+        // No operation falsely advances under total failure
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(0, session.Progression.OperationProgressions[op].BandIndex);
+        }
+
+        // Every operation introduces all eligible initial foundational facts
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            AssertInitialFoundationalCoverage(session, tracker, curriculum, op, initialGate);
+        }
+
+        Assert.True(teachingInterventionsAcknowledged > 0, "Teaching interventions must occur under total failure.");
+
+        _output?.WriteLine($"[Profile 3] Total attempts: 1000, 250 per op. Interventions: {teachingInterventionsAcknowledged}");
+    }
+
+    // ===========================================================================
+    // PROFILE 4: GUIDED ALL-FOUR — ALL OPERATIONS 100%
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile4_GuidedAllFour_AllOperationsHundredPercent_EnablesProgressionAcrossAllOperations()
+    {
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var tracker = new OperationPresentationTracker();
+        var curriculum = new ArithmeticCurriculum();
+        var initialGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 0);
+
+        var totalAttempts = 500;
+
+        for (var i = 1; i <= totalAttempts; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            tracker.Record(op, fact.Id, opTurn);
+
+            AssertGuidedGate(curriculum, session, fact, i);
+
+            // All correct
+            session.SubmitAnswer(fact.CorrectResult);
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");
+
+            CompleteTurn(session);
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        }
+
+        // Exactly 125 attempts per operation
+        Assert.Equal(500, session.Progression.PracticePosition);
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(125, session.GetOperationAcceptedAttemptCount(op));
+            Assert.Equal(125, tracker.GetPresentedFacts(op).Count);
+        }
+
+        // Complete initial foundational coverage for all operations
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            AssertInitialFoundationalCoverage(session, tracker, curriculum, op, initialGate);
+        }
+
+        // All operations remain live and advance beyond Band 0 with 125 100% correct answers
+        Assert.True(
+            session.Progression.OperationProgressions.Values.All(p => p.BandIndex > 0),
+            "All four operations should advance beyond starting BandIndex 0 with 100% correct responses.");
+
+        _output?.WriteLine($"[Profile 4] Final bands - ADD: {session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex}, SUB: {session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex}, MUL: {session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex}, DIV: {session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex}");
+    }
+
+    // ===========================================================================
+    // PROFILE 5: GUIDED ALL-FOUR — ALTERNATING 50% ALL OPERATIONS
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile5_GuidedAllFour_AlternatingFiftyPercentAllOperations_MaintainsBalanceAndInitialCoverage()
+    {
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var tracker = new OperationPresentationTracker();
+        var curriculum = new ArithmeticCurriculum();
+        var initialGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 0);
+
+        var totalAttempts = 500;
+        var teachingInterventionsAcknowledged = 0;
+
+        for (var i = 1; i <= totalAttempts; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            tracker.Record(op, fact.Id, opTurn);
+
+            AssertGuidedGate(curriculum, session, fact, i);
+
+            // Alternating 50% for each operation based on its own ordinal
+            if (opTurn % 2 == 1)
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult + 1);
+            }
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");
+
+            teachingInterventionsAcknowledged += CompleteTurn(session);
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        }
+
+        // Exactly 125 attempts per operation
+        Assert.Equal(500, session.Progression.PracticePosition);
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(125, session.GetOperationAcceptedAttemptCount(op));
+            Assert.Equal(125, tracker.GetPresentedFacts(op).Count);
+        }
+
+        // Complete initial foundational coverage for all operations
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            AssertInitialFoundationalCoverage(session, tracker, curriculum, op, initialGate);
+        }
+
+        _output?.WriteLine($"[Profile 5] Interventions acknowledged: {teachingInterventionsAcknowledged}");
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            _output?.WriteLine($"[Profile 5] {op} repeats: {tracker.GetImmediateRepeatCount(op)}, Band: {session.Progression.OperationProgressions[op].BandIndex}");
+        }
+    }
+
+    // ===========================================================================
+    // PROFILE 6: CUSTOM MUL + DIV — ASYMMETRIC FAILURE
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile6_CustomMultiplicationAndDivision_AsymmetricFailure_PreservesCustomModeIndependence()
+    {
+        var enabledOps = new[] { ArithmeticOperation.Multiplication, ArithmeticOperation.Division };
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(enabledOps);
+
+        // Verify Custom Mode contract: Guided mode is inactive
+        Assert.False(
+            GuidedNumberSpaceGate.IsGuidedMode(preferences.GetEnabledOperations()),
+            "Custom Mul+Div mode must NOT be classified as Guided Mode.");
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var tracker = new OperationPresentationTracker();
+        var curriculum = new ArithmeticCurriculum();
+
+        // In Custom Mode, the gate is unrestricted
+        var unrestrictedGate = GuidedNumberSpaceGate.Unrestricted;
+
+        var totalAttempts = 500;
+        var teachingInterventionsAcknowledged = 0;
+
+        for (var i = 1; i <= totalAttempts; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            Assert.Contains(op, enabledOps);
+
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            tracker.Record(op, fact.Id, opTurn);
+
+            // Asymmetric: Multiplication 0% correct, Division 100% correct
+            if (op == ArithmeticOperation.Multiplication)
+            {
+                session.SubmitAnswer(fact.CorrectResult + 1);
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");
+
+            teachingInterventionsAcknowledged += CompleteTurn(session);
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        }
+
+        // Expected allocation: 250 each
+        Assert.Equal(500, session.Progression.PracticePosition);
+        Assert.Equal(250, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Multiplication));
+        Assert.Equal(250, tracker.GetPresentedFacts(ArithmeticOperation.Multiplication).Count);
+        Assert.Equal(250, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Division));
+        Assert.Equal(250, tracker.GetPresentedFacts(ArithmeticOperation.Division).Count);
+
+        // Multiplication does NOT falsely advance under sustained failure
+        var finalMulBand = session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex;
+        Assert.Equal(0, finalMulBand);
+
+        // Complete initial Multiplication owned-frontier coverage
+        AssertInitialFoundationalCoverage(session, tracker, curriculum, ArithmeticOperation.Multiplication, unrestrictedGate);
+
+        // Division remains free to progress normally (unrestricted by Addition ceiling)
+        var finalDivBand = session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex;
+        Assert.True(
+            finalDivBand > 0,
+            $"Division should advance in Custom Mode independently of Addition, but remained at band {finalDivBand}.");
+
+        _output?.WriteLine($"[Profile 6] Final MUL band: {finalMulBand}, Final DIV band: {finalDivBand}");
+        _output?.WriteLine($"[Profile 6] MUL immediate repeats: {tracker.GetImmediateRepeatCount(ArithmeticOperation.Multiplication)}");
+        _output?.WriteLine($"[Profile 6] Teaching interventions acknowledged: {teachingInterventionsAcknowledged}");
+    }
+
+    // ===========================================================================
+    // PROFILE 7: DETERMINISTIC REPLAY TEST
+    // ===========================================================================
+    [Fact]
+    public async Task LongRun_Profile7_DeterministicReplay_ProducesIdenticalSequenceAcrossRuns()
+    {
+        var run1 = await ExecuteReplayRunAsync();
+        var run2 = await ExecuteReplayRunAsync();
+
+        Assert.Equal(500, run1.Count);
+        Assert.Equal(500, run2.Count);
+
+        for (var i = 0; i < 500; i++)
+        {
+            var step1 = run1[i];
+            var step2 = run2[i];
+
+            Assert.Equal(step1.Position, step2.Position);
+            Assert.Equal(step1.Operation, step2.Operation);
+            Assert.Equal(step1.FactId, step2.FactId);
+            Assert.Equal(step1.RequestedRole, step2.RequestedRole);
+        }
+
+        _output?.WriteLine($"[Profile 7] Deterministic replay verified across 500 attempts.");
+    }
+
+    private sealed record ReplayStep(
+        long Position,
+        ArithmeticOperation Operation,
+        string FactId,
+        PracticeSelectionRole RequestedRole);
+
+    private static async Task<List<ReplayStep>> ExecuteReplayRunAsync()
+    {
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new InMemoryLearnerStore();
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var steps = new List<ReplayStep>(500);
+
+        for (var i = 1; i <= 500; i++)
+        {
+            var fact = session.CurrentFact;
+            var op = fact.Operation;
+            var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
+            var requestedRole = AdaptivePracticeSelector.GetRequestedRole(opTurn);
+
+            steps.Add(new ReplayStep(
+                session.Progression.PracticePosition + 1,
+                op,
+                fact.Id,
+                requestedRole));
+
+            if (op == ArithmeticOperation.Addition)
+            {
+                if (opTurn % 2 == 1)
+                {
+                    session.SubmitAnswer(fact.CorrectResult);
+                }
+                else
+                {
+                    session.SubmitAnswer(fact.CorrectResult + 1);
+                }
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess);
+
+            CompleteTurn(session);
+        }
+
+        return steps;
+    }
+
+    // ===========================================================================
     // Helper Methods & Types
     // ===========================================================================
+    private static void AssertGuidedGate(
+        ArithmeticCurriculum curriculum,
+        TrainingSession session,
+        ArithmeticFact fact,
+        int attemptOrdinal)
+    {
+        var currentAddBand = session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
+        var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, currentAddBand);
+        var ceiling = currentGate.AdditionCeiling!.Value;
+
+        if (fact.Operation == ArithmeticOperation.Multiplication)
+        {
+            Assert.True(
+                fact.CorrectResult <= ceiling,
+                $"Multiplication fact {fact.Id} (result {fact.CorrectResult}) exceeded Addition ceiling {ceiling} at attempt {attemptOrdinal}.");
+        }
+        else if (fact.Operation == ArithmeticOperation.Division)
+        {
+            Assert.True(
+                fact.LeftOperand <= ceiling,
+                $"Division fact {fact.Id} (dividend {fact.LeftOperand}) exceeded Addition ceiling {ceiling} at attempt {attemptOrdinal}.");
+        }
+    }
+
+    private static HashSet<string> GetExpectedInitialEligibleFactIds(
+        ArithmeticCurriculum curriculum,
+        ArithmeticOperation operation,
+        GuidedNumberSpaceGate initialGate)
+    {
+        var opCurriculum = curriculum.GetCurriculum(operation);
+        var ownership = new AcquisitionOwnershipResolver(opCurriculum);
+        var initialFrontier = ownership.GetOwnedFrontier(0);
+        return initialFrontier
+            .Where(fact => fact.Operation == operation && initialGate.Allows(fact))
+            .Select(fact => fact.Id)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static void AssertInitialFoundationalCoverage(
+        TrainingSession session,
+        OperationPresentationTracker tracker,
+        ArithmeticCurriculum curriculum,
+        ArithmeticOperation operation,
+        GuidedNumberSpaceGate initialGate)
+    {
+        var expectedFactIds = GetExpectedInitialEligibleFactIds(curriculum, operation, initialGate);
+        Assert.NotEmpty(expectedFactIds);
+
+        // Band 0 canonical regression guards
+        switch (operation)
+        {
+            case ArithmeticOperation.Addition:
+                Assert.Contains("add:0+0", expectedFactIds);
+                Assert.Contains("add:0+1", expectedFactIds);
+                Assert.Contains("add:1+0", expectedFactIds);
+                Assert.Contains("add:1+1", expectedFactIds);
+                break;
+            case ArithmeticOperation.Subtraction:
+                Assert.Contains("sub:0-0", expectedFactIds);
+                Assert.Contains("sub:1-0", expectedFactIds);
+                Assert.Contains("sub:1-1", expectedFactIds);
+                break;
+            case ArithmeticOperation.Multiplication:
+                Assert.Contains("mul:0*0", expectedFactIds);
+                Assert.Contains("mul:0*1", expectedFactIds);
+                Assert.Contains("mul:1*0", expectedFactIds);
+                Assert.Contains("mul:1*1", expectedFactIds);
+                break;
+            case ArithmeticOperation.Division:
+                Assert.Contains("div:0/1", expectedFactIds);
+                Assert.Contains("div:1/1", expectedFactIds);
+                break;
+        }
+
+        var presentedFactIds = tracker.GetPresentedFacts(operation).ToHashSet(StringComparer.Ordinal);
+        foreach (var factId in expectedFactIds)
+        {
+            Assert.True(
+                session.ItemStates.ContainsKey(factId),
+                $"Owned foundational fact {factId} for {operation} was not materialized in ItemStates.");
+            Assert.True(
+                session.ItemStates[factId].TotalAttempts > 0,
+                $"Owned foundational fact {factId} for {operation} has 0 recorded attempts in ItemStates.");
+            Assert.Contains(
+                factId,
+                presentedFactIds);
+        }
+    }
+
+    private sealed class InMemoryLearnerStore : ILearnerStore
+    {
+        private readonly Dictionary<string, ItemLearningState> _items = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, FsrsCardState> _fsrs = new(StringComparer.Ordinal);
+        private readonly List<AttemptRecord> _attempts = [];
+        private readonly HashSet<string> _submissionIds = new(StringComparer.Ordinal);
+        private LearnerProgression _progression = LearnerProgression.CreateFresh();
+        private long _revision = 1;
+
+        public InMemoryLearnerStore(LearnerSnapshot? snapshot = null)
+        {
+            if (snapshot is null)
+            {
+                return;
+            }
+
+            _progression = snapshot.Progression;
+            _revision = snapshot.Revision;
+            foreach (var (factId, itemState) in snapshot.ItemStates)
+            {
+                _items[factId] = itemState;
+            }
+            foreach (var (factId, fsrsState) in snapshot.FsrsStates)
+            {
+                _fsrs[factId] = fsrsState;
+            }
+            _attempts.AddRange(snapshot.RecentAttempts);
+        }
+
+        public LearnerSnapshot Snapshot => new(
+            _progression,
+            _items,
+            _fsrs,
+            _attempts,
+            _revision,
+            LearnerProgression.DefaultSchemaVersion,
+            _progression.OperationProgressions);
+
+        public string StoragePath => "inmemory://practice-balance";
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void Dispose() { }
+        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) => Task.FromResult(
+            new LearnerSnapshot(_progression, _items, _fsrs, _attempts, _revision, LearnerProgression.DefaultSchemaVersion, _progression.OperationProgressions));
+
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(_attempts, operation, bandStartedPracticePosition, frontierFactIds));
+
+        public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default)
+        {
+            if (_submissionIds.Contains(changeSet.SubmissionId))
+            {
+                return Task.FromResult(PersistenceResult.Success(_revision));
+            }
+            if (changeSet.ExpectedRevision != _revision)
+            {
+                return Task.FromResult(PersistenceResult.Conflict("synthetic stale revision"));
+            }
+
+            _submissionIds.Add(changeSet.SubmissionId);
+            _attempts.Add(changeSet.Attempt);
+            _items[changeSet.UpdatedItemState.FactId] = changeSet.UpdatedItemState;
+            if (changeSet.UpdatedFsrsState is not null)
+            {
+                _fsrs[changeSet.UpdatedFsrsState.FactId] = changeSet.UpdatedFsrsState;
+            }
+            _progression = changeSet.UpdatedProgression;
+            _revision++;
+            return Task.FromResult(PersistenceResult.Success(_revision));
+        }
+    }
     private static int CompleteTurn(TrainingSession session)
     {
         var teachingInterventionsAcknowledged = 0;
