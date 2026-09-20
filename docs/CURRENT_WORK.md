@@ -9,15 +9,13 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Package**: `MF-STAB-003` — Enabled-Subset Scheduling and Current-Fact Reconciliation
+- **Active Package**: `MF-DOC-006` — Post-MF-STAB-003 Merge State Reconciliation
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Task Branch**: `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation`
-- **Base Baseline**: `main` / `origin/main` at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`
-- **Current Task Branch HEAD**: `cb2d984916ff080509713ae3b73b04a1fd8aa4bc`
-- **Most Recently Merged Package on `main`**: `MF-DOC-005` (PR #41 merge at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`)
-- **Review Status**: `REVIEW_APPROVED` (0 Blocker, 0 Major, 1 Minor test-helper finding; 1,516 Core tests passed; clean Release builds; Schema remains V6)
-- **Active Implementation Package**: `MF-STAB-003`
-- **Next Lifecycle for MF-STAB-003**: `COMMIT_ONLY` (document reconciliation commit) $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY`
+- **Task Branch**: `docs/mf-doc-006-post-mf-stab-003-merge-reconciliation`
+- **Base Baseline**: `main` / `origin/main` at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`
+- **Most Recently Merged Implementation Package on `main`**: `MF-STAB-003` — Enabled-Subset Scheduling and Current-Fact Reconciliation (PR #42 merge at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`, validated pre-merge candidate `766d8ea7692d139425e2301121f93af7901cf238`, tree identity `fcab56b3a886ed0c5018d4f8a16304ee83378b26`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
+- **Active Implementation Package**: None (no implementation package is active; downstream packages must not be autonomously selected)
+- **Next Lifecycle for MF-DOC-006**: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY`
 
 ---
 
@@ -94,13 +92,16 @@ MF-STAB-003 delivers the following durable invariants:
 
 ### Release Context:
 - **Build 2 Rejection**: Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to the selector crash/starvation bug on operation reconfiguration and restart.
-- **Remediation**: `MF-STAB-003` resolves the root cause in code.
+- **Remediation**: `MF-STAB-003` resolved the root cause in merged code (PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`).
 - **Release Sequence**:
-  1. Complete `MF-STAB-003` (`COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Merge).
+  1. Complete documentation reconciliation `MF-DOC-006` (`DOCUMENT_ONLY` $\to$ `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Merge).
   2. Authorize new production candidate build with `versionCode` $\ge 3$.
   3. Re-run Step 30 (smoke verification) and Step 31 (physical device verification on Samsung SM-S948B, Android 16).
   4. Google Play gate remains blocked until Step 31 passes.
 
 ### Future Planned Packages:
-- `MF-LEARN-004`: Guided Four-Operation Number-Space Gate (onboarding/progression gating for multi-operation arithmetic).
-- `MF-UX-007`: Progress Presentation Cleanup (HUD and readiness progress presentation polish).
+- `MF-LEARN-004`: Guided Four-Operation Number-Space Gate (onboarding/progression gating for multi-operation arithmetic). Inactive / not authorized.
+- `MF-UX-007`: Progress Presentation Cleanup (HUD and readiness progress presentation polish). Inactive / not authorized.
+
+> [!IMPORTANT]
+> There is currently no automatically selected implementation package. Following completion of MF-DOC-006, new sessions must not autonomously activate MF-LEARN-004, MF-UX-007, or any other package without explicit user dispatch.
