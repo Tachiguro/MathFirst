@@ -901,7 +901,7 @@ public sealed class FactEligibilityRegressionTests
             AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition));
         Assert.Equal(
             PracticeSelectionRole.Due,
-            AdaptivePracticeSelector.GetRequestedRole(prospectivePosition));
+            AdaptivePracticeSelector.GetRequestedRole(((prospectivePosition - 1) / 4) + 1));
 
         var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
         var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
@@ -974,7 +974,7 @@ public sealed class FactEligibilityRegressionTests
             AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition));
         Assert.Equal(
             PracticeSelectionRole.Due,
-            AdaptivePracticeSelector.GetRequestedRole(prospectivePosition));
+            AdaptivePracticeSelector.GetRequestedRole(((prospectivePosition - 1) / 4) + 1));
 
         var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
         var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
@@ -1758,7 +1758,8 @@ public sealed class FactEligibilityRegressionTests
         ArithmeticCurriculum curriculum,
         long prospectivePosition,
         int multiplicationBandIndex,
-        PracticeSelectionEvidence evidence)
+        PracticeSelectionEvidence evidence,
+        long scheduledOperationAttemptOrdinal = 2)
     {
         var operationProgressions = Enum.GetValues<ArithmeticOperation>()
             .ToDictionary(
@@ -1782,7 +1783,8 @@ public sealed class FactEligibilityRegressionTests
             operationProgressions,
             curricula,
             new PracticeCandidateIndex(evidence),
-            []);
+            [],
+            scheduledOperationAttemptOrdinal);
     }
 
     private static string GetTempDbPath() =>

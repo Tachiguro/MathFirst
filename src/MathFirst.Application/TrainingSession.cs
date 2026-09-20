@@ -38,6 +38,7 @@ public sealed class TrainingSession
     private IReadOnlyList<AttemptRecord> _currentDenseFrontierAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
     private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
+    private Dictionary<ArithmeticOperation, long> _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
 
     private sealed record CachedOperationEvidence(
         ArithmeticOperation Operation,
@@ -50,6 +51,8 @@ public sealed class TrainingSession
     public LearnerProgression Progression { get; private set; } = LearnerProgression.CreateFresh();
     public Dictionary<string, ItemLearningState> ItemStates { get; private set; } = new(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, FsrsCardState> FsrsStates => _fsrsStates;
+    public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts => _operationAcceptedAttemptCounts;
+    public long GetOperationAcceptedAttemptCount(ArithmeticOperation operation) => _operationAcceptedAttemptCounts.GetValueOrDefault(operation, 0);
     public PracticeCheckInSummary? PendingCheckIn { get; private set; }
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
@@ -769,6 +772,8 @@ public sealed class TrainingSession
                 {
                     _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
                 }
+                _operationAcceptedAttemptCounts[LastEvaluation.ChangeSet.Attempt.Operation] =
+                    checked(_operationAcceptedAttemptCounts[LastEvaluation.ChangeSet.Attempt.Operation] + 1);
                 SessionTotalCount++;
                 SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
                 if (LastEvaluation.Outcome == AttemptOutcome.Correct)
@@ -944,6 +949,7 @@ public sealed class TrainingSession
         _factInstanceRevision++;
         CurrentAnswerInput = string.Empty;
         CurrentPracticeTimeSetting = GetCurrentPracticeTimeSetting();
+        var scheduledOperationOrdinal = checked(_operationAcceptedAttemptCounts[scheduledOperation] + 1);
         var context = new PracticeSelectionContext(
             prospectivePosition,
             SessionOrderCounter,
@@ -951,7 +957,8 @@ public sealed class TrainingSession
             Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, operation => _curriculum.GetCurriculum(operation)),
             new PracticeCandidateIndex(_selectionEvidence),
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
-            enabledOperations);
+            scheduledOperationAttemptOrdinal: scheduledOperationOrdinal,
+            enabledOperations: enabledOperations);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
@@ -1053,6 +1060,50 @@ public sealed class TrainingSession
         }
     }
 
+    public async Task<PracticeConfigurationReconciliationResult> ReconcilePracticeConfigurationAsync(
+        bool startTiming = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsInitialized || CurrentFact is null)
+        {
+            throw new InvalidOperationException("Training session is not initialized.");
+        }
+
+        if (InteractionState != SessionInteractionState.AwaitingAnswer ||
+            LastEvaluation is not null ||
+            IsCurrentSubmissionCommitted)
+        {
+            return PracticeConfigurationReconciliationResult.DeferredUntilNextPreparation;
+        }
+
+        var enabledOperations = GetCurrentEnabledOperations();
+        var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
+        var currentOwnership = new AcquisitionOwnershipResolver(
+            _curriculum.GetCurriculum(CurrentFact.Operation));
+        var currentFactRemainsEligible =
+            enabledOperations.Contains(CurrentFact.Operation) &&
+            currentOwnership.IsEligible(CurrentFact.Id, currentProgression.BandIndex);
+
+        if (currentFactRemainsEligible)
+        {
+            return PracticeConfigurationReconciliationResult.RetainedCurrentFact;
+        }
+
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(
+            prospectivePosition,
+            enabledOperations);
+
+        _selectionEvidenceCache.Clear();
+        await LoadSingleOperationEvidenceAsync(
+            scheduledOperation,
+            prospectivePosition,
+            cancellationToken).ConfigureAwait(false);
+        AdvanceToNextFact(startTiming);
+
+        return PracticeConfigurationReconciliationResult.ReplacedCurrentFact;
+    }
+
     public async Task EnsureSelectionEvidenceAsync(CancellationToken cancellationToken = default)
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);
@@ -1113,6 +1164,9 @@ public sealed class TrainingSession
         _selectionEvidence = null;
         _selectionEvidenceCache.Clear();
         LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
+
+        ArgumentNullException.ThrowIfNull(snapshot.OperationAcceptedAttemptCounts);
+        _operationAcceptedAttemptCounts = snapshot.OperationAcceptedAttemptCounts.ToDictionary(pair => pair.Key, pair => pair.Value);
     }
 
     private void ResetSessionCheckInSegment()

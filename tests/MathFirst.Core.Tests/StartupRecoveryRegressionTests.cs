@@ -192,7 +192,7 @@ public sealed class StartupRecoveryRegressionTests
             [],
             1,
             6,
-            LatestAcceptedPracticeAt: DateTimeOffset.UtcNow.AddMinutes(-5));
+            latestAcceptedPracticeAt: DateTimeOffset.UtcNow.AddMinutes(-5));
     }
 
     [Fact]

@@ -26,32 +26,17 @@ public sealed class AdaptivePracticeSelector
         DeterministicOperationScheduler.GetScheduledOperation(prospectivePracticePosition, enabledOperations);
 
 
-    public static long GetOperationAttemptOrdinal(
-        long prospectivePracticePosition,
-        int enabledOperationCount = 4)
+    public static PracticeSelectionRole GetRequestedRole(long operationAttemptOrdinal)
     {
-        if (prospectivePracticePosition <= 0)
+        if (operationAttemptOrdinal <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
-        }
-        if (enabledOperationCount <= 0 || enabledOperationCount > 4)
-        {
-            throw new ArgumentOutOfRangeException(nameof(enabledOperationCount));
-        }
-
-        return checked(((prospectivePracticePosition - 1) / enabledOperationCount) + 1);
-    }
-
-    public static PracticeSelectionRole GetRequestedRole(
-        long prospectivePracticePosition,
-        int enabledOperationCount = 4)
-    {
-        if (prospectivePracticePosition <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(prospectivePracticePosition));
+            throw new ArgumentOutOfRangeException(
+                nameof(operationAttemptOrdinal),
+                operationAttemptOrdinal,
+                "Operation attempt ordinal must be positive.");
         }
 
-        return ((GetOperationAttemptOrdinal(prospectivePracticePosition, enabledOperationCount) - 1) % 10) switch
+        return checked(((operationAttemptOrdinal - 1) % 10)) switch
         {
             0 => PracticeSelectionRole.New,
             1 => PracticeSelectionRole.Due,
@@ -71,7 +56,7 @@ public sealed class AdaptivePracticeSelector
     {
         ArgumentNullException.ThrowIfNull(context);
         var operation = GetScheduledOperation(context.ProspectivePracticePosition, context.EnabledOperations);
-        var requestedRole = GetRequestedRole(context.ProspectivePracticePosition, context.EnabledOperations.Count);
+        var requestedRole = GetRequestedRole(context.ScheduledOperationAttemptOrdinal);
         var progression = context.OperationProgressions[operation];
         var curriculum = context.Curricula[operation];
         if (!curriculum.TryGetBand(progression.BandIndex, out var band))

@@ -186,9 +186,8 @@ public sealed class DeterministicOperationSchedulerTests
     {
         for (var p = 1L; p <= 80; p++)
         {
-            var ordinal = AdaptivePracticeSelector.GetOperationAttemptOrdinal(p, 4);
-            var role = AdaptivePracticeSelector.GetRequestedRole(p, 4);
             var expectedOrdinal = ((p - 1) / 4) + 1;
+            var role = AdaptivePracticeSelector.GetRequestedRole(expectedOrdinal);
             var expectedRole = ((expectedOrdinal - 1) % 10) switch
             {
                 0 => PracticeSelectionRole.New,
@@ -204,7 +203,6 @@ public sealed class DeterministicOperationSchedulerTests
                 _ => throw new InvalidOperationException()
             };
 
-            Assert.Equal(expectedOrdinal, ordinal);
             Assert.Equal(expectedRole, role);
         }
     }

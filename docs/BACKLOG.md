@@ -88,7 +88,7 @@ When items are accepted into the backlog, they are recorded with:
 - **Dependencies**: `MF-REL-001` complete and merged to `main`
 - **Description**:
   Provide general user-configurable arithmetic practice options in Settings and Onboarding for learners who require customized operation focus or additional exercise time:
-  1. **Operation Selection, Onboarding, and HUD**: Settings and Onboarding allow selecting any non-empty subset of the four arithmetic operations. Disabled operations are excluded from new practice and hidden from the operation progress HUD while their learner state remains preserved. A Settings change preserves the current question and applies to the next generated question.
+  1. **Operation Selection, Onboarding, and HUD**: Settings and Onboarding allow selecting any non-empty subset of the four arithmetic operations. Disabled operations are excluded from new practice and hidden from the operation progress HUD while their learner state remains preserved. (Note: The original MF-SET-001 behavior preserving unsubmitted questions unconditionally was refined by MF-STAB-003 / ADR-0008 to replace unsubmitted questions cleanly with zero learning mutations if their operation was disabled in Settings).
   2. **Configurable Practice Time**: Settings provide Standard adaptive timing or explicit practice-time floors (30s, 45s, 60s) enforcing a minimum response deadline via $\max(\text{adaptiveDeadline}, \text{explicitFloor})$ without altering raw latency measurement, fluency thresholds, or FSRS ratings.
   3. **Learning Progress Continuity & Returning Overview**: Disabling an operation preserves all attempt history, item strength, FSRS state, and band progression for later reactivation. Returning learners with past practice view a progress overview on the readiness gate.
   4. **Schedule-Agnostic Persistence & Evidence Lifecycle**: `AdaptivePracticeSelector` owns scheduling; SQLite persistence remains schedule-policy agnostic. Selection evidence is scoped to operation and prospective Practice Position, required evidence loads on demand, disabled-operation prefetch is best effort, and recovery after a durable write is exactly once.
@@ -218,6 +218,63 @@ When items are accepted into the backlog, they are recorded with:
   1. **Reset Copy & Terminology Polish**: Restore Default Settings copy across English, German, and Russian explicitly specifies PC numpad (`Keypad_Numpad`) default layout; resolved duplicate punctuation in Russian haptic feedback confirmation; corrected Russian HUD accessibility progression terminology (`Стадия прогресса`); added format token and key parity contracts.
   2. **Offline In-App Privacy Surface**: Added dedicated offline Blazor component at `/privacy` (`src/MathFirst.App/Components/Pages/Privacy.razor`) structured across Overview, No Remote Collection or Sharing, Local Storage and Device Transfer, Removing Local Data, and Contact sections; added Settings privacy entry card with description and action; integrated `IAppBackNavigationCoordinator` handling system Back from `/privacy` to `/settings`; complete EN/DE/RU localization dictionaries; zero-network permissions preserved.
   3. **Fatal Host Fallback Hardening**: Replaced English-only fatal host error text in `src/MathFirst.App/wwwroot/index.html` with language-neutral error title and static multilingual reload links in English (`Reload`), German (`Neu laden`), and Russian (`Перезагрузить`), eliminating runtime localization dependencies while preserving `#176B4D` startup handoff and dark mode CSS styling.
+
+---
+
+### MF-DOC-005: Post-MF-UX-006 Merge State Reconciliation
+
+- **ID**: `MF-DOC-005`
+- **Title**: Post-MF-UX-006 Merge State Reconciliation
+- **Type**: `Documentation`
+- **Status**: `Completed` (Merged through PR #41 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`)
+- **Dependencies**: `MF-UX-006` complete (merged through PR #40)
+- **Description**:
+  Reconcile repository documentation following the merge of PR #40 across `CHANGELOG.md`, `docs/CURRENT_WORK.md`, `docs/PROJECT_STATE.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, `docs/BACKLOG.md`, and `docs/ROADMAP.md` to synchronize baseline state on `main`.
+
+---
+
+### MF-STAB-003: Enabled-Subset Scheduling and Current-Fact Reconciliation
+
+- **ID**: `MF-STAB-003`
+- **Title**: Enabled-Subset Scheduling and Current-Fact Reconciliation
+- **Type**: `Feature`
+- **Status**: `Completed on Task Branch` (Pending PR/Merge)
+- **Dependencies**: `MF-DOC-005` complete on `main`
+- **Description**:
+  Resolve practice selection crash/starvation and configuration reconciliation defects when learners dynamically adjust enabled arithmetic operations:
+  1. **Independent Per-Operation Role Ordinals**: Practice selection role schedules (`New`, `Due`, `Maintenance`, `Frontier`) are derived strictly from per-operation attempt counts via `NextOperationAttemptOrdinal(O) = AcceptedAttemptCount(O) + 1` across the repeating 10-slot cycle (1 New, 2 Due, 3 New, 4 Maintenance, 5 Frontier, 6 New, 7 Due, 8 New, 9 Due, 10 Frontier; partition $\{0, 2, 5, 7\} \to \text{New}$, $\{1, 6, 8\} \to \text{Due}$, $\{3\} \to \text{Maintenance}$, $\{4, 9\} \to \text{Frontier}$ for $i = (\text{ordinal} - 1) \bmod 10$) ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)), decoupling role progression from global `PracticePosition`. Per-operation count is authoritative strictly for role-cycle ordinals.
+  2. **Global Practice Position Authority**: Global `PracticePosition` retains authority for attempt sequencing, bounded permutation bag operation scheduling, FSRS virtual time distance, and database persistence transaction boundaries. Existing coverage, pace, fluency, progression, and item-state authorities remain untouched.
+  3. **Durable Schema V6 Count Reconstruction**: Operation attempt counts are reconstructed from `SUM(item_learning_state.total_attempts WHERE operation = O)` upon session initialization, avoiding SQLite schema changes or migrations.
+  4. **Settings & Current-Fact Reconciliation**: `TrainingSession.ReconcilePracticeConfigurationAsync` provides deterministic reconciliation when Settings changes active operations:
+     - **Case A & C (Invalid unsubmitted fact)**: Immediately discarded and replaced with a valid fact for the same prospective `PracticePosition`. Strictly zero learning mutations created (no attempt record, no timeout, no score mutation, no FSRS mutation, no progression mutation, no attempt count increment);
+     - **Case B (Valid unsubmitted fact)**: Retained with exact identity, `FactInstanceRevision`, partial input, and remaining timer state preserved;
+     - **Accepted Feedback Deferral**: If the active exercise has already accepted submission feedback, reconciliation is deferred until next question preparation, ensuring learner feedback is never erased.
+  5. **Awaited Settings Navigation**: `Settings.razor` awaits session reconciliation before navigating back to practice.
+  6. **Release Blocker Resolution**: Fixes the physical device blocker (Build 2 rejected at Step 31) where practicing Addition, disabling Addition in favor of Subtraction, and restarting crashed or starved the selector in `PracticeSelectionRole.Due`. Verified with 1,516 Core tests.
+
+---
+
+### MF-LEARN-004: Guided Four-Operation Number-Space Gate
+
+- **ID**: `MF-LEARN-004`
+- **Title**: Guided Four-Operation Number-Space Gate
+- **Type**: `Feature`
+- **Status**: `Accepted`
+- **Dependencies**: `MF-STAB-003` complete and merged to `main`
+- **Description**:
+  Provide guided onboarding and progression gating across arithmetic number spaces (e.g., single-digit vs. multi-digit bounds, operation readiness gates). Also includes minor test-helper cleanup from MF-STAB-003 (`tests/MathFirst.Core.Tests/BoundedSelectionIntegrationTests.cs` prospective position parameter alignment).
+
+---
+
+### MF-UX-007: Progress Presentation Cleanup
+
+- **ID**: `MF-UX-007`
+- **Title**: Progress Presentation Cleanup
+- **Type**: `Feature`
+- **Status**: `Accepted`
+- **Dependencies**: `MF-LEARN-004`
+- **Description**:
+  Refine and polish learner-facing progress HUD, returning learner overview displays, and operation stage metrics across supported viewports and languages.
 
 ---
 

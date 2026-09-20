@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Implemented MF-STAB-003 (Enabled-Subset Scheduling and Current-Fact Reconciliation) on task branch `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation` (HEAD `cb2d984916ff080509713ae3b73b04a1fd8aa4bc`, review `REVIEW_APPROVED`, 1,516 Core tests passed, Schema V6 preserved):
+  - **Independent Per-Operation Role Ordinals & Restart Remediation (Slice 1, `4e697b4f525240d6fbb604f76a677d866227ba23`)**:
+    - Derived practice selection role schedules (`New`, `Due`, `Maintenance`, `Frontier`) strictly from per-operation attempt counts: `NextOperationAttemptOrdinal(O) = AcceptedAttemptCount(O) + 1` across the 10-slot cycle (1 New, 2 Due, 3 New, 4 Maintenance, 5 Frontier, 6 New, 7 Due, 8 New, 9 Due, 10 Frontier; remainder sets $\{0, 2, 5, 7\} \to \text{New}$, $\{1, 6, 8\} \to \text{Due}$, $\{3\} \to \text{Maintenance}$, $\{4, 9\} \to \text{Frontier}$ for $i = (\text{ordinal} - 1) \bmod 10$) ([ADR-0008](docs/decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)), resolving selector starvation/crash when operations are reconfigured after practice and the session restarts;
+    - Preserved global `PracticePosition` for attempt sequencing, bounded permutation bag operation scheduling, FSRS virtual time elapsed, and persistence boundaries;
+    - Preserved Schema V6 without migration by dynamically reconstructing per-operation attempt counts via `SUM(item_learning_state.total_attempts WHERE operation = O)`;
+    - Added targeted restart and persistence regression suites in `tests/MathFirst.Core.Tests/SqliteEnabledSubsetPersistenceTests.cs` and `tests/MathFirst.Core.Tests/IndependentSelectorTests.cs` (1,507 passing Core tests).
+  - **Selection Context & Recovery Hardening (Slice 1B `8a0b17d09ec7f2114d1c7efe6c43be6ef75b4421` & Slice 1C `fd70fe6b856a9beacb38db8a4df3d2cc1f13a9c3`)**:
+    - Hardened selection context passing, role-ordinal consistency, and fallback recovery across selector boundaries;
+    - Closed authority verification contracts in `tests/MathFirst.Core.Tests/AuthorityHardeningAndRecoveryInvariantTests.cs` and validated cold-restart / warm-resume persistence fidelity.
+  - **Current-Fact Practice Configuration Reconciliation (Slice 2, `cb2d984916ff080509713ae3b73b04a1fd8aa4bc`)**:
+    - Implemented deterministic Settings/current-fact reconciliation in `TrainingSession.ReconcilePracticeConfigurationAsync`:
+      - Discarded and cleanly replaced unsubmitted invalid active questions for disabled operations with valid questions for the same prospective `PracticePosition`, creating strictly zero learning mutations (no attempt record, no timeout, no score mutation, no FSRS mutation, no progression mutation, no count increment);
+      - Preserved valid unsubmitted questions with exact identity, `FactInstanceRevision`, partial input, and timer state intact;
+      - Deferred reconciliation for already-submitted questions until next question preparation to protect learner feedback;
+    - Updated `Settings.razor` to await reconciliation before navigating back to practice;
+    - Added comprehensive reconciliation test suite in `tests/MathFirst.Core.Tests/PracticeConfigurationReconciliationTests.cs` (1,516 passing Core tests).
+  - *Architecture & Review*: Accepted [ADR-0008](docs/decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md); verified `REVIEW_APPROVED` with 1,516 passing Core tests, 0 warnings/errors on Windows and Android Release builds, Schema V6 preserved.
+- Completed and merged MF-DOC-005 (Post-MF-UX-006 Merge State Reconciliation) through Pull Request #41 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9` (head `9846b40280b2a8db96515b15b13ea3b80b7e2832`):
+  - Reconciled repository baseline documentation across `docs/CURRENT_WORK.md`, `docs/PROJECT_STATE.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, `docs/BACKLOG.md`, `docs/ROADMAP.md`, and `CHANGELOG.md` following the merge of PR #40.
 - Completed and merged MF-UX-006 (V1 Privacy, Copy, and Localization Hardening) through Pull Request #40 at `ae69f4ae27397fc6edf36a23bb671b0410680be1` (validated candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`, review `REVIEW_PASS`, full validation `FULL_VALIDATION_PASS`):
   - **Objective Localization, Reset Copy & Terminology Hardening (Slice 1, `582888659bc91df8aaf9b12812172aa966cca868`)**:
     - Corrected Restore Default Settings copy across English, German, and Russian to explicitly specify PC numpad (`Keypad_Numpad`) as default layout;

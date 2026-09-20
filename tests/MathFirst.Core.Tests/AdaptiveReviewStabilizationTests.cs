@@ -56,7 +56,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state1 },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = card1 });
 
-        var context = CreateContext(posDue, curriculum, materialized);
+        var context = CreateContext(posDue, curriculum, materialized, scheduledOperationAttemptOrdinal: 2);
         var selector = new AdaptivePracticeSelector();
         var result = selector.SelectTargetFact(context);
 
@@ -86,7 +86,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state1 },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = card1 });
 
-        var context = CreateContext(posMaintenance, curriculum, materialized);
+        var context = CreateContext(posMaintenance, curriculum, materialized, scheduledOperationAttemptOrdinal: 14);
         var selector = new AdaptivePracticeSelector();
         var result = selector.SelectTargetFact(context);
 
@@ -114,7 +114,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state1 },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = card1 });
 
-        var context = CreateContext(posFrontier, curriculum, materialized);
+        var context = CreateContext(posFrontier, curriculum, materialized, scheduledOperationAttemptOrdinal: 5);
         var selector = new AdaptivePracticeSelector();
         var result = selector.SelectTargetFact(context);
 
@@ -138,7 +138,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         foreach (var ordinal in newOrdinals)
         {
             var pos = GetOpPosition(ArithmeticOperation.Addition, ordinal);
-            var context = CreateContext(pos, curriculum, Materialize(introduced));
+            var context = CreateContext(pos, curriculum, Materialize(introduced), scheduledOperationAttemptOrdinal: ordinal);
             var result = selector.SelectTargetFact(context);
 
             Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
@@ -173,7 +173,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         for (var ordinal = 1L; ordinal <= 20; ordinal++)
         {
             var pos = GetOpPosition(ArithmeticOperation.Addition, ordinal);
-            var context = CreateContext(pos, curriculum, Materialize(allMaterialized), operationProgressions: band4Progressions);
+            var context = CreateContext(pos, curriculum, Materialize(allMaterialized), scheduledOperationAttemptOrdinal: ordinal, operationProgressions: band4Progressions);
             var result = selector.SelectTargetFact(context);
 
             var unseenCount = band4.Frontier.Count(f => !allMaterialized.Any(m => m.Id == f.Id));
@@ -223,7 +223,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state1 },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = card1 });
 
-        var context = CreateContext(posNew, curriculum, materialized);
+        var context = CreateContext(posNew, curriculum, materialized, scheduledOperationAttemptOrdinal: 1);
         var selector = new AdaptivePracticeSelector();
         var result = selector.SelectTargetFact(context);
 
@@ -243,7 +243,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
 
         // Ordinal 1 requests New -> introduces sample fact
         var pos1 = GetOpPosition(ArithmeticOperation.Addition, 1);
-        var ctx1 = CreateContext(pos1, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var ctx1 = CreateContext(pos1, curriculum, EmptyMaterialized(), scheduledOperationAttemptOrdinal: 1, operationProgressions: structuredProgressions);
         var res1 = selector.SelectTargetFact(ctx1);
 
         Assert.Equal(PracticeSelectionRole.New, res1.RequestedRole);
@@ -253,7 +253,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         // Ordinal 2 requests Due -> with res1 materialized, falls back to Frontier consolidation
         var pos2 = GetOpPosition(ArithmeticOperation.Addition, 2);
         var mat1 = Materialize([res1.Fact]);
-        var ctx2 = CreateContext(pos2, curriculum, mat1, operationProgressions: structuredProgressions);
+        var ctx2 = CreateContext(pos2, curriculum, mat1, scheduledOperationAttemptOrdinal: 2, operationProgressions: structuredProgressions);
         var res2 = selector.SelectTargetFact(ctx2);
 
         Assert.Equal(PracticeSelectionRole.Due, res2.RequestedRole);
@@ -330,6 +330,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         long position,
         ArithmeticCurriculum curriculum,
         MaterializedState materialized,
+        long scheduledOperationAttemptOrdinal,
         int currentSessionOrder = 0,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null) => new(
@@ -338,7 +339,8 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         operationProgressions ?? CreateProgressions(),
         curricula ?? CreateCurricula(curriculum),
         new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
-        Array.Empty<ArithmeticFact>());
+        Array.Empty<ArithmeticFact>(),
+        scheduledOperationAttemptOrdinal);
 
     private static IReadOnlyDictionary<ArithmeticOperation, OperationProgression> CreateProgressions(
         params (ArithmeticOperation Operation, int BandIndex)[] overrides)

@@ -219,8 +219,18 @@ public sealed class SqliteLearnerStore : ILearnerStore
         progression.OperationProgressions = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
         var latestAcceptedPracticeAt = await ReadLatestAcceptedPracticeAtAsync(cancellationToken).ConfigureAwait(false);
+        var operationAcceptedAttemptCounts = await ReadOperationAcceptedAttemptCountsAsync(cancellationToken).ConfigureAwait(false);
 
-        return new LearnerSnapshot(progression, itemStates, fsrsStates, recentAttempts, revision, version, operationProgressions, latestAcceptedPracticeAt);
+        return new LearnerSnapshot(
+            progression,
+            itemStates,
+            fsrsStates,
+            recentAttempts,
+            revision,
+            version,
+            operationProgressions,
+            latestAcceptedPracticeAt,
+            operationAcceptedAttemptCounts);
     }
 
     public async Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken cancellationToken = default)
@@ -240,6 +250,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         progression.OperationProgressions = operationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
         var latestAcceptedPracticeAt = await ReadLatestAcceptedPracticeAtAsync(cancellationToken).ConfigureAwait(false);
+        var operationAcceptedAttemptCounts = await ReadOperationAcceptedAttemptCountsAsync(cancellationToken).ConfigureAwait(false);
 
         return new LearnerSnapshot(
             progression,
@@ -249,7 +260,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
             revision,
             version,
             operationProgressions,
-            latestAcceptedPracticeAt);
+            latestAcceptedPracticeAt,
+            operationAcceptedAttemptCounts);
     }
 
     public async Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
@@ -1366,6 +1378,48 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
         ValidateOperationProgressions(result, null);
         return result;
+    }
+
+    private async Task<IReadOnlyDictionary<ArithmeticOperation, long>> ReadOperationAcceptedAttemptCountsAsync(CancellationToken cancellationToken)
+    {
+        var counts = new Dictionary<ArithmeticOperation, long>
+        {
+            [ArithmeticOperation.Addition] = 0,
+            [ArithmeticOperation.Subtraction] = 0,
+            [ArithmeticOperation.Multiplication] = 0,
+            [ArithmeticOperation.Division] = 0
+        };
+
+        if (_connection is null)
+        {
+            return counts;
+        }
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = @"
+            SELECT operation, COALESCE(SUM(total_attempts), 0)
+            FROM item_learning_state
+            GROUP BY operation;";
+
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var opName = reader.GetString(0);
+            if (!Enum.TryParse<ArithmeticOperation>(opName, out var operation))
+            {
+                throw new InvalidOperationException($"Stored item learning state contains an unknown operation '{opName}'.");
+            }
+
+            var sum = reader.GetInt64(1);
+            if (sum < 0)
+            {
+                throw new InvalidOperationException($"Stored attempt count for operation {operation} cannot be negative.");
+            }
+
+            counts[operation] = checked(sum);
+        }
+
+        return counts;
     }
 
     private async Task<IReadOnlyList<AttemptRecord>> ReadBoundedRecentAttemptsAsync(CancellationToken cancellationToken)

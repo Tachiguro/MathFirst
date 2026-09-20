@@ -19,9 +19,12 @@
 <div class="settings-page">
     <header class="settings-header">
         <h1 class="settings-title">@Localizer["Settings_Title"]</h1>
-        <a class="button button-secondary" href="">
+        <button type="button"
+                class="button button-secondary"
+                disabled="@(_practiceConfigurationReconciliationFailed || _operationChangeInProgress)"
+                @onclick="NavigateBack">
             @Localizer["Common_Back"]
-        </a>
+        </button>
     </header>
 
     <div class="settings-container">
@@ -92,8 +95,8 @@
                         <button type="button"
                                 class="choice-button @(isEnabled ? "active" : null)"
                                 aria-pressed="@isEnabled"
-                                disabled="@isLastActive"
-                                @onclick="() => ToggleOperation(operation)">
+                                disabled="@(isLastActive || _operationChangeInProgress)"
+                                @onclick="() => ToggleOperationAsync(operation)">
                             @Localizer[$"Operation_{operation}"]
                         </button>
                     }
@@ -142,6 +145,15 @@
                 <p class="setting-feedback @(_practiceMessageIsError ? "setting-feedback-error" : "setting-feedback-success")" role="status">
                     @_practiceMessage
                 </p>
+            }
+            @if (_practiceConfigurationReconciliationFailed)
+            {
+                <button type="button"
+                        class="button button-secondary button-compact"
+                        disabled="@_operationChangeInProgress"
+                        @onclick="RetryPracticeConfigurationReconciliationAsync">
+                    @Localizer["Training_Retry"]
+                </button>
             }
         </section>
 
@@ -334,6 +346,8 @@
     private string? _resetFeedbackMessage;
     private string? _diagnosticMessage;
     private bool _diagnosticMessageIsError;
+    private bool _operationChangeInProgress;
+    private bool _practiceConfigurationReconciliationFailed;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
     private bool _hapticFeedbackEnabled = true;
@@ -372,8 +386,21 @@
 
     private bool HandleBack()
     {
+        if (_practiceConfigurationReconciliationFailed || _operationChangeInProgress)
+        {
+            return true;
+        }
+
         Navigation.NavigateTo("/");
         return true;
+    }
+
+    private void NavigateBack()
+    {
+        if (!_practiceConfigurationReconciliationFailed && !_operationChangeInProgress)
+        {
+            Navigation.NavigateTo("/");
+        }
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -426,32 +453,46 @@
         _diagnosticMessage = null;
     }
 
-    private void ToggleOperation(ArithmeticOperation operation)
+    private async Task ToggleOperationAsync(ArithmeticOperation operation)
     {
-        if (!PracticeOperationPreferencePolicy.CanToggleOperationOff(_enabledOperations, operation))
+        if (_operationChangeInProgress ||
+            !PracticeOperationPreferencePolicy.CanToggleOperationOff(_enabledOperations, operation))
         {
             // Enforce minimum 1 operation rule: cannot disable the last active operation
             return;
         }
 
+        _operationChangeInProgress = true;
+        var preferencePersisted = false;
         try
         {
             if (PracticeOperationPreferenceCoordinator.TryToggleOperation(PreferenceStore, _enabledOperations, operation, out var resulting))
             {
+                preferencePersisted = true;
                 _enabledOperations = new HashSet<ArithmeticOperation>(resulting);
-                _practiceMessage = Localizer["Settings_OperationsChanged"];
-                _practiceMessageIsError = false;
                 if (Session.IsInitialized)
                 {
-                    _ = Session.EnsureScheduledEvidenceAsync();
+                    await Session.ReconcilePracticeConfigurationAsync(startTiming: false);
                 }
+
+                _practiceConfigurationReconciliationFailed = false;
+                _practiceMessage = Localizer["Settings_OperationsChanged"];
+                _practiceMessageIsError = false;
             }
         }
         catch
         {
             _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
-            _practiceMessage = Localizer["Settings_SaveFailed"];
+            _practiceConfigurationReconciliationFailed = preferencePersisted;
+            _practiceMessage = Localizer[
+                preferencePersisted
+                    ? "Settings_PracticeConfigurationFailed"
+                    : "Settings_SaveFailed"];
             _practiceMessageIsError = true;
+        }
+        finally
+        {
+            _operationChangeInProgress = false;
         }
 
         _languageMessage = null;
@@ -460,6 +501,35 @@
         _hapticMessage = null;
         _resetFeedbackMessage = null;
         _diagnosticMessage = null;
+    }
+
+    private async Task RetryPracticeConfigurationReconciliationAsync()
+    {
+        if (_operationChangeInProgress || !_practiceConfigurationReconciliationFailed)
+        {
+            return;
+        }
+
+        _operationChangeInProgress = true;
+        try
+        {
+            await Session.ReconcilePracticeConfigurationAsync(startTiming: false);
+            _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+            _practiceConfigurationReconciliationFailed = false;
+            _practiceMessage = Localizer["Settings_OperationsChanged"];
+            _practiceMessageIsError = false;
+        }
+        catch
+        {
+            _enabledOperations = new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
+            _practiceConfigurationReconciliationFailed = true;
+            _practiceMessage = Localizer["Settings_PracticeConfigurationFailed"];
+            _practiceMessageIsError = true;
+        }
+        finally
+        {
+            _operationChangeInProgress = false;
+        }
     }
 
     private void SelectPracticeTime(PracticeTimeSetting setting)

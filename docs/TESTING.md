@@ -555,3 +555,63 @@ MF-UX-006 contract coverage validates localization string integrity, reset copy 
 - The merged content is Git-tree-identical to the exact candidate that passed `FULL_VALIDATION`; the merge commit itself was not separately retested.
 - Automated tests do **not** prove rendered visual appearance on native devices, native screen-reader accessibility behavior, or physical hardware execution.
 - Production packaging, signing, and Google Play publication remain separate authorized lifecycle stages.
+
+---
+
+## 20. MF-STAB-003 Enabled-Subset Scheduling and Current-Fact Reconciliation Contracts
+
+MF-STAB-003 contract, regression, and integration coverage validates independent per-operation role ordinals, durable count reconstruction in Schema V6, and authoritative Settings/current-fact reconciliation across automated test suites in `MathFirst.Core.Tests`:
+
+1. **Exact 26-Addition $\to$ Subtraction-Only Restart Regression (`SqliteEnabledSubsetPersistenceTests`, `AuthorityHardeningAndRecoveryInvariantTests`)**:
+   - Asserts that practicing Addition for 26 accepted attempts, disabling Addition in favor of Subtraction only, and restarting the application begins Subtraction at Ordinal 1 (`PracticeSelectionRole.New`), resolving the physical-device release blocker.
+   - Asserts that Subtraction introduces valid `sub:0-0` rather than skipping to ordinal 27 or querying non-existent Due/Frontier material.
+
+2. **Per-Operation Role-Cycle Independence & Ordinal Authority (`AuthorityHardeningAndRecoveryInvariantTests`, `IndependentSelectorTests`, `DeterministicSelectorTerminalLivenessTests`)**:
+   - Asserts `AdaptivePracticeSelector` requires explicit positive `ScheduledOperationAttemptOrdinal` in `PracticeSelectionContext` and resolves requested roles exclusively via $\text{AcceptedAttemptCount}(O) + 1$.
+   - Asserts the 10-slot role cycle: 1 New, 2 Due, 3 New, 4 Maintenance, 5 Frontier, 6 New, 7 Due, 8 New, 9 Due, 10 Frontier, mapping $i = (\text{ordinal} - 1) \bmod 10$ to `New` at $\{0, 2, 5, 7\}$, `Due` at $\{1, 6, 8\}$, `Maintenance` at $\{3\}$, `Frontier` at $\{4, 9\}$.
+   - Asserts elimination of the legacy global fallback formula based on `ProspectivePracticePosition`.
+   - Asserts independent role-cycle progression across all four operations without cross-operation coupling.
+   - Asserts strict authority boundaries: `AcceptedAttemptCount(O)` is authoritative strictly for that operation's role ordinal, while global `PracticePosition` governs attempt ordering, permutation bag scheduling, FSRS virtual time, and persistence validation. Existing coverage, pace, fluency, progression, and item-state authorities remain untouched.
+
+3. **Durable Count Reconstruction & Schema V6 Preservation (`SqliteLearnerStore`, `LearnerSnapshot`, `AuthorityHardeningAndRecoveryInvariantTests`)**:
+   - Asserts `AcceptedAttemptCount(O)` is reconstructed from `SUM(item_learning_state.total_attempts WHERE operation = O)`.
+   - Asserts Schema V6 persistence format is preserved without schema migration or redundant counter columns.
+   - Asserts fail-closed behavior on null snapshot counts or empty item states with non-zero total attempts.
+   - Asserts open-ended arithmetic support and `Int32` checked arithmetic safety without artificial ~400-fact catalog caps.
+
+4. **Persistence Invariants & Recovery Safety (`AuthorityHardeningAndRecoveryInvariantTests`)**:
+   - **Exact-Once Commit Increment**: Successful persistence commits increment operation attempt counts by exactly 1.
+   - **Duplicate Replay Idempotency**: Replaying an already-committed `SubmissionId` returns success without incrementing attempt counts.
+   - **Persistence Failure Rollback**: Failed database writes do not mutate in-memory attempt counts.
+   - **Revision-Conflict Recovery**: Store revision conflicts trigger clean reload of authoritative attempt counts from SQLite.
+   - **Reset Invariants**: `Reset Learning Progress` produces zero attempt counts across all operations; `Full Local Reset` clears counts and restores default preferences.
+   - **Subset Continuity**: Disabling and subsequently re-enabling an operation preserves all attempt history, item strength, FSRS state, and attempt counts.
+   - **Global FSRS Time Preservation**: Global `PracticePosition` advances monotonically across subset configurations without losing virtual time alignment.
+
+5. **Authoritative Settings & Current-Fact Reconciliation (`PracticeConfigurationReconciliationTests`)**:
+   - **Zero-Mutation Replacement (Case A / Case C)**: When an unsubmitted fact becomes invalid (operation disabled or fact ineligible), `TrainingSession.ReconcilePracticeConfigurationAsync` discards the fact and immediately prepares a valid replacement for the same prospective global `PracticePosition`. Discarding creates zero attempt records, no timeout, no score mutation, no FSRS card mutation, no progression increment, and no attempt-count mutation.
+   - **Retained Valid Fact (Case B)**: When an unsubmitted fact remains enabled and eligible, reconciliation preserves its exact identity, `FactInstanceRevision`, partial answer input (`CurrentAnswerInput`), and remaining paused timer deadline.
+   - **Accepted-Feedback Deferral**: When an answer has been accepted and the session is in `CorrectFeedback`, `IncorrectFeedback`, `TimeoutFeedback`, `TeachingIntervention`, or `SessionCheckIn`, reconciliation defers next-fact preparation until explicit feedback dismissal, preserving accepted learner state.
+   - **Evidence Cache Invalidation**: Reconciliation clears cached evidence for disabled operations and reloads required evidence asynchronously.
+   - **Awaited Navigation & Recovery**: `Settings.razor` awaits session reconciliation before navigation; failure surfaces a recoverable error while preserving persisted preferences for retry or restart.
+   - **Subset Coverage**: Validates single-, two-, three-, and four-operation configurations.
+
+### Reviewed Test Suite Evidence (MF-STAB-003 Task Branch Baseline)
+
+- **Full Core Test Suite**: 1,516 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Targeted Suite Breakdown**:
+  - `AuthorityHardeningAndRecoveryInvariantTests`: 20 passed
+  - `PracticeConfigurationReconciliationTests`: 19 passed
+  - `SqliteEnabledSubsetPersistenceTests`: 14 passed
+  - `StartupRecoveryRegressionTests`: 14 passed
+  - `IndependentSelectorTests`: 8 passed
+  - `DeterministicOperationSchedulerTests`: 18 passed
+  - `DeterministicSelectorTerminalLivenessTests`: 10 passed
+  - `StaleSelectionEvidenceRemediationTests`: 10 passed
+  - `PolicyAndLocalizationTests`: 56 passed
+
+### Evidence Boundary Principles
+
+- Automated test suites execute offline against synthetic fixtures and temporary SQLite databases.
+- The 1,516 passing tests represent verified implementation on task branch `feat/mf-stab-003-enabled-subset-scheduling-current-fact-reconciliation` during `REVIEW_ONLY` and do not claim execution of the pending exact-candidate `FULL_VALIDATION` lifecycle.
+- Automated tests do not constitute physical hardware revalidation (Steps 30/31).
