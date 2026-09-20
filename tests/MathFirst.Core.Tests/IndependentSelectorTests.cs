@@ -274,11 +274,13 @@ public sealed class IndependentSelectorTests
     }
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(4)]
-    [InlineData(5)]
-    public void DueRemediation_OverridesEveryRequestedRoleWithoutChangingOperation(long attemptOrdinal)
+    [InlineData(1, PracticeSelectionRole.New)]
+    [InlineData(2, PracticeSelectionRole.Remediation)]
+    [InlineData(4, PracticeSelectionRole.Remediation)]
+    [InlineData(5, PracticeSelectionRole.Remediation)]
+    public void Remediation_ProtectsNewIntroductionButOverridesEligibleNonNewRolesWithoutChangingOperation(
+        long attemptOrdinal,
+        PracticeSelectionRole expectedResolvedRole)
     {
         var position = GetOpPosition(ArithmeticOperation.Addition, attemptOrdinal);
         var curriculum = new ArithmeticCurriculum();
@@ -292,10 +294,24 @@ public sealed class IndependentSelectorTests
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
         Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
-        Assert.Equal(PracticeSelectionRole.Remediation, result.ResolvedRole);
-        Assert.Equal(remediationFact.Id, result.Fact.Id);
-        Assert.True(result.IsMaterialized);
-        Assert.False(result.IsNewIntroduction);
+        Assert.Equal(expectedResolvedRole, result.ResolvedRole);
+
+        if (attemptOrdinal == 1)
+        {
+            Assert.Equal(PracticeSelectionRole.New, result.RequestedRole);
+            Assert.True(result.IsNewIntroduction);
+            Assert.False(result.IsMaterialized);
+            Assert.NotEqual(remediationFact.Id, result.Fact.Id);
+            Assert.Equal(ArithmeticOperation.Addition, result.Fact.Operation);
+            Assert.False(materialized.ItemStates.ContainsKey(result.Fact.Id));
+            Assert.Contains(curriculum.Addition.Bands[0].Frontier, fact => fact.Id == result.Fact.Id);
+        }
+        else
+        {
+            Assert.Equal(remediationFact.Id, result.Fact.Id);
+            Assert.True(result.IsMaterialized);
+            Assert.False(result.IsNewIntroduction);
+        }
     }
 
     [Fact]

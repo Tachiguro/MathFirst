@@ -66,6 +66,14 @@ public sealed class AdaptivePracticeSelector
 
         var ownership = new AcquisitionOwnershipResolver(curriculum);
         var ownedFrontier = ownership.GetOwnedFrontier(progression.BandIndex);
+        var introductionFrontier = band!.Kind == CurriculumBandKind.Structured
+            ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
+            : ownedFrontier;
+        var newPool = introductionFrontier
+            .Where(fact => fact.Operation == operation
+                && context.GuidedNumberSpaceGate.Allows(fact)
+                && !context.CandidateIndex.IsMaterialized(fact.Id))
+            .ToArray();
         var remediation = context.CandidateIndex.RemediationCandidates
             .Where(candidate => candidate.Fact.Operation == operation
                 && ownership.IsEligible(candidate.Fact.Id, progression.BandIndex)
@@ -74,7 +82,12 @@ public sealed class AdaptivePracticeSelector
                 && candidate.FsrsState?.LastReviewPracticePosition is not null
                 && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
             .ToArray();
-        if (remediation.Length > 0)
+
+        var protectNewIntroduction =
+            requestedRole == PracticeSelectionRole.New
+            && newPool.Length > 0;
+
+        if (!protectNewIntroduction && remediation.Length > 0)
         {
             var remediationFacts = remediation
                 .Take(TargetCandidateWindowSize)
@@ -88,15 +101,6 @@ public sealed class AdaptivePracticeSelector
                 PracticeSelectionRole.Remediation,
                 remediationFacts);
         }
-
-        var introductionFrontier = band!.Kind == CurriculumBandKind.Structured
-            ? DeterministicFactRanker.SelectStructuredSample(ownedFrontier, operation, band.Id)
-            : ownedFrontier;
-        var newPool = introductionFrontier
-            .Where(fact => fact.Operation == operation
-                && context.GuidedNumberSpaceGate.Allows(fact)
-                && !context.CandidateIndex.IsMaterialized(fact.Id))
-            .ToArray();
         var frontierPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.CurrentBandMaterializedFacts
             : ownedFrontier
@@ -310,11 +314,14 @@ public sealed class AdaptivePracticeSelector
         var mirrorRecent = recentAcceptedFactsOldestToNewest.TakeLast(LearningPolicy.MirrorFactCooldownDistance).ToArray();
         var recentExactIds = exactRecent.Select(fact => fact.Id).ToHashSet(StringComparer.Ordinal);
         var previousSameOpFact = recentAcceptedFactsOldestToNewest.LastOrDefault(fact => fact.Operation == operation);
+        var hasAlternativeInPool = previousSameOpFact is not null
+            && semanticPool.Any(fact => fact.Id != previousSameOpFact.Id);
 
-        // Tier 1: Exact cooldown + Commutative mirror cooldown + Anti-ladder
+        // Tier 1: Exact cooldown + Commutative mirror cooldown + Same-op repeat guard + Anti-ladder
         var exactAndMirrorFiltered = rankedPool
             .Where(fact => !recentExactIds.Contains(fact.Id))
             .Where(fact => !HasRecentCommutativeMirror(fact, mirrorRecent))
+            .Where(fact => !(hasAlternativeInPool && fact.Id == previousSameOpFact!.Id))
             .ToArray();
         if (exactAndMirrorFiltered.Length > 0)
         {
