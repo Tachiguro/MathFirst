@@ -361,12 +361,7 @@ public sealed class PracticeConfigurationTests
         for (var p = 1L; p <= 40; p++)
         {
             var op = AdaptivePracticeSelector.GetScheduledOperation(p, allFour);
-            var ordinal = AdaptivePracticeSelector.GetOperationAttemptOrdinal(p, allFour.Count);
-            var role = AdaptivePracticeSelector.GetRequestedRole(p, allFour.Count);
-
             Assert.Equal(AdaptivePracticeSelector.GetScheduledOperation(p), op);
-            Assert.Equal(AdaptivePracticeSelector.GetOperationAttemptOrdinal(p), ordinal);
-            Assert.Equal(AdaptivePracticeSelector.GetRequestedRole(p), role);
         }
     }
 
@@ -378,10 +373,7 @@ public sealed class PracticeConfigurationTests
         for (var p = 1L; p <= 30; p++)
         {
             var op = AdaptivePracticeSelector.GetScheduledOperation(p, singleOp);
-            var ordinal = AdaptivePracticeSelector.GetOperationAttemptOrdinal(p, singleOp.Length);
-
             Assert.Equal(ArithmeticOperation.Multiplication, op);
-            Assert.Equal(p, ordinal);
         }
     }
 
@@ -390,19 +382,15 @@ public sealed class PracticeConfigurationTests
     {
         var twoOps = new[] { ArithmeticOperation.Addition, ArithmeticOperation.Multiplication };
 
-        // Position 1 & 2 (Bag 0): both operations present, ordinal 1
+        // Position 1 & 2 (Bag 0): both operations present
         var bag0 = new[] { AdaptivePracticeSelector.GetScheduledOperation(1, twoOps), AdaptivePracticeSelector.GetScheduledOperation(2, twoOps) };
         Assert.Contains(ArithmeticOperation.Addition, bag0);
         Assert.Contains(ArithmeticOperation.Multiplication, bag0);
-        Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(1, 2));
-        Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(2, 2));
 
-        // Position 3 & 4 (Bag 1): both operations present, ordinal 2
+        // Position 3 & 4 (Bag 1): both operations present
         var bag1 = new[] { AdaptivePracticeSelector.GetScheduledOperation(3, twoOps), AdaptivePracticeSelector.GetScheduledOperation(4, twoOps) };
         Assert.Contains(ArithmeticOperation.Addition, bag1);
         Assert.Contains(ArithmeticOperation.Multiplication, bag1);
-        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(3, 2));
-        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(4, 2));
     }
 
     [Fact]
@@ -410,7 +398,7 @@ public sealed class PracticeConfigurationTests
     {
         var threeOps = new[] { ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Division };
 
-        // Bag 0 (P=1,2,3): all three operations present, ord=1
+        // Bag 0 (P=1,2,3): all three operations present
         var bag0 = new[]
         {
             AdaptivePracticeSelector.GetScheduledOperation(1, threeOps),
@@ -420,11 +408,8 @@ public sealed class PracticeConfigurationTests
         Assert.Contains(ArithmeticOperation.Addition, bag0);
         Assert.Contains(ArithmeticOperation.Subtraction, bag0);
         Assert.Contains(ArithmeticOperation.Division, bag0);
-        Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(1, 3));
-        Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(2, 3));
-        Assert.Equal(1, AdaptivePracticeSelector.GetOperationAttemptOrdinal(3, 3));
 
-        // Bag 1 (P=4,5,6): all three operations present, ord=2
+        // Bag 1 (P=4,5,6): all three operations present
         var bag1 = new[]
         {
             AdaptivePracticeSelector.GetScheduledOperation(4, threeOps),
@@ -434,9 +419,6 @@ public sealed class PracticeConfigurationTests
         Assert.Contains(ArithmeticOperation.Addition, bag1);
         Assert.Contains(ArithmeticOperation.Subtraction, bag1);
         Assert.Contains(ArithmeticOperation.Division, bag1);
-        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(4, 3));
-        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(5, 3));
-        Assert.Equal(2, AdaptivePracticeSelector.GetOperationAttemptOrdinal(6, 3));
     }
 
     [Fact]

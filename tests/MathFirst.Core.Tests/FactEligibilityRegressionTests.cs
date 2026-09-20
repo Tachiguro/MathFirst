@@ -901,7 +901,7 @@ public sealed class FactEligibilityRegressionTests
             AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition));
         Assert.Equal(
             PracticeSelectionRole.Due,
-            AdaptivePracticeSelector.GetRequestedRole(prospectivePosition));
+            AdaptivePracticeSelector.GetRequestedRole(((prospectivePosition - 1) / 4) + 1));
 
         var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
         var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
@@ -974,7 +974,7 @@ public sealed class FactEligibilityRegressionTests
             AdaptivePracticeSelector.GetScheduledOperation(prospectivePosition));
         Assert.Equal(
             PracticeSelectionRole.Due,
-            AdaptivePracticeSelector.GetRequestedRole(prospectivePosition));
+            AdaptivePracticeSelector.GetRequestedRole(((prospectivePosition - 1) / 4) + 1));
 
         var futureFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 8);
         var eligibleFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);

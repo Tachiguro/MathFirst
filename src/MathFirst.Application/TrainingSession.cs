@@ -38,6 +38,7 @@ public sealed class TrainingSession
     private IReadOnlyList<AttemptRecord> _currentDenseFrontierAttempts = [];
     private PracticeSelectionEvidence? _selectionEvidence;
     private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
+    private Dictionary<ArithmeticOperation, long> _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
 
     private sealed record CachedOperationEvidence(
         ArithmeticOperation Operation,
@@ -50,6 +51,8 @@ public sealed class TrainingSession
     public LearnerProgression Progression { get; private set; } = LearnerProgression.CreateFresh();
     public Dictionary<string, ItemLearningState> ItemStates { get; private set; } = new(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, FsrsCardState> FsrsStates => _fsrsStates;
+    public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts => _operationAcceptedAttemptCounts;
+    public long GetOperationAcceptedAttemptCount(ArithmeticOperation operation) => _operationAcceptedAttemptCounts.GetValueOrDefault(operation, 0);
     public PracticeCheckInSummary? PendingCheckIn { get; private set; }
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
@@ -769,6 +772,8 @@ public sealed class TrainingSession
                 {
                     _fsrsStates[LastEvaluation.ChangeSet.UpdatedFsrsState.FactId] = LastEvaluation.ChangeSet.UpdatedFsrsState;
                 }
+                _operationAcceptedAttemptCounts[LastEvaluation.ChangeSet.Attempt.Operation] =
+                    checked(_operationAcceptedAttemptCounts[LastEvaluation.ChangeSet.Attempt.Operation] + 1);
                 SessionTotalCount++;
                 SessionCorrectCount += LastEvaluation.IsCorrect ? 1 : 0;
                 if (LastEvaluation.Outcome == AttemptOutcome.Correct)
@@ -944,6 +949,7 @@ public sealed class TrainingSession
         _factInstanceRevision++;
         CurrentAnswerInput = string.Empty;
         CurrentPracticeTimeSetting = GetCurrentPracticeTimeSetting();
+        var scheduledOperationOrdinal = checked(_operationAcceptedAttemptCounts[scheduledOperation] + 1);
         var context = new PracticeSelectionContext(
             prospectivePosition,
             SessionOrderCounter,
@@ -951,7 +957,8 @@ public sealed class TrainingSession
             Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, operation => _curriculum.GetCurriculum(operation)),
             new PracticeCandidateIndex(_selectionEvidence),
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
-            enabledOperations);
+            enabledOperations,
+            scheduledOperationOrdinal);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
@@ -1113,6 +1120,33 @@ public sealed class TrainingSession
         _selectionEvidence = null;
         _selectionEvidenceCache.Clear();
         LatestAcceptedPracticeAt = snapshot.LatestAcceptedPracticeAt;
+
+        if (snapshot.OperationAcceptedAttemptCounts is not null)
+        {
+            _operationAcceptedAttemptCounts = snapshot.OperationAcceptedAttemptCounts.ToDictionary(pair => pair.Key, pair => pair.Value);
+        }
+        else if (snapshot.ItemStates.Count > 0)
+        {
+            _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>()
+                .ToDictionary(
+                    op => op,
+                    op => checked(snapshot.ItemStates.Values.Where(state => state.Operation == op).Sum(state => (long)state.TotalAttempts)));
+        }
+        else if (snapshot.Progression.PracticePosition == 0)
+        {
+            _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
+        }
+        else if (snapshot.RecentAttempts.Count > 0)
+        {
+            _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>()
+                .ToDictionary(
+                    op => op,
+                    op => (long)snapshot.RecentAttempts.Count(attempt => attempt.Operation == op));
+        }
+        else
+        {
+            throw new InvalidOperationException("Authoritative operation accepted attempt counts are required when practice position > 0.");
+        }
     }
 
     private void ResetSessionCheckInSegment()

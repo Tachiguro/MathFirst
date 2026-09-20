@@ -49,6 +49,50 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
     }
 
     [Fact]
+    public async Task AdditionHistory_RestartWithSubtractionOnly_InitializesWithNewSubtractionFact()
+    {
+        var path = GetDatabasePath();
+        var preferences = new TestPreferenceStore();
+        SetOnly(preferences, ArithmeticOperation.Addition);
+
+        using (var store = new SqliteLearnerStore(path))
+        {
+            var session = new TrainingSession(
+                store,
+                new FixedClock(),
+                preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 26);
+            Assert.Equal(26, operations.Count);
+            Assert.All(operations, op => Assert.Equal(ArithmeticOperation.Addition, op));
+            Assert.Equal(26, session.Progression.PracticePosition);
+
+            await store.CloseAsync();
+        }
+
+        // Switch preferences to Subtraction-only
+        SetOnly(preferences, ArithmeticOperation.Subtraction);
+        Assert.Equal([ArithmeticOperation.Subtraction], preferences.GetEnabledOperations());
+
+        // Dispose / reopen / reinitialize fresh TrainingSession
+        using var reopenedStore = new SqliteLearnerStore(path);
+        var restartedSession = new TrainingSession(
+            reopenedStore,
+            new FixedClock(),
+            preferenceStore: preferences);
+
+        // This MUST succeed without throwing InvalidOperationException
+        await restartedSession.InitializeAsync(startTiming: false);
+
+        Assert.True(restartedSession.IsInitialized);
+        Assert.Equal(26, restartedSession.Progression.PracticePosition);
+        Assert.Equal(ArithmeticOperation.Subtraction, restartedSession.CurrentFact.Operation);
+        Assert.False(string.IsNullOrWhiteSpace(restartedSession.CurrentFact.Id));
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, restartedSession.InteractionState);
+    }
+
+    [Fact]
     public async Task ExistingAllOperationHistory_SwitchToAdditionOnly_PersistsThroughPositionEighty()
     {
         var path = GetDatabasePath();
@@ -176,6 +220,121 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         Assert.Equal(PracticeOperationPreferencePolicy.AllOperations.ToHashSet(), reenabledOperations.ToHashSet());
         Assert.NotEqual(SessionInteractionState.PersistenceFailure, session.InteractionState);
         Assert.Equal(76, (await store.LoadSnapshotAsync()).Progression.PracticePosition);
+    }
+
+    [Fact]
+    public async Task HeavyAdditionHistory_SwitchToFreshSubtraction_SubtractionFollowsIndependentRoleCycle()
+    {
+        var path = GetDatabasePath();
+        var preferences = new TestPreferenceStore();
+        SetOnly(preferences, ArithmeticOperation.Addition);
+
+        using (var store = new SqliteLearnerStore(path))
+        {
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            await CompleteAcceptedAttemptsAsync(session, preferences, 100);
+            Assert.Equal(100, session.Progression.PracticePosition);
+            Assert.Equal(100, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+            Assert.Equal(0, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
+            await store.CloseAsync();
+        }
+
+        SetOnly(preferences, ArithmeticOperation.Subtraction);
+
+        using (var reopened = new SqliteLearnerStore(path))
+        {
+            var session = new TrainingSession(reopened, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            Assert.Equal(100, session.Progression.PracticePosition);
+            Assert.Equal(100, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+            Assert.Equal(0, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
+            Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
+
+            var subtractionOps = await CompleteAcceptedAttemptsAsync(session, preferences, 10);
+            Assert.Equal(10, subtractionOps.Count);
+            Assert.All(subtractionOps, op => Assert.Equal(ArithmeticOperation.Subtraction, op));
+            Assert.Equal(110, session.Progression.PracticePosition);
+            Assert.Equal(100, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+            Assert.Equal(10, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Subtraction));
+
+            var snapshot = await reopened.LoadSnapshotAsync();
+            Assert.NotNull(snapshot.OperationAcceptedAttemptCounts);
+            Assert.Equal(100, snapshot.OperationAcceptedAttemptCounts[ArithmeticOperation.Addition]);
+            Assert.Equal(10, snapshot.OperationAcceptedAttemptCounts[ArithmeticOperation.Subtraction]);
+            Assert.Equal(0, snapshot.OperationAcceptedAttemptCounts[ArithmeticOperation.Multiplication]);
+            Assert.Equal(0, snapshot.OperationAcceptedAttemptCounts[ArithmeticOperation.Division]);
+        }
+    }
+
+    [Fact]
+    public async Task ResetLearningProgress_ResetsAllOperationAcceptedAttemptCountsToZero()
+    {
+        var path = GetDatabasePath();
+        var preferences = new TestPreferenceStore();
+
+        using (var store = new SqliteLearnerStore(path))
+        {
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            // Complete 12 attempts across all 4 operations
+            await CompleteAcceptedAttemptsAsync(session, preferences, 12);
+            Assert.Equal(12, session.Progression.PracticePosition);
+            Assert.True(session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition) > 0);
+
+            // Reset progress
+            await store.ResetLearningProgressAsync();
+
+            var resetSnapshot = await store.LoadSnapshotAsync();
+            Assert.Equal(0, resetSnapshot.Progression.PracticePosition);
+            Assert.NotNull(resetSnapshot.OperationAcceptedAttemptCounts);
+            Assert.All(
+                PracticeOperationPreferencePolicy.AllOperations,
+                op => Assert.Equal(0, resetSnapshot.OperationAcceptedAttemptCounts[op]));
+            await store.CloseAsync();
+        }
+
+        using (var reopened = new SqliteLearnerStore(path))
+        {
+            var session = new TrainingSession(reopened, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            Assert.Equal(0, session.Progression.PracticePosition);
+            Assert.All(
+                PracticeOperationPreferencePolicy.AllOperations,
+                op => Assert.Equal(0, session.GetOperationAcceptedAttemptCount(op)));
+        }
+    }
+
+    [Fact]
+    public async Task IdempotentSubmissionReplay_DoesNotDoubleCountOperationAttempts()
+    {
+        var path = GetDatabasePath();
+        var preferences = new TestPreferenceStore();
+        SetOnly(preferences, ArithmeticOperation.Addition);
+
+        using var store = new SqliteLearnerStore(path);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        var fact = session.CurrentFact;
+        session.SubmitAnswer(fact.CorrectResult);
+        var result = await session.CommitCurrentEvaluationAsync();
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
+
+        var changeSet = session.LastEvaluation!.ChangeSet;
+
+        // Replay submission directly
+        var replayResult = await store.CommitSubmissionAsync(changeSet);
+        Assert.True(replayResult.IsSuccess);
+
+        var snapshot = await store.LoadSnapshotAsync();
+        Assert.NotNull(snapshot.OperationAcceptedAttemptCounts);
+        Assert.Equal(1, snapshot.OperationAcceptedAttemptCounts[ArithmeticOperation.Addition]);
     }
 
     public void Dispose()

@@ -35,10 +35,23 @@ public sealed class IndependentSelectorTests
             Assert.Equal(4, ops.Count);
         }
 
-        for (var position = 1; position <= 160; position++)
+        for (var attemptOrdinal = 1; attemptOrdinal <= 40; attemptOrdinal++)
         {
-            var expectedOrdinal = ((position - 1) / 4) + 1;
-            Assert.Equal(expectedOrdinal, AdaptivePracticeSelector.GetOperationAttemptOrdinal(position));
+            var expectedRole = ((attemptOrdinal - 1) % 10) switch
+            {
+                0 => PracticeSelectionRole.New,
+                1 => PracticeSelectionRole.Due,
+                2 => PracticeSelectionRole.New,
+                3 => PracticeSelectionRole.Maintenance,
+                4 => PracticeSelectionRole.Frontier,
+                5 => PracticeSelectionRole.New,
+                6 => PracticeSelectionRole.Due,
+                7 => PracticeSelectionRole.New,
+                8 => PracticeSelectionRole.Due,
+                9 => PracticeSelectionRole.Frontier,
+                _ => throw new InvalidOperationException()
+            };
+            Assert.Equal(expectedRole, AdaptivePracticeSelector.GetRequestedRole(attemptOrdinal));
         }
 
         Assert.Throws<ArgumentOutOfRangeException>(() => AdaptivePracticeSelector.GetScheduledOperation(0));
@@ -65,7 +78,7 @@ public sealed class IndependentSelectorTests
         foreach (var operation in Enum.GetValues<ArithmeticOperation>())
         {
             var actual = Enumerable.Range(1, 20)
-                .Select(attemptOrdinal => AdaptivePracticeSelector.GetRequestedRole(GetOpPosition(operation, attemptOrdinal)))
+                .Select(attemptOrdinal => AdaptivePracticeSelector.GetRequestedRole(attemptOrdinal))
                 .ToArray();
             Assert.Equal(expected.Concat(expected), actual);
             Assert.Equal(4, actual.Take(10).Count(role => role == PracticeSelectionRole.New));
@@ -733,7 +746,7 @@ public sealed class IndependentSelectorTests
             EmptyMaterialized(),
             operationProgressions: structuredProgressions);
 
-        Assert.Equal(requestedRole, AdaptivePracticeSelector.GetRequestedRole(position));
+        Assert.Equal(requestedRole, AdaptivePracticeSelector.GetRequestedRole(attemptOrdinal));
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
         Assert.Contains("Addition", ex.Message);
     }

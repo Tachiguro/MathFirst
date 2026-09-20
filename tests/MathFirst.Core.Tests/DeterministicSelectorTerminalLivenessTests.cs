@@ -992,8 +992,8 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             var op = AdaptivePracticeSelector.GetScheduledOperation(p);
             Assert.Contains(op, PracticeOperationPreferencePolicy.AllOperations);
 
-            var role = AdaptivePracticeSelector.GetRequestedRole(p);
             var opOrdinal = ((p - 1) / 4) + 1;
+            var role = AdaptivePracticeSelector.GetRequestedRole(opOrdinal);
             var expectedRole = ((opOrdinal - 1) % 10) switch
             {
                 0 => PracticeSelectionRole.New,
