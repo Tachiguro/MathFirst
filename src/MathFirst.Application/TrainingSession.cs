@@ -1060,6 +1060,50 @@ public sealed class TrainingSession
         }
     }
 
+    public async Task<PracticeConfigurationReconciliationResult> ReconcilePracticeConfigurationAsync(
+        bool startTiming = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsInitialized || CurrentFact is null)
+        {
+            throw new InvalidOperationException("Training session is not initialized.");
+        }
+
+        if (InteractionState != SessionInteractionState.AwaitingAnswer ||
+            LastEvaluation is not null ||
+            IsCurrentSubmissionCommitted)
+        {
+            return PracticeConfigurationReconciliationResult.DeferredUntilNextPreparation;
+        }
+
+        var enabledOperations = GetCurrentEnabledOperations();
+        var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
+        var currentOwnership = new AcquisitionOwnershipResolver(
+            _curriculum.GetCurriculum(CurrentFact.Operation));
+        var currentFactRemainsEligible =
+            enabledOperations.Contains(CurrentFact.Operation) &&
+            currentOwnership.IsEligible(CurrentFact.Id, currentProgression.BandIndex);
+
+        if (currentFactRemainsEligible)
+        {
+            return PracticeConfigurationReconciliationResult.RetainedCurrentFact;
+        }
+
+        var prospectivePosition = checked(Progression.PracticePosition + 1);
+        var scheduledOperation = AdaptivePracticeSelector.GetScheduledOperation(
+            prospectivePosition,
+            enabledOperations);
+
+        _selectionEvidenceCache.Clear();
+        await LoadSingleOperationEvidenceAsync(
+            scheduledOperation,
+            prospectivePosition,
+            cancellationToken).ConfigureAwait(false);
+        AdvanceToNextFact(startTiming);
+
+        return PracticeConfigurationReconciliationResult.ReplacedCurrentFact;
+    }
+
     public async Task EnsureSelectionEvidenceAsync(CancellationToken cancellationToken = default)
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);

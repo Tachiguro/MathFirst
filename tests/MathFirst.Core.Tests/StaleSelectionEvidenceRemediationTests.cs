@@ -63,13 +63,21 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
         Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
+        var acceptedFact = session.CurrentFact;
+        var acceptedRevision = session.FactInstanceRevision;
 
         // At this moment, prospective position 4 prefetched Op4 evidence!
         // While in IncorrectFeedback, change preference to Op1-only (which has materialized facts).
         preferences.SetEnabledOperations([op1]);
 
+        var reconciliation = await session.ReconcilePracticeConfigurationAsync(startTiming: false);
+        Assert.Equal(PracticeConfigurationReconciliationResult.DeferredUntilNextPreparation, reconciliation);
+        Assert.Same(acceptedFact, session.CurrentFact);
+        Assert.Equal(acceptedRevision, session.FactInstanceRevision);
+        Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
+
         // Acknowledge feedback to advance.
-        var acknowledged = session.AcknowledgeFeedback(startTiming: false);
+        var acknowledged = await session.AcknowledgeFeedbackAsync(startTiming: false);
         Assert.True(acknowledged);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
@@ -106,13 +114,21 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         var persistResult = await session.CommitCurrentEvaluationAsync();
         Assert.True(persistResult.IsSuccess);
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
+        var acceptedFact = session.CurrentFact;
+        var acceptedRevision = session.FactInstanceRevision;
 
         // At this moment, prospective position 4 prefetched Op4 evidence!
         // While in TimeoutFeedback, change preference to Op1-only (which has materialized facts).
         preferences.SetEnabledOperations([op1]);
 
+        var reconciliation = await session.ReconcilePracticeConfigurationAsync(startTiming: false);
+        Assert.Equal(PracticeConfigurationReconciliationResult.DeferredUntilNextPreparation, reconciliation);
+        Assert.Same(acceptedFact, session.CurrentFact);
+        Assert.Equal(acceptedRevision, session.FactInstanceRevision);
+        Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
+
         // Acknowledge feedback to advance.
-        var acknowledged = session.AcknowledgeFeedback(startTiming: false);
+        var acknowledged = await session.AcknowledgeFeedbackAsync(startTiming: false);
         Assert.True(acknowledged);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
@@ -146,21 +162,27 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
             session.AdvanceAfterCorrectAnswer(startTiming: false);
         }
 
-        if (session.CurrentFact.Id == factId)
-        {
-            // Second error on same fact
-            session.SubmitAnswer(session.CurrentFact.CorrectResult + 10);
-            await session.CommitCurrentEvaluationAsync();
-            Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
+        Assert.Equal(factId, session.CurrentFact.Id);
+        // Second error on same fact
+        session.SubmitAnswer(session.CurrentFact.CorrectResult + 10);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
+        var acceptedFact = session.CurrentFact;
+        var acceptedRevision = session.FactInstanceRevision;
 
-            // Change preferences to Subtraction-only
-            preferences.SetEnabledOperations([ArithmeticOperation.Subtraction]);
+        // Change preferences to Subtraction-only
+        preferences.SetEnabledOperations([ArithmeticOperation.Subtraction]);
 
-            var acknowledged = session.AcknowledgeTeachingIntervention(startTiming: false);
-            Assert.True(acknowledged);
-            Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
-            Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
-        }
+        var reconciliation = await session.ReconcilePracticeConfigurationAsync(startTiming: false);
+        Assert.Equal(PracticeConfigurationReconciliationResult.DeferredUntilNextPreparation, reconciliation);
+        Assert.Same(acceptedFact, session.CurrentFact);
+        Assert.Equal(acceptedRevision, session.FactInstanceRevision);
+        Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
+
+        var acknowledged = await session.AcknowledgeTeachingInterventionAsync(startTiming: false);
+        Assert.True(acknowledged);
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        Assert.Equal(ArithmeticOperation.Subtraction, session.CurrentFact.Operation);
     }
 
     [Fact]
@@ -192,18 +214,28 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         Assert.False(advanced20);
         Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
         Assert.NotNull(session.PendingCheckIn);
+        var acceptedFact = session.CurrentFact;
+        var acceptedRevision = session.FactInstanceRevision;
+        var acceptedPosition = session.Progression.PracticePosition;
 
         // Change preferences to Addition-only while in CheckIn
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
 
+        var reconciliation = await session.ReconcilePracticeConfigurationAsync(startTiming: false);
+        Assert.Equal(PracticeConfigurationReconciliationResult.DeferredUntilNextPreparation, reconciliation);
+        Assert.Same(acceptedFact, session.CurrentFact);
+        Assert.Equal(acceptedRevision, session.FactInstanceRevision);
+        Assert.Equal(acceptedPosition, session.Progression.PracticePosition);
+        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+
         // Continue practice
-        session.ContinuePractice(startTiming: false);
+        await session.ContinuePracticeAsync(startTiming: false);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
         Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
     }
 
     [Fact]
-    public async Task ConfigurationChangeWithoutFeedback_ActiveQuestionUnchanged_NextQuestionUsesNewConfig()
+    public async Task ConfigurationChangeWithoutFeedback_ReconcilesActiveQuestionWithoutConsumingPosition()
     {
         var path = GetDatabasePath();
         var preferences = new TestPreferenceStore();
@@ -221,23 +253,26 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
 
         // Turn 2 (pos 2): Subtraction fact is presented
         var activeFact = session.CurrentFact;
-        var activeDeadline = session.CurrentFactDeadlineMs;
         Assert.Equal(ArithmeticOperation.Subtraction, activeFact.Operation);
 
         // While awaiting answer on Turn 2, switch preferences to a different operation (Multiplication-only)
         preferences.SetEnabledOperations([ArithmeticOperation.Multiplication]);
 
-        // Active fact and deadline MUST NOT change
-        Assert.Equal(activeFact.Id, session.CurrentFact.Id);
-        Assert.Equal(activeDeadline, session.CurrentFactDeadlineMs);
+        var reconciliation = await session.ReconcilePracticeConfigurationAsync(startTiming: false);
 
-        // Submit answer for active fact (Turn 2: Subtraction)
-        session.SubmitAnswer(activeFact.CorrectResult);
+        // The invalid unsubmitted fact is replaced at the same prospective position.
+        Assert.Equal(PracticeConfigurationReconciliationResult.ReplacedCurrentFact, reconciliation);
+        Assert.NotEqual(activeFact.Id, session.CurrentFact.Id);
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.Equal(1, session.Progression.PracticePosition);
+
+        // Submit answer for the replacement fact at Turn 2.
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
         var persist2 = await session.CommitCurrentEvaluationAsync();
         Assert.True(persist2.IsSuccess);
         session.AdvanceAfterCorrectAnswer(startTiming: false);
 
-        // Next generated fact (prospective pos 3 under Multiplication-only, ordinal 3 -> New slot) MUST use Multiplication
+        // Next generated fact under Multiplication-only MUST use Multiplication.
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
         Assert.NotEqual(SessionInteractionState.PersistenceFailure, session.InteractionState);

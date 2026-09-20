@@ -198,6 +198,21 @@ public sealed class PolicyAndLocalizationTests
     }
 
     [Theory]
+    [InlineData("en", "Practice could not be updated. Your operation choice was saved. Retry before returning to practice.")]
+    [InlineData("de", "Das Training konnte nicht aktualisiert werden. Deine Rechenart-Auswahl wurde gespeichert. Versuche es erneut, bevor du zum Training zurückkehrst.")]
+    [InlineData("ru", "Не удалось обновить тренировку. Выбор арифметических действий сохранён. Повторите попытку перед возвращением к тренировке.")]
+    public void LocalizationService_PracticeConfigurationRecoveryHasLanguageParity(
+        string language,
+        string expectedFailure)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        Assert.Equal(expectedFailure, service["Settings_PracticeConfigurationFailed"]);
+        Assert.False(string.IsNullOrWhiteSpace(service["Training_Retry"]));
+    }
+
+    [Theory]
     [InlineData("en", "Get Started")]
     [InlineData("de", "Los geht's")]
     [InlineData("ru", "Начать")]
