@@ -1164,7 +1164,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             command.Parameters.AddWithValue(parameters[index], request.CurrentBandOwnedFrontier[index].Id);
         }
 
-        return await ReadCandidateRowsAsync(command, int.MaxValue, null, cancellationToken).ConfigureAwait(false);
+        return await ReadCandidateRowsAsync(command, int.MaxValue, null, request.GuidedNumberSpaceGate, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidatesAsync(
@@ -1178,13 +1178,14 @@ public sealed class SqliteLearnerStore : ILearnerStore
         command.Parameters.AddWithValue("@operation", request.Operation.ToString());
         command.Parameters.AddWithValue("@practice_position", request.ProspectivePracticePosition);
         command.Parameters.AddWithValue("@session_order", request.CurrentSessionOrder);
-        return await ReadCandidateRowsAsync(command, request.CurrentBandIndex, ownership, cancellationToken).ConfigureAwait(false);
+        return await ReadCandidateRowsAsync(command, request.CurrentBandIndex, ownership, request.GuidedNumberSpaceGate, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidateRowsAsync(
         SqliteCommand command,
         int currentBandIndex,
         AcquisitionOwnershipResolver? ownership,
+        GuidedNumberSpaceGate guidedGate,
         CancellationToken cancellationToken)
     {
         var candidates = new List<PracticeSelectionCandidate>();
@@ -1199,6 +1200,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
             var operation = Enum.Parse<ArithmeticOperation>(reader.GetString(1));
             var fact = new ArithmeticFact(operation, reader.GetInt32(2), reader.GetInt32(3));
+            if (!guidedGate.Allows(fact))
+            {
+                continue;
+            }
             var item = new ItemLearningState
             {
                 FactId = factId,
