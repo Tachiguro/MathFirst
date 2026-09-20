@@ -392,6 +392,8 @@ public sealed class LongRunIndependentProgressionTests
         progression.StoreRevision = 7;
         progression.OperationProgressions[ArithmeticOperation.Multiplication] =
             new OperationProgression(ArithmeticOperation.Multiplication, bandIndex, 0);
+        progression.OperationProgressions[ArithmeticOperation.Addition] =
+            new OperationProgression(ArithmeticOperation.Addition, 12, 0);
 
         var attempts = Enumerable.Range(0, historicalAttemptCount)
             .Select(index =>

@@ -355,7 +355,10 @@ public sealed class StartupRecoveryRegressionTests
             FailOnEvidenceAttemptsCount = 0
         };
         var clock = new FakeClock();
-        var session = new TrainingSession(store, clock);
+        var session = new TrainingSession(
+            store,
+            clock,
+            preferenceStore: InMemoryPreferenceStore.WithEnabled([ArithmeticOperation.Multiplication]));
 
         await session.InitializeAsync(startTiming: false);
 

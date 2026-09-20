@@ -263,6 +263,9 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
             .ToDictionary(operation => operation, operation => new ArithmeticCurriculum().GetCurriculum(operation));
         var scheduledOp = AdaptivePracticeSelector.GetScheduledOperation(session.Progression.PracticePosition + 1);
         var scheduledOrdinal = session.GetOperationAcceptedAttemptCount(scheduledOp) + 1;
+        var gate = GuidedNumberSpaceGate.ForGuided(
+            curricula[ArithmeticOperation.Addition],
+            session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
         var result = new AdaptivePracticeSelector().SelectTargetFact(new PracticeSelectionContext(
             session.Progression.PracticePosition + 1,
             session.SessionOrderCounter,
@@ -271,7 +274,8 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
             new PracticeCandidateIndex(evidence),
             recentAttempts.OrderBy(attempt => attempt.PracticePosition)
                 .Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
-            scheduledOperationAttemptOrdinal: scheduledOrdinal));
+            scheduledOperationAttemptOrdinal: scheduledOrdinal,
+            guidedNumberSpaceGate: gate));
         Assert.Equal(session.CurrentFact.Id, result.Fact.Id);
         return new SelectionFingerprint(
             session.Progression.PracticePosition + 1,
