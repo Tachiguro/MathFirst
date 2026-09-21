@@ -138,19 +138,23 @@ public sealed class PolicyAndLocalizationTests
     }
 
     [Theory]
-    [InlineData("en", "Addition: progression stage 1", "Addition: progression unavailable")]
-    [InlineData("de", "Addition: Fortschrittsstufe 1", "Addition: Fortschritt nicht verfügbar")]
-    [InlineData("ru", "Сложение: этап прогресса 1", "Сложение: прогресс недоступен")]
+    [InlineData("en", "Addition: Stage 1", "Addition: progress unavailable", "Stage 1", "Operation progress")]
+    [InlineData("de", "Addition: Stufe 1", "Addition: Fortschritt nicht verfügbar", "Stufe 1", "Fortschritt nach Rechenarten")]
+    [InlineData("ru", "Сложение: уровень 1", "Сложение: прогресс недоступен", "Уровень 1", "Прогресс по операциям")]
     public void LocalizationService_OperationProgressHudHasAccessibleLanguageParity(
         string language,
         string expectedStage,
-        string expectedUnavailable)
+        string expectedUnavailable,
+        string expectedDisplay,
+        string expectedGroupAriaLabel)
     {
         var service = new LocalizationService();
         service.ApplyLanguagePreference(language);
 
         Assert.Equal(expectedStage, service["Training_OperationProgressStage", service["Operation_Addition"], 1]);
         Assert.Equal(expectedUnavailable, service["Training_OperationProgressUnavailable", service["Operation_Addition"]]);
+        Assert.Equal(expectedDisplay, service["Training_ProgressStageDisplay", 1]);
+        Assert.Equal(expectedGroupAriaLabel, service["Training_OperationProgressGroupAriaLabel"]);
     }
 
     /// <summary>

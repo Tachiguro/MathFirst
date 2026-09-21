@@ -119,6 +119,8 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
         var keys = new[]
         {
             "Training_CurrentProgress",
+            "Training_ProgressStageDisplay",
+            "Training_OperationProgressGroupAriaLabel",
             "Training_CheckInCompleted",
             "Training_CheckInProgressMade",
             "Training_CheckInProgressChange",
