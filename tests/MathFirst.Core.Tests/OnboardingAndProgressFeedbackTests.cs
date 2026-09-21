@@ -96,7 +96,12 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
         Assert.Contains("HasCompletedPracticeHistory", home, StringComparison.Ordinal);
         Assert.Contains("ready-progress-overview", home, StringComparison.Ordinal);
         Assert.Contains("Training_CurrentProgress", home, StringComparison.Ordinal);
-        Assert.Contains("OperationProgress", home, StringComparison.Ordinal);
+        Assert.Contains("role=\"list\"", home, StringComparison.Ordinal);
+        Assert.Contains("role=\"listitem\"", home, StringComparison.Ordinal);
+        Assert.Contains("ready-progress-symbol", home, StringComparison.Ordinal);
+        Assert.Contains("ready-progress-name", home, StringComparison.Ordinal);
+        Assert.Contains("ready-progress-stage", home, StringComparison.Ordinal);
+        Assert.Contains("Training_ProgressStageDisplay", home, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,6 +124,8 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
         var keys = new[]
         {
             "Training_CurrentProgress",
+            "Training_ProgressStageDisplay",
+            "Training_OperationProgressGroupAriaLabel",
             "Training_CheckInCompleted",
             "Training_CheckInProgressMade",
             "Training_CheckInProgressChange",
@@ -153,6 +160,11 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
         Assert.Contains("onboarding-operation-grid", styles, StringComparison.Ordinal);
         Assert.DoesNotContain("style=\"grid-template-columns: repeat(@Math.Max", home, StringComparison.Ordinal);
         Assert.Contains("data-operation-count=\"@OperationProgress.Count\"", home, StringComparison.Ordinal);
+        Assert.Contains("Training_OperationProgressGroupAriaLabel", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("Diagnostics_Group_Learning", home, StringComparison.Ordinal);
+        Assert.Contains(".ready-progress-symbol", styles, StringComparison.Ordinal);
+        Assert.Contains(".ready-progress-name", styles, StringComparison.Ordinal);
+        Assert.Contains(".ready-progress-stage", styles, StringComparison.Ordinal);
         Assert.Contains(".operation-progress-hud[data-operation-count=\"3\"]", styles, StringComparison.Ordinal);
         Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr));", styles, StringComparison.Ordinal);
     }

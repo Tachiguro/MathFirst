@@ -84,15 +84,20 @@
                             {
                                 <section class="ready-progress-overview" aria-labelledby="ready-progress-title">
                                     <h3 id="ready-progress-title">@Localizer["Training_CurrentProgress"]</h3>
-                                    <div class="ready-progress-list">
+                                    <div class="ready-progress-list" role="list">
                                         @foreach (var progress in ReadyOperationProgress)
                                         {
                                             var operationName = Localizer[$"Operation_{progress.Operation}"];
-                                            <p class="ready-progress-entry">
-                                                @(progress.PresentationStage is int stage
-                                                    ? Localizer["Training_OperationProgressStage", operationName, stage]
-                                                    : Localizer["Training_OperationProgressUnavailable", operationName])
-                                            </p>
+                                            var progressLabel = progress.PresentationStage is int stage
+                                                ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                                : Localizer["Training_OperationProgressUnavailable", operationName];
+                                            <div class="ready-progress-entry" role="listitem" aria-label="@progressLabel">
+                                                <span class="ready-progress-symbol" aria-hidden="true">@GetOperationSymbol(progress.Operation)</span>
+                                                <span class="ready-progress-name">@operationName</span>
+                                                <span class="ready-progress-stage">@(progress.PresentationStage is int stageNumber
+                                                    ? Localizer["Training_ProgressStageDisplay", stageNumber]
+                                                    : Localizer["Training_Unavailable"])</span>
+                                            </div>
                                         }
                                     </div>
                                 </section>
@@ -244,14 +249,16 @@
                             <div class="operation-progress-hud"
                                  data-operation-count="@OperationProgress.Count"
                                  role="group"
-                                 aria-label="@Localizer["Diagnostics_Group_Learning"]">
+                                 aria-label="@Localizer["Training_OperationProgressGroupAriaLabel"]">
                                 @foreach (var progress in OperationProgress)
                                 {
                                     var operationName = Localizer[$"Operation_{progress.Operation}"];
+                                    var progressLabel = progress.PresentationStage is int stage
+                                        ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                        : Localizer["Training_OperationProgressUnavailable", operationName];
                                     <span class="operation-progress-entry"
-                                          aria-label="@(progress.PresentationStage is int stage
-                                              ? Localizer["Training_OperationProgressStage", operationName, stage]
-                                              : Localizer["Training_OperationProgressUnavailable", operationName])">
+                                          aria-label="@progressLabel"
+                                          title="@progressLabel">
                                         <span class="operation-progress-symbol" aria-hidden="true">@GetOperationSymbol(progress.Operation)</span>
                                         <span class="operation-progress-stage">@(progress.PresentationStage?.ToString() ?? "—")</span>
                                     </span>

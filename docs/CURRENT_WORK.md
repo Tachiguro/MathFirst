@@ -9,92 +9,83 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Package**: `MF-LEARN-005` — Adaptive Practice Balance and Foundational Coverage
+- **Active Package**: `MF-UX-007` — Progress Presentation Cleanup
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Task Branch**: `codex/mf-learn-005-adaptive-practice-balance`
-- **Candidate HEAD**: `8624173e93ef305786d2f087919295ea17b86f04` (implementation candidate HEAD before documentation commit)
-- **Authoritative Baseline (`main` / `origin/main`)**: `ef03dc09464ef169228e9bc1e00bba5a22e4a387`
-- **Most Recently Merged Documentation Package on `main`**: `MF-DOC-007` — Post-MF-LEARN-004 Merge State Reconciliation (PR #45 merge commit at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`)
-- **Most Recently Merged Implementation Package on `main`**: `MF-LEARN-004` — Guided Four-Operation Number-Space Gate (PR #44 merge commit at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`, validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
-- **Status of MF-LEARN-005**: Implemented, review-approved, documentation reconciliation in progress; **NOT MERGED YET** (not yet `FULL_VALIDATED`, not pushed, no open PR, not merged)
-- **Next Lifecycle for MF-LEARN-005**: `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
+- **Task Branch**: `codex/mf-ux-007-progress-presentation-cleanup`
+- **Implementation Candidate HEAD Before Documentation**: `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`
+- **Authoritative Baseline (`main` / `origin/main`)**: `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`
+- **Most Recently Merged Implementation Package on `main`**: `MF-LEARN-005` — Adaptive Practice Balance and Foundational Coverage (PR #46 merge commit at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, validated candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`, merge tree identical to validated candidate tree `385ae4edcc6acb1a6817294b72e068c51b5a36de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
+- **Status of MF-UX-007**: Implemented across two slices, review-approved (`REVIEW_APPROVED`), documentation reconciliation in progress; **NOT MERGED YET** (not yet `FULL_VALIDATED`, not pushed, no open PR, not merged)
+- **Next Lifecycle for MF-UX-007**: `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
 
 ---
 
-## 2. MF-LEARN-005 Implementation Checkpoints
+## 2. MF-UX-007 Implementation Checkpoints
 
-The package implementation was completed across three structured checkpoint commits on task branch `codex/mf-learn-005-adaptive-practice-balance`:
+The package implementation was completed across two structured checkpoint commits on task branch `codex/mf-ux-007-progress-presentation-cleanup`:
 
-1. **Slice 1: Selector Implementation & Same-Operation Diversity Guard**
-   - Commit SHA: `c1f484e83a8da6d3a4d68d98934cd41b3f50aa75`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-005 1/3 protect-new-and-same-op-balance`
+1. **Slice 1: Progress Localization and Accessibility**
+   - Commit SHA: `316fe525b136e7fee6dd1c7e7e7dec4636b6fcba`
+   - Trailer: `MathFirst-Checkpoint: MF-UX-007 1/2 progress-localization-accessibility`
    - Scope:
-     - Selector implementation:
-       - Protected requested-New introduction: when `requestedRole == PracticeSelectionRole.New` and the current operation has at least one eligible unmaterialized candidate in its active introduction frontier, remediation does not preempt that requested New opportunity;
-       - Remediation exhaustion fallback: when New frontier is exhausted (all owned material has been materialized or no eligible unseen candidate exists), eligible remediation may preempt requested New;
-       - Same-operation strict-tier repeat guard: inside the already-selected semantic pool, strict candidate selection avoids immediately repeating the previous same-operation `FactId` when another viable `FactId` exists;
-       - Preserved cooldown relaxation to guarantee liveness when only repeating candidates exist;
-       - Focused selector regression coverage in `tests/MathFirst.Core.Tests/AdaptiveReviewStabilizationTests.cs`, `tests/MathFirst.Core.Tests/IndependentSelectorTests.cs`, and `tests/MathFirst.Core.Tests/PracticeSequenceDiversityTests.cs`.
+     - Stage terminology refinement across English (`Stage {0}` / `{0}: Stage {1}`), German (`Stufe {0}` / `{0}: Stufe {1}`), and Russian (`Уровень {0}` / `{0}: уровень {1}`);
+     - Removal of diagnostic jargon ("progression stage", "Fortschrittsstufe", "этап прогресса") to match Session Check-In terminology;
+     - Accessible group label `Training_OperationProgressGroupAriaLabel` for learner-facing progress HUD;
+     - Focused localization contract coverage in `tests/MathFirst.Core.Tests/PolicyAndLocalizationTests.cs` and `tests/MathFirst.Core.Tests/OnboardingAndProgressFeedbackTests.cs`.
 
-2. **Slice 2: TrainingSession & Persistence Integration Coverage**
-   - Commit SHA: `31d760d36fb0509f481952fc7e509e2a5b00ba8b`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-005 2/3 sustained-failure-integration`
+2. **Slice 2: Progress UI and Responsive Presentation**
+   - Commit SHA: `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`
+   - Trailer: `MathFirst-Checkpoint: MF-UX-007 2/2 progress-ui-responsive-presentation`
    - Scope:
-     - TrainingSession / persistence integration:
-       - Sustained-failure integration in `tests/MathFirst.Core.Tests/PracticeBalanceIntegrationTests.cs`;
-       - Guided all-four Addition failure (0%): all four initial Addition owned facts introduced without false progression;
-       - Guided all-four Multiplication failure (0%): all four initial Multiplication owned facts introduced while preserving Guided gate;
-       - Custom Addition failure (0%): all foundational facts introduced and liveness preserved;
-       - SQLite restart under struggle: PracticePosition, materialization, attempt counts, and FSRS state preserved with remaining unseen foundational facts reachable.
-
-3. **Slice 3: Long-Run Balance Regressions & Deterministic Replay**
-   - Commit SHA: `8624173e93ef305786d2f087919295ea17b86f04`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-005 3/3 long-run-balance-regression`
-   - Scope:
-     - Long-run regression:
-       - Partial-failure profiles: Addition 50% (500 attempts), Addition 25% (500 attempts), alternating 50% (500 attempts);
-       - Total-failure profile: all operations 0% (1,000 attempts; all 13 initial eligible foundational facts across the four operations were introduced [Addition: 4, Subtraction: 3, Multiplication: 4, Division: 2] with zero correct answers and no starvation);
-       - Strong learner profile: all operations 100% (500 attempts);
-       - Custom MUL+DIV asymmetric failure (500 attempts);
-       - Deterministic replay over 500 positions with exact sequence identity for `PracticePosition`, `Operation`, `FactId`, and `RequestedRole`.
+     - Initial Ready Gate overview: structured semantic rows (`role="list"`, `role="listitem"`, `aria-label="@progressLabel"`) with operation symbol, localized name, and Stage display;
+     - Active HUD markup polish: learner-facing group aria label, full localized Stage descriptions in `aria-label` and `title`, decorative symbols marked `aria-hidden="true"`;
+     - CSS responsive polish: flex layout for Ready overview rows with `overflow-wrap: break-word` on operation names, surface elevation via design tokens `var(--color-surface-elevated)` and `var(--shadow-sm)`, preserved 1–4 operation HUD grid rules and $\le 480\text{ px}$ 2-column mobile behavior;
+     - Semantic contract coverage in `tests/MathFirst.Core.Tests/ResponsiveAndCorrectAnswerFlowTests.cs`.
 
 ---
 
 ## 3. Package Summary & Authoritative Invariants
 
-MF-LEARN-005 resolves verified selector defects and delivers the following durable invariants:
+MF-UX-007 delivers a refined, accessible learner-facing progress presentation while preserving all repository and learning invariants:
 
-1. **Protected New Introduction**:
-   - If `requestedRole == PracticeSelectionRole.New` and the current operation has at least one eligible unmaterialized candidate in its active introduction frontier, remediation does **not** preempt that requested New opportunity.
-   - The New opportunity proceeds through the existing New fallback chain, guaranteeing foundational acquisition coverage.
-   - When no eligible New candidate remains in the active frontier, eligible remediation may preempt requested New.
-2. **Preserved Remediation Authority**:
-   - Eligible remediation continues to preempt `Due`, `Maintenance`, and `Frontier` turns, subject to existing remediation spacing ($\ge 4$ positions from previous error/timeout).
-3. **Same-Operation Diversity**:
-   - Inside the already-selected semantic pool, strict candidate selection avoids immediately repeating the previous same-operation `FactId` when another viable `FactId` exists.
-   - Does not alter operation selection, change requested role, switch semantic pools, or alter global cooldown constants (`ExactFactCooldownDistance = 3`, `MirrorFactCooldownDistance = 3`).
-   - Liveness relaxation preserves repetition when strictly necessary.
-4. **Strict Non-Changes**:
-   - Does not modify `DeterministicOperationScheduler`, bounded permutation bags, or operation frequency (no operation weighting, no weak-operation weighting, no dynamic weighting).
-   - Does not modify the 10-slot per-operation role cycle or $\text{AcceptedAttemptCount}(O) + 1$ role authority.
-   - Does not alter global `PracticePosition` authority, normal fallback chains, remediation spacing, FSRS parameters or scheduling, `AdaptivePacePolicy`, mastery/progression thresholds, `GuidedNumberSpaceGate`, Custom Mode independence, curriculum ownership, lazy materialization, SQLite candidate anti-poisoning, persistence, or Schema V6.
+1. **Learner-Facing Stage Terminology**:
+   - Authoritative mapping remains strictly $\text{PresentationStage} = \text{BandIndex} + 1$.
+   - Natural, concise Stage phrasing across English, German, and Russian.
+2. **Returning Learner Ready Overview**:
+   - Rendered strictly when `Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory`.
+   - Displays enabled operations only via `ReadyOperationProgress`.
+   - Semantic list and list-item structure with complete accessible labels; decorative symbols hidden from assistive technology.
+   - Fresh learners receive no overview and zero fabricated progress.
+   - Presentation remains non-mutating and timing-safe.
+3. **Active Practice HUD**:
+   - Intentionally compact visual representation (operation symbol + numeric Stage).
+   - Learner-facing group accessibility (`Training_OperationProgressGroupAriaLabel`) replacing internal diagnostic labels.
+   - Complete localized Stage description via `aria-label` and `title` per entry.
+4. **Responsive Layout Preservation**:
+   - Wide layout: 1 operation $\implies$ 1 column, 2 operations $\implies$ 2 columns, 3 operations $\implies$ 3 columns, 4 operations $\implies$ 4 columns.
+   - Narrow layout ($\le 480\text{ px}$): 3 and 4 operations wrap into 2 columns.
+5. **Strict Non-Changes**:
+   - Zero change to `LearnerProgression`, `OperationProgression`, curriculum bands, fact spaces, or band advancement rules.
+   - Zero change to `DeterministicOperationScheduler`, 10-slot role cycles, `PracticePosition`, FSRS parameters, `AdaptivePacePolicy`, or `GuidedNumberSpaceGate`.
+   - Zero change to SQLite persistence, store contracts, or Schema V6.
+   - No introduction of mastery percentages, completion percentages, fluency percentages, finite stage denominators, or FSRS details into learner-facing UI.
 
 ---
 
-## 4. MF-LEARN-005 Review Status & Findings
+## 4. MF-UX-007 Review Status & Findings
 
 - **Verdict**: `REVIEW_APPROVED`
-- **Candidate HEAD**: `8624173e93ef305786d2f087919295ea17b86f04` (implementation candidate HEAD before documentation commit)
-- **Package Base**: `ef03dc09464ef169228e9bc1e00bba5a22e4a387`
+- **Implementation Candidate HEAD Before Documentation**: `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`
+- **Package Base**: `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`
 - **Blocker Findings**: 0
 - **Major Findings**: 0
 - **Minor Findings**: 0
-- **Core Review Evidence**: 1,604 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
-  - Package-focused selector regression: 77 passed (across `AdaptiveReviewStabilizationTests`, `PracticeSequenceDiversityTests`, and `IndependentSelectorTests`)
-  - `PracticeBalanceIntegrationTests`: 11 passed
-  - Package-relevant review regression: 201 passed
+- **Notes**: 3 (Accessible listitem WAI-ARIA announcement pattern, Constrained viewport overflow scrolling in `.training-host`, Evidence boundary to manual physical validation)
+- **Core Review Evidence**: 1,605 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - Focused package review: 120 passed, 0 failed, 0 skipped (across `PolicyAndLocalizationTests`, `OnboardingAndProgressFeedbackTests`, and `ResponsiveAndCorrectAnswerFlowTests`)
+  - Windows Release build: 0 warnings, 0 errors
 - **Schema**: V6 unchanged (no migration, no table or column additions).
-- **Merge Status**: **NOT MERGED YET**. MF-LEARN-005 is implemented and review-approved, but has not yet undergone formal `FULL_VALIDATION`, is not pushed, has no open PR, and is not merged.
+- **Merge Status**: **NOT MERGED YET**. MF-UX-007 is implemented and review-approved, but has not yet undergone formal candidate `FULL_VALIDATION`, is not pushed, has no open PR, and is not merged.
 
 ---
 
@@ -102,22 +93,21 @@ MF-LEARN-005 resolves verified selector defects and delivers the following durab
 
 ### Release Context:
 - **Build 2 Rejection**: Historical. Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to the selector crash/starvation bug on operation reconfiguration and restart, resolved by `MF-STAB-003`.
-- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004` and `MF-LEARN-005` and no longer represents current repository source.
+- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004`, `MF-LEARN-005`, and `MF-UX-007` and no longer represents current repository source.
 - **Future Production Candidate**:
-  - Any future production candidate packaging after MF-LEARN-004/005 merge will have `versionCode >= 4`.
+  - Any future production candidate packaging after MF-UX-007 merge will have `versionCode >= 4`.
   - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Authorized Downstream Project Sequence:
-1. Complete MF-LEARN-005 lifecycle (`DOCUMENT_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`).
-2. `MF-UX-007` — Progress Presentation Cleanup (accepted in Backlog, inactive; must not be activated without explicit dispatch).
-3. Final V1 gap audit (no new package identifier may be invented here).
-4. Build a fresh Tester APK from the then-current synchronized `main`.
-5. Install the Tester APK on the user's current physical test device: Samsung Galaxy S26 Ultra.
-6. Manual physical-device tester validation.
-7. Only after successful tester validation: create the next production candidate with `versionCode >= 4`.
-8. Step 30 technical smoke verification.
-9. Step 31 production physical-device verification.
-10. Google Play Step 32 publication gate (user responsibility in Google Play Console).
+1. Complete MF-UX-007 lifecycle (`DOCUMENT_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`).
+2. Final V1 gap audit (no new package identifier may be invented here).
+3. Build a fresh Tester APK from the then-current synchronized `main`.
+4. Install the Tester APK on the user's current physical test device: Samsung Galaxy S26 Ultra.
+5. Manual physical-device tester validation.
+6. Only after successful tester validation: create the next production candidate with `versionCode >= 4`.
+7. Step 30 technical smoke verification.
+8. Step 31 production physical-device verification.
+9. Google Play Step 32 publication gate (user responsibility in Google Play Console).
 
 > [!IMPORTANT]
-> MF-LEARN-005 is active candidate work in `DOCUMENT_ONLY`. Downstream packages must not be autonomously activated without explicit user dispatch.
+> MF-UX-007 is active candidate work in `DOCUMENT_ONLY`. Downstream packages or release steps must not be autonomously activated without explicit user dispatch.

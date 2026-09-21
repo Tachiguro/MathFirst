@@ -515,6 +515,37 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         Assert.DoesNotContain("LearningProgressDiagnostics.Create(Session.Progression, new ArithmeticCurriculum())", home, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ProgressPresentation_ActiveHudAndReadyOverview_ExposeLearnerFacingContracts()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+        var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
+
+        // Ready Overview contract
+        Assert.Contains("class=\"ready-progress-list\" role=\"list\"", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"ready-progress-entry\" role=\"listitem\"", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"ready-progress-symbol\"", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"ready-progress-name\"", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"ready-progress-stage\"", home, StringComparison.Ordinal);
+        Assert.Contains("Localizer[\"Training_ProgressStageDisplay\"", home, StringComparison.Ordinal);
+
+        // Active HUD contract
+        Assert.Contains("aria-label=\"@Localizer[\"Training_OperationProgressGroupAriaLabel\"]\"", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-label=\"@Localizer[\"Diagnostics_Group_Learning\"]\"", home, StringComparison.Ordinal);
+        Assert.Contains("title=\"@", home, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@", home, StringComparison.Ordinal);
+
+        // CSS contract
+        Assert.Contains(".ready-progress-symbol", styles, StringComparison.Ordinal);
+        Assert.Contains(".ready-progress-name", styles, StringComparison.Ordinal);
+        Assert.Contains(".ready-progress-stage", styles, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud", styles, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud[data-operation-count=\"1\"]", styles, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud[data-operation-count=\"2\"]", styles, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud[data-operation-count=\"3\"]", styles, StringComparison.Ordinal);
+        Assert.Contains("@media (max-width: 480px)", styles, StringComparison.Ordinal);
+    }
+
     private static async Task<(TrainingSession Session, FakeClock Clock, RecordingStore Store)> CreateSession()
     {
         var clock = new FakeClock();
