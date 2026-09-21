@@ -100,9 +100,9 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 35. Deliver Guided Four-Operation Number-Space Gate (`MF-LEARN-004`) — **COMPLETED** and merged to `main` through Pull Request #44 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea` (validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, merge tree identical to candidate tree `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, 1,590 Core tests passed, Schema V6 preserved, [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)).
 36. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-LEARN-004 candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6` — **COMPLETED** (`FULL_VALIDATION_PASS`).
 37. Reconcile post-MF-LEARN-004 documentation baseline (`MF-DOC-007`) — **COMPLETED** and merged to `main` through Pull Request #45 at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`.
-38. Deliver Adaptive Practice Balance and Foundational Coverage (`MF-LEARN-005`) — **IMPLEMENTED**, `REVIEW_APPROVED`, documentation reconciliation in progress on task branch `codex/mf-learn-005-adaptive-practice-balance` (implementation candidate HEAD before documentation commit `8624173e93ef305786d2f087919295ea17b86f04`, base `ef03dc09464ef169228e9bc1e00bba5a22e4a387`, 1,604 Core tests passed, Schema V6 preserved; **NOT MERGED**).
-39. Complete MF-LEARN-005 lifecycle (`DOCUMENT_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`) — **IN PROGRESS**.
-40. Deliver Progress Presentation Cleanup (`MF-UX-007`) — **ACCEPTED** in Backlog; inactive (not active).
+38. Deliver Adaptive Practice Balance and Foundational Coverage (`MF-LEARN-005`) — **COMPLETED** and merged to `main` through Pull Request #46 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a` (validated candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`, merge tree identical to candidate tree `385ae4edcc6acb1a6817294b72e068c51b5a36de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 1,604 Core tests passed, Schema V6 preserved).
+39. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-LEARN-005 candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf` — **COMPLETED** (`FULL_VALIDATION_PASS`).
+40. Deliver Progress Presentation Cleanup (`MF-UX-007`) — **IMPLEMENTED**, `REVIEW_APPROVED`, documentation reconciliation in progress on task branch `codex/mf-ux-007-progress-presentation-cleanup` (implementation candidate HEAD before documentation commit `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`, base `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, 1,605 Core tests passed, Windows Release build 0 warnings / 0 errors; **NOT MERGED**).
 41. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
 42. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
 43. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
@@ -113,4 +113,4 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 48. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
 
 ### Future Planned Roadmap Work
-- **MF-UX-007**: Progress Presentation Cleanup (accepted in Backlog; inactive).
+- None currently inactive; `MF-UX-007` is active in flight on task branch `codex/mf-ux-007-progress-presentation-cleanup`.

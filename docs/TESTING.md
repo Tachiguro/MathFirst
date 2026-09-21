@@ -292,7 +292,7 @@ MF-SET-001 permanent regression coverage validates the final practice-configurat
 6. **Reset, Check-In, and Localization Contracts**:
    - Reset Learning Progress preserves enabled-operation and Practice Time preferences; Restore Default Settings restores all four operations and Standard time while preserving learner progress; Full Local Reset performs both resets.
    - Session check-in every 20 accepted attempts accurately reports completed count, correct count, stage progressions, and median latency of correct attempts only.
-   - English, German, and Russian remain in parity. Exactly 20 unique Diagnostics keys were removed (60 dictionary entries); `Diagnostics_Group_Learning` intentionally remains for the Home HUD accessible group label.
+   - English, German, and Russian remain in parity. Exactly 20 unique Diagnostics keys were removed (60 dictionary entries); `Diagnostics_Group_Learning` historically remained for the Home HUD accessible group label under MF-SET-001 until replaced with learner-facing `Training_OperationProgressGroupAriaLabel` in MF-UX-007.
 
 ### Reviewed Focused Test Evidence
 
@@ -720,6 +720,41 @@ MF-LEARN-005 contract, unit, integration, persistence, and long-run simulation c
 ### Evidence Boundary Principles & Downstream Validation State
 
 - All 1,604 automated tests execute offline against synthetic fixtures, pure domain models, and temporary SQLite databases.
-- The 1,604 passing tests represent verified implementation on task branch `codex/mf-learn-005-adaptive-practice-balance` during `REVIEW_ONLY` (`REVIEW_APPROVED`).
-- Automated Core test results do not claim Windows/Android Release build validation, ReleaseTool build execution, APK packaging, physical device behavior, or the pending candidate-level `FULL_VALIDATION` lifecycle.
-- Testing on physical hardware (`Samsung Galaxy S26 Ultra`) remains scheduled for downstream tester APK validation phases and is not claimed by this documentation reconciliation.
+- The 1,604 passing tests represented verified implementation on task branch `codex/mf-learn-005-adaptive-practice-balance` during `REVIEW_ONLY` (`REVIEW_APPROVED`).
+- MF-LEARN-005 subsequently achieved exact-candidate `FULL_VALIDATION_PASS` (candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`) and was merged to `main` through Pull Request #46 at merge commit `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`.
+- Testing on physical hardware (`Samsung Galaxy S26 Ultra`) remains scheduled for downstream tester APK validation phases.
+
+---
+
+## 23. MF-UX-007 Progress Presentation Cleanup Contracts & Test Evidence
+
+MF-UX-007 localization, semantic structure, responsive styling, and accessibility contracts are validated across 1,605 automated tests in `MathFirst.Core.Tests`:
+
+1. **Progress Localization & Terminology Parity (`PolicyAndLocalizationTests`)**:
+   - Asserts exact key and placeholder parity across English, German, and Russian for concise Stage terminology (`Training_ProgressStageDisplay`), full localized Stage descriptions (`Training_OperationProgressStage`), unavailable fallbacks (`Training_OperationProgressUnavailable`), and learner-facing HUD group labeling (`Training_OperationProgressGroupAriaLabel`).
+   - Asserts elimination of internal diagnostic jargon ("progression stage", "Fortschrittsstufe", "этап прогресса") in favor of natural learner-facing wording ("Stage", "Stufe", "уровень") consistent with Session Check-In terminology.
+
+2. **Returning Learner Ready Overview Contracts (`OnboardingAndProgressFeedbackTests`, `ResponsiveAndCorrectAnswerFlowTests`)**:
+   - Asserts that the progress overview on the initial Ready Gate renders strictly when `Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory`.
+   - Asserts structured semantic list markup (`role="list"`, `role="listitem"`, `aria-label="@progressLabel"`) with dedicated operation symbol, localized name, and Stage display classes (`ready-progress-symbol`, `ready-progress-name`, `ready-progress-stage`).
+   - Asserts decorative mathematical glyphs are hidden from assistive technology (`aria-hidden="true"`).
+   - Asserts that fresh learners receive no fabricated progress overview.
+
+3. **Active Practice HUD Accessibility & Responsive Contracts (`ResponsiveAndCorrectAnswerFlowTests`)**:
+   - Asserts compact visible presentation format (symbol + numeric Stage).
+   - Asserts HUD container uses `role="group"` with `aria-label="@Localizer[\"Training_OperationProgressGroupAriaLabel\"]"`, removing internal diagnostic labels.
+   - Asserts individual HUD entries provide complete localized context via `aria-label` and native tooltip `title`.
+   - Asserts responsive grid rules in CSS for 1, 2, 3, and 4 operations, including 2-column mobile wrapping for 3 and 4 operations on viewports $\le 480\text{ px}$.
+
+### Reviewed Test Suite Evidence (MF-UX-007 Task Branch Baseline)
+
+- **Full Core Test Suite**: 1,605 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Focused Package Review Suite**: 120 passed, 0 failed, 0 skipped (across `PolicyAndLocalizationTests`, `OnboardingAndProgressFeedbackTests`, and `ResponsiveAndCorrectAnswerFlowTests`).
+- **Windows Release Build**: Succeeded with 0 warnings and 0 errors (`net10.0-windows10.0.19041.0`).
+
+### Evidence Boundary Principles & Downstream Validation State
+
+- All 1,605 automated tests execute offline against synthetic fixtures, pure domain models, and temporary SQLite databases.
+- The 1,605 passing tests represent verified implementation on task branch `codex/mf-ux-007-progress-presentation-cleanup` during `REVIEW_ONLY` (`REVIEW_APPROVED`).
+- Automated tests prove semantic source, DOM roles, CSS selectors, and localization strings. They do not prove final candidate `FULL_VALIDATION`, Android Release build for the docs-final candidate, ReleaseTool verification, physical rendering on Samsung Galaxy S26 Ultra, or live screen-reader pronunciation.
+- Testing on physical hardware (`Samsung Galaxy S26 Ultra`) remains scheduled for downstream tester APK validation phases.
