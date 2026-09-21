@@ -205,14 +205,15 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         Assert.Equal(8, newCount);
     }
 
-    // F. Remediation still overrides regardless of requested role
+    // F. Remediation does not override requested New when eligible unmaterialized facts exist
     [Fact]
-    public void Remediation_OverridesRequestedRole_EvenWhenDenseUnseenFactsExist()
+    public void Remediation_DoesNotOverrideRequestedNew_WhenEligibleUnmaterializedFactsExist()
     {
         var curriculum = new ArithmeticCurriculum();
         var f1 = curriculum.Addition.Bands[0].Frontier[0];
 
-        // Ordinal 1 requests New, but f1 needs remediation and is eligible (spacing >= 4)
+        // Ordinal 1 requests New, f1 needs remediation and is eligible (spacing >= 4),
+        // but unmaterialized facts exist in the active band, so New must not be preempted.
         var posNew = GetOpPosition(ArithmeticOperation.Addition, 1);
         var state1 = ItemLearningState.CreateNew(f1);
         state1.NeedsRemediation = true;
@@ -228,9 +229,44 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         var result = selector.SelectTargetFact(context);
 
         Assert.Equal(PracticeSelectionRole.New, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+        var unmaterializedFacts = curriculum.Addition.Bands[0].Frontier
+            .Where(f => f.Id != f1.Id)
+            .Select(f => f.Id);
+        Assert.Contains(result.Fact.Id, unmaterializedFacts);
+    }
+
+    [Fact]
+    public void Remediation_OverridesRequestedNew_WhenNoEligibleNewCandidateExists()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var bandFrontier = curriculum.Addition.Bands[0].Frontier;
+        var f1 = bandFrontier[0];
+
+        // Fully materialize active owned introduction frontier
+        var states = bandFrontier.ToDictionary(f => f.Id, ItemLearningState.CreateNew, StringComparer.Ordinal);
+        var cards = bandFrontier.ToDictionary(
+            f => f.Id,
+            f => new FsrsCardState(f.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good),
+            StringComparer.Ordinal);
+
+        var posNew = GetOpPosition(ArithmeticOperation.Addition, 1);
+        states[f1.Id].NeedsRemediation = true;
+        cards[f1.Id] = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, posNew - 5, FsrsRating.Again);
+
+        var materialized = new MaterializedState(bandFrontier, states, cards);
+
+        var context = CreateContext(posNew, curriculum, materialized, scheduledOperationAttemptOrdinal: 1);
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.New, result.RequestedRole);
         Assert.Equal(PracticeSelectionRole.Remediation, result.ResolvedRole);
         Assert.Equal(f1.Id, result.Fact.Id);
         Assert.True(result.IsMaterialized);
+        Assert.False(result.IsNewIntroduction);
     }
 
     // G. Structured behavior unchanged

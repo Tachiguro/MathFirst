@@ -246,3 +246,39 @@ To provide meaningful feedback without distracting during active arithmetic reca
    - *Rejected*: Creates unnecessary visual clutter and cognitive anxiety. A single adaptive timer cleanly unifies goal pacing and timeout limits.
 4. **Persisting Ephemeral Adaptation Markers in SQLite**:
    - *Rejected*: Ephemeral presentation states (check-in counts, teaching pauses) pollute long-term learner records and introduce unnecessary migration friction.
+
+---
+
+## Amendment: Adaptive Practice Balance and Foundational Coverage Refinement (MF-LEARN-005)
+
+### Status
+Accepted (amendment to Section 7 Selector Precedence and Candidate Selection)
+
+### Date
+2026-09-21
+
+### Context & Motivation
+Under the original ADR-0004 remediation override policy (Section 7), any materialized fact with `NeedsRemediation == true` immediately preempted the scheduled role whenever spacing $\ge 4$ was satisfied. In multi-operation practice (especially Guided Mode where all four operations are active), a learner struggling on their first introduced fact for an operation (e.g. `0 + 0 = 0` or `1 × 1 = 1`) could trigger sustained remediation that preempted subsequent `Requested New` opportunities indefinitely. Because `NeedsRemediation` clears only upon a fluent `Correct` response, the scheduled operation became starved for new material, trapped in an excessive remediation loop on a single fact rather than introducing the foundational curriculum prefix.
+
+### Decision Amendment
+
+1. **Protected New Opportunity Acquisition**:
+   - Remediation preemption is **not** unconditional.
+   - When $\text{requestedRole} == \text{PracticeSelectionRole.New}$ and the active introduction frontier has at least one eligible unmaterialized fact, remediation does **not** preempt New introduction. Selection proceeds through the normal New role pathway.
+   - When $\text{requestedRole} == \text{PracticeSelectionRole.New}$ and the New frontier is exhausted (all owned material has been materialized or no eligible unmaterialized candidate exists), remediation preemption is restored: an eligible remediation candidate preempts requested New if available.
+
+2. **Remediation Precedence Preservation for Non-New Roles**:
+   - For all non-New roles (`Due`, `Maintenance`, `Frontier`), remediation authority is strictly preserved: any eligible remediation candidate preempts the requested role, subject to the existing attempt spacing constraint ($\text{ProspectivePosition} \ge \text{LastReviewPracticePosition} + 4$).
+
+3. **Same-Operation Diversity Guard**:
+   - Within the selected semantic pool, the strict candidate selection tier avoids repeating the immediately preceding same-operation `FactId` if another viable candidate exists in the candidate set.
+   - If only one viable candidate exists in the candidate set, the diversity constraint is cleanly relaxed to preserve terminal liveness and prevent selection deadlocks or unserved practice positions.
+
+4. **Explicit Preserved Invariants (Unchanged)**:
+   - **No Operation Weighting**: Turn allocation among enabled operations is strictly deterministic via `DeterministicOperationScheduler` bounded permutation bags (equal turn share; e.g. 25% nominal per operation in 4-operation mode). No operation weighting, weak-operation bias, or dynamic priority weighting is introduced.
+   - **Role Cycle Invariant**: The 10-slot per-operation role cycle remains unchanged ($1, 3, 6, 8 \to \text{New}$; $2, 7, 9 \to \text{Due}$; $4 \to \text{Maintenance}$; $5, 10 \to \text{Frontier}$).
+   - **Per-Operation Role Authority**: Role derivation remains strictly determined by $\text{AcceptedAttemptCount}(O) + 1$ ([ADR-0008](ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)).
+   - **PracticePosition Sequence**: Global `PracticePosition` virtual time advancement and persistence boundaries are unchanged.
+   - **FSRS & Adaptive Pace**: FSRS rating, stability/difficulty calculations, adaptive pace shrinkage, and dynamic answer deadlines remain unchanged.
+   - **Cross-Operation Gate**: The Guided four-operation number-space gate ([ADR-0009](ADR-0009-guided-four-operation-number-space-gate.md)) is strictly preserved.
+   - **Persistence Schema**: Schema V6 remains unchanged with zero table alterations or migrations.

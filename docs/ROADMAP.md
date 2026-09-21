@@ -99,12 +99,18 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 34. Production Candidate Build 3 (`versionCode 3`): Candidate packaged and Step 30 technical smoke passed (`TECHNICAL_SMOKE_PASS`) and Step 31 manual physical-device verification passed on Samsung SM-S948B, Android 16. Build 3 is historical: its source predates MF-LEARN-004 and no longer represents current repository source.
 35. Deliver Guided Four-Operation Number-Space Gate (`MF-LEARN-004`) — **COMPLETED** and merged to `main` through Pull Request #44 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea` (validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, merge tree identical to candidate tree `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, 1,590 Core tests passed, Schema V6 preserved, [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)).
 36. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-LEARN-004 candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6` — **COMPLETED** (`FULL_VALIDATION_PASS`).
-37. Reconcile post-MF-LEARN-004 documentation baseline (`MF-DOC-007`) — **IN PROGRESS** (`DOCUMENT_ONLY` on task branch `docs/mf-doc-007-post-mf-learn-004-merge-reconciliation`).
-38. Perform production packaging and signing for future candidate (`versionCode` $\ge 4$) — **PENDING** and separately authorized following MF-LEARN-004 merge (agent-executable when explicitly authorized; Build 4 does not exist yet).
-39. Perform technical smoke verification (Step 30) on the new production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
-40. Perform manual physical-device functional verification (Step 31) on the new production candidate (`versionCode` $\ge 4$) (Samsung SM-S948B, Android 16) — **PENDING** (agent-executable when explicitly authorized).
-41. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
+37. Reconcile post-MF-LEARN-004 documentation baseline (`MF-DOC-007`) — **COMPLETED** and merged to `main` through Pull Request #45 at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`.
+38. Deliver Adaptive Practice Balance and Foundational Coverage (`MF-LEARN-005`) — **IMPLEMENTED**, `REVIEW_APPROVED`, documentation reconciliation in progress on task branch `codex/mf-learn-005-adaptive-practice-balance` (implementation candidate HEAD before documentation commit `8624173e93ef305786d2f087919295ea17b86f04`, base `ef03dc09464ef169228e9bc1e00bba5a22e4a387`, 1,604 Core tests passed, Schema V6 preserved; **NOT MERGED**).
+39. Complete MF-LEARN-005 lifecycle (`DOCUMENT_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`) — **IN PROGRESS**.
+40. Deliver Progress Presentation Cleanup (`MF-UX-007`) — **ACCEPTED** in Backlog; inactive (not active).
+41. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
+42. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
+43. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
+44. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
+45. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
+46. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
+47. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
+48. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
 
 ### Future Planned Roadmap Work
-- **MF-UX-007**: Progress Presentation Cleanup (accepted in Backlog).
-- **Weak-Frontier / Adaptive Practice Balance**: Extended diagnostic simulation finding (repetition under complete failure); recognized as an uncommitted future architectural inquiry requiring a separate `PLAN_ONLY` decision (not an accepted package).
+- **MF-UX-007**: Progress Presentation Cleanup (accepted in Backlog; inactive).

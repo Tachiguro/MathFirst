@@ -310,4 +310,66 @@ public sealed class PracticeSequenceDiversityTests
         Assert.Equal("add:5+2", selectedOutside.Fact.Id);
         Assert.Equal(PracticeCooldownRelaxation.None, selectedOutside.Relaxation);
     }
+
+    [Fact]
+    public void SameOperationRepeatGuard_StrictTierAvoidsImmediateSameOperationRepeat_WhenAlternativeExists()
+    {
+        var band = new CurriculumBandId("ADD-D01");
+        var fact00 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
+        var fact11 = new ArithmeticFact(ArithmeticOperation.Addition, 1, 1);
+        var pool = new[] { fact00, fact11 };
+
+        // previous same-operation fact is add:0+0
+        // place that previous Addition fact outside the final global exact-cooldown window (distance = 3)
+        // by following it with three facts from other operations:
+        var recent = new[]
+        {
+            fact00,
+            new ArithmeticFact(ArithmeticOperation.Subtraction, 1, 0),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 1, 1),
+            new ArithmeticFact(ArithmeticOperation.Division, 1, 1)
+        };
+
+        var selected = AdaptivePracticeSelector.SelectTargetCandidate(
+            pool,
+            recent,
+            ArithmeticOperation.Addition,
+            band,
+            PracticeSelectionRole.Due,
+            2);
+
+        // Under baseline, DeterministicFactRanker ranks add:0+0 ahead of add:1+1,
+        // and because add:0+0 is 4 positions back, global exact cooldown does not exclude it,
+        // selecting add:0+0 and repeating the previous same-operation fact.
+        // Under the new contract, the strict tier must avoid repeating previousSameOpFact when an alternative exists.
+        Assert.NotEqual("add:0+0", selected.Fact.Id);
+        Assert.Equal("add:1+1", selected.Fact.Id);
+        Assert.Equal(PracticeCooldownRelaxation.None, selected.Relaxation);
+    }
+
+    [Fact]
+    public void SameOperationRepeatGuard_RelaxesWhenOnlyPreviousSameOperationCandidateExists()
+    {
+        var band = new CurriculumBandId("ADD-D01");
+        var fact00 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
+        var pool = new[] { fact00 };
+
+        var recent = new[]
+        {
+            fact00,
+            new ArithmeticFact(ArithmeticOperation.Subtraction, 1, 0),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 1, 1),
+            new ArithmeticFact(ArithmeticOperation.Division, 1, 1)
+        };
+
+        var selected = AdaptivePracticeSelector.SelectTargetCandidate(
+            pool,
+            recent,
+            ArithmeticOperation.Addition,
+            band,
+            PracticeSelectionRole.Due,
+            2);
+
+        Assert.Equal("add:0+0", selected.Fact.Id);
+    }
 }

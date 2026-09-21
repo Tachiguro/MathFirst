@@ -674,3 +674,52 @@ MF-LEARN-004 contract, regression, persistence, and session integration coverage
 - Automated tests do not constitute physical hardware revalidation.
 - Build 3 (`MathFirst-v1.0-b3-739fed4-release.aab` / `MathFirst-v1.0-b3-739fed4-Distributable-evidence.zip`) is historical evidence; its source tree predates MF-LEARN-004.
 - Any future packaging candidate requires `versionCode >= 4`. Build 4 does not exist yet; no release packaging, signing, AAB/APK build, or Google Play upload is claimed.
+
+---
+
+## 22. MF-LEARN-005 Adaptive Practice Balance and Foundational Coverage Contracts & Test Evidence
+
+MF-LEARN-005 contract, unit, integration, persistence, and long-run simulation coverage validates protected New material acquisition, remediation authority preservation, same-operation diversity, and fallback liveness across 1,604 automated tests in `MathFirst.Core.Tests`:
+
+1. **Protected New Acquisition & Remediation Exhaustion Fallback (`IndependentSelectorTests`)**:
+   - Asserts that when `requestedRole == PracticeSelectionRole.New` and the active introduction frontier has at least one eligible unmaterialized fact, remediation does *not* preempt New introduction, proceeding through normal New fallback.
+   - Asserts remediation-exhaustion fallback: when the New frontier is exhausted (all owned material has been materialized or no eligible unseen candidate exists), an eligible remediation candidate preempts requested New if available.
+   - Asserts that for non-New roles (`Due`, `Maintenance`, `Frontier`), remediation precedence is preserved: an eligible remediation candidate preempts the requested role provided spacing $\ge 4$ from previous remediation presentations is satisfied.
+   - Asserts that remediation preemption remains subject to the $\ge 4$ attempt spacing constraint across all operational states.
+
+2. **Same-Operation Diversity & Liveness Relaxation (`IndependentSelectorTests`)**:
+   - Asserts strict selection tier enforces same-operation diversity: candidate filtering avoids repeating the immediately preceding same-operation `FactId` whenever another viable candidate exists in the candidate set.
+   - Asserts liveness relaxation fallback: when the candidate pool contains only the single preceding same-operation fact (or no other viable candidate remains), the selector relaxes the diversity constraint to guarantee selection liveness and prevent deadlocks or unserved positions.
+
+3. **Multi-Operation Sustained-Failure Integration & SQLite Restart (`PracticeBalanceIntegrationTests`)**:
+   - Validates multi-operation sustained-failure sessions under Guided Mode:
+     - Guided 100% failure on Addition (0% correct) does not trap the session; Addition, Subtraction, Multiplication, and Division progress through their respective balanced cycles without unmaterialized starvation.
+     - Guided 100% failure on Multiplication (0% correct) preserves overall session throughput and introduces new foundational facts appropriately.
+   - Validates Custom Mode sustained-failure sessions:
+     - Custom Mode with 100% failure on Addition (0% correct) maintains balanced selection and introduces new facts across enabled operations.
+   - Validates SQLite persistence and restart under struggle:
+     - Session state, item learning states, attempts, and scheduler progress persisted to SQLite during sustained struggle recover correctly across engine restart without state corruption, duplicate positions, or lost fact introductions.
+   - Validates 500-position deterministic replay asserting identical sequence of `PracticePosition`, `Operation`, `FactId`, and `RequestedRole` across independent runs with identical initial seeds and response profiles.
+
+4. **Long-Run Multi-Operation Failure Matrix Simulations (`PracticeBalanceIntegrationTests`)**:
+   - Validates long-run multi-operation scenarios across diverse error profiles:
+     - Guided Addition 50% mixed errors / slow progression.
+     - Guided Addition 25% mixed errors.
+     - Guided all-0% failure across 1,000 attempts: asserts that all 13 initial eligible foundational facts across the four operations were introduced (Addition: 4, Subtraction: 3, Multiplication: 4, Division: 2) despite zero correct answers.
+     - Guided all-100% success baseline.
+     - Guided alternating 50% mixed performance.
+     - Custom Mode Multiplication + Division asymmetric progression.
+
+### Reviewed Test Suite Evidence (MF-LEARN-005 Task Branch Baseline)
+
+- **Full Core Test Suite**: 1,604 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Package-Focused Selector Regression**: 77 passed, 0 failed, 0 skipped (across `AdaptiveReviewStabilizationTests`, `PracticeSequenceDiversityTests`, and `IndependentSelectorTests`).
+- **PracticeBalanceIntegrationTests**: 11 passed, 0 failed, 0 skipped (Guided Addition 0%, Guided Multiplication 0%, Custom Addition 0%, SQLite restart under struggle, 500-position deterministic replay, and 6-scenario long-run failure matrix).
+- **Package-Relevant Regression Suite**: 201 passed, 0 failed, 0 skipped (across scheduler, selector, gate, persistence, and balance integration suites).
+
+### Evidence Boundary Principles & Downstream Validation State
+
+- All 1,604 automated tests execute offline against synthetic fixtures, pure domain models, and temporary SQLite databases.
+- The 1,604 passing tests represent verified implementation on task branch `codex/mf-learn-005-adaptive-practice-balance` during `REVIEW_ONLY` (`REVIEW_APPROVED`).
+- Automated Core test results do not claim Windows/Android Release build validation, ReleaseTool build execution, APK packaging, physical device behavior, or the pending candidate-level `FULL_VALIDATION` lifecycle.
+- Testing on physical hardware (`Samsung Galaxy S26 Ultra`) remains scheduled for downstream tester APK validation phases and is not claimed by this documentation reconciliation.

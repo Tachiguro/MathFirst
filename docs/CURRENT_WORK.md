@@ -9,122 +9,115 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Package**: `MF-DOC-007` — Post-MF-LEARN-004 Merge State Reconciliation
+- **Active Package**: `MF-LEARN-005` — Adaptive Practice Balance and Foundational Coverage
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Task Branch**: `docs/mf-doc-007-post-mf-learn-004-merge-reconciliation`
-- **Authoritative Baseline (`main` / `origin/main`)**: `8f4ae59110abf6ea9d365733297a0c15d4c296ea`
-- **Most Recently Merged Implementation Package on `main`**: `MF-LEARN-004` — Guided Four-Operation Number-Space Gate (PR #44 merge at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`, validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
-- **Active Implementation Package**: None (no implementation package is active; downstream packages must not be autonomously selected)
-- **Next Lifecycle for MF-DOC-007**: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
+- **Task Branch**: `codex/mf-learn-005-adaptive-practice-balance`
+- **Candidate HEAD**: `8624173e93ef305786d2f087919295ea17b86f04` (implementation candidate HEAD before documentation commit)
+- **Authoritative Baseline (`main` / `origin/main`)**: `ef03dc09464ef169228e9bc1e00bba5a22e4a387`
+- **Most Recently Merged Documentation Package on `main`**: `MF-DOC-007` — Post-MF-LEARN-004 Merge State Reconciliation (PR #45 merge commit at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`)
+- **Most Recently Merged Implementation Package on `main`**: `MF-LEARN-004` — Guided Four-Operation Number-Space Gate (PR #44 merge commit at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`, validated candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`, tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
+- **Status of MF-LEARN-005**: Implemented, review-approved, documentation reconciliation in progress; **NOT MERGED YET** (not yet `FULL_VALIDATED`, not pushed, no open PR, not merged)
+- **Next Lifecycle for MF-LEARN-005**: `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
 
 ---
 
-## 2. MF-LEARN-004 Historical Implementation Checkpoints
+## 2. MF-LEARN-005 Implementation Checkpoints
 
-The package implementation was completed across four structured checkpoint commits on task branch `codex/mf-learn-004-guided-number-space-gate` and merged to `main` via PR #44:
+The package implementation was completed across three structured checkpoint commits on task branch `codex/mf-learn-005-adaptive-practice-balance`:
 
-1. **Slice 1: Guided Number-Space Gate Contract**
-   - Commit SHA: `d3a0e2fc194e45655498c957c7b694c3fec931ee`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-004 1/4 add-guided-number-space-gate-contract`
+1. **Slice 1: Selector Implementation & Same-Operation Diversity Guard**
+   - Commit SHA: `c1f484e83a8da6d3a4d68d98934cd41b3f50aa75`
+   - Trailer: `MathFirst-Checkpoint: MF-LEARN-005 1/3 protect-new-and-same-op-balance`
    - Scope:
-     - Implemented `GuidedNumberSpaceGate` domain entity in `src/MathFirst.Domain/Curriculum/GuidedNumberSpaceGate.cs`;
-     - Defined Guided Mode condition (active iff exactly all four operations are enabled);
-     - Implemented deterministic Addition ceiling derivation over the unlocked canonical Addition curriculum prefix ($0..\text{BandIndex}_{\text{ADD}}$);
-     - Established multiplication ($\text{CorrectResult} \le \text{ceiling}$) and division ($\text{LeftOperand} \le \text{ceiling}$) eligibility checks;
-     - Defined Addition and Subtraction invariance under cross-operation gating;
-     - Added comprehensive unit tests in `tests/MathFirst.Core.Tests/GuidedNumberSpaceGateTests.cs`.
+     - Selector implementation:
+       - Protected requested-New introduction: when `requestedRole == PracticeSelectionRole.New` and the current operation has at least one eligible unmaterialized candidate in its active introduction frontier, remediation does not preempt that requested New opportunity;
+       - Remediation exhaustion fallback: when New frontier is exhausted (all owned material has been materialized or no eligible unseen candidate exists), eligible remediation may preempt requested New;
+       - Same-operation strict-tier repeat guard: inside the already-selected semantic pool, strict candidate selection avoids immediately repeating the previous same-operation `FactId` when another viable `FactId` exists;
+       - Preserved cooldown relaxation to guarantee liveness when only repeating candidates exist;
+       - Focused selector regression coverage in `tests/MathFirst.Core.Tests/AdaptiveReviewStabilizationTests.cs`, `tests/MathFirst.Core.Tests/IndependentSelectorTests.cs`, and `tests/MathFirst.Core.Tests/PracticeSequenceDiversityTests.cs`.
 
-2. **Slice 2: Gated Practice Selection Evidence & Candidate Anti-Poisoning**
-   - Commit SHA: `052b1bb82bf071a39b08d22468dbc5a5f0c80c92`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-004 2/4 gate-guided-practice-selection-evidence`
+2. **Slice 2: TrainingSession & Persistence Integration Coverage**
+   - Commit SHA: `31d760d36fb0509f481952fc7e509e2a5b00ba8b`
+   - Trailer: `MathFirst-Checkpoint: MF-LEARN-005 2/3 sustained-failure-integration`
    - Scope:
-     - Integrated `GuidedNumberSpaceGate` into `PracticeSelectionEvidenceRequest` and selection evidence construction;
-     - Implemented streaming SQLite candidate filtering in `SqliteLearnerStore.ReadCandidateRowsAsync` before candidate accumulation and window truncation, guaranteeing gated historical facts do not consume any of the bounded 64 candidate window slots (candidate window anti-poisoning);
-     - Reinforced defense-in-depth across selector candidate pools (`New`, `Useful Frontier`, `Due`, `Maintenance`, `Early Review`, `Remediation`) and final selection boundary assertions in `AdaptivePracticeSelector`;
-     - Added targeted selection and persistence suites in `tests/MathFirst.Core.Tests/GuidedNumberSpaceSelectionTests.cs` and `tests/MathFirst.Core.Tests/GuidedNumberSpacePersistenceTests.cs`.
+     - TrainingSession / persistence integration:
+       - Sustained-failure integration in `tests/MathFirst.Core.Tests/PracticeBalanceIntegrationTests.cs`;
+       - Guided all-four Addition failure (0%): all four initial Addition owned facts introduced without false progression;
+       - Guided all-four Multiplication failure (0%): all four initial Multiplication owned facts introduced while preserving Guided gate;
+       - Custom Addition failure (0%): all foundational facts introduced and liveness preserved;
+       - SQLite restart under struggle: PracticePosition, materialization, attempt counts, and FSRS state preserved with remaining unseen foundational facts reachable.
 
-3. **Slice 3: Wire Guided Gate into TrainingSession & Settings Reconciliation**
-   - Commit SHA: `2eef22ff047f2f94aee8210b20bad57e5ddc720b`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-004 3/4 wire-guided-number-space-gate-into-training-session`
+3. **Slice 3: Long-Run Balance Regressions & Deterministic Replay**
+   - Commit SHA: `8624173e93ef305786d2f087919295ea17b86f04`
+   - Trailer: `MathFirst-Checkpoint: MF-LEARN-005 3/3 long-run-balance-regression`
    - Scope:
-     - Added `DeriveEffectiveGuidedNumberSpaceGate` to `TrainingSession`, dynamically evaluating enabled operations and Addition progression;
-     - Implemented `GateIdentity(bool IsActive, int? AdditionCeiling)` for selection evidence caching, ensuring cache invalidation on ceiling expansion while treating Addition and Subtraction as gate-invariant;
-     - Integrated with MF-STAB-003 Settings reconciliation: unsubmitted active questions that become Guided-ineligible are discarded and replaced at the same prospective `PracticePosition` with zero learning mutations; eligible questions preserve partial input and timer state; accepted feedback is deferred;
-     - Added comprehensive session and reconciliation integration tests in `tests/MathFirst.Core.Tests/GuidedNumberSpaceSessionTests.cs`.
-
-4. **Slice 4: Regression Closure & Role Helper Alignment**
-   - Commit SHA: `c962c33fe62edd633bcae003728391bec502e7eb`
-   - Trailer: `MathFirst-Checkpoint: MF-LEARN-004 4/4 close-guided-number-space-regressions`
-   - Scope:
-     - Closed long-run regression suites: 100-attempt continuous Guided simulations (all-correct, Addition always wrong, Addition 50%, mixed errors), Custom mode independence, >64 SQLite candidate window anti-poisoning, and restart/reconciliation regressions;
-     - Resolved historical MF-STAB-003 test-helper maintenance finding in `tests/MathFirst.Core.Tests/BoundedSelectionIntegrationTests.cs`, aligning test-helper role-ordinal derivation with per-operation attempt counts.
+     - Long-run regression:
+       - Partial-failure profiles: Addition 50% (500 attempts), Addition 25% (500 attempts), alternating 50% (500 attempts);
+       - Total-failure profile: all operations 0% (1,000 attempts; all 13 initial eligible foundational facts across the four operations were introduced [Addition: 4, Subtraction: 3, Multiplication: 4, Division: 2] with zero correct answers and no starvation);
+       - Strong learner profile: all operations 100% (500 attempts);
+       - Custom MUL+DIV asymmetric failure (500 attempts);
+       - Deterministic replay over 500 positions with exact sequence identity for `PracticePosition`, `Operation`, `FactId`, and `RequestedRole`.
 
 ---
 
 ## 3. Package Summary & Authoritative Invariants
 
-MF-LEARN-004 delivers the following durable invariants:
+MF-LEARN-005 resolves verified selector defects and delivers the following durable invariants:
 
-1. **Guided Mode vs. Custom Mode**:
-   - **Guided Mode**: Active iff exactly all four operations (`Addition`, `Subtraction`, `Multiplication`, `Division`) are enabled. Enforces cross-operation multiplicative number-space gating governed by Addition ([ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)).
-   - **Custom Mode**: Any other non-empty subset. Operates completely unrestricted (`GuidedNumberSpaceGate.Unrestricted`), allowing targeted practice without an Addition ceiling.
-2. **Addition Ceiling Authority**:
-   - In Guided Mode, the ceiling is the maximum represented number across the complete unlocked canonical Addition curriculum prefix ($0..\text{BandIndex}_{\text{ADD}}$).
-   - Multiplication requires $\text{CorrectResult} \le \text{AdditionCeiling}$.
-   - Division requires $\text{LeftOperand} \le \text{AdditionCeiling}$.
-   - Addition and Subtraction are invariant under cross-operation gating.
-3. **State & Schema Preservation**:
-   - The gate restricts presentation eligibility only (`PERSISTED != CURRENTLY PRESENTABLE`).
-   - Progression `BandIndex`, `ItemLearningState`, attempt history, FSRS cards, fluency evidence, remediation queues, accepted attempt counts, and global `PracticePosition` are preserved losslessly in Schema V6 without migration.
-   - Dormant historical facts automatically regain presentation eligibility when the Addition ceiling expands or when switching to Custom Mode.
-4. **Candidate-Window Anti-Poisoning**:
-   - SQLite candidate streaming in `SqliteLearnerStore.ReadCandidateRowsAsync` filters out Guided-ineligible facts before candidate partitioning and window truncation, ensuring dormant facts do not consume any of the bounded 64 candidate window slots.
-5. **Settings & Restart Reconciliation**:
-   - Unsubmitted active questions that become Guided-ineligible upon configuration changes are discarded and replaced at the same prospective `PracticePosition` with zero learning mutations (no attempt record, no timeout, no score mutation, no FSRS mutation, no progression mutation, no count increment).
-   - Eligible unsubmitted questions retain exact identity, partial input, and timer state.
-   - Accepted feedback is preserved until deliberate dismissal.
-   - Session restart deterministically reconstructs gate state from persisted Addition progression and enabled operations.
-6. **Evidence Cache Semantic Identity**:
-   - Cache identity includes semantic gate state (`GateIdentity(bool IsActive, int? AdditionCeiling)`). Equivalent semantic states compare by value equality of active status and ceiling. Addition and Subtraction remain gate-invariant (`GateIdentity(false, null)`). No gate identity is persisted.
-7. **Scheduler & Role Invariants**:
-   - `DeterministicOperationScheduler` bounded permutation bag turn scheduling remains unchanged (25% nominal turn share per operation in all-four mode).
-   - Per-operation role progression remains derived strictly from $\text{AcceptedAttemptCount}(O) + 1$ across the 10-slot cycle.
+1. **Protected New Introduction**:
+   - If `requestedRole == PracticeSelectionRole.New` and the current operation has at least one eligible unmaterialized candidate in its active introduction frontier, remediation does **not** preempt that requested New opportunity.
+   - The New opportunity proceeds through the existing New fallback chain, guaranteeing foundational acquisition coverage.
+   - When no eligible New candidate remains in the active frontier, eligible remediation may preempt requested New.
+2. **Preserved Remediation Authority**:
+   - Eligible remediation continues to preempt `Due`, `Maintenance`, and `Frontier` turns, subject to existing remediation spacing ($\ge 4$ positions from previous error/timeout).
+3. **Same-Operation Diversity**:
+   - Inside the already-selected semantic pool, strict candidate selection avoids immediately repeating the previous same-operation `FactId` when another viable `FactId` exists.
+   - Does not alter operation selection, change requested role, switch semantic pools, or alter global cooldown constants (`ExactFactCooldownDistance = 3`, `MirrorFactCooldownDistance = 3`).
+   - Liveness relaxation preserves repetition when strictly necessary.
+4. **Strict Non-Changes**:
+   - Does not modify `DeterministicOperationScheduler`, bounded permutation bags, or operation frequency (no operation weighting, no weak-operation weighting, no dynamic weighting).
+   - Does not modify the 10-slot per-operation role cycle or $\text{AcceptedAttemptCount}(O) + 1$ role authority.
+   - Does not alter global `PracticePosition` authority, normal fallback chains, remediation spacing, FSRS parameters or scheduling, `AdaptivePacePolicy`, mastery/progression thresholds, `GuidedNumberSpaceGate`, Custom Mode independence, curriculum ownership, lazy materialization, SQLite candidate anti-poisoning, persistence, or Schema V6.
 
 ---
 
-## 4. MF-LEARN-004 Review Status & Findings
+## 4. MF-LEARN-005 Review Status & Findings
 
 - **Verdict**: `REVIEW_APPROVED`
-- **Candidate FULL_VALIDATION**: `FULL_VALIDATION_PASS` on `51a2bd9907ebdcf738a348bc90de29d31d6b68b6` (tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`)
-- **Merge Commit**: `8f4ae59110abf6ea9d365733297a0c15d4c296ea` (PR #44)
+- **Candidate HEAD**: `8624173e93ef305786d2f087919295ea17b86f04` (implementation candidate HEAD before documentation commit)
+- **Package Base**: `ef03dc09464ef169228e9bc1e00bba5a22e4a387`
 - **Blocker Findings**: 0
 - **Major Findings**: 0
 - **Minor Findings**: 0
-- **Note Findings**: 2
-  - *Note 1*: Informal review timing observations noted; ceiling derivation operates over a small canonical prefix without runtime caching dependencies.
-  - *Note 2*: Extended diagnostic simulations (1000-attempt continuous runs with simulated complete Addition failure) observed that complete failure in an operation can cycle that operation through a very small set of repeated facts. MF-LEARN-004 intentionally does not alter operation allocation, remediation precedence, weak-frontier coverage, scheduler weights, or FSRS behavior; this finding is recognized as a deferred educational/architectural inquiry for a future separate `PLAN_ONLY` package.
-- **Test Evidence**: 1,590 Core unit, integration, and regression tests passing with 0 failures and 0 skips; clean Windows and Android Release builds.
+- **Core Review Evidence**: 1,604 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - Package-focused selector regression: 77 passed (across `AdaptiveReviewStabilizationTests`, `PracticeSequenceDiversityTests`, and `IndependentSelectorTests`)
+  - `PracticeBalanceIntegrationTests`: 11 passed
+  - Package-relevant review regression: 201 passed
+- **Schema**: V6 unchanged (no migration, no table or column additions).
+- **Merge Status**: **NOT MERGED YET**. MF-LEARN-005 is implemented and review-approved, but has not yet undergone formal `FULL_VALIDATION`, is not pushed, has no open PR, and is not merged.
 
 ---
 
-## 5. Downstream Release Context & Planned Packages
+## 5. Downstream Release Context & Planned Sequence
 
 ### Release Context:
-- **Build 2 Rejection**: Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to the selector crash/starvation bug on operation reconfiguration and restart.
-- **Remediation**: `MF-STAB-003` resolved the root cause in merged code (PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`).
-- **Build 3 Status**:
-  - Build 3 historically passed technical smoke (Step 30) and manual physical-device verification (Step 31).
-  - However, Build 3 source predates `MF-LEARN-004` and therefore no longer represents current repository source.
+- **Build 2 Rejection**: Historical. Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to the selector crash/starvation bug on operation reconfiguration and restart, resolved by `MF-STAB-003`.
+- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004` and `MF-LEARN-005` and no longer represents current repository source.
 - **Future Production Candidate**:
-  - Any future production candidate packaging after `MF-LEARN-004` merge will have `versionCode >= 4`.
-  - Build 4 does **not** exist yet; it has not been packaged, signed, or tested.
-  - Production packaging and signing (`Distributable` AAB) and Step 30/31 verifications are agent-executable when explicitly authorized, but are not authorized in the current documentation lifecycle.
-  - Must repeat technical smoke verification (Step 30) and manual physical-device functional verification (Step 31) on physical hardware (Samsung SM-S948B, Android 16).
-  - Google Play publication gate (Step 32) remains user responsibility in Google Play Console (upload, rollout, and publishing) and is blocked until Step 31 passes.
+  - Any future production candidate packaging after MF-LEARN-004/005 merge will have `versionCode >= 4`.
+  - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
-### Future Planned Packages:
-- `MF-UX-007`: Progress Presentation Cleanup (HUD and readiness progress presentation polish). Inactive / accepted in Backlog.
-- *Weak-Frontier / Adaptive Practice Balance*: Deferred educational follow-up; requires separate `PLAN_ONLY` decision and is not an accepted package.
+### Authorized Downstream Project Sequence:
+1. Complete MF-LEARN-005 lifecycle (`DOCUMENT_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`).
+2. `MF-UX-007` — Progress Presentation Cleanup (accepted in Backlog, inactive; must not be activated without explicit dispatch).
+3. Final V1 gap audit (no new package identifier may be invented here).
+4. Build a fresh Tester APK from the then-current synchronized `main`.
+5. Install the Tester APK on the user's current physical test device: Samsung Galaxy S26 Ultra.
+6. Manual physical-device tester validation.
+7. Only after successful tester validation: create the next production candidate with `versionCode >= 4`.
+8. Step 30 technical smoke verification.
+9. Step 31 production physical-device verification.
+10. Google Play Step 32 publication gate (user responsibility in Google Play Console).
 
 > [!IMPORTANT]
-> There is currently no active implementation package. Downstream packages must not be autonomously activated without explicit user dispatch.
+> MF-LEARN-005 is active candidate work in `DOCUMENT_ONLY`. Downstream packages must not be autonomously activated without explicit user dispatch.
