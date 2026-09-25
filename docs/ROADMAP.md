@@ -102,15 +102,16 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 37. Reconcile post-MF-LEARN-004 documentation baseline (`MF-DOC-007`) — **COMPLETED** and merged to `main` through Pull Request #45 at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`.
 38. Deliver Adaptive Practice Balance and Foundational Coverage (`MF-LEARN-005`) — **COMPLETED** and merged to `main` through Pull Request #46 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a` (validated candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`, merge tree identical to candidate tree `385ae4edcc6acb1a6817294b72e068c51b5a36de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 1,604 Core tests passed, Schema V6 preserved).
 39. Execute full exact-candidate automated validation (`FULL_VALIDATION`) for MF-LEARN-005 candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf` — **COMPLETED** (`FULL_VALIDATION_PASS`).
-40. Deliver Progress Presentation Cleanup (`MF-UX-007`) — **IMPLEMENTED**, `REVIEW_APPROVED`, documentation reconciliation in progress on task branch `codex/mf-ux-007-progress-presentation-cleanup` (implementation candidate HEAD before documentation commit `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`, base `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, 1,605 Core tests passed, Windows Release build 0 warnings / 0 errors; **NOT MERGED**).
-41. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
-42. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
-43. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
-44. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
-45. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
-46. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
-47. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
-48. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
+40. Deliver Progress Presentation Cleanup (`MF-UX-007`) — **COMPLETED** and merged to `main` through Pull Request #47 at `d37fbe3347679220bf847b06c83f7f9366738d03` (validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, merge tree identical to candidate tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 1,605 Core tests passed, Schema V6 preserved).
+41. Reconcile post-MF-UX-007 documentation baseline (`MF-DOC-008`) — **ACTIVE** on task branch `docs/mf-doc-008-post-mf-ux-007-merge-reconciliation` (`DOCUMENT_ONLY`).
+42. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
+43. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
+44. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
+45. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
+46. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
+47. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
+48. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
+49. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
 
 ### Future Planned Roadmap Work
-- None currently inactive; `MF-UX-007` is active in flight on task branch `codex/mf-ux-007-progress-presentation-cleanup`.
+- None currently active for implementation. Next planned activity after MF-DOC-008 merge and sync is `PLAN_ONLY` for MathFirst Motivation / Gamification / Progression Architecture.

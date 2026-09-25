@@ -98,40 +98,31 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree
 
 ### Operational Baseline
-- Synchronized `main` commit SHA: `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a` (PR #46 merge `Merge pull request #46 from Tachiguro/codex/mf-learn-005-adaptive-practice-balance`)
-- Most recently completed merged implementation package on `main`: `MF-LEARN-005` — Adaptive Practice Balance and Foundational Coverage (PR #46 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, validated candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`, merge tree identical to validated candidate tree `385ae4edcc6acb1a6817294b72e068c51b5a36de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
-- Active package: `MF-UX-007` — Progress Presentation Cleanup
-- Active task branch: `codex/mf-ux-007-progress-presentation-cleanup`
+- Synchronized `main` commit SHA: `d37fbe3347679220bf847b06c83f7f9366738d03` (PR #47 merge `Merge pull request #47 from Tachiguro/codex/mf-ux-007-progress-presentation-cleanup`)
+- Most recently completed merged implementation package on `main`: `MF-UX-007` — Progress Presentation Cleanup (PR #47 at `d37fbe3347679220bf847b06c83f7f9366738d03`, validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, candidate/merge tree identity `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, exact-candidate test evidence 1,605 passed / 0 failed / 0 skipped, Schema V6 preserved without migration)
+- Active package: `MF-DOC-008` — Post-MF-UX-007 Merge State Reconciliation
+- Active task branch: `docs/mf-doc-008-post-mf-ux-007-merge-reconciliation`
 - Active lifecycle: `DOCUMENT_ONLY`
-- Implementation Candidate HEAD Before Documentation: `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`
-- Authoritative merged `main` baseline: `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`
-- MF-UX-007 candidate status:
-  - implementation complete across two checkpoints:
-    - Slice 1 (`316fe525b136e7fee6dd1c7e7e7dec4636b6fcba`): progress localization and accessibility (concise Stage terminology across EN/DE/RU, elimination of diagnostic terminology, `Training_OperationProgressGroupAriaLabel`);
-    - Slice 2 (`37efd21b788e27f5683cc5382fe7c38dc1b7a05f`): progress UI and responsive presentation (structured Ready overview rows, active HUD markup and tooltip polish, responsive CSS preservation, surface elevation);
-  - `REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 3 Notes);
-  - documentation reconciliation in progress;
-  - not yet `FULL_VALIDATED` (exact final candidate `FULL_VALIDATION` pending on future documentation commit);
-  - not pushed;
-  - no open PR;
-  - not merged.
+- Authoritative merged `main` baseline: `d37fbe3347679220bf847b06c83f7f9366738d03`
+- Active implementation package: None (documentation reconciliation in progress)
 - Review Core evidence: 1,605 passed, 0 failed, 0 skipped.
 - Schema: V6 (preserved without migration).
 - Build 2 status: `REJECTED` (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`).
 - Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, and MF-UX-007 and no longer represents current repository source.
 - Future candidate status: Any future production candidate after MF-UX-007 merge requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
-- Next lifecycle after successful `DOCUMENT_ONLY`: `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`.
+- Next lifecycle after `DOCUMENT_ONLY`: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`.
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a` unless newer live evidence exists.
+2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `d37fbe3347679220bf847b06c83f7f9366738d03` unless newer live evidence exists.
 3. **Recognize Historical Build 3 Status and Pending Candidate**: Build 3 passed technical smoke and physical verification on Samsung SM-S948B, Android 16, but its source predates MF-LEARN-004, MF-LEARN-005, and MF-UX-007. Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing.
-4. **Recognize completed MF-LEARN-005, MF-DOC-007, MF-LEARN-004, MF-DOC-006, MF-STAB-003, MF-DOC-005, and MF-UX-006 history**: PR #46 merged MF-LEARN-005 to `main` at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`. PR #45 merged MF-DOC-007 at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`. PR #44 merged MF-LEARN-004 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`. PR #43 merged MF-DOC-006 at `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`. PR #42 merged MF-STAB-003 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`. PR #41 merged MF-DOC-005 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`. PR #40 merged MF-UX-006 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`.
-5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative (Live Git/GitHub > documentation > chat history). When MF-UX-007 is in flight, discover the current branch HEAD rather than blindly assuming `37efd21b788e27f5683cc5382fe7c38dc1b7a05f` once documentation is committed.
+4. **Recognize completed MF-UX-007, MF-LEARN-005, MF-DOC-007, MF-LEARN-004, MF-DOC-006, MF-STAB-003, MF-DOC-005, and MF-UX-006 history**: PR #47 merged MF-UX-007 to `main` at `d37fbe3347679220bf847b06c83f7f9366738d03`. PR #46 merged MF-LEARN-005 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`. PR #45 merged MF-DOC-007 at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`. PR #44 merged MF-LEARN-004 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`. PR #43 merged MF-DOC-006 at `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`. PR #42 merged MF-STAB-003 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`. PR #41 merged MF-DOC-005 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`. PR #40 merged MF-UX-006 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`.
+5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative (Live Git/GitHub > documentation > chat history). When MF-DOC-008 is in flight, discover the current branch HEAD rather than blindly assuming stale candidate SHAs.
 6. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
 
 ### Durable Merged Baseline Summary
+- **MF-UX-007 Progress Presentation Cleanup** (PR #47, merge `d37fbe3347679220bf847b06c83f7f9366738d03`, candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`): Delivered concise learner-facing Stage terminology across English, German, and Russian, structured Ready Gate overview for returning learners with completed practice history, active practice HUD accessibility and tooltip descriptions (`Training_OperationProgressGroupAriaLabel`), responsive layout preservation across viewports, surface elevation design tokens, and exact-candidate `FULL_VALIDATION_PASS` (1,605 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, Schema V6 preserved without migration).
 - **MF-LEARN-005 Adaptive Practice Balance and Foundational Coverage** (PR #46, merge `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`): Protected requested-New foundational material acquisition from remediation preemption, preserved remediation authority on non-New roles, enforced same-operation diversity inside selected semantic pools, validated sustained-failure and long-run simulations, preserved Schema V6 without migration, and exact-candidate `FULL_VALIDATION_PASS` (1,604 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `385ae4edcc6acb1a6817294b72e068c51b5a36de`).
 - **MF-DOC-007 Post-MF-LEARN-004 Documentation Reconciliation** (PR #45, merge `ef03dc09464ef169228e9bc1e00bba5a22e4a387`): Reconciled repository baseline documentation following PR #44 merge.
 - **MF-LEARN-004 Guided Four-Operation Number-Space Gate** (PR #44, merge `8f4ae59110abf6ea9d365733297a0c15d4c296ea`, candidate `51a2bd9907ebdcf738a348bc90de29d31d6b68b6`): Delivered Addition-governed multiplicative number-space gating in Guided Mode (active iff all four operations are enabled) ([ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md)), unrestricted Custom Mode subsets, presentation eligibility decoupling (`PERSISTED != CURRENTLY PRESENTABLE`), lossless Schema V6 preservation, candidate window anti-poisoning in SQLite streaming (`ReadCandidateRowsAsync`), semantic `GateIdentity` evidence caching, zero-mutation Settings/current-fact reconciliation, and exact-candidate `FULL_VALIDATION_PASS` (1,590 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `053311fed6a6827af690a6138fd83cc2c63bb7de`).
@@ -155,7 +146,8 @@ When initializing a new session:
 
 ### Downstream Roadmap Stages
 - **Phase 6 - Adaptive Practice Balance and Foundational Coverage (`MF-LEARN-005`)**: Complete and merged to `main` through PR #46 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`.
-- **Phase 6 - Progress Presentation Cleanup (`MF-UX-007`)**: Active candidate on task branch `codex/mf-ux-007-progress-presentation-cleanup` (implementation candidate HEAD before documentation commit `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`, base `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, `REVIEW_APPROVED`, 1,605 Core tests passed; not merged).
+- **Phase 6 - Progress Presentation Cleanup (`MF-UX-007`)**: Complete and merged to `main` through PR #47 at `d37fbe3347679220bf847b06c83f7f9366738d03` (validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, merge tree identical to candidate tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 1,605 Core tests passed, Schema V6 preserved).
+- **Phase 6 - Post-MF-UX-007 Documentation Reconciliation (`MF-DOC-008`)**: Active on task branch `docs/mf-doc-008-post-mf-ux-007-merge-reconciliation` (`DOCUMENT_ONLY`).
 - **Phase 6 - Final V1 Gap Audit**: Separately authorized audit step (no new package identifier).
 - **Phase 6 - Fresh Tester APK Packaging**: Build a fresh Tester APK from then-current synchronized `main`.
 - **Phase 6 - Tester APK Installation on Current Test Device**: Install the Tester APK on the user's current physical test device: Samsung Galaxy S26 Ultra.

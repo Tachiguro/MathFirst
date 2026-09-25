@@ -9,20 +9,19 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Package**: `MF-UX-007` — Progress Presentation Cleanup
+- **Active Package**: `MF-DOC-008` — Post-MF-UX-007 Merge State Reconciliation
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Task Branch**: `codex/mf-ux-007-progress-presentation-cleanup`
-- **Implementation Candidate HEAD Before Documentation**: `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`
-- **Authoritative Baseline (`main` / `origin/main`)**: `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`
-- **Most Recently Merged Implementation Package on `main`**: `MF-LEARN-005` — Adaptive Practice Balance and Foundational Coverage (PR #46 merge commit at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, validated candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`, merge tree identical to validated candidate tree `385ae4edcc6acb1a6817294b72e068c51b5a36de`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, Schema V6 preserved)
-- **Status of MF-UX-007**: Implemented across two slices, review-approved (`REVIEW_APPROVED`), documentation reconciliation in progress; **NOT MERGED YET** (not yet `FULL_VALIDATED`, not pushed, no open PR, not merged)
-- **Next Lifecycle for MF-UX-007**: `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`
+- **Task Branch**: `docs/mf-doc-008-post-mf-ux-007-merge-reconciliation`
+- **Authoritative Baseline (`main` / `origin/main`)**: `d37fbe3347679220bf847b06c83f7f9366738d03`
+- **Most Recently Merged Implementation Package on `main`**: `MF-UX-007` — Progress Presentation Cleanup (PR #47 merge commit at `d37fbe3347679220bf847b06c83f7f9366738d03`, validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, candidate tree identical to merged main tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, exact-candidate test evidence: 1,605 passed / 0 failed / 0 skipped, Schema V6 preserved without migration)
+- **Status of Active Work**: Active documentation reconciliation package in `DOCUMENT_ONLY`. No implementation package is currently active.
+- **Next Lifecycle for MF-DOC-008**: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`.
 
 ---
 
-## 2. MF-UX-007 Implementation Checkpoints
+## 2. Recently Merged Implementation Package: MF-UX-007 Summary
 
-The package implementation was completed across two structured checkpoint commits on task branch `codex/mf-ux-007-progress-presentation-cleanup`:
+Package `MF-UX-007` was completed across two structured checkpoint commits on task branch `codex/mf-ux-007-progress-presentation-cleanup`, candidate-validated at `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, and merged into `main` through PR #47 at commit `d37fbe3347679220bf847b06c83f7f9366738d03`:
 
 1. **Slice 1: Progress Localization and Accessibility**
    - Commit SHA: `316fe525b136e7fee6dd1c7e7e7dec4636b6fcba`
@@ -72,11 +71,11 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
 
 ---
 
-## 4. MF-UX-007 Review Status & Findings
+## 4. MF-UX-007 Review Status & Validation Evidence
 
 - **Verdict**: `REVIEW_APPROVED`
-- **Implementation Candidate HEAD Before Documentation**: `37efd21b788e27f5683cc5382fe7c38dc1b7a05f`
-- **Package Base**: `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`
+- **Candidate FULL_VALIDATION**: `FULL_VALIDATION_PASS` on candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867` (candidate tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95` identical to merged `main` tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95`)
+- **Merge Commit**: `d37fbe3347679220bf847b06c83f7f9366738d03` (PR #47)
 - **Blocker Findings**: 0
 - **Major Findings**: 0
 - **Minor Findings**: 0
@@ -84,8 +83,10 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
 - **Core Review Evidence**: 1,605 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
   - Focused package review: 120 passed, 0 failed, 0 skipped (across `PolicyAndLocalizationTests`, `OnboardingAndProgressFeedbackTests`, and `ResponsiveAndCorrectAnswerFlowTests`)
   - Windows Release build: 0 warnings, 0 errors
+  - Android Release build: 0 warnings, 0 errors
+  - MathFirst.ReleaseTool Release build: 0 warnings, 0 errors
+  - Vulnerable packages: 0
 - **Schema**: V6 unchanged (no migration, no table or column additions).
-- **Merge Status**: **NOT MERGED YET**. MF-UX-007 is implemented and review-approved, but has not yet undergone formal candidate `FULL_VALIDATION`, is not pushed, has no open PR, and is not merged.
 
 ---
 
@@ -99,15 +100,20 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
   - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Authorized Downstream Project Sequence:
-1. Complete MF-UX-007 lifecycle (`DOCUMENT_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`).
-2. Final V1 gap audit (no new package identifier may be invented here).
-3. Build a fresh Tester APK from the then-current synchronized `main`.
-4. Install the Tester APK on the user's current physical test device: Samsung Galaxy S26 Ultra.
-5. Manual physical-device tester validation.
-6. Only after successful tester validation: create the next production candidate with `versionCode >= 4`.
-7. Step 30 technical smoke verification.
-8. Step 31 production physical-device verification.
-9. Google Play Step 32 publication gate (user responsibility in Google Play Console).
+1. Complete MF-DOC-008 lifecycle (`DOCUMENT_ONLY` $\to$ `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`).
+2. After completion and merge of MF-DOC-008 and subsequent `POST_MERGE_SYNC_ONLY`, the next user-directed activity is `PLAN_ONLY` for:
+   **MathFirst Motivation / Gamification / Progression Architecture**
+   covering:
+   - Kyu/Dan progression;
+   - visible learner progress;
+   - daily streaks;
+   - hidden achievements;
+   - notification strategy;
+   - anti-grind principles;
+   - separation of internal curriculum state from learner-facing progression;
+   - reproducible Progression-Coherence test planning for the observed `+10 / -20 / ×5 / ÷5` state.
+   *(Do NOT activate or invent an implementation package for that future work.)*
+3. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
 
 > [!IMPORTANT]
-> MF-UX-007 is active candidate work in `DOCUMENT_ONLY`. Downstream packages or release steps must not be autonomously activated without explicit user dispatch.
+> There is currently no active implementation package. Downstream packages or release steps must not be autonomously activated without explicit user dispatch.
