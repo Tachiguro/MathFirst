@@ -202,6 +202,20 @@ public sealed class AndroidInputContractTests
     }
 
     [Fact]
+    public void AndroidInput_MainActivityUsesSensorPortraitOrientation()
+    {
+        var mainActivity = File.ReadAllText(
+            GetRepositoryPath("src", "MathFirst.App", "Platforms", "Android", "MainActivity.cs"));
+
+        Assert.Contains("ScreenOrientation = ScreenOrientation.SensorPortrait", mainActivity, StringComparison.Ordinal);
+        Assert.Contains("ConfigChanges.Orientation", mainActivity, StringComparison.Ordinal);
+        Assert.Contains("ConfigChanges.ScreenSize", mainActivity, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScreenOrientation.Landscape", mainActivity, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScreenOrientation.SensorLandscape", mainActivity, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScreenOrientation.FullSensor", mainActivity, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AndroidInput_MainPageRespectsSystemBarAndCutoutSafeArea()
     {
         var page = XDocument.Load(GetRepositoryPath("src", "MathFirst.App", "MainPage.xaml"));
