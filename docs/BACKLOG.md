@@ -280,10 +280,22 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-UX-007`
 - **Title**: Progress Presentation Cleanup
 - **Type**: `Feature`
-- **Status**: `Accepted`
-- **Dependencies**: `MF-LEARN-004`
+- **Status**: `Completed` (Merged through PR #47 at `d37fbe3347679220bf847b06c83f7f9366738d03`)
+- **Dependencies**: `MF-LEARN-004` complete (merged through PR #44)
 - **Description**:
   Refine and polish learner-facing progress HUD, returning learner overview displays, and operation stage metrics across supported viewports and languages.
+
+---
+
+### MF-DOC-008: Post-MF-UX-007 Merge State Reconciliation
+
+- **ID**: `MF-DOC-008`
+- **Title**: Post-MF-UX-007 Merge State Reconciliation
+- **Type**: `Documentation`
+- **Status**: `Active`
+- **Dependencies**: `MF-UX-007` complete and merged through PR #47
+- **Description**:
+  Reconcile repository baseline documentation following the MF-UX-007 merge so operational, roadmap, backlog, changelog, bootstrap, and durable project-state documentation match live main.
 
 ---
 
