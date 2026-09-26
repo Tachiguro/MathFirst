@@ -1,0 +1,71 @@
+@using MathFirst.Application
+@using MathFirst.Application.Practice
+@inject ILocalizationService Localizer
+
+<div class="cyber-defense-hud" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
+    <div class="opponent-presentation">
+        <div class="opponent-avatar-wrapper">
+            <img src="@OpponentAssetPath"
+                 alt="@OpponentName"
+                 class="opponent-avatar" />
+        </div>
+        <div class="opponent-meta">
+            <div class="opponent-name-row">
+                <span class="opponent-name">@OpponentName</span>
+                <span class="opponent-hp-text">@Localizer["CyberDefense_HpDisplay", State.EnemyHitPoints, CyberDefenseEncounterState.PrototypeEnemyHitPoints]</span>
+            </div>
+            <div class="meter-bar"
+                 role="progressbar"
+                 aria-label='@Localizer["CyberDefense_EnemyHpLabel"]'
+                 aria-valuenow="@State.EnemyHitPoints"
+                 aria-valuemin="0"
+                 aria-valuemax="@CyberDefenseEncounterState.PrototypeEnemyHitPoints">
+                <div class="meter-fill hp-fill" style="width: @(EnemyHpPercentage)%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="player-defense-status">
+        <div class="shield-meta">
+            <span class="shield-label">@Localizer["CyberDefense_ShieldLabel"]</span>
+            <span class="shield-value">@Localizer["CyberDefense_ShieldDisplay", State.ShieldSegments, CyberDefenseEncounterState.PrototypeShieldSegments]</span>
+        </div>
+        <div class="meter-bar"
+             role="progressbar"
+             aria-label='@Localizer["CyberDefense_ShieldLabel"]'
+             aria-valuenow="@State.ShieldSegments"
+             aria-valuemin="0"
+             aria-valuemax="@CyberDefenseEncounterState.PrototypeShieldSegments">
+            <div class="meter-fill shield-fill" style="width: @(ShieldPercentage)%"></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public CyberDefenseEncounterState State { get; set; } = default!;
+
+    private string OpponentName => State.EnemyIndex switch
+    {
+        0 => Localizer["CyberDefense_Opponent_GlitchDrone"],
+        1 => Localizer["CyberDefense_Opponent_VirusCore"],
+        2 => Localizer["CyberDefense_Opponent_CrystalMalware"],
+        _ => Localizer["CyberDefense_Opponent_GlitchDrone"]
+    };
+
+    private string OpponentAssetPath => State.EnemyIndex switch
+    {
+        0 => "images/cyber-defense/glitch-drone.svg",
+        1 => "images/cyber-defense/virus-core.svg",
+        2 => "images/cyber-defense/crystal-malware.svg",
+        _ => "images/cyber-defense/glitch-drone.svg"
+    };
+
+    private int EnemyHpPercentage =>
+        (int)Math.Round((double)Math.Clamp(State.EnemyHitPoints, 0, CyberDefenseEncounterState.PrototypeEnemyHitPoints)
+            / CyberDefenseEncounterState.PrototypeEnemyHitPoints * 100);
+
+    private int ShieldPercentage =>
+        (int)Math.Round((double)Math.Clamp(State.ShieldSegments, 0, CyberDefenseEncounterState.PrototypeShieldSegments)
+            / CyberDefenseEncounterState.PrototypeShieldSegments * 100);
+}

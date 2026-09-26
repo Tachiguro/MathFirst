@@ -1,0 +1,127 @@
+.cyber-defense-hud {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.35rem, 1vh, 0.65rem);
+    padding: clamp(0.5rem, 1.2vh, 0.75rem);
+    border: 1px solid var(--color-border);
+    border-radius: clamp(0.6rem, 1.5vw, 0.85rem);
+    background: var(--color-surface-elevated);
+    box-shadow: var(--shadow-sm);
+}
+
+.opponent-presentation {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.5rem, 2vw, 0.85rem);
+    width: 100%;
+    min-width: 0;
+}
+
+.opponent-avatar-wrapper {
+    flex-shrink: 0;
+    width: clamp(44px, 6vh, 60px);
+    height: clamp(44px, 6vh, 60px);
+    border-radius: clamp(8px, 1.5vw, 12px);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.opponent-avatar {
+    width: 85%;
+    height: 85%;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+}
+
+.opponent-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.opponent-name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.opponent-name {
+    font-size: clamp(0.875rem, 1.4vw, 1rem);
+    font-weight: 750;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.opponent-hp-text {
+    font-size: clamp(0.75rem, 1.2vw, 0.85rem);
+    font-weight: 600;
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.player-defense-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.shield-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.shield-label {
+    font-size: clamp(0.75rem, 1.1vw, 0.825rem);
+    font-weight: 600;
+    color: var(--color-muted);
+}
+
+.shield-value {
+    font-size: clamp(0.75rem, 1.1vw, 0.825rem);
+    font-weight: 600;
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.meter-bar {
+    width: 100%;
+    height: clamp(6px, 1vh, 8px);
+    background: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.meter-fill {
+    height: 100%;
+    border-radius: inherit;
+    transition: width 150ms ease-out;
+}
+
+.hp-fill {
+    background: var(--color-danger);
+}
+
+.shield-fill {
+    background: var(--color-primary);
+}

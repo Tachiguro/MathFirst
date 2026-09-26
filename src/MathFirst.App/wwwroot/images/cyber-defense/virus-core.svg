@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none" aria-hidden="true">
+  <defs>
+    <radialGradient id="virus-glow" cx="60" cy="60" r="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00FFFF" />
+      <stop offset="45%" stop-color="#2CDA9D" />
+      <stop offset="80%" stop-color="#176B4D" />
+      <stop offset="100%" stop-color="#0F2E22" />
+    </radialGradient>
+    <radialGradient id="inner-nucleus" cx="60" cy="60" r="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="30%" stop-color="#A6FFD8" />
+      <stop offset="100%" stop-color="#126848" />
+    </radialGradient>
+  </defs>
+
+  <!-- Orbital Ring 1 -->
+  <ellipse cx="60" cy="60" rx="46" ry="18" stroke="#2CDA9D" stroke-width="1.5" stroke-dasharray="8 6" transform="rotate(-30 60 60)" opacity="0.75" />
+
+  <!-- Orbital Ring 2 -->
+  <ellipse cx="60" cy="60" rx="46" ry="18" stroke="#00FFFF" stroke-width="1.5" stroke-dasharray="10 4" transform="rotate(40 60 60)" opacity="0.7" />
+
+  <!-- Radiating Spikes / Nodes -->
+  <line x1="60" y1="16" x2="60" y2="30" stroke="#00FFFF" stroke-width="2.5" stroke-linecap="round" />
+  <circle cx="60" cy="14" r="3" fill="#00FFFF" />
+
+  <line x1="60" y1="104" x2="60" y2="90" stroke="#00FFFF" stroke-width="2.5" stroke-linecap="round" />
+  <circle cx="60" cy="106" r="3" fill="#00FFFF" />
+
+  <line x1="16" y1="60" x2="30" y2="60" stroke="#2CDA9D" stroke-width="2.5" stroke-linecap="round" />
+  <circle cx="14" cy="60" r="3" fill="#2CDA9D" />
+
+  <line x1="104" y1="60" x2="90" y2="60" stroke="#2CDA9D" stroke-width="2.5" stroke-linecap="round" />
+  <circle cx="106" cy="60" r="3" fill="#2CDA9D" />
+
+  <line x1="28" y1="28" x2="39" y2="39" stroke="#65C99D" stroke-width="2" stroke-linecap="round" />
+  <circle cx="26" cy="26" r="2.5" fill="#65C99D" />
+
+  <line x1="92" y1="28" x2="81" y2="39" stroke="#65C99D" stroke-width="2" stroke-linecap="round" />
+  <circle cx="94" cy="26" r="2.5" fill="#65C99D" />
+
+  <line x1="28" y1="92" x2="39" y2="81" stroke="#65C99D" stroke-width="2" stroke-linecap="round" />
+  <circle cx="26" cy="94" r="2.5" fill="#65C99D" />
+
+  <line x1="92" y1="92" x2="81" y2="81" stroke="#65C99D" stroke-width="2" stroke-linecap="round" />
+  <circle cx="94" cy="94" r="2.5" fill="#65C99D" />
+
+  <!-- Outer Virus Capsid Body -->
+  <polygon points="60,26 84,36 94,60 84,84 60,94 36,84 26,60 36,36" fill="url(#virus-glow)" stroke="#65C99D" stroke-width="2" stroke-linejoin="round" />
+
+  <!-- Hexagonal Core Cells -->
+  <polygon points="60,38 76,47 76,73 60,82 44,73 44,47" fill="#14261F" stroke="#00FFFF" stroke-width="1.5" />
+
+  <!-- Pulsing Central Nucleus -->
+  <circle cx="60" cy="60" r="14" fill="url(#inner-nucleus)" stroke="#FFFFFF" stroke-width="1.5" />
+  <circle cx="60" cy="60" r="5" fill="#FFFFFF" />
+
+  <!-- Digital Code Matrix Fragments -->
+  <path d="M50 48 L54 52 L50 56" stroke="#2CDA9D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M70 48 L66 52 L70 56" stroke="#2CDA9D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

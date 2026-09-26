@@ -271,7 +271,15 @@ public sealed class LocalizationService : ILocalizationService
         ["Privacy_Delete_Title"] = "Removing Local Data",
         ["Privacy_Delete_Body"] = "You can remove locally stored learner data and preferences at any time using the reset options in Settings or by uninstalling the application.",
         ["Privacy_Contact_Title"] = "Contact",
-        ["Privacy_Contact_Body"] = "Privacy questions can be submitted through the public MathFirst GitHub Issues page:"
+        ["Privacy_Contact_Body"] = "Privacy questions can be submitted through the public MathFirst GitHub Issues page:",
+        ["CyberDefense_Title"] = "Cyber Defense",
+        ["CyberDefense_ShieldLabel"] = "Shield integrity",
+        ["CyberDefense_EnemyHpLabel"] = "Opponent integrity",
+        ["CyberDefense_ShieldDisplay"] = "Shield: {0} / {1}",
+        ["CyberDefense_HpDisplay"] = "HP: {0} / {1}",
+        ["CyberDefense_Opponent_GlitchDrone"] = "Glitch Drone",
+        ["CyberDefense_Opponent_VirusCore"] = "Virus Core",
+        ["CyberDefense_Opponent_CrystalMalware"] = "Crystal Malware"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -430,7 +438,15 @@ public sealed class LocalizationService : ILocalizationService
         ["Privacy_Delete_Title"] = "Daten löschen",
         ["Privacy_Delete_Body"] = "Du kannst lokal gespeicherte Lerndaten und Einstellungen jederzeit über die Optionen in den Einstellungen oder durch Deinstallieren der App löschen.",
         ["Privacy_Contact_Title"] = "Kontakt",
-        ["Privacy_Contact_Body"] = "Fragen zum Datenschutz können über die öffentliche GitHub-Issues-Seite von MathFirst gestellt werden:"
+        ["Privacy_Contact_Body"] = "Fragen zum Datenschutz können über die öffentliche GitHub-Issues-Seite von MathFirst gestellt werden:",
+        ["CyberDefense_Title"] = "Cyber-Abwehr",
+        ["CyberDefense_ShieldLabel"] = "Schildintegrität",
+        ["CyberDefense_EnemyHpLabel"] = "Gegnerintegrität",
+        ["CyberDefense_ShieldDisplay"] = "Schild: {0} / {1}",
+        ["CyberDefense_HpDisplay"] = "KP: {0} / {1}",
+        ["CyberDefense_Opponent_GlitchDrone"] = "Glitch-Drohne",
+        ["CyberDefense_Opponent_VirusCore"] = "Virus-Kern",
+        ["CyberDefense_Opponent_CrystalMalware"] = "Kristall-Malware"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -589,6 +605,14 @@ public sealed class LocalizationService : ILocalizationService
         ["Privacy_Delete_Title"] = "Удаление данных",
         ["Privacy_Delete_Body"] = "Вы можете удалить сохраненные данные обучения и настройки в любой момент через меню настроек или удалив приложение.",
         ["Privacy_Contact_Title"] = "Контакты",
-        ["Privacy_Contact_Body"] = "Вопросы о конфиденциальности можно отправить через страницу Issues проекта MathFirst на GitHub:"
+        ["Privacy_Contact_Body"] = "Вопросы о конфиденциальности можно отправить через страницу Issues проекта MathFirst на GitHub:",
+        ["CyberDefense_Title"] = "Киберзащита",
+        ["CyberDefense_ShieldLabel"] = "Прочность щита",
+        ["CyberDefense_EnemyHpLabel"] = "Прочность противника",
+        ["CyberDefense_ShieldDisplay"] = "Щит: {0} / {1}",
+        ["CyberDefense_HpDisplay"] = "ОЗ: {0} / {1}",
+        ["CyberDefense_Opponent_GlitchDrone"] = "Глитч-дрон",
+        ["CyberDefense_Opponent_VirusCore"] = "Ядро вируса",
+        ["CyberDefense_Opponent_CrystalMalware"] = "Кристальный червь"
     };
 }
