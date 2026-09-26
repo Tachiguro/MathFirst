@@ -3,7 +3,8 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, independent per-operation role ordinals, and Guided number-space gating in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), and [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md) (`MF-LEARN-004`), extended with practice configuration in `MF-SET-001` and adaptive practice balance in `MF-LEARN-005`. The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, requested-role review authority during Dense acquisition, protected New foundational acquisition, same-operation candidate diversity, Addition-governed multiplicative number-space gating in Guided Mode, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, independent per-operation role ordinals, and Guided number-space gating in Sections 4–8 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), and [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md) (`MF-LEARN-004`), extended with practice configuration in `MF-SET-001` and adaptive practice balance in `MF-LEARN-005`. The material learning architecture extensions approved in [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) (Evidence-Adaptive Discovery, Guided Soft Decoupling G3, Pace Calibration readiness at $\ge 24$ positioned Correct attempts, Absolute No-Immediate-Fact-Repetition Invariant, and downstream gamification boundaries) represent the authoritative approved target design (implementation pending). The current native applications implement learner Schema V6, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, requested-role review authority during Dense acquisition, protected New foundational acquisition, same-operation candidate diversity, Addition-governed multiplicative number-space gating in Guided Mode, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+
 
 ---
 
@@ -79,11 +80,18 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
     - **Multiplication**: A fact $F$ is presentable in Guided Mode iff $\text{owner}_{\text{MUL}}(F) \le B_{\text{MUL}}$ AND $F.\text{CorrectResult} \le \text{AdditionCeiling}$. Facts whose product exceeds the Addition ceiling (e.g. $2 \times 2 = 4$ when the Addition ceiling is 2) cannot be presented until Addition advances.
     - **Division**: A fact $F$ is presentable in Guided Mode iff $\text{owner}_{\text{DIV}}(F) \le B_{\text{DIV}}$ AND $F.\text{LeftOperand} \le \text{AdditionCeiling}$ (since dividend is the total quantity partitioned). Facts whose dividend exceeds the Addition ceiling (e.g. $4 \div 2 = 2$ or $6 \div 2 = 3$ when the Addition ceiling is 2) cannot be presented until Addition advances.
     - **Addition & Subtraction Invariance**: Addition establishes the ceiling and is not cross-operation gated. Subtraction is the inverse family within the same elementary number space and is not cross-operation gated.
+  - **Approved G3 Evidence-Based Soft Decoupling ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))**:
+    - **Initial Shared Foundation**: Multiplication and Division remain constrained by `AdditionCeiling` while their respective `BandIndex < 3` (introductory Bands 0, 1, and 2).
+    - **Operation-Specific Decoupling**:
+      - Multiplication softly decouples from `AdditionCeiling` once `Multiplication.OperationProgression.BandIndex >= 3`.
+      - Division softly decouples from `AdditionCeiling` once `Division.OperationProgression.BandIndex >= 3`.
+    - **Rationale & Gradual Expansion**: Reaching `BandIndex >= 3` proves complete frontier coverage and $\ge 90\%$ latest correctness across Bands 0, 1, and 2, establishing verified mastery across the 0/1/2/3 factor space. Post-decoupling, the operation does not jump to a magic ceiling (such as 100); its own canonical curriculum resumes gradual expansion (`MUL-D04`, `MUL-D05`, etc.). Returning learners derive decoupling purely from durable `OperationProgression`.
   - **State and Progress Preservation**:
     - The gate governs **presentation eligibility only**. It does not delete, demote, or alter band progression indices, item learning states, attempt history, FSRS cards, fluency evidence, remediation tracking, accepted attempt counts, or global Practice Position.
-    - Gated facts remain dormant in local storage and automatically regain presentation and review eligibility when the Addition ceiling expands or when the learner switches to Custom Mode.
+    - Gated facts remain dormant in local storage and automatically regain presentation and review eligibility when the Addition ceiling expands, when soft decoupling is achieved, or when the learner switches to Custom Mode.
   - **Practice Configuration Reconciliation**:
     - When practice configuration changes make an unsubmitted displayed problem Guided-ineligible, it is cleanly replaced at the same prospective practice position with zero learning mutations. Valid problems preserve partial input and timer state; accepted feedback is preserved until deliberate dismissal.
+
 
 Unseen, non-sampled structured candidates from completed bands are not permanent acquisition debt. Exact-fact FSRS review and operation-level advancement are separate mechanisms governed by the Practice Fact Eligibility Invariant ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)).
 
@@ -134,6 +142,19 @@ For Structured bands, standard rolling-window requirements apply:
 - At least 16 distinct owned-frontier introductions during the current band.
 
 `IsFluent` consumes durable `AttemptRecord.IsFluent`, which is evaluated adaptively against expected fact pace $P_{\text{fact}}$ at presentation time (or historical $\le 2500\text{ ms}$ backfill for legacy V5 rows). Incorrect and Timeout are non-fluent; correct responses slower than the adaptive fluency threshold are correct but non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window in Structured bands, while weak facts across all bands remain active through remediation and FSRS.
+
+### Native Strong-Learner Benchmark ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
+
+The canonical native strong-learner acquisition benchmark is defined as advancing through Addition Dense Band 10 into the first decimal anchor:
+$$\text{ADD-D10} \longrightarrow \text{ADD-P1-ANCHOR}$$
+which transitions the Guided `AdditionCeiling` from 20 to 180. There is no artificial ~100 Addition milestone.
+
+For a 100%-correct, fully fluent learner practicing in four-operation Guided Mode:
+- Mastering the 121 unique Addition facts through ADD-D10 requires 121 successful Addition presentations;
+- With deterministic bounded permutation scheduling allocating equal turn share (25% nominal per operation), this yields an exact theoretical lower bound of **482 global accepted attempts** (accounting for deterministic permutation bag alignment).
+
+Future adaptive-selection implementations must use this benchmark as the reference standard to ensure that strong, fluent learners can progress close to this theoretical lower bound without encountering artificial review stagnation.
+
 
 ### Open-Ended Arithmetic Scope and Terminal Safety
 
@@ -220,6 +241,27 @@ Cooldown relaxation occurs strictly inside the already selected semantic pool an
 - **Commutative Mirror Cooldown**: For Addition and Multiplication, adjacent and near-adjacent mirror pairs (e.g., `6 × 0` and `0 × 6`, `3 + 4` and `4 + 3`) are avoided within 3 positions (`MirrorFactCooldownDistance = 3`), while maintaining distinct item entities and separate FSRS states. Non-commutative Subtraction and Division are strictly exempt.
 - **Operation Streak Diversity**: Limits consecutive questions of the same arithmetic operation to a maximum of 2 when alternative candidates exist (`MaxPreferredOperationStreak = 2`).
 
+### Approved Evidence-Adaptive Discovery Policy ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
+- **Dynamic Role Promotion**: While the 10-slot cycle provides initial baseline scaffolding, review and consolidation slots (`Due`, `Maintenance`, `Frontier`) are dynamically promoted to `PracticeSelectionRole.New` whenever:
+  1. The scheduled review pool contains **zero pedagogically useful work** (no overdue cards, unmastered frontier items, or stale reviews);
+  2. The current band contains eligible unmaterialized facts;
+  3. The learner exhibits **Clean/Strong Evidence** (no active remediation and high recent accuracy).
+- **Emergent Discovery Velocity**: Discovery pressure is not governed by a hardcoded ratio (such as 90%). For a rapid, fluent learner, review slots naturally promote to New, driving acquisition velocity toward the theoretical 482-attempt lower bound. For a learner experiencing errors, review slots remain dedicated to consolidation, naturally reducing New discovery.
+
+### Approved Absolute No-Immediate-Fact-Repetition Invariant ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
+- **Universal Hard Invariant**:
+  $$\text{FactId}(t+1) \ne \text{FactId}(t)$$
+  After an accepted presentation of `FactId X`, the immediately following presented fact **MUST NOT** be `FactId X`, regardless of outcome (`Correct`, `Incorrect`, `Timeout`, slow correct, or remediation).
+- **Priority Over Aesthetics**: Exact duplicate prevention strictly outranks anti-ladder aesthetics. If avoiding an immediate repeat forces a ladder neighbor, the ladder candidate must be selected rather than repeating the exact same fact.
+- **Single-Candidate Resolution**: If the requested pool contains only the immediately preceding fact, the selector must seek an alternative candidate from other semantic pools or alternate operations rather than relaxing into an exact duplicate.
+
+### Approved Tiered Weakness & Remediation Model ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
+- **Local Weakness (Isolated Error)**: An isolated error enters remediation with ordinary spacing (tested Candidate-C cooldown: $\ge 4$ operation attempts). It remains strictly local and does not suppress new introductions in unrelated operations.
+- **Repeated Local Weakness**: Repeated local weakness on the same fact activates tightened remediation spacing (tested Candidate-C cooldown: $\ge 2$ operation attempts) to reinforce the fact before memory traces decay. Compatibility with existing presentation-layer teaching intervention mechanisms is preserved where applicable, but teaching interventions are not a newly mandated learning-engine requirement of ADR-0010.
+- **Broad Weakness**: Multiple simultaneously unresolved remediation facts within the currently relevant learning context (tested as active unresolved remediation facts $\ge 2$) indicate broad weakness and suppress aggressive New introduction while meaningful remediation and reinforcement work exists.
+- **Mastery Preservation**: Dense band progression remains strictly bound by 100% frontier coverage and $\ge 90\%$ latest correctness ($C \cdot 10 \ge N \cdot 9$).
+
+
 ### Task Distance Virtual Time Model
 MathFirst schedules arithmetic reviews not by real-world calendar days, but by **Practice Position** (the monotonic count of accepted arithmetic attempts). One practice position corresponds to one virtual day from epoch `2000-01-01T00:00:00Z`, making review intervals independent of wall-clock manipulation, timezone shifts, or gaps between study days.
 
@@ -289,6 +331,24 @@ True arithmetic fluency requires evaluating both correctness and speed against a
   - **Incorrect Answer**: Submitted wrong numeric integer (`Outcome = Incorrect`, `IsFluent = false`).
   - **Timeout**: Elapsed adaptive deadline window without valid submission (`Outcome = Timeout`, `IsFluent = false`).
 - Slowly calculated correct answers remain active in practice until retrieval is fluid.
+
+### Pace Calibration Readiness ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
+
+Pace calibration is declared **READY** once a learner accumulates:
+$$\text{Count}\left( \text{attempt} \in \text{attempt\_history} \mid \text{PracticePosition} > 0 \land \text{Outcome} == \text{AttemptOutcome.Correct} \right) \ge 24$$
+
+- **Empirical Stability Rationale**: Empirical shrinkage simulation proves that at $n=24$, subsequent `EasyThresholdMs` movement toward full convergence ($n=30$) drops below 10% (4.6% for intermediate learners, 9.0% for strong learners), whereas earlier checkpoints ($n=12, n=20$) exhibit high volatility.
+- **Fixed Criterion**: Derived directly from durable positioned Correct evidence without complex heuristics.
+- **Returning Learners**: Returning learners with $\ge 24$ durable positioned Correct attempts are immediately recognized as calibrated upon cold launch.
+
+### Downstream Gamification & Critical Hit Contract ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
+
+Combat and gamification mechanics (such as Cyber Defense) are strictly **downstream presentation consumers** of learning telemetry:
+- **Uncalibrated ($n < 24$ positioned Correct attempts)**: Every mathematically `Correct` answer deals **1 HP normal damage**. No speed bonuses or Critical Hits are awarded.
+- **Calibrated ($n \ge 24$ positioned Correct attempts)**: A `Correct` answer submitted with $\text{ResponseLatencyMs} \le \text{CurrentFactEasyThresholdMs}$ scores a **Critical Hit** dealing **2 HP damage**. A `Correct` answer with $\text{ResponseLatencyMs} > \text{CurrentFactEasyThresholdMs}$ deals **1 HP normal damage**.
+- **Correct-But-Slow**: Correct answers submitted past the easy threshold remain mathematically correct and are celebrated with standard 1 HP damage.
+- **Absolute Non-Mutation Boundary**: Critical Hit outcomes, combat damage, enemy HP, combos, or defeats **must never** alter `AttemptOutcome`, response latency, FSRS ratings (`Again`, `Hard`, `Good`, `Easy`), card stability, `ItemLearningState`, `OperationProgression`, `PracticePosition`, or band advancement.
+
 
 
 ---
