@@ -43,8 +43,12 @@
                         </span>
                     </button>
                 }
-                <a href="settings" class="button button-secondary settings-nav-btn" title='@Localizer["Settings_Title"]'>
-                    @Localizer["Settings_Title"]
+                <a href="settings" class="button button-secondary settings-nav-btn" title='@Localizer["Settings_Title"]' aria-label='@Localizer["Settings_Title"]'>
+                    <svg class="settings-gear-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        <path d="M8 4.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5zM6 8a2 2 0 1 1 4 0 2 2 0 0 1-4 0z"/>
+                        <path d="M9.79 1.156a1.5 1.5 0 0 0-1.58-.946H7.79a1.5 1.5 0 0 0-1.58.946l-.28.84a5.03 5.03 0 0 0-1.25.72l-.84-.28a1.5 1.5 0 0 0-1.78.58L1.31 4.75a1.5 1.5 0 0 0 .2 1.86l.66.57a4.98 4.98 0 0 0 0 1.64l-.66.57a1.5 1.5 0 0 0-.2 1.86l.75 1.734a1.5 1.5 0 0 0 1.78.58l.84-.28c.38.3.8.54 1.25.72l.28.84a1.5 1.5 0 0 0 1.58.946h1.02a1.5 1.5 0 0 0 1.58-.946l.28-.84c.45-.18.87-.42 1.25-.72l.84.28a1.5 1.5 0 0 0 1.78-.58l.75-1.734a1.5 1.5 0 0 0-.2-1.86l-.66-.57c.05-.27.08-.54.08-.82s-.03-.55-.08-.82l.66-.57a1.5 1.5 0 0 0 .2-1.86L14.69 3.02a1.5 1.5 0 0 0-1.78-.58l-.84.28a5.03 5.03 0 0 0-1.25-.72l-.28-.84z"/>
+                    </svg>
+                    <span class="settings-nav-label">@Localizer["Settings_Title"]</span>
                 </a>
             </div>
         </header>
@@ -262,6 +266,10 @@
                     <div class="practice-layout">
                         <div class="practice-interaction-column">
                             <div class="solve-to-attack-panel">
+                                <span class="solve-corner corner-top-left" aria-hidden="true"></span>
+                                <span class="solve-corner corner-top-right" aria-hidden="true"></span>
+                                <span class="solve-corner corner-bottom-left" aria-hidden="true"></span>
+                                <span class="solve-corner corner-bottom-right" aria-hidden="true"></span>
                                 <div class="solve-panel-header">
                                     <div class="solve-panel-tag">
                                         <svg class="reticle-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
@@ -338,9 +346,9 @@
                         <div class="operation-unlock-area" role="region" aria-label="@Localizer["Training_OperationProgressGroupAriaLabel"]">
                             <div class="operation-unlock-goal">
                                 <div class="goal-badge" aria-hidden="true">
-                                    <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
-                                        <rect x="2" y="2" width="12" height="12" rx="3" stroke="currentColor" stroke-width="1.5" />
-                                        <path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none">
+                                        <rect x="3" y="6" width="10" height="8" rx="2" stroke="currentColor" stroke-width="1.5" />
+                                        <path d="M5.5 6V4.5a2.5 2.5 0 0 1 5 0V6" stroke="currentColor" stroke-width="1.5" />
                                     </svg>
                                 </div>
                                 <div class="goal-info">
