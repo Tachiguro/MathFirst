@@ -207,6 +207,136 @@ public sealed class CyberDefenseEncounterStateTests
         Assert.Contains(roster, e => e.Id == "quantum-bug" && !e.IsBoss);
         Assert.Contains(roster, e => e.Id == "trojan-wasp" && !e.IsBoss);
         Assert.Contains(roster, e => e.Id == "crystal-malware" && !e.IsBoss);
-        Assert.Contains(roster, e => e.Id == "nexus-overlord-prime" && e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "nexus-overlord-prime" && e.IsBoss && e.IsSectorBoss);
+    }
+
+    [Fact]
+    public void DefeatingSectorBoss_AdvancesToNextSector_WithoutEndingGameplay()
+    {
+        var state = new CyberDefenseEncounterState();
+        Assert.Equal(1, state.SectorNumber);
+
+        // Defeat first 9 enemies (indices 0 through 8)
+        for (var i = 0; i < 9; i++)
+        {
+            var hp = state.CurrentEnemy.MaxHitPoints;
+            for (var hit = 0; hit < hp; hit++)
+            {
+                state.RecordCorrectAnswer();
+            }
+        }
+
+        // Enemy 9 is the Sector Boss
+        Assert.Equal(9, state.EnemyIndex);
+        Assert.Equal("nexus-overlord-prime", state.CurrentEnemy.Id);
+        Assert.True(state.IsBoss);
+        Assert.True(state.IsSectorBoss);
+        Assert.Equal(10, state.EnemyHitPoints);
+        Assert.Equal(1, state.SectorNumber);
+
+        // Defeat Sector Boss with 10 hits
+        for (var hit = 0; hit < 10; hit++)
+        {
+            state.RecordCorrectAnswer();
+        }
+
+        // Must seamlessly continue to Sector 2, Wave 1 (glitch-drone) with no game-over / campaign termination
+        Assert.Equal(2, state.SectorNumber);
+        Assert.Equal(0, state.EnemyIndex);
+        Assert.Equal("glitch-drone", state.CurrentEnemy.Id);
+        Assert.False(state.IsBoss);
+        Assert.False(state.IsSectorBoss);
+        Assert.Equal(5, state.EnemyHitPoints);
+    }
+
+    [Fact]
+    public void SectorProgression_IsRepeatableIndefinitely()
+    {
+        var state = new CyberDefenseEncounterState();
+
+        // Advance through 3 complete sectors (30 enemies total)
+        for (var sector = 1; sector <= 3; sector++)
+        {
+            Assert.Equal(sector, state.SectorNumber);
+            for (var enemy = 0; enemy < CyberDefenseEncounterState.PrototypeEnemyCount; enemy++)
+            {
+                Assert.Equal(enemy, state.EnemyIndex);
+                var hp = state.CurrentEnemy.MaxHitPoints;
+                for (var hit = 0; hit < hp; hit++)
+                {
+                    state.RecordCorrectAnswer();
+                }
+            }
+        }
+
+        // After completing 3 full sectors, we are now in Sector 4, Wave 1
+        Assert.Equal(4, state.SectorNumber);
+        Assert.Equal(0, state.EnemyIndex);
+        Assert.Equal("glitch-drone", state.CurrentEnemy.Id);
+    }
+
+    [Fact]
+    public void CorrectAnswerAfterCriticalWindow_StillCausesNormalHit_WithoutPenalty()
+    {
+        var state = new CyberDefenseEncounterState();
+        var initialHp = state.EnemyHitPoints;
+
+        // Normal hit simulates answering after critical window elapsed:
+        // LatencyMs > CurrentFactEasyThresholdMs -> RecordCorrectAnswer()
+        state.RecordCorrectAnswer();
+
+        Assert.Equal(initialHp - 1, state.EnemyHitPoints);
+        Assert.Equal(1, state.LastDamageDealt);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, state.LastFeedback);
+        Assert.Equal(CyberDefenseEncounterState.PrototypeShieldSegments, state.ShieldSegments);
+    }
+
+    [Fact]
+    public void CriticalHit_CausesOnlyCombatDifference_AndDoesNotTouchPersistenceOrLearningState()
+    {
+        var state = new CyberDefenseEncounterState();
+
+        // Normal hit: 1 damage
+        state.RecordHit(isCritical: false);
+        Assert.Equal(1, state.LastDamageDealt);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, state.LastFeedback);
+        Assert.Equal(4, state.EnemyHitPoints);
+
+        // Critical hit: 2 damage
+        state.RecordHit(isCritical: true);
+        Assert.Equal(2, state.LastDamageDealt);
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, state.LastFeedback);
+        Assert.Equal(2, state.EnemyHitPoints);
+
+        // Verify transient-only nature: no database / FSRS / SRS properties
+        var properties = typeof(CyberDefenseEncounterState).GetProperties();
+        Assert.DoesNotContain(properties, p => p.Name.Contains("Fsrs", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(properties, p => p.Name.Contains("Mastery", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(properties, p => p.Name.Contains("Progression", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(properties, p => p.Name.Contains("Curriculum", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(properties, p => p.Name.Contains("Fact", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Reset_RestoresSectorNumberToOne()
+    {
+        var state = new CyberDefenseEncounterState();
+
+        // Defeat all 10 enemies to reach Sector 2
+        for (var i = 0; i < 10; i++)
+        {
+            var hp = state.CurrentEnemy.MaxHitPoints;
+            for (var hit = 0; hit < hp; hit++)
+            {
+                state.RecordCorrectAnswer();
+            }
+        }
+        Assert.Equal(2, state.SectorNumber);
+
+        state.Reset();
+
+        Assert.Equal(1, state.SectorNumber);
+        Assert.Equal(0, state.EnemyIndex);
+        Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, state.EnemyHitPoints);
     }
 }

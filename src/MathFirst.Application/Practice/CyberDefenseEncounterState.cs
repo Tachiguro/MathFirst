@@ -14,7 +14,8 @@ public sealed record CyberDefenseEnemy(
     string DescKey,
     string AssetPath,
     int MaxHitPoints,
-    bool IsBoss);
+    bool IsBoss,
+    bool IsSectorBoss = false);
 
 /// <summary>
 /// Transient prototype encounter state for the Cyber Defense training shell.
@@ -29,16 +30,16 @@ public sealed class CyberDefenseEncounterState
 
     public static readonly IReadOnlyList<CyberDefenseEnemy> DefaultRoster =
     [
-        new("glitch-drone", "CyberDefense_Opponent_GlitchDrone", "CyberDefense_Opponent_GlitchDrone_Desc", "images/cyber-defense/glitch-drone.svg", 5, false),
-        new("data-leech", "CyberDefense_Opponent_DataLeech", "CyberDefense_Opponent_DataLeech_Desc", "images/cyber-defense/data-leech.svg", 5, false),
-        new("firewall-breaker", "CyberDefense_Opponent_FirewallBreaker", "CyberDefense_Opponent_FirewallBreaker_Desc", "images/cyber-defense/firewall-breaker.svg", 5, false),
-        new("nexus-overlord", "CyberDefense_Opponent_NexusOverlord", "CyberDefense_Opponent_NexusOverlord_Desc", "images/cyber-defense/nexus-overlord.svg", 8, true),
-        new("virus-core", "CyberDefense_Opponent_VirusCore", "CyberDefense_Opponent_VirusCore_Desc", "images/cyber-defense/virus-core.svg", 5, false),
-        new("signal-phantom", "CyberDefense_Opponent_SignalPhantom", "CyberDefense_Opponent_SignalPhantom_Desc", "images/cyber-defense/signal-phantom.svg", 5, false),
-        new("quantum-bug", "CyberDefense_Opponent_QuantumBug", "CyberDefense_Opponent_QuantumBug_Desc", "images/cyber-defense/quantum-bug.svg", 5, false),
-        new("trojan-wasp", "CyberDefense_Opponent_TrojanWasp", "CyberDefense_Opponent_TrojanWasp_Desc", "images/cyber-defense/trojan-wasp.svg", 5, false),
-        new("crystal-malware", "CyberDefense_Opponent_CrystalMalware", "CyberDefense_Opponent_CrystalMalware_Desc", "images/cyber-defense/crystal-malware.svg", 5, false),
-        new("nexus-overlord-prime", "CyberDefense_Opponent_NexusOverlord", "CyberDefense_Opponent_NexusOverlord_Desc", "images/cyber-defense/nexus-overlord.svg", 10, true)
+        new("glitch-drone", "CyberDefense_Opponent_GlitchDrone", "CyberDefense_Opponent_GlitchDrone_Desc", "images/cyber-defense/glitch-drone.svg", 5, false, false),
+        new("data-leech", "CyberDefense_Opponent_DataLeech", "CyberDefense_Opponent_DataLeech_Desc", "images/cyber-defense/data-leech.svg", 5, false, false),
+        new("firewall-breaker", "CyberDefense_Opponent_FirewallBreaker", "CyberDefense_Opponent_FirewallBreaker_Desc", "images/cyber-defense/firewall-breaker.svg", 5, false, false),
+        new("nexus-overlord", "CyberDefense_Opponent_NexusOverlord", "CyberDefense_Opponent_NexusOverlord_Desc", "images/cyber-defense/nexus-overlord.svg", 8, true, false),
+        new("virus-core", "CyberDefense_Opponent_VirusCore", "CyberDefense_Opponent_VirusCore_Desc", "images/cyber-defense/virus-core.svg", 5, false, false),
+        new("signal-phantom", "CyberDefense_Opponent_SignalPhantom", "CyberDefense_Opponent_SignalPhantom_Desc", "images/cyber-defense/signal-phantom.svg", 5, false, false),
+        new("quantum-bug", "CyberDefense_Opponent_QuantumBug", "CyberDefense_Opponent_QuantumBug_Desc", "images/cyber-defense/quantum-bug.svg", 5, false, false),
+        new("trojan-wasp", "CyberDefense_Opponent_TrojanWasp", "CyberDefense_Opponent_TrojanWasp_Desc", "images/cyber-defense/trojan-wasp.svg", 5, false, false),
+        new("crystal-malware", "CyberDefense_Opponent_CrystalMalware", "CyberDefense_Opponent_CrystalMalware_Desc", "images/cyber-defense/crystal-malware.svg", 5, false, false),
+        new("nexus-overlord-prime", "CyberDefense_Opponent_NexusOverlord", "CyberDefense_Opponent_NexusOverlord_Desc", "images/cyber-defense/nexus-overlord.svg", 10, true, true)
     ];
 
     private readonly IReadOnlyList<CyberDefenseEnemy> _roster;
@@ -49,9 +50,11 @@ public sealed class CyberDefenseEncounterState
         EnemyHitPoints = CurrentEnemy.MaxHitPoints;
     }
 
+    public int SectorNumber { get; private set; } = 1;
     public int EnemyIndex { get; private set; }
     public CyberDefenseEnemy CurrentEnemy => _roster[EnemyIndex];
     public bool IsBoss => CurrentEnemy.IsBoss;
+    public bool IsSectorBoss => CurrentEnemy.IsSectorBoss;
     public int EnemyMaxHitPoints => CurrentEnemy.MaxHitPoints;
     public int EnemyHitPoints { get; private set; }
     public int ShieldSegments { get; private set; } = PrototypeShieldSegments;
@@ -71,7 +74,16 @@ public sealed class CyberDefenseEncounterState
         EnemyHitPoints -= damage;
         if (EnemyHitPoints <= 0)
         {
-            EnemyIndex = (EnemyIndex + 1) % _roster.Count;
+            var nextIndex = EnemyIndex + 1;
+            if (nextIndex >= _roster.Count)
+            {
+                SectorNumber++;
+                EnemyIndex = 0;
+            }
+            else
+            {
+                EnemyIndex = nextIndex;
+            }
             EnemyHitPoints = CurrentEnemy.MaxHitPoints;
         }
 
@@ -95,12 +107,12 @@ public sealed class CyberDefenseEncounterState
         Revision++;
     }
 
-    public void TriggerBossEncounter()
+    public void TriggerBossEncounter(bool sectorBoss = false)
     {
         for (var i = 0; i < _roster.Count; i++)
         {
             var idx = (EnemyIndex + i) % _roster.Count;
-            if (_roster[idx].IsBoss)
+            if (_roster[idx].IsBoss && (!sectorBoss || _roster[idx].IsSectorBoss))
             {
                 EnemyIndex = idx;
                 EnemyHitPoints = CurrentEnemy.MaxHitPoints;
@@ -114,6 +126,7 @@ public sealed class CyberDefenseEncounterState
 
     public void Reset()
     {
+        SectorNumber = 1;
         EnemyIndex = 0;
         EnemyHitPoints = CurrentEnemy.MaxHitPoints;
         ShieldSegments = PrototypeShieldSegments;

@@ -310,7 +310,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Opponent_NexusOverlord_Desc"] = "Central mainframe security titan with multi-layer adaptive shielding.",
         ["CyberDefense_Feedback_CriticalHit"] = "CRITICAL HIT",
         ["CyberDefense_BossLabel"] = "BOSS",
-        ["CyberDefense_BossBattle"] = "BOSS BATTLE"
+        ["CyberDefense_SectorBossLabel"] = "SECTOR BOSS",
+        ["CyberDefense_BossBattle"] = "BOSS",
+        ["CyberDefense_SectorBossBattle"] = "SECTOR BOSS",
+        ["CyberDefense_SectorDisplay"] = "SECTOR {0}",
+        ["CyberDefense_CriticalWindow"] = "Critical Window"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -508,7 +512,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Opponent_NexusOverlord_Desc"] = "Zentraler Mainframe-Sicherheits-Titan mit adaptiver Mehrschichtpanzerung.",
         ["CyberDefense_Feedback_CriticalHit"] = "KRITISCH!",
         ["CyberDefense_BossLabel"] = "BOSS",
-        ["CyberDefense_BossBattle"] = "BOSS-KAMPF"
+        ["CyberDefense_SectorBossLabel"] = "SEKTOR-BOSS",
+        ["CyberDefense_BossBattle"] = "BOSS",
+        ["CyberDefense_SectorBossBattle"] = "SEKTOR-BOSS",
+        ["CyberDefense_SectorDisplay"] = "SEKTOR {0}",
+        ["CyberDefense_CriticalWindow"] = "Kritisches Fenster"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -706,6 +714,10 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Opponent_NexusOverlord_Desc"] = "Главный титан защиты мейнфрейма с адаптивным щитом.",
         ["CyberDefense_Feedback_CriticalHit"] = "КРИТИЧЕСКИЙ УДАР",
         ["CyberDefense_BossLabel"] = "БОСС",
-        ["CyberDefense_BossBattle"] = "БИТВА С БОССОМ"
+        ["CyberDefense_SectorBossLabel"] = "БОСС СЕКТОРА",
+        ["CyberDefense_BossBattle"] = "БОСС",
+        ["CyberDefense_SectorBossBattle"] = "БОСС СЕКТОРА",
+        ["CyberDefense_SectorDisplay"] = "СЕКТОР {0}",
+        ["CyberDefense_CriticalWindow"] = "Критическое окно"
     };
 }

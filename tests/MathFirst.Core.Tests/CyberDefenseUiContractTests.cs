@@ -117,10 +117,12 @@ public sealed class CyberDefenseUiContractTests
             "CyberDefense_Opponent_CrystalMalware",
             "CyberDefense_Feedback_CriticalHit",
             "CyberDefense_BossLabel",
+            "CyberDefense_SectorBossLabel",
             "CyberDefense_BossBattle",
             "CyberDefense_ShieldLabel",
             "CyberDefense_EnemyHpLabel",
-            "CyberDefense_OperationsTitle"
+            "CyberDefense_OperationsTitle",
+            "CyberDefense_SectorDisplay"
         ];
 
         string[] languages = ["en", "de", "ru"];
@@ -540,6 +542,42 @@ public sealed class CyberDefenseUiContractTests
         Assert.DoesNotContain("ILearnerStore", stateCode, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Save", stateCode, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Commit", stateCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CyberDefenseHud_ExposesSectorAndCriticalWindowContract()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+        Assert.True(File.Exists(homePath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+        var home = File.ReadAllText(homePath);
+
+        // Sector presentation contract
+        Assert.Contains("scene-sector-tag", hud, StringComparison.Ordinal);
+        Assert.Contains(".scene-sector-tag", css, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_SectorDisplay", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_SectorBossLabel", hud, StringComparison.Ordinal);
+
+        // Critical window radar contract
+        Assert.Contains("CriticalWindowMs", hud, StringComparison.Ordinal);
+        Assert.Contains("radar-timing-arc", hud, StringComparison.Ordinal);
+        Assert.Contains(".radar-timing-arc", css, StringComparison.Ordinal);
+        Assert.Contains("radar-timing-deplete", css, StringComparison.Ordinal);
+        Assert.Contains("--crit-window-duration", hud, StringComparison.Ordinal);
+
+        // Home binds learner-relative critical window to CurrentFactEasyThresholdMs
+        Assert.Contains("CriticalWindowMs=\"Session.CurrentFactEasyThresholdMs\"", home, StringComparison.Ordinal);
+
+        // No timer countdown numbers in radar or HUD
+        Assert.DoesNotContain("countdown-number", hud, StringComparison.Ordinal);
+        Assert.DoesNotContain("timer-seconds", hud, StringComparison.Ordinal);
     }
 
     private static string GetRepositoryPath(params string[] segments)

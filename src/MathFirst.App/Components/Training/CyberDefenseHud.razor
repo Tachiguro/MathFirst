@@ -17,11 +17,16 @@
                     <line x1="12" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1.5" />
                 </svg>
                 <span class="scene-category-text">@Localizer["CyberDefense_Title"]</span>
+                <span class="scene-sector-tag">@Localizer["CyberDefense_SectorDisplay", State.SectorNumber]</span>
             </div>
             <div class="scene-wave-tag @(State.IsBoss ? "wave-boss-active" : "")">
-                @if (State.IsBoss)
+                @if (State.IsSectorBoss)
                 {
-                    <span class="boss-wave-text">@Localizer["CyberDefense_BossBattle"]</span>
+                    <span class="boss-wave-text">@Localizer["CyberDefense_SectorBossLabel"]</span>
+                }
+                else if (State.IsBoss)
+                {
+                    <span class="boss-wave-text">@Localizer["CyberDefense_BossLabel"]</span>
                 }
                 else
                 {
@@ -45,9 +50,13 @@
             <!-- Left: Opponent Intel -->
             <div class="scene-intel">
                 <div class="scene-enemy-header">
-                    @if (State.IsBoss)
+                    @if (State.IsSectorBoss)
                     {
-                        <span class="boss-intel-badge" aria-label="Boss">@Localizer["CyberDefense_BossLabel"]</span>
+                        <span class="boss-intel-badge sector-boss-badge" aria-label="@Localizer["CyberDefense_SectorBossLabel"]">@Localizer["CyberDefense_SectorBossLabel"]</span>
+                    }
+                    else if (State.IsBoss)
+                    {
+                        <span class="boss-intel-badge" aria-label="@Localizer["CyberDefense_BossLabel"]">@Localizer["CyberDefense_BossLabel"]</span>
                     }
                     <h2 class="scene-enemy-name @(State.IsBoss ? "boss-enemy-name" : "")">@OpponentName</h2>
                 </div>
@@ -144,13 +153,26 @@
                     <circle cx="27" cy="27" r="9" stroke="currentColor" stroke-width="1" class="radar-ring-inner" />
                     <line x1="27" y1="2" x2="27" y2="52" stroke="currentColor" stroke-width="1" class="radar-axis" />
                     <line x1="2" y1="27" x2="52" y2="27" stroke="currentColor" stroke-width="1" class="radar-axis" />
-                    <circle cx="27" cy="27" r="25" stroke="var(--color-primary)" stroke-width="2.2" class="radar-timing-arc" stroke-dasharray="38 120" stroke-linecap="round" />
+                    @if (CriticalWindowMs > 0)
+                    {
+                        <circle @key="@(TaskKey ?? "default")"
+                                cx="27" cy="27" r="23"
+                                class="radar-timing-arc"
+                                style="--crit-window-duration: @(CriticalWindowMs)ms;"
+                                transform="rotate(-90 27 27)" />
+                    }
                     <line x1="27" y1="27" x2="48" y2="10" stroke="currentColor" stroke-width="1.5" class="radar-sweep" />
                     <circle cx="38" cy="18" r="2" fill="currentColor" class="radar-blip" />
                 </svg>
             </div>
             <div class="tactical-telemetry-list" aria-hidden="true">
-                @if (State.IsBoss)
+                @if (State.IsSectorBoss)
+                {
+                    <span class="telemetry-item boss-telemetry"><span class="telemetry-bullet boss-bullet"></span>@Localizer["CyberDefense_SectorBossLabel"]: THREAT HIGH</span>
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Progress"]</span>
+                }
+                else if (State.IsBoss)
                 {
                     <span class="telemetry-item boss-telemetry"><span class="telemetry-bullet boss-bullet"></span>@Localizer["CyberDefense_BossLabel"]: THREAT HIGH</span>
                     <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
@@ -173,6 +195,12 @@
 @code {
     [Parameter, EditorRequired]
     public CyberDefenseEncounterState State { get; set; } = default!;
+
+    [Parameter]
+    public long CriticalWindowMs { get; set; } = 2500;
+
+    [Parameter]
+    public string? TaskKey { get; set; }
 
     private string OpponentName => Localizer[State.CurrentEnemy.NameKey];
 

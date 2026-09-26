@@ -53,6 +53,19 @@
     line-height: 1;
 }
 
+.scene-sector-tag {
+    margin-left: 0.25rem;
+    font-size: clamp(0.6rem, 1vw, 0.7rem);
+    font-weight: 800;
+    color: var(--color-primary);
+    background: rgba(27, 227, 169, 0.12);
+    border: 1px solid rgba(27, 227, 169, 0.35);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+    font-variant-numeric: tabular-nums;
+}
+
 .scene-wave-tag {
     color: var(--color-muted);
     font-variant-numeric: tabular-nums;
@@ -619,6 +632,13 @@
     flex-shrink: 0;
 }
 
+.boss-intel-badge.sector-boss-badge {
+    background: rgba(255, 30, 70, 0.28);
+    border-color: #ff1e46;
+    color: #ff1e46;
+    box-shadow: 0 0 10px rgba(255, 30, 70, 0.6);
+}
+
 .boss-enemy-name {
     color: #ffdee4;
     text-shadow: 0 0 12px rgba(255, 59, 92, 0.5);
@@ -653,14 +673,38 @@
    RADAR TIMING ARC & COMBAT BURST STYLES
    ======================================================== */
 .radar-timing-arc {
-    opacity: 0.85;
-    filter: drop-shadow(0 0 4px var(--color-primary));
-    animation: radar-timing-pulse 3s ease-in-out infinite alternate;
+    fill: none;
+    stroke: #00ffff;
+    stroke-width: 2.5;
+    stroke-dasharray: 144.5;
+    stroke-dashoffset: 0;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 6px rgba(0, 255, 255, 0.75));
+    animation: radar-timing-deplete var(--crit-window-duration, 2500ms) linear forwards;
 }
 
-@keyframes radar-timing-pulse {
-    0% { opacity: 0.5; stroke: var(--color-primary); }
-    100% { opacity: 1; stroke: #00ffff; filter: drop-shadow(0 0 8px #00ffff); }
+@keyframes radar-timing-deplete {
+    0% {
+        stroke-dashoffset: 0;
+        stroke: #00ffff;
+        opacity: 0.95;
+        filter: drop-shadow(0 0 6px #00ffff);
+    }
+    75% {
+        stroke: #1be3a9;
+        opacity: 0.85;
+        filter: drop-shadow(0 0 5px #1be3a9);
+    }
+    95% {
+        stroke: #3effa8;
+        opacity: 0.6;
+        filter: drop-shadow(0 0 4px #3effa8);
+    }
+    100% {
+        stroke-dashoffset: 144.5;
+        opacity: 0;
+        filter: none;
+    }
 }
 
 .tactical-radar-widget.radar-crit-burst {
@@ -795,7 +839,8 @@
     .damage-number.normal-damage,
     .shield-damage-pulse,
     .tactical-radar-widget.radar-crit-burst,
-    .tactical-radar-widget.radar-hit-burst {
+    .tactical-radar-widget.radar-hit-burst,
+    .radar-timing-arc {
         animation: none !important;
         transform: none !important;
     }
