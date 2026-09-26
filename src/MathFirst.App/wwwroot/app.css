@@ -1397,6 +1397,10 @@ select:disabled {
     justify-content: space-between;
     gap: 0.5rem;
     min-width: 0;
+    height: 1.55rem;
+    min-height: 1.55rem;
+    max-height: 1.55rem;
+    box-sizing: border-box;
 }
 
 .solve-panel-tag {
@@ -1408,6 +1412,7 @@ select:disabled {
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    line-height: 1;
 }
 
 .app-theme-root[data-theme="dark"] .solve-panel-tag {
@@ -1419,6 +1424,49 @@ select:disabled {
     line-height: 1;
 }
 
+.cyber-combo-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 6.2rem;
+    height: 1.45rem;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.cyber-combo-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.35rem;
+    min-height: 1.35rem;
+    box-sizing: border-box;
+    padding: 0 0.55rem;
+    border-radius: 4px;
+    background: rgba(8, 24, 18, 0.9);
+    border: 1px solid var(--color-primary);
+    box-shadow: 0 0 8px rgba(27, 227, 169, 0.3), inset 0 0 5px rgba(27, 227, 169, 0.15);
+    color: #3effa8;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1;
+    transition: opacity 120ms ease;
+}
+
+.cyber-combo-badge.combo-inactive {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.cyber-combo-badge.combo-active {
+    visibility: visible;
+    opacity: 1;
+}
+
 .practice-middle-region {
     width: 100%;
     display: flex;
@@ -1426,32 +1474,62 @@ select:disabled {
     align-items: center;
     justify-content: center;
     min-width: 0;
-    min-height: clamp(4.5rem, 9vh, 6.5rem);
+    height: clamp(5rem, 9.5vh, 6.2rem);
+    min-height: clamp(5rem, 9.5vh, 6.2rem);
+    max-height: clamp(5rem, 9.5vh, 6.2rem);
+    position: relative;
+    box-sizing: border-box;
 }
 
 .expression-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(0.35rem, 1.8vw, 0.9rem);
     margin: 0;
     max-width: 100%;
     min-width: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    line-height: 1;
+    gap: var(--expression-gap, clamp(0.35rem, 1.8vw, 0.9rem));
 }
 
 .expression-problem {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(0.35rem, 1.8vw, 0.9rem);
     min-width: 0;
+    flex-shrink: 0;
+    white-space: nowrap;
+    line-height: 1;
+    gap: var(--expression-gap, clamp(0.35rem, 1.8vw, 0.9rem));
+}
+
+/* CONTENT-AWARE EQUATION SCALING CLASSES */
+.expression-row.expression-short {
+    --expression-font-size: clamp(3.2rem, 8.5vw + 1.6vh, 4.85rem);
+    --expression-gap: clamp(0.4rem, 2.2vw, 0.95rem);
+}
+
+.expression-row.expression-medium {
+    --expression-font-size: clamp(2.55rem, 6.8vw + 1.2vh, 3.85rem);
+    --expression-gap: clamp(0.3rem, 1.8vw, 0.75rem);
+}
+
+.expression-row.expression-long {
+    --expression-font-size: clamp(2.05rem, 5.2vw + 1vh, 3.1rem);
+    --expression-gap: clamp(0.22rem, 1.3vw, 0.6rem);
+}
+
+.expression-row.expression-xlong {
+    --expression-font-size: clamp(1.6rem, 4.2vw + 0.8vh, 2.4rem);
+    --expression-gap: clamp(0.18rem, 1vw, 0.45rem);
 }
 
 .operand,
 .operator,
 .equals {
     font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
+    font-size: var(--expression-font-size, clamp(2.5rem, 5vw + 1.2vh, 4.75rem));
     font-weight: 800;
     color: var(--color-text);
     line-height: 1;
@@ -1466,21 +1544,14 @@ select:disabled {
     text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
 }
 
-@media (max-height: 500px) {
-    .operand,
-    .operator,
-    .equals {
-        font-size: clamp(2rem, 5vw + 1vh, 3.5rem);
-    }
-}
-
 .answer-input {
     box-sizing: border-box;
     inline-size: min(10ch, 100%);
     max-inline-size: 100%;
     min-width: 0;
-    height: clamp(52px, 7vw + 2vh, 78px);
+    height: 100%;
     font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
+    font-size: var(--expression-font-size, clamp(2.5rem, 5vw + 1.2vh, 4.75rem));
     font-weight: 800;
     text-align: left;
     border: none;
@@ -1517,13 +1588,6 @@ select:disabled {
     border: none;
     box-shadow: none;
     outline: none;
-}
-
-@media (max-height: 500px) {
-    .answer-input {
-        height: clamp(48px, 6.5vw + 2vh, 66px);
-        font-size: clamp(2rem, 5vw + 1vh, 3.5rem);
-    }
 }
 
 .validation-message {
@@ -1910,13 +1974,11 @@ select:disabled {
     .operand,
     .operator,
     .equals {
-        font-size: clamp(2rem, 5.2vw, 3.25rem);
+        font-size: var(--expression-font-size, clamp(2rem, 5.2vw, 3.25rem));
     }
 
     .answer-input {
-        inline-size: min(6ch, 100%);
-        height: clamp(48px, 13vh, 58px);
-        font-size: clamp(2rem, 5.2vw, 3.25rem);
+        font-size: var(--expression-font-size, clamp(2rem, 5.2vw, 3.25rem));
     }
 
     .validation-message {
@@ -1979,12 +2041,12 @@ select:disabled {
     .operand,
     .operator,
     .equals {
-        font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
+        font-size: var(--expression-font-size, clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem));
     }
 
     .answer-input {
-        height: clamp(56px, 8.5vw + 2vh, 84px);
-        font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
+        height: 100%;
+        font-size: var(--expression-font-size, clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem));
     }
 }
 
@@ -1996,24 +2058,47 @@ select:disabled {
 
     .expression-row {
         flex-wrap: nowrap;
-        gap: clamp(0.15rem, 1vw, 0.45rem);
+        gap: var(--expression-gap, clamp(0.15rem, 1vw, 0.45rem));
+    }
+
+    .expression-row.expression-short {
+        --expression-font-size: clamp(2.35rem, 7.8vw + 0.8vh, 2.95rem);
+        --expression-gap: clamp(0.25rem, 1.2vw, 0.45rem);
+    }
+
+    .expression-row.expression-medium {
+        --expression-font-size: clamp(2.0rem, 6.6vw + 0.6vh, 2.5rem);
+        --expression-gap: clamp(0.2rem, 1vw, 0.4rem);
+    }
+
+    .expression-row.expression-long {
+        --expression-font-size: clamp(1.7rem, 5.5vw + 0.4vh, 2.15rem);
+        --expression-gap: clamp(0.15rem, 0.8vw, 0.35rem);
+    }
+
+    .expression-row.expression-xlong {
+        --expression-font-size: clamp(1.4rem, 4.4vw + 0.3vh, 1.75rem);
+        --expression-gap: clamp(0.12rem, 0.6vw, 0.3rem);
     }
 
     .expression-problem {
-        gap: clamp(0.15rem, 1vw, 0.45rem);
+        flex-shrink: 0;
+        white-space: nowrap;
+        gap: var(--expression-gap, clamp(0.15rem, 1vw, 0.45rem));
     }
 
     .operand,
     .operator,
     .equals {
-        font-size: clamp(1.85rem, 6.5vw, 2.85rem);
+        font-size: var(--expression-font-size, clamp(1.85rem, 6.5vw, 2.85rem));
     }
 
     .answer-input {
-        inline-size: min(6.5ch, 100%);
-        height: clamp(50px, 7vw + 2vh, 66px);
-        font-size: clamp(1.85rem, 6.5vw, 2.85rem);
-        padding-inline: 0.25em;
+        inline-size: min(4ch, 100%);
+        height: 100%;
+        font-size: var(--expression-font-size, clamp(1.85rem, 6.5vw, 2.85rem));
+        padding-inline: 0.15em;
+        flex-shrink: 0;
     }
 
     .numeric-keypad {

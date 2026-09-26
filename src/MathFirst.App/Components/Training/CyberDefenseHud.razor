@@ -55,11 +55,23 @@
             </div>
 
             <!-- Right: Large Opponent Artwork -->
-            <div class="scene-artwork-wrapper">
+            <div class="scene-artwork-wrapper @ArtworkFeedbackClass" @key="@($"opponent-{State.FeedbackRevision}")">
                 <img src="@OpponentAssetPath"
                      alt="@OpponentName"
-                     class="scene-opponent-image" />
+                     class="scene-opponent-image @OpponentFeedbackClass" />
                 <div class="scene-enemy-floor-glow" aria-hidden="true"></div>
+                @if (State.LastFeedback == CyberDefenseFeedbackKind.Hit)
+                {
+                    <div class="battle-feedback-overlay hit-feedback-overlay" aria-hidden="true">
+                        <span class="battle-feedback-badge badge-hit">@Localizer["CyberDefense_Feedback_Hit"]</span>
+                    </div>
+                }
+                else if (State.LastFeedback == CyberDefenseFeedbackKind.Blocked)
+                {
+                    <div class="battle-feedback-overlay blocked-feedback-overlay" aria-hidden="true">
+                        <span class="battle-feedback-badge badge-blocked">@Localizer["CyberDefense_Feedback_Blocked"]</span>
+                    </div>
+                }
             </div>
         </div>
     </section>
@@ -69,7 +81,10 @@
         <!-- Left: Shield Segment Status -->
         <div class="shield-status-column">
             <span class="shield-section-title">@Localizer["CyberDefense_YourShield"]</span>
-            <div class="shield-badges-row" role="group" aria-label='@Localizer["CyberDefense_ShieldDisplay", State.ShieldSegments, CyberDefenseEncounterState.PrototypeShieldSegments]'>
+            <div class="shield-badges-row @ShieldFeedbackClass"
+                 @key="@($"shields-{State.FeedbackRevision}")"
+                 role="group"
+                 aria-label='@Localizer["CyberDefense_ShieldDisplay", State.ShieldSegments, CyberDefenseEncounterState.PrototypeShieldSegments]'>
                 @for (var i = 0; i < CyberDefenseEncounterState.PrototypeShieldSegments; i++)
                 {
                     var isIntact = i < State.ShieldSegments;
@@ -155,4 +170,24 @@
     private int ShieldPercentage =>
         (int)Math.Round((double)Math.Clamp(State.ShieldSegments, 0, CyberDefenseEncounterState.PrototypeShieldSegments)
             / CyberDefenseEncounterState.PrototypeShieldSegments * 100);
+
+    private string ArtworkFeedbackClass => State.LastFeedback switch
+    {
+        CyberDefenseFeedbackKind.Hit => "feedback-hit-active",
+        CyberDefenseFeedbackKind.Blocked => "feedback-blocked-active",
+        _ => string.Empty
+    };
+
+    private string OpponentFeedbackClass => State.LastFeedback switch
+    {
+        CyberDefenseFeedbackKind.Hit => "opponent-hit-recoil",
+        CyberDefenseFeedbackKind.Blocked => "opponent-block-deflect",
+        _ => string.Empty
+    };
+
+    private string ShieldFeedbackClass => State.LastFeedback switch
+    {
+        CyberDefenseFeedbackKind.Blocked => "shield-damage-pulse",
+        _ => string.Empty
+    };
 }

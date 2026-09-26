@@ -291,7 +291,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Telemetry_Progress"] = "YOUR PROGRESS",
         ["CyberDefense_Opponent_GlitchDrone_Desc"] = "A corrupted drone disrupting the learning network.",
         ["CyberDefense_Opponent_VirusCore_Desc"] = "A rogue core multiplying across calculation buffers.",
-        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "A crystallized threat attempting to lock numeric flows."
+        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "A crystallized threat attempting to lock numeric flows.",
+        ["CyberDefense_Combo"] = "COMBO ×{0}",
+        ["CyberDefense_ComboAriaLabel"] = "Current combo: {0}",
+        ["CyberDefense_Feedback_Hit"] = "-1",
+        ["CyberDefense_Feedback_Blocked"] = "BLOCKED"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -470,7 +474,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Telemetry_Progress"] = "DEIN FORTSCHRITT",
         ["CyberDefense_Opponent_GlitchDrone_Desc"] = "Eine fehlerhafte Drohne, die das Lernnetzwerk stört.",
         ["CyberDefense_Opponent_VirusCore_Desc"] = "Ein bösartiger Kern, der Rechenpuffer infiziert.",
-        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "Ein kristallines Konstrukt, das Zahlenknoten blockiert."
+        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "Ein kristallines Konstrukt, das Zahlenknoten blockiert.",
+        ["CyberDefense_Combo"] = "KOMBO ×{0}",
+        ["CyberDefense_ComboAriaLabel"] = "Aktuelle Kombo: {0}",
+        ["CyberDefense_Feedback_Hit"] = "-1",
+        ["CyberDefense_Feedback_Blocked"] = "BLOCKIERT"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -649,6 +657,10 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Telemetry_Progress"] = "ВАШ ПРОГРЕСС",
         ["CyberDefense_Opponent_GlitchDrone_Desc"] = "Поврежденный дрон, нарушающий работу сети.",
         ["CyberDefense_Opponent_VirusCore_Desc"] = "Вредоносное ядро, поражающее буферы вычислений.",
-        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "Кристаллический червь, блокирующий числовые потоки."
+        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "Кристаллический червь, блокирующий числовые потоки.",
+        ["CyberDefense_Combo"] = "КОМБО ×{0}",
+        ["CyberDefense_ComboAriaLabel"] = "Текущее комбо: {0}",
+        ["CyberDefense_Feedback_Hit"] = "-1",
+        ["CyberDefense_Feedback_Blocked"] = "ЗАБЛОКИРОВАНО"
     };
 }

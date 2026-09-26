@@ -1,5 +1,12 @@
 namespace MathFirst.Application.Practice;
 
+public enum CyberDefenseFeedbackKind
+{
+    None,
+    Hit,
+    Blocked
+}
+
 /// <summary>
 /// Transient prototype encounter state for the Cyber Defense training shell.
 /// This state is presentation-only and has zero authority over curriculum, FSRS,
@@ -15,6 +22,8 @@ public sealed class CyberDefenseEncounterState
     public int EnemyHitPoints { get; private set; } = PrototypeEnemyHitPoints;
     public int ShieldSegments { get; private set; } = PrototypeShieldSegments;
     public long Revision { get; private set; }
+    public CyberDefenseFeedbackKind LastFeedback { get; private set; } = CyberDefenseFeedbackKind.None;
+    public long FeedbackRevision { get; private set; }
 
     public void RecordCorrectAnswer()
     {
@@ -25,6 +34,8 @@ public sealed class CyberDefenseEncounterState
             EnemyIndex = (EnemyIndex + 1) % PrototypeEnemyCount;
         }
 
+        LastFeedback = CyberDefenseFeedbackKind.Hit;
+        FeedbackRevision++;
         Revision++;
     }
 
@@ -37,6 +48,8 @@ public sealed class CyberDefenseEncounterState
             EnemyHitPoints = PrototypeEnemyHitPoints;
         }
 
+        LastFeedback = CyberDefenseFeedbackKind.Blocked;
+        FeedbackRevision++;
         Revision++;
     }
 
@@ -44,6 +57,8 @@ public sealed class CyberDefenseEncounterState
     {
         EnemyHitPoints = PrototypeEnemyHitPoints;
         ShieldSegments = PrototypeShieldSegments;
+        LastFeedback = CyberDefenseFeedbackKind.None;
+        FeedbackRevision++;
         Revision++;
     }
 }

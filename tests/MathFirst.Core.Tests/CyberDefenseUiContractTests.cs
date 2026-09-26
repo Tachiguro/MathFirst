@@ -360,6 +360,132 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("--color-danger: #ff4766;", css, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CyberDefenseCombo_UsesCyberDefenseSpecificLocalizationAcrossLanguages()
+    {
+        var service = new LocalizationService();
+
+        service.ApplyLanguagePreference("de");
+        Assert.Equal("KOMBO ×3", service.GetString("CyberDefense_Combo", 3));
+        Assert.Equal("KOMBO ×100", service.GetString("CyberDefense_Combo", 100));
+
+        service.ApplyLanguagePreference("en");
+        Assert.Equal("COMBO ×3", service.GetString("CyberDefense_Combo", 3));
+        Assert.Equal("COMBO ×100", service.GetString("CyberDefense_Combo", 100));
+
+        service.ApplyLanguagePreference("ru");
+        Assert.Equal("КОМБО ×3", service.GetString("CyberDefense_Combo", 3));
+        Assert.Equal("КОМБО ×100", service.GetString("CyberDefense_Combo", 100));
+    }
+
+    [Fact]
+    public void CyberDefenseCombo_LayoutIsStructurallyReserved_WithoutVerticalShift()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+
+        var home = File.ReadAllText(homePath);
+        var css = File.ReadAllText(cssPath);
+
+        // Reserved combo slot is always in the DOM
+        Assert.Contains("cyber-combo-slot", home, StringComparison.Ordinal);
+        Assert.Contains("cyber-combo-badge", home, StringComparison.Ordinal);
+        Assert.Contains("combo-active", home, StringComparison.Ordinal);
+        Assert.Contains("combo-inactive", home, StringComparison.Ordinal);
+
+        // Fixed heights ensuring identical geometry
+        Assert.Contains(".solve-panel-header", css, StringComparison.Ordinal);
+        Assert.Contains(".cyber-combo-slot", css, StringComparison.Ordinal);
+        Assert.Contains(".cyber-combo-badge.combo-inactive", css, StringComparison.Ordinal);
+        Assert.Contains("visibility: hidden;", css, StringComparison.Ordinal);
+        Assert.Contains(".practice-middle-region", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseExpressionSizingPolicy_ReturnsDeterministicClasses_AcrossTargetComplexity()
+    {
+        // 0 + 0 = ? -> short
+        Assert.Equal(
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.ShortClass,
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.GetSizeClass("0", "0", 1));
+
+        // 7 + 8 = ? -> short
+        Assert.Equal(
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.ShortClass,
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.GetSizeClass("7", "8", 2));
+
+        // 12 × 12 = ? -> medium
+        Assert.Equal(
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.MediumClass,
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.GetSizeClass("12", "12", 3));
+
+        // 99 × 99 = ? -> long
+        Assert.Equal(
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.LongClass,
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.GetSizeClass("99", "99", 4));
+
+        // 999 + 999 = ? (and answer 1998) -> xlong
+        Assert.Equal(
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.XLongClass,
+            MathFirst.Application.Practice.CyberDefenseExpressionSizingPolicy.GetSizeClass("999", "999", 4));
+    }
+
+    [Fact]
+    public void CyberDefenseExpressionTypography_ShortClassIsLargest_AndLongClassesScaleDown()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        var css = File.ReadAllText(cssPath);
+
+        Assert.Contains(".expression-row.expression-short", css, StringComparison.Ordinal);
+        Assert.Contains(".expression-row.expression-medium", css, StringComparison.Ordinal);
+        Assert.Contains(".expression-row.expression-long", css, StringComparison.Ordinal);
+        Assert.Contains(".expression-row.expression-xlong", css, StringComparison.Ordinal);
+
+        // Short class uses 3.2rem base, medium uses 2.55rem, long uses 2.05rem, xlong uses 1.6rem
+        Assert.Contains("3.2rem", css, StringComparison.Ordinal);
+        Assert.Contains("2.55rem", css, StringComparison.Ordinal);
+        Assert.Contains("2.05rem", css, StringComparison.Ordinal);
+        Assert.Contains("1.6rem", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseBattleFeedback_OnlyTriggersAfterEvaluation_AndPreservesLearningEngineAuthority()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+
+        var home = File.ReadAllText(homePath);
+        var hud = File.ReadAllText(hudPath);
+
+        // Feedback triggers only after Session.SubmitAnswer
+        var evalIdx = home.IndexOf("Session.SubmitAnswer", StringComparison.Ordinal);
+        var correctRecordIdx = home.IndexOf("_cyberDefenseState.RecordCorrectAnswer()", StringComparison.Ordinal);
+        var incorrectRecordIdx = home.IndexOf("_cyberDefenseState.RecordIncorrectAnswer()", StringComparison.Ordinal);
+
+        Assert.True(evalIdx > 0, "SubmitAnswer must be called.");
+        Assert.True(correctRecordIdx > evalIdx, "RecordCorrectAnswer must occur AFTER evaluation.");
+        Assert.True(incorrectRecordIdx > evalIdx, "RecordIncorrectAnswer must occur AFTER evaluation.");
+
+        // Feedback overlays in HUD
+        Assert.Contains("hit-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("blocked-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseFeedbackKind", hud, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefense_PreservesDomainPersistenceIsolation()
+    {
+        var statePath = GetRepositoryPath("src", "MathFirst.Application", "Practice", "CyberDefenseEncounterState.cs");
+        var stateCode = File.ReadAllText(statePath);
+
+        // No database, EF, SQLite, or persistence imports
+        Assert.DoesNotContain("Microsoft.Data.Sqlite", stateCode, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("EntityFramework", stateCode, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ILearnerStore", stateCode, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Save", stateCode, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Commit", stateCode, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();

@@ -112,4 +112,49 @@ public sealed class CyberDefenseEncounterStateTests
         Assert.Equal(CyberDefenseEncounterState.PrototypeShieldSegments, state.ShieldSegments);
         Assert.True(state.Revision > revBeforeReset);
     }
+
+    [Fact]
+    public void RecordCorrectAnswer_SetsHitFeedback_AndIncrementsFeedbackRevision()
+    {
+        var state = new CyberDefenseEncounterState();
+        var initialRevision = state.FeedbackRevision;
+
+        state.RecordCorrectAnswer();
+
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, state.LastFeedback);
+        Assert.True(state.FeedbackRevision > initialRevision);
+    }
+
+    [Fact]
+    public void RecordIncorrectAnswer_SetsBlockedFeedback_AndCannotDecrementEnemyHitPoints()
+    {
+        var state = new CyberDefenseEncounterState();
+        var initialHp = state.EnemyHitPoints;
+        var initialRevision = state.FeedbackRevision;
+
+        state.RecordIncorrectAnswer();
+
+        Assert.Equal(CyberDefenseFeedbackKind.Blocked, state.LastFeedback);
+        Assert.Equal(initialHp, state.EnemyHitPoints); // Enemy HP must NOT be decremented
+        Assert.True(state.FeedbackRevision > initialRevision);
+    }
+
+    [Fact]
+    public void MultipleAnswers_IncrementFeedbackRevisionEachTime_EnablingRetriggerableAnimations()
+    {
+        var state = new CyberDefenseEncounterState();
+
+        state.RecordCorrectAnswer();
+        var rev1 = state.FeedbackRevision;
+
+        state.RecordCorrectAnswer();
+        var rev2 = state.FeedbackRevision;
+
+        state.RecordCorrectAnswer();
+        var rev3 = state.FeedbackRevision;
+
+        Assert.True(rev2 > rev1);
+        Assert.True(rev3 > rev2);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, state.LastFeedback);
+    }
 }

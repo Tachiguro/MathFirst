@@ -282,17 +282,17 @@
                                         </svg>
                                         <span class="solve-panel-title">@Localizer["CyberDefense_SolveToAttack"]</span>
                                     </div>
-                                    @if (Session.CurrentCorrectStreak >= 3)
-                                    {
-                                        <span class="practice-streak-badge"
-                                              aria-label="@Localizer["Training_StreakAriaLabel", Session.CurrentCorrectStreak]">
-                                            @Localizer["Training_Streak", Session.CurrentCorrectStreak]
+                                    <div class="cyber-combo-slot" aria-hidden="@(Session.CurrentCorrectStreak < 3 ? "true" : null)">
+                                        <span class="cyber-combo-badge practice-streak-badge @(Session.CurrentCorrectStreak >= 3 ? "combo-active" : "combo-inactive")"
+                                              role="@(Session.CurrentCorrectStreak >= 3 ? "status" : null)"
+                                              aria-label="@(Session.CurrentCorrectStreak >= 3 ? Localizer["CyberDefense_ComboAriaLabel", Session.CurrentCorrectStreak] : null)">
+                                            @(Session.CurrentCorrectStreak >= 3 ? Localizer["CyberDefense_Combo", Session.CurrentCorrectStreak] : "—")
                                         </span>
-                                    }
+                                    </div>
                                 </div>
 
                                 <div class="practice-middle-region">
-                                    <div class="expression-row">
+                                    <div class="expression-row @GetExpressionSizeClass()">
                                         <span class="expression-problem">
                                             <span class="operand">@Session.CurrentFact.LeftOperand</span>
                                             <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
@@ -405,6 +405,21 @@
     private long _operationProgressPracticePosition = long.MinValue;
     private HashSet<ArithmeticOperation>? _enabledOperations;
     private readonly CyberDefenseEncounterState _cyberDefenseState = new();
+
+    private string GetExpressionSizeClass()
+    {
+        if (Session.CurrentFact is null)
+        {
+            return CyberDefenseExpressionSizingPolicy.ShortClass;
+        }
+
+        var resultDigits = Session.CurrentFact.CorrectResult.ToString().Length;
+        var effectiveDigits = Math.Max(resultDigits, _answerInput.Length);
+        return CyberDefenseExpressionSizingPolicy.GetSizeClass(
+            Session.CurrentFact.LeftOperand,
+            Session.CurrentFact.RightOperand,
+            effectiveDigits);
+    }
 
     protected override async Task OnInitializedAsync()
     {
