@@ -2,6 +2,9 @@ namespace MathFirst.Core.Tests;
 
 using System.Text.RegularExpressions;
 using MathFirst.Application;
+using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
+using MathFirst.Domain;
 using Xunit;
 
 public sealed class CyberDefenseUiContractTests
@@ -17,10 +20,8 @@ public sealed class CyberDefenseUiContractTests
         // Parameter acceptance
         Assert.Matches(@"\[Parameter[^\]]*\]\s*public\s+CyberDefenseEncounterState\s+State\s*\{\s*get;\s*set;\s*\}", content);
 
-        // Exactly the three prototype SVG assets
-        Assert.Contains("images/cyber-defense/glitch-drone.svg", content, StringComparison.Ordinal);
-        Assert.Contains("images/cyber-defense/virus-core.svg", content, StringComparison.Ordinal);
-        Assert.Contains("images/cyber-defense/crystal-malware.svg", content, StringComparison.Ordinal);
+        // Opponent asset path resolved via encounter state
+        Assert.Contains("State.CurrentEnemy.AssetPath", content, StringComparison.Ordinal);
 
         // Accessible labels / progress semantics for HP and Shield
         Assert.Contains("role=\"progressbar\"", content, StringComparison.Ordinal);
@@ -578,6 +579,144 @@ public sealed class CyberDefenseUiContractTests
         // No timer countdown numbers in radar or HUD
         Assert.DoesNotContain("countdown-number", hud, StringComparison.Ordinal);
         Assert.DoesNotContain("timer-seconds", hud, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CyberDefenseHud_RadarTimingArc_ResumesAtAuthoritativeElapsedFraction_ExcludingPauseTime()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+        Assert.True(File.Exists(homePath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+        var home = File.ReadAllText(homePath);
+
+        // 1. Component markup and parameter contracts
+        // The HUD must accept ActiveElapsedMs parameter
+        Assert.Contains("ActiveElapsedMs", hud, StringComparison.Ordinal);
+
+        // Home must pass Session.GetCurrentActiveElapsedMs() to HUD
+        Assert.Contains("ActiveElapsedMs=\"Session.GetCurrentActiveElapsedMs()\"", home, StringComparison.Ordinal);
+
+        // HUD CSS must support negative animation delay to render resumed progress accurately
+        Assert.Contains("var(--crit-window-delay", css, StringComparison.Ordinal);
+
+        // 2. Scenario A: Fresh Fact (ActiveElapsed = 0, EasyThreshold = 2500 ms)
+        var freshState = CyberDefenseRadarTimingPolicy.CalculateTimingState(2500, 0);
+        Assert.Equal(2500, freshState.TotalDurationMs);
+        Assert.Equal(0, freshState.ConsumedElapsedMs);
+        Assert.Equal(2500, freshState.RemainingMs);
+        Assert.Equal(1.0, freshState.RemainingFraction, 2);
+        Assert.Equal(0, freshState.NegativeDelayMs);
+        Assert.False(freshState.IsExhausted);
+
+        // 3. Scenario B: Partial Elapse + Resume (ActiveElapsed = 2000 ms, EasyThreshold = 2500 ms)
+        var resumedState = CyberDefenseRadarTimingPolicy.CalculateTimingState(2500, 2000);
+        Assert.Equal(2500, resumedState.TotalDurationMs);
+        Assert.Equal(2000, resumedState.ConsumedElapsedMs);
+        Assert.Equal(500, resumedState.RemainingMs);
+        Assert.Equal(0.20, resumedState.RemainingFraction, 2);
+        Assert.Equal(-2000, resumedState.NegativeDelayMs);
+        Assert.False(resumedState.IsExhausted);
+        Assert.NotEqual(1.0, resumedState.RemainingFraction); // Must NOT restart at 100%
+
+        // 4. Scenario C: Window Already Expired (ActiveElapsed >= 2500 ms)
+        var expiredState = CyberDefenseRadarTimingPolicy.CalculateTimingState(2500, 2500);
+        Assert.Equal(2500, expiredState.TotalDurationMs);
+        Assert.Equal(2500, expiredState.ConsumedElapsedMs);
+        Assert.Equal(0, expiredState.RemainingMs);
+        Assert.Equal(0.0, expiredState.RemainingFraction, 2);
+        Assert.Equal(-2500, expiredState.NegativeDelayMs);
+        Assert.True(expiredState.IsExhausted);
+
+        var pastExpiredState = CyberDefenseRadarTimingPolicy.CalculateTimingState(2500, 3000);
+        Assert.Equal(2500, pastExpiredState.TotalDurationMs);
+        Assert.Equal(2500, pastExpiredState.ConsumedElapsedMs);
+        Assert.Equal(0, pastExpiredState.RemainingMs);
+        Assert.Equal(0.0, pastExpiredState.RemainingFraction, 2);
+        Assert.True(pastExpiredState.IsExhausted);
+
+        // 5. Scenario D: Pause Time Excluded using TrainingSession
+        var fakeClock = new FakeClock();
+        var store = new RecordingStore();
+        var session = new TrainingSession(store, fakeClock);
+        await session.InitializeAsync();
+
+        // Start running practice
+        session.StartOrResumePractice();
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+
+        // Solve actively for 2000 ms
+        fakeClock.AdvanceMs(2000);
+        Assert.Equal(2000, session.GetCurrentActiveElapsedMs());
+
+        // Pause practice for 10 seconds (10,000 ms)
+        session.PausePractice();
+        Assert.Equal(PracticeGateState.ManualPause, session.PracticeGate);
+        fakeClock.AdvanceMs(10000);
+
+        // Active elapsed solving time MUST NOT count the 10s pause
+        Assert.Equal(2000, session.GetCurrentActiveElapsedMs());
+
+        // Resume practice
+        session.StartOrResumePractice();
+        Assert.Equal(PracticeGateState.Running, session.PracticeGate);
+
+        // Authoritative active elapsed is still 2000 ms at the instant of resume
+        var activeElapsedOnResume = session.GetCurrentActiveElapsedMs();
+        Assert.Equal(2000, activeElapsedOnResume);
+
+        // Radar visual timing state derived from session on resume
+        var threshold = session.CurrentFactEasyThresholdMs;
+        var resumeTiming = CyberDefenseRadarTimingPolicy.CalculateTimingState(threshold, activeElapsedOnResume);
+        var expectedRemainingMs = Math.Max(0, threshold - 2000);
+        var expectedFraction = (double)expectedRemainingMs / threshold;
+
+        Assert.Equal(threshold, resumeTiming.TotalDurationMs);
+        Assert.Equal(2000, resumeTiming.ConsumedElapsedMs);
+        Assert.Equal(expectedRemainingMs, resumeTiming.RemainingMs);
+        Assert.Equal(expectedFraction, resumeTiming.RemainingFraction, 2);
+        Assert.Equal(-2000, resumeTiming.NegativeDelayMs);
+    }
+
+    private sealed class FakeClock : IClock
+    {
+        private long _timestamp = 1_000_000;
+        public long GetTimestamp() => _timestamp;
+        public TimeSpan GetElapsedTime(long startTimestamp) =>
+            TimeSpan.FromMilliseconds(Math.Max(0, _timestamp - startTimestamp));
+        public void AdvanceMs(long milliseconds) => _timestamp += milliseconds;
+    }
+
+    private sealed class RecordingStore : ILearnerStore
+    {
+        public string StoragePath => "inmemory://cyber-defense-ui-contract";
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new LearnerSnapshot(
+                LearnerProgression.CreateFresh(),
+                new Dictionary<string, ItemLearningState>(),
+                new List<AttemptRecord>(),
+                1,
+                LearnerProgression.DefaultSchemaVersion));
+        public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
+            ArithmeticOperation operation,
+            long bandStartedPracticePosition,
+            IReadOnlyList<string> frontierFactIds,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<AttemptRecord>>([]);
+        public Task<PersistenceResult> CommitSubmissionAsync(
+            SubmissionChangeSet changeSet,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(PersistenceResult.Success(changeSet.ExpectedRevision + 1));
+        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void Dispose() { }
     }
 
     private static string GetRepositoryPath(params string[] segments)

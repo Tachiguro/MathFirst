@@ -60,7 +60,7 @@
                     }
                     <h2 class="scene-enemy-name @(State.IsBoss ? "boss-enemy-name" : "")">@OpponentName</h2>
                 </div>
-                
+
                 <div class="enemy-hp-cluster">
                     <div class="meter-bar enemy-hp-bar @(State.IsBoss ? "boss-hp-bar" : "")"
                          role="progressbar"
@@ -153,12 +153,12 @@
                     <circle cx="27" cy="27" r="9" stroke="currentColor" stroke-width="1" class="radar-ring-inner" />
                     <line x1="27" y1="2" x2="27" y2="52" stroke="currentColor" stroke-width="1" class="radar-axis" />
                     <line x1="2" y1="27" x2="52" y2="27" stroke="currentColor" stroke-width="1" class="radar-axis" />
-                    @if (CriticalWindowMs > 0)
+                    @if (CriticalWindowMs > 0 && !RadarTiming.IsExhausted)
                     {
                         <circle @key="@(TaskKey ?? "default")"
                                 cx="27" cy="27" r="23"
                                 class="radar-timing-arc"
-                                style="--crit-window-duration: @(CriticalWindowMs)ms;"
+                                style="--crit-window-duration: @(RadarTiming.TotalDurationMs)ms; --crit-window-delay: @(RadarTiming.NegativeDelayMs)ms;"
                                 transform="rotate(-90 27 27)" />
                     }
                     <line x1="27" y1="27" x2="48" y2="10" stroke="currentColor" stroke-width="1.5" class="radar-sweep" />
@@ -200,19 +200,19 @@
     public long CriticalWindowMs { get; set; } = 2500;
 
     [Parameter]
+    public long ActiveElapsedMs { get; set; } = 0;
+
+    [Parameter]
     public string? TaskKey { get; set; }
+
+    private CyberDefenseRadarTimingState RadarTiming =>
+        CyberDefenseRadarTimingPolicy.CalculateTimingState(CriticalWindowMs, ActiveElapsedMs);
 
     private string OpponentName => Localizer[State.CurrentEnemy.NameKey];
 
     private string OpponentDescription => Localizer[State.CurrentEnemy.DescKey];
 
-    private string OpponentAssetPath => State.CurrentEnemy.AssetPath switch
-    {
-        "images/cyber-defense/glitch-drone.svg" => "images/cyber-defense/glitch-drone.svg",
-        "images/cyber-defense/virus-core.svg" => "images/cyber-defense/virus-core.svg",
-        "images/cyber-defense/crystal-malware.svg" => "images/cyber-defense/crystal-malware.svg",
-        var path => path
-    };
+    private string OpponentAssetPath => State.CurrentEnemy.AssetPath;
 
     private int EnemyHpPercentage =>
         (int)Math.Round((double)Math.Clamp(State.EnemyHitPoints, 0, State.EnemyMaxHitPoints)

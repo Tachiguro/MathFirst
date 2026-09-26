@@ -257,7 +257,8 @@
                     <div class="training-top-region">
                         <CyberDefenseHud State="_cyberDefenseState"
                                          CriticalWindowMs="Session.CurrentFactEasyThresholdMs"
-                                         TaskKey="@($"{Session.CurrentFact?.Id}_{Session.ItemReadyTimestamp}")" />
+                                         ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
+                                         TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
 
                         <PracticeCountdownTimer Session="Session"
                                                 IsVisible="false"
