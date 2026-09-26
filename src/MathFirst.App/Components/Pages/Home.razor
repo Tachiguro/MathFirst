@@ -4,6 +4,7 @@
 @using MathFirst.Application.Copy
 @using MathFirst.Application.Diagnostics
 @using MathFirst.Application.Practice
+@using MathFirst.App.Components.Training
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
@@ -273,6 +274,8 @@
                             }
                         </div>
 
+                        <CyberDefenseHud State="_cyberDefenseState" />
+
                         <PracticeCountdownTimer Session="Session"
                                                 AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])'
                                                 OnTimeout="HandleTimeoutAsync" />
@@ -357,6 +360,7 @@
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
     private HashSet<ArithmeticOperation>? _enabledOperations;
+    private readonly CyberDefenseEncounterState _cyberDefenseState = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -680,10 +684,12 @@
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 if (eval.IsCorrect)
                 {
+                    _cyberDefenseState.RecordCorrectAnswer();
                     HapticService.PerformCue(HapticFeedbackCue.Correct);
                 }
                 else
                 {
+                    _cyberDefenseState.RecordIncorrectAnswer();
                     HapticService.PerformCue(HapticFeedbackCue.Incorrect);
                 }
                 var persistence = await Session.CommitCurrentEvaluationAsync();
@@ -728,6 +734,7 @@
         {
             _validationError = null;
             Session.RecordTimeout();
+            _cyberDefenseState.RecordIncorrectAnswer();
             _shouldFocusPrimaryOverlay = true;
 
             HapticService.PerformCue(HapticFeedbackCue.Timeout);

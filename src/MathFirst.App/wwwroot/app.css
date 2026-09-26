@@ -1650,19 +1650,27 @@ select:disabled {
 @media (orientation: portrait) {
     .training-host,
     .mathfirst-shell {
-        padding: clamp(1rem, 2.5vh, 2.25rem) clamp(0.5rem, 3vw, 1.5rem);
+        padding: clamp(0.75rem, 2vh, 1.75rem) clamp(0.5rem, 2.5vw, 1.25rem);
     }
 
     .mathfirst-container {
-        gap: clamp(0.75rem, 2.5vh, 1.75rem);
+        gap: clamp(0.5rem, 1.8vh, 1.25rem);
     }
 
     .training-card {
-        padding: clamp(1.25rem, 3.5vh, 2.75rem) clamp(0.85rem, 3.5vw, 2rem);
+        min-height: clamp(34rem, calc(100dvh - 5.5rem), 54rem);
+        padding: clamp(0.85rem, 2.5vh, 2rem) clamp(0.6rem, 2.5vw, 1.5rem);
     }
 
     .expression-row {
         margin: 0;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .expression-problem {
+        min-width: 0;
     }
 
     .operand,
@@ -1675,7 +1683,45 @@ select:disabled {
         height: clamp(56px, 8.5vw + 2vh, 84px);
         font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
     }
+}
 
+@media (orientation: portrait) and (max-width: 480px) {
+    .training-card {
+        padding: clamp(0.5rem, 1.5vh, 1rem) clamp(0.4rem, 2vw, 0.75rem);
+        gap: clamp(0.35rem, 1vh, 0.65rem);
+    }
+
+    .expression-row {
+        flex-wrap: nowrap;
+        gap: clamp(0.15rem, 1vw, 0.45rem);
+    }
+
+    .expression-problem {
+        gap: clamp(0.15rem, 1vw, 0.45rem);
+    }
+
+    .operand,
+    .operator,
+    .equals {
+        font-size: clamp(1.85rem, 6.5vw, 2.85rem);
+    }
+
+    .answer-input {
+        inline-size: min(6.5ch, 100%);
+        height: clamp(50px, 7vw + 2vh, 66px);
+        font-size: clamp(1.85rem, 6.5vw, 2.85rem);
+        padding-inline: 0.25em;
+    }
+
+    .numeric-keypad {
+        width: 100%;
+        height: clamp(11.5rem, 28dvh, 16rem);
+        gap: clamp(0.25rem, 0.8vh, 0.45rem);
+    }
+
+    .numeric-keypad-button {
+        min-height: 2.5rem;
+    }
 }
 
 @media (orientation: portrait) and (max-width: 600px) {

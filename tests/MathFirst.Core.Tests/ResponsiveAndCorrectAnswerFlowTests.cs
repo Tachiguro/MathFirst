@@ -161,6 +161,48 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
     }
 
     [Fact]
+    public void FourDigitAnswer_LargeArithmeticExpressions_AreDeterministicAndMultiDigitSafe()
+    {
+        // 1. 7 + 8 = 15
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit("1", 15));
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit("15", 15));
+
+        // 2. 99 * 99 = 9801
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit("9", 9801));
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit("98", 9801));
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit("980", 9801));
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit("9801", 9801));
+
+        // 3. 999 + 999 = 1998 (and entered answer 1998 lifecycle)
+        const int correctAnswer = 1998;
+        var buffer = string.Empty;
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "1");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "9");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "9");
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        // Test editing/backspacing on 3rd digit of 4-digit answer
+        buffer = NumericAnswerInputPolicy.Backspace(buffer);
+        Assert.Equal("19", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "9");
+        Assert.Equal("199", buffer);
+        Assert.False(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+
+        buffer = NumericAnswerInputPolicy.Append(buffer, "8");
+        Assert.Equal("1998", buffer);
+        Assert.True(AnswerAutoSubmissionPolicy.ShouldSubmit(buffer, correctAnswer));
+        Assert.True(NumericAnswerInputPolicy.TryParseSubmission(buffer, out var parsed));
+        Assert.Equal(1998m, parsed);
+    }
+
+    [Fact]
     public void EmptyBackspace_IsSafeNoOp()
     {
         var buffer = string.Empty;

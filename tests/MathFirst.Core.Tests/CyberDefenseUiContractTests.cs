@@ -121,6 +121,56 @@ public sealed class CyberDefenseUiContractTests
         }
     }
 
+    [Fact]
+    public void HomeTrainingShell_IntegratesCyberDefenseHud_WithTransientEncounterState()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var home = File.ReadAllText(homePath);
+
+        // Transient state instance
+        Assert.Contains("CyberDefenseEncounterState", home, StringComparison.Ordinal);
+        Assert.Contains("<CyberDefenseHud", home, StringComparison.Ordinal);
+
+        // Wired reactions on accepted answer outcomes
+        Assert.Contains("RecordCorrectAnswer()", home, StringComparison.Ordinal);
+        Assert.Contains("RecordIncorrectAnswer()", home, StringComparison.Ordinal);
+
+        // Settings access preserved
+        Assert.Contains("href=\"settings\"", home, StringComparison.Ordinal);
+        Assert.Contains("Settings_Title", home, StringComparison.Ordinal);
+
+        // No bottom navigation bar
+        Assert.DoesNotContain("<nav class=\"bottom-nav\"", home, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("bottom-navigation", home, StringComparison.OrdinalIgnoreCase);
+
+        // Core learning invariants in Home
+        Assert.Contains("NumericAnswerInputPolicy", home, StringComparison.Ordinal);
+        Assert.Contains("AnswerAutoSubmissionPolicy", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TrainingLayout_SupportsLargeExpressions_WithoutHorizontalScrollOrKeypadOverlap()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Stable portrait row without wrapping or overflow
+        Assert.Contains(".expression-row", css, StringComparison.Ordinal);
+        Assert.Contains(".expression-problem", css, StringComparison.Ordinal);
+        Assert.Contains(".operand", css, StringComparison.Ordinal);
+        Assert.Contains(".answer-input", css, StringComparison.Ordinal);
+
+        // Bounded clamp typography for arithmetic and min-width constraint
+        Assert.Contains("clamp(", css, StringComparison.Ordinal);
+        Assert.Contains("min-width: 0", css, StringComparison.Ordinal);
+
+        // Numeric keypad min-height / touch target contract
+        Assert.Contains(".numeric-keypad-button", css, StringComparison.Ordinal);
+        Assert.Contains("min-height:", css, StringComparison.Ordinal);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();
