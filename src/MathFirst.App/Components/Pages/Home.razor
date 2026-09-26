@@ -18,11 +18,16 @@
     <div class="mathfirst-container">
         <header class="mathfirst-header">
             <div class="mathfirst-title-group">
-                <h1 class="mathfirst-title">@Localizer["App_Title"]</h1>
-                @if (Session.IsInitialized && Session.CurrentFact is not null)
-                {
-                    <span class="mathfirst-op-badge">@Localizer[$"Operation_{Session.CurrentFact.Operation}"]</span>
-                }
+                <div class="brand-shield-emblem" aria-hidden="true">
+                    <svg viewBox="0 0 24 28" width="22" height="26" fill="none">
+                        <path d="M12 2 L22 6 L22 15 C22 21 12 26 12 26 C12 26 2 21 2 15 L2 6 Z" fill="rgba(27, 227, 169, 0.2)" stroke="var(--color-primary)" stroke-width="2" />
+                        <path d="M12 6 L18 9 L18 14 C18 18 12 22 12 22 C12 22 6 18 6 14 L6 9 Z" fill="var(--color-primary)" />
+                    </svg>
+                </div>
+                <div class="brand-text-column">
+                    <h1 class="mathfirst-title">@Localizer["App_Title"]</h1>
+                    <span class="brand-subtitle">@Localizer["CyberDefense_Header_Subtitle"]</span>
+                </div>
             </div>
             <div class="practice-header-actions">
                 @if (CanPausePractice)
@@ -246,73 +251,70 @@
                 else
                 {
                     <div class="training-top-region">
-                        <div class="training-meta-row">
-                            <div class="operation-progress-hud"
-                                 data-operation-count="@OperationProgress.Count"
-                                 role="group"
-                                 aria-label="@Localizer["Training_OperationProgressGroupAriaLabel"]">
-                                @foreach (var progress in OperationProgress)
-                                {
-                                    var operationName = Localizer[$"Operation_{progress.Operation}"];
-                                    var progressLabel = progress.PresentationStage is int stage
-                                        ? Localizer["Training_OperationProgressStage", operationName, stage]
-                                        : Localizer["Training_OperationProgressUnavailable", operationName];
-                                    <span class="operation-progress-entry"
-                                          aria-label="@progressLabel"
-                                          title="@progressLabel">
-                                        <span class="operation-progress-symbol" aria-hidden="true">@GetOperationSymbol(progress.Operation)</span>
-                                        <span class="operation-progress-stage">@(progress.PresentationStage?.ToString() ?? "—")</span>
-                                    </span>
-                                }
-                            </div>
-                            @if (Session.CurrentCorrectStreak >= 3)
-                            {
-                                <span class="practice-streak-badge"
-                                      aria-label="@Localizer["Training_StreakAriaLabel", Session.CurrentCorrectStreak]">
-                                    @Localizer["Training_Streak", Session.CurrentCorrectStreak]
-                                </span>
-                            }
-                        </div>
-
                         <CyberDefenseHud State="_cyberDefenseState" />
 
                         <PracticeCountdownTimer Session="Session"
+                                                IsVisible="false"
                                                 AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])'
                                                 OnTimeout="HandleTimeoutAsync" />
                     </div>
 
                     <div class="practice-layout">
                         <div class="practice-interaction-column">
-                            <div class="practice-middle-region">
-                                <div class="expression-row">
-                                    <span class="expression-problem">
-                                        <span class="operand">@Session.CurrentFact.LeftOperand</span>
-                                        <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
-                                        <span class="operand">@Session.CurrentFact.RightOperand</span>
-                                        <span class="equals">=</span>
-                                    </span>
-                                    <input @key="_inputRenderVersion"
-                                           @ref="_inputElement"
-                                           type="text"
-                                           inputmode="@AnswerInputMode"
-                                           virtualkeyboardpolicy="@AnswerVirtualKeyboardPolicy"
-                                           pattern="(?:0|[1-9][0-9]*)?(?:[.,][0-9]*)?"
-                                           maxlength="@NumericAnswerInputPolicy.MaximumLength"
-                                           autocomplete="off"
-                                           autocapitalize="off"
-                                           spellcheck="false"
-                                           enterkeyhint="done"
-                                           class="answer-input"
-                                           value="@_answerInput"
-                                           @oninput="HandleAnswerInput"
-                                           disabled="@_isSubmitting"
-                                           aria-label="@Localizer["Training_AnswerInputAriaLabel"]" />
+                            <div class="solve-to-attack-panel">
+                                <div class="solve-panel-header">
+                                    <div class="solve-panel-tag">
+                                        <svg class="reticle-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                                            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" />
+                                            <circle cx="8" cy="8" r="2" fill="currentColor" />
+                                            <line x1="8" y1="0" x2="8" y2="4" stroke="currentColor" stroke-width="1.5" />
+                                            <line x1="8" y1="12" x2="8" y2="16" stroke="currentColor" stroke-width="1.5" />
+                                            <line x1="0" y1="8" x2="4" y2="8" stroke="currentColor" stroke-width="1.5" />
+                                            <line x1="12" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1.5" />
+                                        </svg>
+                                        <span class="solve-panel-title">@Localizer["CyberDefense_SolveToAttack"]</span>
+                                    </div>
+                                    @if (Session.CurrentCorrectStreak >= 3)
+                                    {
+                                        <span class="practice-streak-badge"
+                                              aria-label="@Localizer["Training_StreakAriaLabel", Session.CurrentCorrectStreak]">
+                                            @Localizer["Training_Streak", Session.CurrentCorrectStreak]
+                                        </span>
+                                    }
                                 </div>
 
-                                @if (!string.IsNullOrEmpty(_validationError))
-                                {
-                                    <div class="validation-message" role="alert">@_validationError</div>
-                                }
+                                <div class="practice-middle-region">
+                                    <div class="expression-row">
+                                        <span class="expression-problem">
+                                            <span class="operand">@Session.CurrentFact.LeftOperand</span>
+                                            <span class="operator">@Session.CurrentFact.DisplaySymbol</span>
+                                            <span class="operand">@Session.CurrentFact.RightOperand</span>
+                                            <span class="equals">=</span>
+                                        </span>
+                                        <input @key="_inputRenderVersion"
+                                               @ref="_inputElement"
+                                               type="text"
+                                               inputmode="@AnswerInputMode"
+                                               virtualkeyboardpolicy="@AnswerVirtualKeyboardPolicy"
+                                               pattern="(?:0|[1-9][0-9]*)?(?:[.,][0-9]*)?"
+                                               maxlength="@NumericAnswerInputPolicy.MaximumLength"
+                                               placeholder="?"
+                                               autocomplete="off"
+                                               autocapitalize="off"
+                                               spellcheck="false"
+                                               enterkeyhint="done"
+                                               class="answer-input"
+                                               value="@_answerInput"
+                                               @oninput="HandleAnswerInput"
+                                               disabled="@_isSubmitting"
+                                               aria-label="@Localizer["Training_AnswerInputAriaLabel"]" />
+                                    </div>
+
+                                    @if (!string.IsNullOrEmpty(_validationError))
+                                    {
+                                        <div class="validation-message" role="alert">@_validationError</div>
+                                    }
+                                </div>
                             </div>
                         </div>
 
@@ -331,6 +333,46 @@
                                     @(isBackspace ? "⌫" : key)
                                 </button>
                             }
+                        </div>
+
+                        <div class="operation-unlock-area" role="region" aria-label="@Localizer["Training_OperationProgressGroupAriaLabel"]">
+                            <div class="operation-unlock-goal">
+                                <div class="goal-badge" aria-hidden="true">
+                                    <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                                        <rect x="3" y="6" width="10" height="9" rx="2" fill="currentColor" />
+                                        <path d="M5 6 V4 A3 3 0 0 1 11 4 V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                                    </svg>
+                                </div>
+                                <div class="goal-info">
+                                    <span class="goal-text">@Localizer["CyberDefense_NextGoal"]</span>
+                                    <div class="goal-progress-bar" aria-hidden="true">
+                                        <span class="goal-segment active"></span>
+                                        <span class="goal-segment active"></span>
+                                        <span class="goal-segment"></span>
+                                        <span class="goal-segment"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="operation-progress-hud"
+                                 data-operation-count="@OperationProgress.Count"
+                                 role="group"
+                                 aria-label="@Localizer["Training_OperationProgressGroupAriaLabel"]">
+                                @foreach (var progress in OperationProgress)
+                                {
+                                    var operationName = Localizer[$"Operation_{progress.Operation}"];
+                                    var progressLabel = progress.PresentationStage is int stage
+                                        ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                        : Localizer["Training_OperationProgressUnavailable", operationName];
+                                    var isCurrent = Session.CurrentFact?.Operation == progress.Operation;
+                                    <span class="operation-progress-entry @(isCurrent ? "op-current" : null)"
+                                          aria-label="@progressLabel"
+                                          title="@progressLabel">
+                                        <span class="operation-progress-symbol" aria-hidden="true">@GetOperationSymbol(progress.Operation)</span>
+                                        <span class="operation-progress-stage">@(progress.PresentationStage?.ToString() ?? "—")</span>
+                                    </span>
+                                }
+                            </div>
                         </div>
                     </div>
                 }

@@ -279,7 +279,19 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_HpDisplay"] = "HP: {0} / {1}",
         ["CyberDefense_Opponent_GlitchDrone"] = "Glitch Drone",
         ["CyberDefense_Opponent_VirusCore"] = "Virus Core",
-        ["CyberDefense_Opponent_CrystalMalware"] = "Crystal Malware"
+        ["CyberDefense_Opponent_CrystalMalware"] = "Crystal Malware",
+        ["CyberDefense_Header_Subtitle"] = "PRACTICE > PROGRESS > STRONGER MINDS",
+        ["CyberDefense_WaveDisplay"] = "WAVE {0} / {1}",
+        ["CyberDefense_YourShield"] = "YOUR SHIELD",
+        ["CyberDefense_Integrity"] = "Integrity",
+        ["CyberDefense_SolveToAttack"] = "SOLVE TO ATTACK",
+        ["CyberDefense_NextGoal"] = "Next goal: Multiplication almost unlocked.",
+        ["CyberDefense_Telemetry_Solve"] = "SOLVE PROBLEMS",
+        ["CyberDefense_Telemetry_Defend"] = "DEFEND SHIELD",
+        ["CyberDefense_Telemetry_Progress"] = "YOUR PROGRESS",
+        ["CyberDefense_Opponent_GlitchDrone_Desc"] = "A corrupted drone disrupting the learning network.",
+        ["CyberDefense_Opponent_VirusCore_Desc"] = "A rogue core multiplying across calculation buffers.",
+        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "A crystallized threat attempting to lock numeric flows."
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -446,7 +458,19 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_HpDisplay"] = "KP: {0} / {1}",
         ["CyberDefense_Opponent_GlitchDrone"] = "Glitch-Drohne",
         ["CyberDefense_Opponent_VirusCore"] = "Virus-Kern",
-        ["CyberDefense_Opponent_CrystalMalware"] = "Kristall-Malware"
+        ["CyberDefense_Opponent_CrystalMalware"] = "Kristall-Malware",
+        ["CyberDefense_Header_Subtitle"] = "TRAINING > FORTSCHRITT > STÄRKERER GEIST",
+        ["CyberDefense_WaveDisplay"] = "WELLE {0} / {1}",
+        ["CyberDefense_YourShield"] = "DEIN SCHILD",
+        ["CyberDefense_Integrity"] = "Integrität",
+        ["CyberDefense_SolveToAttack"] = "LÖSEN ZUM ANGRIFF",
+        ["CyberDefense_NextGoal"] = "Nächstes Ziel: Multiplikation fast freigeschaltet.",
+        ["CyberDefense_Telemetry_Solve"] = "AUFGABEN LÖSEN",
+        ["CyberDefense_Telemetry_Defend"] = "SCHILD VERTEIDIGEN",
+        ["CyberDefense_Telemetry_Progress"] = "DEIN FORTSCHRITT",
+        ["CyberDefense_Opponent_GlitchDrone_Desc"] = "Eine fehlerhafte Drohne, die das Lernnetzwerk stört.",
+        ["CyberDefense_Opponent_VirusCore_Desc"] = "Ein bösartiger Kern, der Rechenpuffer infiziert.",
+        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "Ein kristallines Konstrukt, das Zahlenknoten blockiert."
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -613,6 +637,18 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_HpDisplay"] = "ОЗ: {0} / {1}",
         ["CyberDefense_Opponent_GlitchDrone"] = "Глитч-дрон",
         ["CyberDefense_Opponent_VirusCore"] = "Ядро вируса",
-        ["CyberDefense_Opponent_CrystalMalware"] = "Кристальный червь"
+        ["CyberDefense_Opponent_CrystalMalware"] = "Кристальный червь",
+        ["CyberDefense_Header_Subtitle"] = "ПРАКТИКА > ПРОГРЕСС > СИЛА РАЗУМА",
+        ["CyberDefense_WaveDisplay"] = "ВОЛНА {0} / {1}",
+        ["CyberDefense_YourShield"] = "ВАШ ЩИТ",
+        ["CyberDefense_Integrity"] = "Прочность",
+        ["CyberDefense_SolveToAttack"] = "РЕШИТЕ ДЛЯ АТАКИ",
+        ["CyberDefense_NextGoal"] = "Следующая цель: Умножение почти открыто.",
+        ["CyberDefense_Telemetry_Solve"] = "РЕШАЙТЕ ЗАДАЧИ",
+        ["CyberDefense_Telemetry_Defend"] = "ЗАЩИЩАЙТЕ ПРОГРЕСС",
+        ["CyberDefense_Telemetry_Progress"] = "ВАШ ПРОГРЕСС",
+        ["CyberDefense_Opponent_GlitchDrone_Desc"] = "Поврежденный дрон, нарушающий работу сети.",
+        ["CyberDefense_Opponent_VirusCore_Desc"] = "Вредоносное ядро, поражающее буферы вычислений.",
+        ["CyberDefense_Opponent_CrystalMalware_Desc"] = "Кристаллический червь, блокирующий числовые потоки."
     };
 }

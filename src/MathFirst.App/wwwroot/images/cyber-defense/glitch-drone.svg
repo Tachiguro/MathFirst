@@ -1,16 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" aria-hidden="true">
   <defs>
-    <linearGradient id="drone-body" x1="20" y1="20" x2="100" y2="100" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2CDA9D" />
-      <stop offset="100%" stop-color="#0F523A" />
-    </linearGradient>
-    <radialGradient id="drone-eye" cx="60" cy="56" r="16" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#00FFFF" />
-      <stop offset="60%" stop-color="#176B4D" />
-      <stop offset="100%" stop-color="#0A2218" />
+    <!-- Chassis gradients -->
+    <radialGradient id="gd-orb-body" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#2d4239" />
+      <stop offset="45%" stop-color="#182621" />
+      <stop offset="85%" stop-color="#0e1714" />
+      <stop offset="100%" stop-color="#070c0a" />
     </radialGradient>
-    <filter id="cyber-glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="2" result="blur" />
+    <linearGradient id="gd-halo-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#72ffc2" />
+      <stop offset="50%" stop-color="#2cda9d" />
+      <stop offset="100%" stop-color="#00e5a3" />
+    </linearGradient>
+    <linearGradient id="gd-wing-facet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#253a32" />
+      <stop offset="100%" stop-color="#0f1915" />
+    </linearGradient>
+    <radialGradient id="gd-repulsor-beam" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#3effa8" stop-opacity="0.8" />
+      <stop offset="40%" stop-color="#1be3a9" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#0df2c9" stop-opacity="0" />
+    </radialGradient>
+    <filter id="gd-cyber-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="gd-eye-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
@@ -18,30 +37,89 @@
     </filter>
   </defs>
 
-  <!-- Thruster Flares -->
-  <polygon points="26,76 34,70 30,88" fill="#00FFFF" opacity="0.8" />
-  <polygon points="94,76 86,70 90,88" fill="#00FFFF" opacity="0.8" />
+  <!-- Repulsor Lift Floor Glow -->
+  <ellipse cx="100" cy="180" rx="42" ry="10" fill="url(#gd-repulsor-beam)" />
+  <ellipse cx="100" cy="180" rx="24" ry="5" fill="#3effa8" opacity="0.6" filter="url(#gd-cyber-glow)" />
 
-  <!-- Drone Wings / Chassis -->
-  <polygon points="60,22 92,38 106,64 88,72 60,60 32,72 14,64 28,38" fill="url(#drone-body)" stroke="#65C99D" stroke-width="2" stroke-linejoin="round" />
+  <!-- Floating halo ring above head -->
+  <g filter="url(#gd-cyber-glow)">
+    <ellipse cx="100" cy="38" rx="46" ry="11" stroke="url(#gd-halo-glow)" stroke-width="4.5" fill="none" opacity="0.95" />
+    <ellipse cx="100" cy="38" rx="40" ry="8" stroke="#ffffff" stroke-width="1.5" fill="none" opacity="0.75" />
+  </g>
+  <!-- Halo Mount Strut -->
+  <path d="M96 38 L96 52 M104 38 L104 52" stroke="#2cda9d" stroke-width="2" />
+  <circle cx="100" cy="52" r="5" fill="#182621" stroke="#3effa8" stroke-width="2" />
 
-  <!-- Armor plating facets -->
-  <polygon points="60,26 84,38 60,54 36,38" fill="#17241F" stroke="#2CDA9D" stroke-width="1.5" />
-  <polygon points="28,42 18,62 34,68" fill="#121916" stroke="#2CDA9D" stroke-width="1" />
-  <polygon points="92,42 102,62 86,68" fill="#121916" stroke="#2CDA9D" stroke-width="1" />
+  <!-- Side Thruster Wings -->
+  <!-- Left Wing -->
+  <g>
+    <polygon points="46,86 16,80 10,102 38,114" fill="url(#gd-wing-facet)" stroke="#2cda9d" stroke-width="1.5" stroke-linejoin="round" />
+    <polygon points="16,80 8,86 4,104 10,102" fill="#0d1612" stroke="#1be3a9" stroke-width="1" />
+    <!-- Glowing wing accent -->
+    <path d="M16 86 L36 94" stroke="#3effa8" stroke-width="2" stroke-linecap="round" filter="url(#gd-cyber-glow)" />
+    <!-- Left Thruster vent -->
+    <ellipse cx="14" cy="98" rx="4" ry="7" fill="#070c0a" stroke="#00ffff" stroke-width="1.5" />
+    <path d="M6 100 L-4 104" stroke="#3effa8" stroke-width="2.5" opacity="0.8" filter="url(#gd-cyber-glow)" />
+  </g>
 
-  <!-- Circuit Linework -->
-  <path d="M42 34 L30 24 M78 34 L90 24" stroke="#00FFFF" stroke-width="2" stroke-linecap="round" />
-  <circle cx="30" cy="24" r="2.5" fill="#00FFFF" />
-  <circle cx="90" cy="24" r="2.5" fill="#00FFFF" />
+  <!-- Right Wing -->
+  <g>
+    <polygon points="154,86 184,80 190,102 162,114" fill="url(#gd-wing-facet)" stroke="#2cda9d" stroke-width="1.5" stroke-linejoin="round" />
+    <polygon points="184,80 192,86 196,104 190,102" fill="#0d1612" stroke="#1be3a9" stroke-width="1" />
+    <!-- Glowing wing accent -->
+    <path d="M184 86 L164 94" stroke="#3effa8" stroke-width="2" stroke-linecap="round" filter="url(#gd-cyber-glow)" />
+    <!-- Right Thruster vent -->
+    <ellipse cx="186" cy="98" rx="4" ry="7" fill="#070c0a" stroke="#00ffff" stroke-width="1.5" />
+    <path d="M194 100 L204 104" stroke="#3effa8" stroke-width="2.5" opacity="0.8" filter="url(#gd-cyber-glow)" />
+  </g>
 
-  <!-- Central Optical Scanner -->
-  <circle cx="60" cy="56" r="14" fill="url(#drone-eye)" stroke="#00FFFF" stroke-width="2" filter="url(#cyber-glow)" />
-  <circle cx="60" cy="56" r="6" fill="#FFFFFF" />
-  <line x1="46" y1="56" x2="74" y2="56" stroke="#00FFFF" stroke-width="1" opacity="0.6" />
+  <!-- Main Spherical Drone Body -->
+  <circle cx="100" cy="108" r="54" fill="url(#gd-orb-body)" stroke="#2cda9d" stroke-width="2" />
+  <!-- Spherical Armor Segment Lines -->
+  <path d="M52 86 C70 76 130 76 148 86" stroke="#1be3a9" stroke-width="1.5" stroke-opacity="0.5" fill="none" />
+  <path d="M56 132 C72 144 128 144 144 132" stroke="#1be3a9" stroke-width="1.5" stroke-opacity="0.5" fill="none" />
+  <path d="M72 60 C80 90 80 126 72 156" stroke="#253a32" stroke-width="1.5" fill="none" />
+  <path d="M128 60 C120 90 120 126 128 156" stroke="#253a32" stroke-width="1.5" fill="none" />
 
-  <!-- Glitch Slice Artifacts -->
-  <line x1="16" y1="50" x2="38" y2="50" stroke="#00FFFF" stroke-width="2" opacity="0.85" />
-  <line x1="82" y1="62" x2="104" y2="62" stroke="#2CDA9D" stroke-width="2" opacity="0.85" />
-  <rect x="52" y="76" width="16" height="3" fill="#00FFFF" opacity="0.7" />
+  <!-- Ear Mounts / Headset Pods -->
+  <rect x="42" y="94" width="8" height="28" rx="4" fill="#182621" stroke="#3effa8" stroke-width="1.5" />
+  <rect x="150" y="94" width="8" height="28" rx="4" fill="#182621" stroke="#3effa8" stroke-width="1.5" />
+
+  <!-- Recessed Dark Digital Visor -->
+  <rect x="62" y="86" width="76" height="42" rx="10" fill="#080e0c" stroke="#1be3a9" stroke-width="2" />
+
+  <!-- Glowing Pixel Eyes (Green Pixel Digital Monster expression) -->
+  <g fill="#3effa8" filter="url(#gd-eye-glow)">
+    <!-- Left Eye (angled cyber pixel shape) -->
+    <rect x="74" y="98" width="6" height="6" rx="1" />
+    <rect x="80" y="98" width="6" height="6" rx="1" />
+    <rect x="70" y="104" width="6" height="6" rx="1" />
+    <rect x="76" y="104" width="6" height="6" rx="1" />
+    <rect x="82" y="104" width="6" height="6" rx="1" />
+    <rect x="76" y="110" width="6" height="6" rx="1" />
+    <rect x="82" y="110" width="6" height="6" rx="1" />
+
+    <!-- Right Eye (angled cyber pixel shape) -->
+    <rect x="114" y="98" width="6" height="6" rx="1" />
+    <rect x="120" y="98" width="6" height="6" rx="1" />
+    <rect x="112" y="104" width="6" height="6" rx="1" />
+    <rect x="118" y="104" width="6" height="6" rx="1" />
+    <rect x="124" y="104" width="6" height="6" rx="1" />
+    <rect x="112" y="110" width="6" height="6" rx="1" />
+    <rect x="118" y="110" width="6" height="6" rx="1" />
+  </g>
+
+  <!-- Specular highlights on visor and chassis -->
+  <path d="M66 90 Q100 84 134 90" stroke="#ffffff" stroke-width="1" stroke-opacity="0.4" fill="none" />
+  <circle cx="80" cy="74" r="8" fill="#ffffff" opacity="0.08" />
+
+  <!-- Lower Repulsor Cone / Nozzle -->
+  <polygon points="90,160 110,160 106,172 94,172" fill="#182621" stroke="#3effa8" stroke-width="1.5" />
+  <ellipse cx="100" cy="172" rx="7" ry="2.5" fill="#00ffff" filter="url(#gd-cyber-glow)" />
+
+  <!-- Floating Green Data Pixels / Sparks -->
+  <rect x="42" y="58" width="4" height="4" fill="#3effa8" opacity="0.8" filter="url(#gd-cyber-glow)" />
+  <rect x="156" y="62" width="3.5" height="3.5" fill="#3effa8" opacity="0.7" filter="url(#gd-cyber-glow)" />
+  <rect x="174" y="128" width="4" height="4" fill="#00ffff" opacity="0.85" filter="url(#gd-cyber-glow)" />
+  <rect x="26" y="132" width="3" height="3" fill="#2cda9d" opacity="0.6" />
 </svg>

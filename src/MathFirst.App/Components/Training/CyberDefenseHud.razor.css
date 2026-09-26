@@ -3,125 +3,421 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: clamp(0.35rem, 1vh, 0.65rem);
-    padding: clamp(0.5rem, 1.2vh, 0.75rem);
-    border: 1px solid var(--color-border);
-    border-radius: clamp(0.6rem, 1.5vw, 0.85rem);
-    background: var(--color-surface-elevated);
-    box-shadow: var(--shadow-sm);
-}
-
-.opponent-presentation {
-    display: flex;
-    align-items: center;
-    gap: clamp(0.5rem, 2vw, 0.85rem);
-    width: 100%;
-    min-width: 0;
-}
-
-.opponent-avatar-wrapper {
-    flex-shrink: 0;
-    width: clamp(44px, 6vh, 60px);
-    height: clamp(44px, 6vh, 60px);
-    border-radius: clamp(8px, 1.5vw, 12px);
-    border: 1px solid var(--color-border-strong);
-    background: var(--color-surface-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-}
-
-.opponent-avatar {
-    width: 85%;
-    height: 85%;
-    object-fit: contain;
+    gap: clamp(0.4rem, 1.2vh, 0.75rem);
+    position: relative;
     user-select: none;
-    pointer-events: none;
 }
 
-.opponent-meta {
-    flex: 1;
+/* ========================================================
+   ENEMY BATTLE SCENE
+   ======================================================== */
+.enemy-battle-scene {
+    width: 100%;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    border-radius: clamp(0.75rem, 2vw, 1.1rem);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-elevated);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 0 15px rgba(27, 227, 169, 0.04);
+    overflow: hidden;
+    position: relative;
 }
 
-.opponent-name-row {
+.scene-top-bar {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: baseline;
-    gap: 0.5rem;
-    min-width: 0;
+    padding: clamp(0.35rem, 0.8vh, 0.5rem) clamp(0.6rem, 1.8vw, 0.9rem);
+    background: rgba(0, 0, 0, 0.18);
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
-.opponent-name {
-    font-size: clamp(0.875rem, 1.4vw, 1rem);
-    font-weight: 750;
-    color: var(--color-text);
+.scene-category-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--color-primary);
+}
+
+.reticle-icon {
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 4px var(--color-primary));
+}
+
+.scene-category-text {
+    line-height: 1;
+}
+
+.scene-wave-tag {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* ATMOSPHERIC SCENE STAGE */
+.scene-stage {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: clamp(0.5rem, 1.4vh, 0.9rem) clamp(0.75rem, 2vw, 1.25rem);
+    min-height: clamp(110px, 18vh, 155px);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(10, 24, 19, 0.96) 0%, rgba(6, 16, 12, 0.98) 100%);
+}
+
+/* Atmospheric Cyber Layers */
+.scene-skyline {
+    position: absolute;
+    bottom: 18%;
+    left: 0;
+    width: 100%;
+    height: 60%;
+    opacity: 0.22;
+    pointer-events: none;
+    background-repeat: repeat-x;
+    background-size: 140px 100%;
+    background-image: 
+        linear-gradient(to right, 
+            transparent 0%, 
+            var(--color-primary) 5%, 
+            var(--color-primary) 12%, 
+            transparent 12.5%, 
+            transparent 18%, 
+            var(--color-primary) 19%, 
+            var(--color-primary) 28%, 
+            transparent 28.5%, 
+            transparent 40%, 
+            var(--color-primary) 41%, 
+            var(--color-primary) 55%, 
+            transparent 55.5%, 
+            transparent 70%, 
+            var(--color-primary) 71%, 
+            var(--color-primary) 82%, 
+            transparent 82.5%, 
+            transparent 100%
+        );
+    mask-image: linear-gradient(180deg, transparent 0%, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 70%, transparent 100%);
+}
+
+.scene-grid-floor {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 48%;
+    pointer-events: none;
+    background: 
+        linear-gradient(180deg, transparent 0%, rgba(27, 227, 169, 0.12) 100%),
+        repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(44, 218, 157, 0.14) 20px, rgba(44, 218, 157, 0.14) 21px);
+    mask-image: linear-gradient(180deg, transparent 0%, black 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 100%);
+}
+
+.scene-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    background: var(--color-primary);
+    border-radius: 1px;
+    opacity: 0.6;
+    box-shadow: 0 0 6px var(--color-primary);
+}
+
+.particle.p1 { width: 3px; height: 3px; top: 22%; left: 35%; opacity: 0.8; }
+.particle.p2 { width: 4px; height: 4px; top: 60%; left: 18%; opacity: 0.5; }
+.particle.p3 { width: 2.5px; height: 2.5px; top: 38%; right: 28%; opacity: 0.7; }
+.particle.p4 { width: 3px; height: 3px; top: 75%; right: 12%; opacity: 0.4; }
+
+/* Left: Opponent Intel */
+.scene-intel {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.2rem, 0.6vh, 0.4rem);
+    flex: 1;
+    min-width: 0;
+    z-index: 1;
+    padding-right: 0.5rem;
+}
+
+.scene-enemy-name {
+    margin: 0;
+    font-size: clamp(1.15rem, 2.8vw, 1.45rem);
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.015em;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.opponent-hp-text {
-    font-size: clamp(0.75rem, 1.2vw, 0.85rem);
-    font-weight: 600;
-    color: var(--color-muted);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
-.player-defense-status {
+.enemy-hp-cluster {
     display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
+    align-items: center;
+    gap: clamp(0.4rem, 1.2vw, 0.65rem);
     width: 100%;
-    min-width: 0;
+    max-width: 15rem;
 }
 
-.shield-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 0.5rem;
-    min-width: 0;
-}
-
-.shield-label {
-    font-size: clamp(0.75rem, 1.1vw, 0.825rem);
-    font-weight: 600;
-    color: var(--color-muted);
-}
-
-.shield-value {
-    font-size: clamp(0.75rem, 1.1vw, 0.825rem);
-    font-weight: 600;
-    color: var(--color-muted);
-    font-variant-numeric: tabular-nums;
-}
-
-.meter-bar {
-    width: 100%;
-    height: clamp(6px, 1vh, 8px);
-    background: var(--color-surface-muted);
+.enemy-hp-bar {
+    flex: 1;
+    height: clamp(8px, 1.1vh, 10px);
+    background: rgba(18, 28, 24, 0.85);
     border: 1px solid var(--color-border);
     border-radius: 9999px;
     overflow: hidden;
     position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .meter-fill {
     height: 100%;
     border-radius: inherit;
-    transition: width 150ms ease-out;
+    transition: width 180ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 .hp-fill {
-    background: var(--color-danger);
+    background: linear-gradient(90deg, #ff3b5c, #ff6b8b);
+    box-shadow: 0 0 10px rgba(255, 59, 92, 0.65);
 }
 
-.shield-fill {
+.enemy-hp-value {
+    font-size: clamp(0.75rem, 1.2vw, 0.85rem);
+    font-weight: 750;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.scene-enemy-desc {
+    margin: 0;
+    font-size: clamp(0.7rem, 1.1vw, 0.8rem);
+    line-height: 1.35;
+    color: var(--color-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Right: Large Opponent Artwork */
+.scene-artwork-wrapper {
+    flex-shrink: 0;
+    width: clamp(90px, 16vh, 140px);
+    height: clamp(90px, 16vh, 140px);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+.scene-opponent-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    user-select: none;
+    pointer-events: none;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6));
+    animation: opponent-hover 3s ease-in-out infinite alternate;
+}
+
+@keyframes opponent-hover {
+    0% { transform: translateY(2px); }
+    100% { transform: translateY(-4px); }
+}
+
+.scene-enemy-floor-glow {
+    position: absolute;
+    bottom: -6px;
+    width: 75%;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(62, 255, 168, 0.55) 0%, rgba(27, 227, 169, 0.15) 50%, transparent 80%);
+    filter: blur(2px);
+    pointer-events: none;
+}
+
+/* ========================================================
+   PLAYER SHIELD & TACTICAL INTEGRITY AREA
+   ======================================================== */
+.player-shield-panel {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(0.6rem, 2vw, 1rem);
+    padding: clamp(0.5rem, 1.2vh, 0.75rem) clamp(0.75rem, 2vw, 1.25rem);
+    border: 1px solid var(--color-border);
+    border-radius: clamp(0.65rem, 1.8vw, 0.95rem);
+    background: var(--color-surface-elevated);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+    flex-wrap: wrap;
+}
+
+.shield-status-column {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.2rem, 0.5vh, 0.35rem);
+    min-width: 0;
+}
+
+.shield-section-title {
+    font-size: 0.725rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--color-primary);
+    text-transform: uppercase;
+}
+
+.shield-badges-row {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.4rem, 1.4vw, 0.65rem);
+    min-width: 0;
+}
+
+.shield-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 120ms ease;
+}
+
+.shield-intact .shield-bg {
+    fill: rgba(44, 218, 157, 0.18);
+}
+
+.shield-intact .shield-outline {
+    stroke: var(--color-primary);
+    stroke-width: 2;
+    filter: drop-shadow(0 0 4px var(--color-primary));
+}
+
+.shield-intact .shield-core {
+    fill: var(--color-primary);
+    filter: drop-shadow(0 0 5px var(--color-primary));
+}
+
+.shield-broken .shield-bg {
+    fill: rgba(30, 42, 38, 0.4);
+}
+
+.shield-broken .shield-outline {
+    stroke: var(--color-border);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 2;
+    opacity: 0.6;
+}
+
+.shield-count-group {
+    display: flex;
+    flex-direction: column;
+    margin-left: clamp(0.2rem, 0.8vw, 0.5rem);
+    line-height: 1.1;
+}
+
+.shield-fraction-number {
+    font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+    font-weight: 800;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.shield-sublabel-text {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-muted);
+}
+
+/* Right: Tactical Radar & Telemetry */
+.shield-telemetry-column {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.5rem, 1.5vw, 0.85rem);
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.tactical-radar-widget {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    filter: drop-shadow(0 0 4px rgba(27, 227, 169, 0.4));
+}
+
+.radar-ring-outer { opacity: 0.8; }
+.radar-ring-mid { opacity: 0.5; }
+.radar-ring-inner { opacity: 0.6; }
+.radar-axis { opacity: 0.35; }
+.radar-sweep {
+    opacity: 0.9;
+    transform-origin: 27px 27px;
+    animation: radar-spin 4s linear infinite;
+}
+.radar-blip {
+    animation: radar-blip-pulse 2s ease-in-out infinite;
+}
+
+@keyframes radar-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes radar-blip-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+.tactical-telemetry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: clamp(0.65rem, 0.95vw, 0.725rem);
+    font-weight: 750;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    line-height: 1.25;
+}
+
+.telemetry-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.telemetry-bullet {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
     background: var(--color-primary);
+    box-shadow: 0 0 4px var(--color-primary);
+    flex-shrink: 0;
+}
+
+/* Future Boss Timer Hook */
+.boss-timer-slot {
+    display: none;
+}
+
+@media (max-width: 380px) {
+    .tactical-telemetry-list {
+        display: none;
+    }
 }

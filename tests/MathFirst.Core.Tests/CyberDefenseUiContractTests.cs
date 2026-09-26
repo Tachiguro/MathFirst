@@ -171,6 +171,153 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("min-height:", css, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CyberDefenseNormalTraining_DoesNotShowVisibleTimer_WhileInternalTimingRemainsActive()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var timerPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Shared", "PracticeCountdownTimer.razor");
+        var trainingSessionPath = GetRepositoryPath("src", "MathFirst.Application", "TrainingSession.cs");
+
+        Assert.True(File.Exists(homePath));
+        Assert.True(File.Exists(timerPath));
+        Assert.True(File.Exists(trainingSessionPath));
+
+        var home = File.ReadAllText(homePath);
+        var timer = File.ReadAllText(timerPath);
+        var session = File.ReadAllText(trainingSessionPath);
+
+        // Normal encounters pass IsVisible="false" to timer component
+        Assert.Contains("IsVisible=\"false\"", home, StringComparison.Ordinal);
+
+        // Timer component supports IsVisible and uses hidden styling when false
+        Assert.Contains("public bool IsVisible { get; set; } = true;", timer, StringComparison.Ordinal);
+        Assert.Contains("timer-hidden", timer, StringComparison.Ordinal);
+        Assert.Contains("display: none;", timer, StringComparison.Ordinal);
+
+        // Timer loop and timeout notification remain active
+        Assert.Contains("PeriodicTimer", timer, StringComparison.Ordinal);
+        Assert.Contains("OnTimeout.InvokeAsync()", timer, StringComparison.Ordinal);
+
+        // TrainingSession internal latency measurement and pacing remain completely intact
+        Assert.Contains("GetCurrentItemElapsed()", session, StringComparison.Ordinal);
+        Assert.Contains("LastResponseLatencyMs", session, StringComparison.Ordinal);
+        Assert.Contains("AdaptivePacePolicy", session, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseEnemyScene_ComponentExistsAndIsNotOldTinyIcon()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Scene composition elements
+        Assert.Contains("enemy-battle-scene", hud, StringComparison.Ordinal);
+        Assert.Contains("scene-top-bar", hud, StringComparison.Ordinal);
+        Assert.Contains("scene-stage", hud, StringComparison.Ordinal);
+        Assert.Contains("scene-intel", hud, StringComparison.Ordinal);
+        Assert.Contains("scene-enemy-name", hud, StringComparison.Ordinal);
+        Assert.Contains("scene-artwork-wrapper", hud, StringComparison.Ordinal);
+        Assert.Contains("scene-opponent-image", hud, StringComparison.Ordinal);
+
+        // Atmospheric environment layers in CSS
+        Assert.Contains(".scene-skyline", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-grid-floor", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-particles", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper", css, StringComparison.Ordinal);
+
+        // Old tiny avatar wrapper is replaced
+        Assert.DoesNotContain("opponent-avatar-wrapper", hud, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseShieldRegion_ExistsWithExplicitBadgesRadarAndBossTimerSlot()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Explicit shield badges and count
+        Assert.Contains("player-shield-panel", hud, StringComparison.Ordinal);
+        Assert.Contains("shield-badges-row", hud, StringComparison.Ordinal);
+        Assert.Contains("shield-badge", hud, StringComparison.Ordinal);
+        Assert.Contains("shield-icon", hud, StringComparison.Ordinal);
+
+        // Tactical radar & telemetry
+        Assert.Contains("tactical-radar-widget", hud, StringComparison.Ordinal);
+        Assert.Contains("tactical-telemetry-list", hud, StringComparison.Ordinal);
+
+        // Reserved boss timer hook
+        Assert.Contains("boss-timer-slot", hud, StringComparison.Ordinal);
+
+        // CSS contains badge and radar styles
+        Assert.Contains(".player-shield-panel", css, StringComparison.Ordinal);
+        Assert.Contains(".shield-intact", css, StringComparison.Ordinal);
+        Assert.Contains(".shield-broken", css, StringComparison.Ordinal);
+        Assert.Contains(".tactical-radar-widget", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseSolveToAttackAndOperationRow_ExistInTrainingShell()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+
+        Assert.True(File.Exists(homePath));
+        Assert.True(File.Exists(cssPath));
+
+        var home = File.ReadAllText(homePath);
+        var css = File.ReadAllText(cssPath);
+
+        // Solve to Attack cyber frame
+        Assert.Contains("solve-to-attack-panel", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_SolveToAttack", home, StringComparison.Ordinal);
+        Assert.Contains(".solve-to-attack-panel", css, StringComparison.Ordinal);
+        Assert.Contains(".solve-panel-header", css, StringComparison.Ordinal);
+
+        // Operation state row below keypad
+        Assert.Contains("operation-unlock-area", home, StringComparison.Ordinal);
+        Assert.Contains("operation-unlock-goal", home, StringComparison.Ordinal);
+        Assert.Contains("operation-progress-hud", home, StringComparison.Ordinal);
+        Assert.Contains(".operation-unlock-area", css, StringComparison.Ordinal);
+        Assert.Contains(".operation-unlock-goal", css, StringComparison.Ordinal);
+
+        // Brand shield emblem and subtitle in header
+        Assert.Contains("brand-shield-emblem", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_Header_Subtitle", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseTheme_SupportsBothLightAndDarkTokenSets()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        Assert.True(File.Exists(cssPath));
+
+        var css = File.ReadAllText(cssPath);
+
+        // Light theme baseline
+        Assert.Contains(".app-theme-root[data-theme=\"light\"]", css, StringComparison.Ordinal);
+
+        // Dark theme baseline with luminous cyber accents
+        Assert.Contains(":root[data-theme=\"dark\"]", css, StringComparison.Ordinal);
+        Assert.Contains(".app-theme-root[data-theme=\"dark\"]", css, StringComparison.Ordinal);
+
+        // Both themes configure primary, background, surface, danger
+        Assert.Contains("--color-primary: #1be3a9;", css, StringComparison.Ordinal);
+        Assert.Contains("--color-background: #081310;", css, StringComparison.Ordinal);
+        Assert.Contains("--color-danger: #ff4766;", css, StringComparison.Ordinal);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();

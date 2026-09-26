@@ -3,7 +3,7 @@
 @using MathFirst.Domain
 @implements IDisposable
 
-<div class="timer-container">
+<div class="timer-container @(IsVisible ? null : "timer-hidden")" style="@(IsVisible ? null : "display: none;")">
     @if (Session.HasEnforcedDeadline)
     {
         <div class="timer-bar-track"
@@ -32,6 +32,7 @@
     [Parameter, EditorRequired] public TrainingSession Session { get; set; } = default!;
     [Parameter] public string AriaLabel { get; set; } = string.Empty;
     [Parameter] public EventCallback OnTimeout { get; set; }
+    [Parameter] public bool IsVisible { get; set; } = true;
 
     private CancellationTokenSource? _timerCts;
     private double _timerFraction = 1.0;
