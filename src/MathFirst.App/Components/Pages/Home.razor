@@ -757,7 +757,15 @@
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 if (eval.IsCorrect)
                 {
-                    _cyberDefenseState.RecordCorrectAnswer();
+                    var isCritical = eval.LatencyMs <= Session.CurrentFactEasyThresholdMs;
+                    if (isCritical)
+                    {
+                        _cyberDefenseState.RecordCriticalHit();
+                    }
+                    else
+                    {
+                        _cyberDefenseState.RecordCorrectAnswer();
+                    }
                     HapticService.PerformCue(HapticFeedbackCue.Correct);
                 }
                 else

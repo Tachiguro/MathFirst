@@ -571,13 +571,231 @@
     }
 }
 
+/* ========================================================
+   BOSS PRESENTATION STYLES
+   ======================================================== */
+.wave-boss-active .boss-wave-text {
+    color: #ff3b5c;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 10px rgba(255, 59, 92, 0.7);
+    animation: boss-pulse-text 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes boss-pulse-text {
+    0% { opacity: 0.8; filter: drop-shadow(0 0 4px #ff3b5c); }
+    100% { opacity: 1; filter: drop-shadow(0 0 12px #ff1a40); }
+}
+
+.scene-boss {
+    border-color: rgba(255, 59, 92, 0.45);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 0 20px rgba(255, 59, 92, 0.06);
+}
+
+.scene-stage-boss {
+    background: linear-gradient(180deg, rgba(28, 10, 14, 0.96) 0%, rgba(14, 6, 8, 0.98) 100%);
+    border-bottom: 1px solid rgba(255, 59, 92, 0.35);
+}
+
+.scene-enemy-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.boss-intel-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.4rem;
+    background: rgba(255, 59, 92, 0.22);
+    border: 1px solid #ff3b5c;
+    color: #ff3b5c;
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(255, 59, 92, 0.45);
+    flex-shrink: 0;
+}
+
+.boss-enemy-name {
+    color: #ffdee4;
+    text-shadow: 0 0 12px rgba(255, 59, 92, 0.5);
+}
+
+.boss-hp-bar {
+    height: clamp(9px, 1.3vh, 12px);
+    border-color: rgba(255, 59, 92, 0.5);
+    box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 8px rgba(255, 59, 92, 0.3);
+}
+
+.boss-hp-fill {
+    background: linear-gradient(90deg, #ff1a40, #ff5975, #ffa347);
+    box-shadow: 0 0 14px rgba(255, 59, 92, 0.85);
+}
+
+.boss-hp-value {
+    color: #ff99aa;
+    text-shadow: 0 0 8px rgba(255, 59, 92, 0.6);
+}
+
+.scene-artwork-wrapper.is-boss {
+    width: clamp(110px, 19vh, 160px);
+    height: clamp(110px, 19vh, 160px);
+}
+
+.boss-floor-glow {
+    background: radial-gradient(ellipse at center, rgba(255, 59, 92, 0.65) 0%, rgba(255, 107, 139, 0.25) 50%, transparent 80%);
+}
+
+/* ========================================================
+   RADAR TIMING ARC & COMBAT BURST STYLES
+   ======================================================== */
+.radar-timing-arc {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 4px var(--color-primary));
+    animation: radar-timing-pulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes radar-timing-pulse {
+    0% { opacity: 0.5; stroke: var(--color-primary); }
+    100% { opacity: 1; stroke: #00ffff; filter: drop-shadow(0 0 8px #00ffff); }
+}
+
+.tactical-radar-widget.radar-crit-burst {
+    animation: radar-burst-anim 600ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.tactical-radar-widget.radar-hit-burst {
+    animation: radar-hit-anim 400ms ease-out forwards;
+}
+
+@keyframes radar-burst-anim {
+    0% { filter: drop-shadow(0 0 20px #00ffff) drop-shadow(0 0 10px #3effa8); transform: scale(1.1); }
+    50% { filter: drop-shadow(0 0 12px #00ffff); transform: scale(1.04); }
+    100% { filter: drop-shadow(0 0 4px rgba(27, 227, 169, 0.4)); transform: scale(1); }
+}
+
+@keyframes radar-hit-anim {
+    0% { filter: drop-shadow(0 0 12px var(--color-primary)); transform: scale(1.05); }
+    100% { filter: drop-shadow(0 0 4px rgba(27, 227, 169, 0.4)); transform: scale(1); }
+}
+
+.boss-telemetry {
+    color: #ff6b8b;
+    font-weight: 800;
+}
+
+.boss-bullet {
+    background: #ff3b5c;
+    box-shadow: 0 0 6px #ff3b5c;
+}
+
+/* ========================================================
+   CRITICAL HIT RECOIL & FEEDBACK
+   ======================================================== */
+.scene-opponent-image.opponent-crit-recoil {
+    animation: opponent-crit-shake 550ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes opponent-crit-shake {
+    0% {
+        transform: scale(1.12) translate(0, 0);
+        filter: brightness(2.6) drop-shadow(0 0 26px #00ffff);
+    }
+    15% {
+        transform: scale(0.86) translate(-10px, 4px) rotate(-3deg);
+        filter: brightness(2.2) drop-shadow(0 0 22px #3effa8);
+    }
+    35% {
+        transform: scale(0.94) translate(8px, -4px) rotate(2deg);
+        filter: brightness(1.7) drop-shadow(0 0 16px #00ffff);
+    }
+    60% {
+        transform: scale(1.03) translate(-3px, 1px);
+        filter: brightness(1.2) drop-shadow(0 0 10px rgba(62, 255, 168, 0.5));
+    }
+    100% {
+        transform: scale(1) translate(0, 0);
+        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6));
+    }
+}
+
+.feedback-badge-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.badge-crit {
+    background: rgba(8, 28, 22, 0.95);
+    color: #ffffff;
+    border: 2px solid #00ffff;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.8), inset 0 0 10px rgba(62, 255, 168, 0.35);
+    font-size: clamp(1.05rem, 3.2vw, 1.45rem);
+    text-shadow: 0 0 10px #00ffff;
+    animation: feedback-float-crit 620ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes feedback-float-crit {
+    0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.5);
+    }
+    20% {
+        opacity: 1;
+        transform: translateY(-4px) scale(1.2);
+    }
+    70% {
+        opacity: 0.95;
+        transform: translateY(-12px) scale(1.05);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-24px) scale(0.9);
+    }
+}
+
+.damage-number {
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    user-select: none;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.damage-number.crit-damage {
+    font-size: clamp(1.15rem, 3.2vw, 1.5rem);
+    font-weight: 900;
+    color: #3effa8;
+    text-shadow: 0 0 10px rgba(62, 255, 168, 0.9), 0 2px 4px rgba(0, 0, 0, 0.8);
+    animation: feedback-float-crit 620ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.damage-number.normal-damage {
+    font-size: clamp(0.95rem, 2.5vw, 1.2rem);
+    font-weight: 800;
+    color: #ff6b8b;
+    text-shadow: 0 0 8px rgba(255, 59, 92, 0.8), 0 2px 4px rgba(0, 0, 0, 0.8);
+    animation: feedback-float-hit 520ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .scene-opponent-image,
     .scene-opponent-image.opponent-hit-recoil,
+    .scene-opponent-image.opponent-crit-recoil,
     .scene-opponent-image.opponent-block-deflect,
     .badge-hit,
+    .badge-crit,
     .badge-blocked,
-    .shield-damage-pulse {
+    .damage-number,
+    .damage-number.crit-damage,
+    .damage-number.normal-damage,
+    .shield-damage-pulse,
+    .tactical-radar-widget.radar-crit-burst,
+    .tactical-radar-widget.radar-hit-burst {
         animation: none !important;
         transform: none !important;
     }

@@ -15,7 +15,8 @@ public sealed class CyberDefenseEncounterStateTests
         Assert.Equal(5, CyberDefenseEncounterState.PrototypeEnemyHitPoints);
         Assert.Equal(CyberDefenseEncounterState.PrototypeShieldSegments, state.ShieldSegments);
         Assert.Equal(3, CyberDefenseEncounterState.PrototypeShieldSegments);
-        Assert.Equal(3, CyberDefenseEncounterState.PrototypeEnemyCount);
+        Assert.Equal(10, CyberDefenseEncounterState.PrototypeEnemyCount);
+        Assert.False(state.IsBoss);
         Assert.Equal(0, state.Revision);
     }
 
@@ -28,41 +29,74 @@ public sealed class CyberDefenseEncounterStateTests
         state.RecordCorrectAnswer();
 
         Assert.Equal(4, state.EnemyHitPoints);
+        Assert.Equal(1, state.LastDamageDealt);
         Assert.Equal(0, state.EnemyIndex);
         Assert.True(state.Revision > initialRevision);
     }
 
     [Fact]
-    public void DefeatingEnemy_AdvancesEnemyIndexModuloThree_AndResetsHitPoints()
+    public void RecordCriticalHit_DealsTwoDamage_AndSetsCriticalFeedback()
+    {
+        var state = new CyberDefenseEncounterState();
+        var initialRevision = state.Revision;
+
+        state.RecordCriticalHit();
+
+        Assert.Equal(3, state.EnemyHitPoints);
+        Assert.Equal(2, state.LastDamageDealt);
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, state.LastFeedback);
+        Assert.True(state.Revision > initialRevision);
+    }
+
+    [Fact]
+    public void DefeatingEnemy_AdvancesEnemyIndex_AndResetsHitPoints()
     {
         var state = new CyberDefenseEncounterState();
 
-        // Deal 5 damage to defeat Enemy 0
-        for (var i = 0; i < CyberDefenseEncounterState.PrototypeEnemyHitPoints; i++)
+        // Deal 5 damage to defeat Enemy 0 (Glitch Drone)
+        for (var i = 0; i < 5; i++)
         {
             state.RecordCorrectAnswer();
         }
 
         Assert.Equal(1, state.EnemyIndex);
-        Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, state.EnemyHitPoints);
+        Assert.Equal("data-leech", state.CurrentEnemy.Id);
+        Assert.Equal(5, state.EnemyHitPoints);
 
-        // Deal 5 damage to defeat Enemy 1
-        for (var i = 0; i < CyberDefenseEncounterState.PrototypeEnemyHitPoints; i++)
+        // Deal 5 damage to defeat Enemy 1 (Data Leech)
+        for (var i = 0; i < 5; i++)
         {
             state.RecordCorrectAnswer();
         }
 
         Assert.Equal(2, state.EnemyIndex);
-        Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, state.EnemyHitPoints);
+        Assert.Equal("firewall-breaker", state.CurrentEnemy.Id);
+        Assert.Equal(5, state.EnemyHitPoints);
 
-        // Deal 5 damage to defeat Enemy 2 -> wraps back to Enemy 0
-        for (var i = 0; i < CyberDefenseEncounterState.PrototypeEnemyHitPoints; i++)
+        // Deal 5 damage to defeat Enemy 2 (Firewall Breaker)
+        for (var i = 0; i < 5; i++)
         {
             state.RecordCorrectAnswer();
         }
 
-        Assert.Equal(0, state.EnemyIndex);
-        Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, state.EnemyHitPoints);
+        // Enemy 3 is Boss: Nexus Overlord!
+        Assert.Equal(3, state.EnemyIndex);
+        Assert.Equal("nexus-overlord", state.CurrentEnemy.Id);
+        Assert.True(state.IsBoss);
+        Assert.Equal(8, state.EnemyHitPoints);
+        Assert.Equal(8, state.EnemyMaxHitPoints);
+    }
+
+    [Fact]
+    public void BossEncounter_HasElevatedMaxHitPoints_AndIsBossFlag()
+    {
+        var state = new CyberDefenseEncounterState();
+        state.TriggerBossEncounter();
+
+        Assert.True(state.IsBoss);
+        Assert.Equal(8, state.EnemyHitPoints);
+        Assert.Equal(8, state.EnemyMaxHitPoints);
+        Assert.Equal("nexus-overlord", state.CurrentEnemy.Id);
     }
 
     [Fact]
@@ -81,12 +115,10 @@ public sealed class CyberDefenseEncounterStateTests
     public void LosingFinalShield_ResetsEncounterHpAndShields()
     {
         var state = new CyberDefenseEncounterState();
-        // Deal some damage first
         state.RecordCorrectAnswer();
         state.RecordCorrectAnswer();
         Assert.Equal(3, state.EnemyHitPoints);
 
-        // Take 3 hits to lose all shields
         state.RecordIncorrectAnswer();
         Assert.Equal(2, state.ShieldSegments);
         state.RecordIncorrectAnswer();
@@ -108,8 +140,10 @@ public sealed class CyberDefenseEncounterStateTests
 
         state.Reset();
 
+        Assert.Equal(0, state.EnemyIndex);
         Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, state.EnemyHitPoints);
         Assert.Equal(CyberDefenseEncounterState.PrototypeShieldSegments, state.ShieldSegments);
+        Assert.False(state.IsBoss);
         Assert.True(state.Revision > revBeforeReset);
     }
 
@@ -135,7 +169,7 @@ public sealed class CyberDefenseEncounterStateTests
         state.RecordIncorrectAnswer();
 
         Assert.Equal(CyberDefenseFeedbackKind.Blocked, state.LastFeedback);
-        Assert.Equal(initialHp, state.EnemyHitPoints); // Enemy HP must NOT be decremented
+        Assert.Equal(initialHp, state.EnemyHitPoints);
         Assert.True(state.FeedbackRevision > initialRevision);
     }
 
@@ -147,7 +181,7 @@ public sealed class CyberDefenseEncounterStateTests
         state.RecordCorrectAnswer();
         var rev1 = state.FeedbackRevision;
 
-        state.RecordCorrectAnswer();
+        state.RecordCriticalHit();
         var rev2 = state.FeedbackRevision;
 
         state.RecordCorrectAnswer();
@@ -156,5 +190,23 @@ public sealed class CyberDefenseEncounterStateTests
         Assert.True(rev2 > rev1);
         Assert.True(rev3 > rev2);
         Assert.Equal(CyberDefenseFeedbackKind.Hit, state.LastFeedback);
+    }
+
+    [Fact]
+    public void DefaultRoster_ContainsAllConfiguredEnemiesAndBoss()
+    {
+        var roster = CyberDefenseEncounterState.DefaultRoster;
+
+        Assert.Equal(10, roster.Count);
+        Assert.Contains(roster, e => e.Id == "glitch-drone" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "data-leech" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "firewall-breaker" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "nexus-overlord" && e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "virus-core" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "signal-phantom" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "quantum-bug" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "trojan-wasp" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "crystal-malware" && !e.IsBoss);
+        Assert.Contains(roster, e => e.Id == "nexus-overlord-prime" && e.IsBoss);
     }
 }

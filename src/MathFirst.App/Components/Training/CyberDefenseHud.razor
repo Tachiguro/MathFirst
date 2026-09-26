@@ -2,9 +2,9 @@
 @using MathFirst.Application.Practice
 @inject ILocalizationService Localizer
 
-<div class="cyber-defense-hud" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
+<div class="cyber-defense-hud @(State.IsBoss ? "hud-boss-active" : "")" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
     <!-- ENEMY BATTLE SCENE -->
-    <section class="enemy-battle-scene" aria-label="@OpponentName">
+    <section class="enemy-battle-scene @(State.IsBoss ? "scene-boss" : "")" aria-label="@OpponentName">
         <!-- Tech Top Header Bar -->
         <div class="scene-top-bar">
             <div class="scene-category-tag">
@@ -18,13 +18,20 @@
                 </svg>
                 <span class="scene-category-text">@Localizer["CyberDefense_Title"]</span>
             </div>
-            <div class="scene-wave-tag">
-                @Localizer["CyberDefense_WaveDisplay", State.EnemyIndex + 1, CyberDefenseEncounterState.PrototypeEnemyCount]
+            <div class="scene-wave-tag @(State.IsBoss ? "wave-boss-active" : "")">
+                @if (State.IsBoss)
+                {
+                    <span class="boss-wave-text">@Localizer["CyberDefense_BossBattle"]</span>
+                }
+                else
+                {
+                    @Localizer["CyberDefense_WaveDisplay", State.EnemyIndex + 1, CyberDefenseEncounterState.PrototypeEnemyCount]
+                }
             </div>
         </div>
 
         <!-- Atmospheric Scene Interior -->
-        <div class="scene-stage">
+        <div class="scene-stage @(State.IsBoss ? "scene-stage-boss" : "")">
             <!-- Atmospheric Cyber Layers -->
             <div class="scene-skyline" aria-hidden="true"></div>
             <div class="scene-grid-floor" aria-hidden="true"></div>
@@ -37,33 +44,51 @@
 
             <!-- Left: Opponent Intel -->
             <div class="scene-intel">
-                <h2 class="scene-enemy-name">@OpponentName</h2>
+                <div class="scene-enemy-header">
+                    @if (State.IsBoss)
+                    {
+                        <span class="boss-intel-badge" aria-label="Boss">@Localizer["CyberDefense_BossLabel"]</span>
+                    }
+                    <h2 class="scene-enemy-name @(State.IsBoss ? "boss-enemy-name" : "")">@OpponentName</h2>
+                </div>
                 
                 <div class="enemy-hp-cluster">
-                    <div class="meter-bar enemy-hp-bar"
+                    <div class="meter-bar enemy-hp-bar @(State.IsBoss ? "boss-hp-bar" : "")"
                          role="progressbar"
                          aria-label='@Localizer["CyberDefense_EnemyHpLabel"]'
                          aria-valuenow="@State.EnemyHitPoints"
                          aria-valuemin="0"
-                         aria-valuemax="@CyberDefenseEncounterState.PrototypeEnemyHitPoints">
-                        <div class="meter-fill hp-fill" style="width: @(EnemyHpPercentage)%"></div>
+                         aria-valuemax="@State.EnemyMaxHitPoints">
+                        <div class="meter-fill hp-fill @(State.IsBoss ? "boss-hp-fill" : "")" style="width: @(EnemyHpPercentage)%"></div>
                     </div>
-                    <span class="enemy-hp-value">@(EnemyHpPercentage)% HP</span>
+                    <span class="enemy-hp-value @(State.IsBoss ? "boss-hp-value" : "")">@(EnemyHpPercentage)% HP</span>
                 </div>
 
                 <p class="scene-enemy-desc">@OpponentDescription</p>
             </div>
 
             <!-- Right: Large Opponent Artwork -->
-            <div class="scene-artwork-wrapper @ArtworkFeedbackClass" @key="@($"opponent-{State.FeedbackRevision}")">
+            <div class="scene-artwork-wrapper @(State.IsBoss ? "is-boss" : "") @ArtworkFeedbackClass" @key="@($"opponent-{State.FeedbackRevision}")">
                 <img src="@OpponentAssetPath"
                      alt="@OpponentName"
                      class="scene-opponent-image @OpponentFeedbackClass" />
-                <div class="scene-enemy-floor-glow" aria-hidden="true"></div>
-                @if (State.LastFeedback == CyberDefenseFeedbackKind.Hit)
+                <div class="scene-enemy-floor-glow @(State.IsBoss ? "boss-floor-glow" : "")" aria-hidden="true"></div>
+                @if (State.LastFeedback == CyberDefenseFeedbackKind.CriticalHit)
+                {
+                    <div class="battle-feedback-overlay hit-feedback-overlay crit-feedback-overlay" aria-hidden="true">
+                        <div class="feedback-badge-group">
+                            <span class="battle-feedback-badge badge-crit">@Localizer["CyberDefense_Feedback_CriticalHit"]</span>
+                            <span class="damage-number crit-damage">-@State.LastDamageDealt HP</span>
+                        </div>
+                    </div>
+                }
+                else if (State.LastFeedback == CyberDefenseFeedbackKind.Hit)
                 {
                     <div class="battle-feedback-overlay hit-feedback-overlay" aria-hidden="true">
-                        <span class="battle-feedback-badge badge-hit">@Localizer["CyberDefense_Feedback_Hit"]</span>
+                        <div class="feedback-badge-group">
+                            <span class="battle-feedback-badge badge-hit">@Localizer["CyberDefense_Feedback_Hit"]</span>
+                            <span class="damage-number normal-damage">-@State.LastDamageDealt HP</span>
+                        </div>
                     </div>
                 }
                 else if (State.LastFeedback == CyberDefenseFeedbackKind.Blocked)
@@ -112,21 +137,31 @@
 
         <!-- Right: Tactical Radar & Telemetry -->
         <div class="shield-telemetry-column">
-            <div class="tactical-radar-widget" aria-hidden="true">
+            <div class="tactical-radar-widget @RadarFeedbackClass" aria-hidden="true">
                 <svg class="radar-svg" viewBox="0 0 54 54" width="46" height="46" fill="none">
                     <circle cx="27" cy="27" r="25" stroke="currentColor" stroke-width="1" class="radar-ring-outer" />
                     <circle cx="27" cy="27" r="17" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" class="radar-ring-mid" />
                     <circle cx="27" cy="27" r="9" stroke="currentColor" stroke-width="1" class="radar-ring-inner" />
                     <line x1="27" y1="2" x2="27" y2="52" stroke="currentColor" stroke-width="1" class="radar-axis" />
                     <line x1="2" y1="27" x2="52" y2="27" stroke="currentColor" stroke-width="1" class="radar-axis" />
+                    <circle cx="27" cy="27" r="25" stroke="var(--color-primary)" stroke-width="2.2" class="radar-timing-arc" stroke-dasharray="38 120" stroke-linecap="round" />
                     <line x1="27" y1="27" x2="48" y2="10" stroke="currentColor" stroke-width="1.5" class="radar-sweep" />
                     <circle cx="38" cy="18" r="2" fill="currentColor" class="radar-blip" />
                 </svg>
             </div>
             <div class="tactical-telemetry-list" aria-hidden="true">
-                <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Solve"]</span>
-                <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
-                <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Progress"]</span>
+                @if (State.IsBoss)
+                {
+                    <span class="telemetry-item boss-telemetry"><span class="telemetry-bullet boss-bullet"></span>@Localizer["CyberDefense_BossLabel"]: THREAT HIGH</span>
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Progress"]</span>
+                }
+                else
+                {
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Solve"]</span>
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
+                    <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Progress"]</span>
+                }
             </div>
         </div>
 
@@ -139,33 +174,21 @@
     [Parameter, EditorRequired]
     public CyberDefenseEncounterState State { get; set; } = default!;
 
-    private string OpponentName => State.EnemyIndex switch
-    {
-        0 => Localizer["CyberDefense_Opponent_GlitchDrone"],
-        1 => Localizer["CyberDefense_Opponent_VirusCore"],
-        2 => Localizer["CyberDefense_Opponent_CrystalMalware"],
-        _ => Localizer["CyberDefense_Opponent_GlitchDrone"]
-    };
+    private string OpponentName => Localizer[State.CurrentEnemy.NameKey];
 
-    private string OpponentDescription => State.EnemyIndex switch
-    {
-        0 => Localizer["CyberDefense_Opponent_GlitchDrone_Desc"],
-        1 => Localizer["CyberDefense_Opponent_VirusCore_Desc"],
-        2 => Localizer["CyberDefense_Opponent_CrystalMalware_Desc"],
-        _ => Localizer["CyberDefense_Opponent_GlitchDrone_Desc"]
-    };
+    private string OpponentDescription => Localizer[State.CurrentEnemy.DescKey];
 
-    private string OpponentAssetPath => State.EnemyIndex switch
+    private string OpponentAssetPath => State.CurrentEnemy.AssetPath switch
     {
-        0 => "images/cyber-defense/glitch-drone.svg",
-        1 => "images/cyber-defense/virus-core.svg",
-        2 => "images/cyber-defense/crystal-malware.svg",
-        _ => "images/cyber-defense/glitch-drone.svg"
+        "images/cyber-defense/glitch-drone.svg" => "images/cyber-defense/glitch-drone.svg",
+        "images/cyber-defense/virus-core.svg" => "images/cyber-defense/virus-core.svg",
+        "images/cyber-defense/crystal-malware.svg" => "images/cyber-defense/crystal-malware.svg",
+        var path => path
     };
 
     private int EnemyHpPercentage =>
-        (int)Math.Round((double)Math.Clamp(State.EnemyHitPoints, 0, CyberDefenseEncounterState.PrototypeEnemyHitPoints)
-            / CyberDefenseEncounterState.PrototypeEnemyHitPoints * 100);
+        (int)Math.Round((double)Math.Clamp(State.EnemyHitPoints, 0, State.EnemyMaxHitPoints)
+            / State.EnemyMaxHitPoints * 100);
 
     private int ShieldPercentage =>
         (int)Math.Round((double)Math.Clamp(State.ShieldSegments, 0, CyberDefenseEncounterState.PrototypeShieldSegments)
@@ -173,6 +196,7 @@
 
     private string ArtworkFeedbackClass => State.LastFeedback switch
     {
+        CyberDefenseFeedbackKind.CriticalHit => "feedback-crit-active",
         CyberDefenseFeedbackKind.Hit => "feedback-hit-active",
         CyberDefenseFeedbackKind.Blocked => "feedback-blocked-active",
         _ => string.Empty
@@ -180,6 +204,7 @@
 
     private string OpponentFeedbackClass => State.LastFeedback switch
     {
+        CyberDefenseFeedbackKind.CriticalHit => "opponent-crit-recoil",
         CyberDefenseFeedbackKind.Hit => "opponent-hit-recoil",
         CyberDefenseFeedbackKind.Blocked => "opponent-block-deflect",
         _ => string.Empty
@@ -188,6 +213,13 @@
     private string ShieldFeedbackClass => State.LastFeedback switch
     {
         CyberDefenseFeedbackKind.Blocked => "shield-damage-pulse",
+        _ => string.Empty
+    };
+
+    private string RadarFeedbackClass => State.LastFeedback switch
+    {
+        CyberDefenseFeedbackKind.CriticalHit => "radar-crit-burst",
+        CyberDefenseFeedbackKind.Hit => "radar-hit-burst",
         _ => string.Empty
     };
 }

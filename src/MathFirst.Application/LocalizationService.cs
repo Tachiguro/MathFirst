@@ -295,7 +295,22 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Combo"] = "COMBO ×{0}",
         ["CyberDefense_ComboAriaLabel"] = "Current combo: {0}",
         ["CyberDefense_Feedback_Hit"] = "-1",
-        ["CyberDefense_Feedback_Blocked"] = "BLOCKED"
+        ["CyberDefense_Feedback_Blocked"] = "BLOCKED",
+        ["CyberDefense_Opponent_DataLeech"] = "Data Leech",
+        ["CyberDefense_Opponent_DataLeech_Desc"] = "A siphon entity draining calculation buffers.",
+        ["CyberDefense_Opponent_FirewallBreaker"] = "Firewall Breaker",
+        ["CyberDefense_Opponent_FirewallBreaker_Desc"] = "Heavy armored brute force battering through system gates.",
+        ["CyberDefense_Opponent_SignalPhantom"] = "Signal Phantom",
+        ["CyberDefense_Opponent_SignalPhantom_Desc"] = "Phase-shifting stealth anomaly glitching through frequency bands.",
+        ["CyberDefense_Opponent_QuantumBug"] = "Quantum Bug",
+        ["CyberDefense_Opponent_QuantumBug_Desc"] = "Multithreaded subatomic parasite multiplying across memory sectors.",
+        ["CyberDefense_Opponent_TrojanWasp"] = "Trojan Wasp",
+        ["CyberDefense_Opponent_TrojanWasp_Desc"] = "High-speed interceptor injecting malicious payloads.",
+        ["CyberDefense_Opponent_NexusOverlord"] = "Nexus Overlord",
+        ["CyberDefense_Opponent_NexusOverlord_Desc"] = "Central mainframe security titan with multi-layer adaptive shielding.",
+        ["CyberDefense_Feedback_CriticalHit"] = "CRITICAL HIT",
+        ["CyberDefense_BossLabel"] = "BOSS",
+        ["CyberDefense_BossBattle"] = "BOSS BATTLE"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -478,7 +493,22 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Combo"] = "KOMBO ×{0}",
         ["CyberDefense_ComboAriaLabel"] = "Aktuelle Kombo: {0}",
         ["CyberDefense_Feedback_Hit"] = "-1",
-        ["CyberDefense_Feedback_Blocked"] = "BLOCKIERT"
+        ["CyberDefense_Feedback_Blocked"] = "BLOCKIERT",
+        ["CyberDefense_Opponent_DataLeech"] = "Daten-Egel",
+        ["CyberDefense_Opponent_DataLeech_Desc"] = "Ein Siphon-Konstrukt, das Rechenpuffer leersaugt.",
+        ["CyberDefense_Opponent_FirewallBreaker"] = "Firewall-Brecher",
+        ["CyberDefense_Opponent_FirewallBreaker_Desc"] = "Gepanzerte Brute-Force-Einheit, die Systemtore rammt.",
+        ["CyberDefense_Opponent_SignalPhantom"] = "Signal-Phantom",
+        ["CyberDefense_Opponent_SignalPhantom_Desc"] = "Phasenverschobene Stealth-Anomalie im Frequenzspektrum.",
+        ["CyberDefense_Opponent_QuantumBug"] = "Quanten-Bug",
+        ["CyberDefense_Opponent_QuantumBug_Desc"] = "Subatomarer Parasit, der Speichersektoren belegt.",
+        ["CyberDefense_Opponent_TrojanWasp"] = "Trojaner-Wespe",
+        ["CyberDefense_Opponent_TrojanWasp_Desc"] = "Hochgeschwindigkeits-Abfangjäger mit Schadcode-Stachel.",
+        ["CyberDefense_Opponent_NexusOverlord"] = "Nexus-Overlord",
+        ["CyberDefense_Opponent_NexusOverlord_Desc"] = "Zentraler Mainframe-Sicherheits-Titan mit adaptiver Mehrschichtpanzerung.",
+        ["CyberDefense_Feedback_CriticalHit"] = "KRITISCH!",
+        ["CyberDefense_BossLabel"] = "BOSS",
+        ["CyberDefense_BossBattle"] = "BOSS-KAMPF"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -661,6 +691,21 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_Combo"] = "КОМБО ×{0}",
         ["CyberDefense_ComboAriaLabel"] = "Текущее комбо: {0}",
         ["CyberDefense_Feedback_Hit"] = "-1",
-        ["CyberDefense_Feedback_Blocked"] = "ЗАБЛОКИРОВАНО"
+        ["CyberDefense_Feedback_Blocked"] = "ЗАБЛОКИРОВАНО",
+        ["CyberDefense_Opponent_DataLeech"] = "Дата-пиявка",
+        ["CyberDefense_Opponent_DataLeech_Desc"] = "Сущность, истощающая вычислительные буферы.",
+        ["CyberDefense_Opponent_FirewallBreaker"] = "Взломщик фаервола",
+        ["CyberDefense_Opponent_FirewallBreaker_Desc"] = "Тяжелобронированная единица, пробивающая системные шлюзы.",
+        ["CyberDefense_Opponent_SignalPhantom"] = "Призрак сигнала",
+        ["CyberDefense_Opponent_SignalPhantom_Desc"] = "Фазовый стелс-фантом, искажающий частотные каналы.",
+        ["CyberDefense_Opponent_QuantumBug"] = "Квантовый баг",
+        ["CyberDefense_Opponent_QuantumBug_Desc"] = "Многопоточный квантовый паразит в секторах памяти.",
+        ["CyberDefense_Opponent_TrojanWasp"] = "Троянская оса",
+        ["CyberDefense_Opponent_TrojanWasp_Desc"] = "Сверхскоростной перехватчик с вредоносным кодом.",
+        ["CyberDefense_Opponent_NexusOverlord"] = "Нексус Оверлорд",
+        ["CyberDefense_Opponent_NexusOverlord_Desc"] = "Главный титан защиты мейнфрейма с адаптивным щитом.",
+        ["CyberDefense_Feedback_CriticalHit"] = "КРИТИЧЕСКИЙ УДАР",
+        ["CyberDefense_BossLabel"] = "БОСС",
+        ["CyberDefense_BossBattle"] = "БИТВА С БОССОМ"
     };
 }

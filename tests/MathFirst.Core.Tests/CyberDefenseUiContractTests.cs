@@ -77,7 +77,13 @@ public sealed class CyberDefenseUiContractTests
         string[] svgs =
         [
             "glitch-drone.svg",
+            "data-leech.svg",
+            "firewall-breaker.svg",
+            "nexus-overlord.svg",
             "virus-core.svg",
+            "signal-phantom.svg",
+            "quantum-bug.svg",
+            "trojan-wasp.svg",
             "crystal-malware.svg"
         ];
 
@@ -101,8 +107,17 @@ public sealed class CyberDefenseUiContractTests
         string[] requiredKeys =
         [
             "CyberDefense_Opponent_GlitchDrone",
+            "CyberDefense_Opponent_DataLeech",
+            "CyberDefense_Opponent_FirewallBreaker",
+            "CyberDefense_Opponent_NexusOverlord",
             "CyberDefense_Opponent_VirusCore",
+            "CyberDefense_Opponent_SignalPhantom",
+            "CyberDefense_Opponent_QuantumBug",
+            "CyberDefense_Opponent_TrojanWasp",
             "CyberDefense_Opponent_CrystalMalware",
+            "CyberDefense_Feedback_CriticalHit",
+            "CyberDefense_BossLabel",
+            "CyberDefense_BossBattle",
             "CyberDefense_ShieldLabel",
             "CyberDefense_EnemyHpLabel",
             "CyberDefense_OperationsTitle"
@@ -508,6 +523,7 @@ public sealed class CyberDefenseUiContractTests
 
         // Feedback overlays in HUD
         Assert.Contains("hit-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("crit-feedback-overlay", hud, StringComparison.Ordinal);
         Assert.Contains("blocked-feedback-overlay", hud, StringComparison.Ordinal);
         Assert.Contains("CyberDefenseFeedbackKind", hud, StringComparison.Ordinal);
     }

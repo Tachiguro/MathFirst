@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" aria-hidden="true">
+  <defs>
+    <radialGradient id="dl-body-grad" cx="45%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#244237" />
+      <stop offset="50%" stop-color="#142821" />
+      <stop offset="100%" stop-color="#07120e" />
+    </radialGradient>
+    <linearGradient id="dl-filament-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffff" />
+      <stop offset="50%" stop-color="#3effa8" />
+      <stop offset="100%" stop-color="#0df2c9" />
+    </linearGradient>
+    <radialGradient id="dl-core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="40%" stop-color="#00ffff" />
+      <stop offset="80%" stop-color="#1be3a9" />
+      <stop offset="100%" stop-color="#082117" />
+    </radialGradient>
+    <radialGradient id="dl-floor-glow" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#3effa8" stop-opacity="0.7" />
+      <stop offset="50%" stop-color="#0df2c9" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#07120e" stop-opacity="0" />
+    </radialGradient>
+    <filter id="dl-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient floor reflection -->
+  <ellipse cx="100" cy="180" rx="42" ry="9" fill="url(#dl-floor-glow)" />
+
+  <!-- Siphon Tentacles / Data Filaments -->
+  <g stroke="url(#dl-filament-grad)" stroke-width="2" stroke-linecap="round" filter="url(#dl-glow)">
+    <path d="M78 128 C64 146 50 162 42 174" />
+    <path d="M88 136 C80 156 74 168 70 178" />
+    <path d="M112 136 C120 156 126 168 130 178" />
+    <path d="M122 128 C136 146 150 162 158 174" />
+    <!-- Siphon suction nodes at tip -->
+    <circle cx="42" cy="174" r="3" fill="#00ffff" stroke="none" />
+    <circle cx="70" cy="178" r="2.5" fill="#3effa8" stroke="none" />
+    <circle cx="130" cy="178" r="2.5" fill="#3effa8" stroke="none" />
+    <circle cx="158" cy="174" r="3" fill="#00ffff" stroke="none" />
+  </g>
+
+  <!-- Segmented Mechanical Leech Carapace -->
+  <!-- Tail Segment -->
+  <ellipse cx="100" cy="132" rx="28" ry="16" fill="url(#dl-body-grad)" stroke="#1be3a9" stroke-width="1.5" />
+  <!-- Mid Segment 2 -->
+  <ellipse cx="100" cy="112" rx="34" ry="18" fill="url(#dl-body-grad)" stroke="#2cda9d" stroke-width="1.5" />
+  <!-- Mid Segment 1 -->
+  <ellipse cx="100" cy="90" rx="38" ry="20" fill="url(#dl-body-grad)" stroke="#3effa8" stroke-width="1.8" />
+  <!-- Head Segment -->
+  <path d="M72 74 Q100 46 128 74 Q100 96 72 74 Z" fill="url(#dl-body-grad)" stroke="#3effa8" stroke-width="2" />
+
+  <!-- Siphon Spikes / Mandibles -->
+  <g stroke="#00ffff" stroke-width="2" stroke-linejoin="round" fill="#142821">
+    <polygon points="68,64 52,48 74,54" />
+    <polygon points="132,64 148,48 126,54" />
+    <polygon points="92,48 100,32 108,48" stroke="#3effa8" />
+  </g>
+
+  <!-- Glowing Bio-Cyber Absorption Chambers -->
+  <g filter="url(#dl-glow)">
+    <circle cx="86" cy="90" r="5" fill="url(#dl-core-glow)" />
+    <circle cx="114" cy="90" r="5" fill="url(#dl-core-glow)" />
+    <circle cx="100" cy="112" r="6" fill="url(#dl-core-glow)" />
+    <circle cx="100" cy="132" r="4.5" fill="#3effa8" />
+  </g>
+
+  <!-- Central Parasite Eye / Sensor Cluster -->
+  <circle cx="100" cy="72" r="9" fill="#07120e" stroke="#00ffff" stroke-width="2" />
+  <circle cx="100" cy="72" r="5" fill="#ffffff" filter="url(#dl-glow)" />
+  <line x1="90" y1="72" x2="110" y2="72" stroke="#3effa8" stroke-width="1.5" />
+</svg>
