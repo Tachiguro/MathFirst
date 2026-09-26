@@ -311,7 +311,7 @@
                                                autocapitalize="off"
                                                spellcheck="false"
                                                enterkeyhint="done"
-                                               class="answer-input"
+                                               class="answer-input @GetAnswerLengthClass()"
                                                value="@_answerInput"
                                                @oninput="HandleAnswerInput"
                                                disabled="@_isSubmitting"
@@ -419,6 +419,20 @@
             Session.CurrentFact.LeftOperand,
             Session.CurrentFact.RightOperand,
             effectiveDigits);
+    }
+
+    private string GetAnswerLengthClass()
+    {
+        var length = string.IsNullOrEmpty(_answerInput) ? 1 : _answerInput.Length;
+        return length switch
+        {
+            <= 1 => "answer-len-1",
+            2 => "answer-len-2",
+            3 => "answer-len-3",
+            4 => "answer-len-4",
+            5 => "answer-len-5",
+            _ => "answer-len-6"
+        };
     }
 
     protected override async Task OnInitializedAsync()

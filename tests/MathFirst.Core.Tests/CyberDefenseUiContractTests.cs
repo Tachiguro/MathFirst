@@ -441,11 +441,51 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains(".expression-row.expression-long", css, StringComparison.Ordinal);
         Assert.Contains(".expression-row.expression-xlong", css, StringComparison.Ordinal);
 
-        // Short class uses 3.2rem base, medium uses 2.55rem, long uses 2.05rem, xlong uses 1.6rem
-        Assert.Contains("3.2rem", css, StringComparison.Ordinal);
-        Assert.Contains("2.55rem", css, StringComparison.Ordinal);
-        Assert.Contains("2.05rem", css, StringComparison.Ordinal);
-        Assert.Contains("1.6rem", css, StringComparison.Ordinal);
+        // Short class uses 4.25rem base, medium uses 3.0rem, long uses 2.4rem, xlong uses 1.85rem
+        Assert.Contains("4.25rem", css, StringComparison.Ordinal);
+        Assert.Contains("3.0rem", css, StringComparison.Ordinal);
+        Assert.Contains("2.4rem", css, StringComparison.Ordinal);
+        Assert.Contains("1.85rem", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseAnswerInput_UsesCultureSafeLengthClasses_WithoutUnusedBlankSpace()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var css = File.ReadAllText(cssPath);
+        var home = File.ReadAllText(homePath);
+
+        // Home.razor applies GetAnswerLengthClass dynamically to the answer input
+        Assert.Contains("class=\"answer-input @GetAnswerLengthClass()\"", home, StringComparison.Ordinal);
+        Assert.Contains("GetAnswerLengthClass", home, StringComparison.Ordinal);
+
+        // Deterministic integer-based width classes defined in CSS
+        for (var i = 1; i <= 6; i++)
+        {
+            Assert.Contains($".answer-input.answer-len-{i}", css, StringComparison.Ordinal);
+            Assert.Contains($"{i}.15ch", css, StringComparison.Ordinal);
+        }
+
+        // Answer input centers glyphs and uses tabular numbers to guarantee optical balance
+        Assert.Contains("font-variant-numeric: tabular-nums;", css, StringComparison.Ordinal);
+        Assert.Contains("text-align: center;", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseEquationLayout_IsCenteredAsOneUnifiedGroup()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        var css = File.ReadAllText(cssPath);
+
+        // Expression row and problem are flex containers centering children
+        Assert.Contains(".expression-row", css, StringComparison.Ordinal);
+        Assert.Contains("display: flex;", css, StringComparison.Ordinal);
+        Assert.Contains("align-items: center;", css, StringComparison.Ordinal);
+        Assert.Contains("justify-content: center;", css, StringComparison.Ordinal);
+
+        // Mobile portrait has maximized font size for young children
+        Assert.Contains("clamp(4.25rem, 16vw + 0.8vh, 4.85rem)", css, StringComparison.Ordinal);
     }
 
     [Fact]

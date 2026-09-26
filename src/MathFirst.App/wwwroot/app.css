@@ -1506,23 +1506,23 @@ select:disabled {
 
 /* CONTENT-AWARE EQUATION SCALING CLASSES */
 .expression-row.expression-short {
-    --expression-font-size: clamp(3.2rem, 8.5vw + 1.6vh, 4.85rem);
-    --expression-gap: clamp(0.4rem, 2.2vw, 0.95rem);
+    --expression-font-size: clamp(4.25rem, 11vw + 1.8vh, 5.5rem);
+    --expression-gap: clamp(0.45rem, 2.2vw, 1.1rem);
 }
 
 .expression-row.expression-medium {
-    --expression-font-size: clamp(2.55rem, 6.8vw + 1.2vh, 3.85rem);
-    --expression-gap: clamp(0.3rem, 1.8vw, 0.75rem);
+    --expression-font-size: clamp(3.0rem, 7.8vw + 1.4vh, 4.2rem);
+    --expression-gap: clamp(0.35rem, 1.8vw, 0.85rem);
 }
 
 .expression-row.expression-long {
-    --expression-font-size: clamp(2.05rem, 5.2vw + 1vh, 3.1rem);
-    --expression-gap: clamp(0.22rem, 1.3vw, 0.6rem);
+    --expression-font-size: clamp(2.4rem, 6.0vw + 1.1vh, 3.3rem);
+    --expression-gap: clamp(0.25rem, 1.3vw, 0.65rem);
 }
 
 .expression-row.expression-xlong {
-    --expression-font-size: clamp(1.6rem, 4.2vw + 0.8vh, 2.4rem);
-    --expression-gap: clamp(0.18rem, 1vw, 0.45rem);
+    --expression-font-size: clamp(1.85rem, 4.8vw + 0.9vh, 2.6rem);
+    --expression-gap: clamp(0.18rem, 1vw, 0.5rem);
 }
 
 .operand,
@@ -1547,13 +1547,14 @@ select:disabled {
 .answer-input {
     box-sizing: border-box;
     inline-size: min(10ch, 100%);
+    min-inline-size: 1.15ch;
     max-inline-size: 100%;
     min-width: 0;
     height: 100%;
     font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
     font-size: var(--expression-font-size, clamp(2.5rem, 5vw + 1.2vh, 4.75rem));
     font-weight: 800;
-    text-align: left;
+    text-align: center;
     border: none;
     border-radius: 0;
     color: var(--color-primary);
@@ -1565,11 +1566,44 @@ select:disabled {
     caret-color: transparent;
     flex-shrink: 0;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Deterministic culture-safe input width classes based on displayed character length */
+.answer-input.answer-len-1 {
+    inline-size: 1.15ch;
+    width: 1.15ch;
+}
+
+.answer-input.answer-len-2 {
+    inline-size: 2.15ch;
+    width: 2.15ch;
+}
+
+.answer-input.answer-len-3 {
+    inline-size: 3.15ch;
+    width: 3.15ch;
+}
+
+.answer-input.answer-len-4 {
+    inline-size: 4.15ch;
+    width: 4.15ch;
+}
+
+.answer-input.answer-len-5 {
+    inline-size: 5.15ch;
+    width: 5.15ch;
+}
+
+.answer-input.answer-len-6 {
+    inline-size: 6.15ch;
+    width: 6.15ch;
 }
 
 .answer-input::placeholder {
     color: var(--color-primary);
     opacity: 0.9;
+    text-align: center;
 }
 
 .app-theme-root[data-theme="dark"] .answer-input {
@@ -2057,47 +2091,55 @@ select:disabled {
     }
 
     .expression-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex-wrap: nowrap;
-        gap: var(--expression-gap, clamp(0.15rem, 1vw, 0.45rem));
+        gap: var(--expression-gap, clamp(0.25rem, 1.4vw, 0.55rem));
     }
 
     .expression-row.expression-short {
-        --expression-font-size: clamp(2.35rem, 7.8vw + 0.8vh, 2.95rem);
-        --expression-gap: clamp(0.25rem, 1.2vw, 0.45rem);
+        --expression-font-size: clamp(4.25rem, 16vw + 0.8vh, 4.85rem);
+        --expression-gap: clamp(0.35rem, 2.2vw, 0.75rem);
     }
 
     .expression-row.expression-medium {
-        --expression-font-size: clamp(2.0rem, 6.6vw + 0.6vh, 2.5rem);
-        --expression-gap: clamp(0.2rem, 1vw, 0.4rem);
+        --expression-font-size: clamp(2.85rem, 9.8vw + 0.6vh, 3.35rem);
+        --expression-gap: clamp(0.25rem, 1.5vw, 0.5rem);
     }
 
     .expression-row.expression-long {
-        --expression-font-size: clamp(1.7rem, 5.5vw + 0.4vh, 2.15rem);
-        --expression-gap: clamp(0.15rem, 0.8vw, 0.35rem);
+        --expression-font-size: clamp(2.25rem, 7.6vw + 0.4vh, 2.65rem);
+        --expression-gap: clamp(0.2rem, 1.1vw, 0.38rem);
     }
 
     .expression-row.expression-xlong {
-        --expression-font-size: clamp(1.4rem, 4.4vw + 0.3vh, 1.75rem);
-        --expression-gap: clamp(0.12rem, 0.6vw, 0.3rem);
+        --expression-font-size: clamp(1.8rem, 5.8vw + 0.3vh, 2.1rem);
+        --expression-gap: clamp(0.15rem, 0.8vw, 0.3rem);
     }
 
     .expression-problem {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex-shrink: 0;
         white-space: nowrap;
-        gap: var(--expression-gap, clamp(0.15rem, 1vw, 0.45rem));
+        gap: var(--expression-gap, clamp(0.25rem, 1.4vw, 0.55rem));
     }
 
     .operand,
     .operator,
     .equals {
-        font-size: var(--expression-font-size, clamp(1.85rem, 6.5vw, 2.85rem));
+        font-size: var(--expression-font-size, clamp(2.2rem, 7.5vw, 3.8rem));
     }
 
     .answer-input {
-        inline-size: min(4ch, 100%);
+        box-sizing: border-box;
         height: 100%;
-        font-size: var(--expression-font-size, clamp(1.85rem, 6.5vw, 2.85rem));
-        padding-inline: 0.15em;
+        font-size: var(--expression-font-size, clamp(2.2rem, 7.5vw, 3.8rem));
+        padding: 0;
+        margin: 0;
+        text-align: center;
         flex-shrink: 0;
     }
 
