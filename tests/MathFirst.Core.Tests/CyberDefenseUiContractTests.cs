@@ -104,7 +104,8 @@ public sealed class CyberDefenseUiContractTests
             "CyberDefense_Opponent_VirusCore",
             "CyberDefense_Opponent_CrystalMalware",
             "CyberDefense_ShieldLabel",
-            "CyberDefense_EnemyHpLabel"
+            "CyberDefense_EnemyHpLabel",
+            "CyberDefense_OperationsTitle"
         ];
 
         string[] languages = ["en", "de", "ru"];
@@ -291,10 +292,51 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("operation-progress-hud", home, StringComparison.Ordinal);
         Assert.Contains(".operation-unlock-area", css, StringComparison.Ordinal);
         Assert.Contains(".operation-unlock-goal", css, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_OperationsTitle", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("CyberDefense_NextGoal", home, StringComparison.Ordinal);
 
         // Brand shield emblem and subtitle in header
         Assert.Contains("brand-shield-emblem", home, StringComparison.Ordinal);
         Assert.Contains("CyberDefense_Header_Subtitle", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseOperationPanel_DoesNotExposeFabricatedProgressOrUnbackedUnlockPredictions()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var home = File.ReadAllText(homePath);
+
+        // Disallow fake next-goal claims and fixed progress bars
+        Assert.DoesNotContain("CyberDefense_NextGoal", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("almost unlocked", home, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fast freigeschaltet", home, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("почти открыто", home, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("goal-progress-bar", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("goal-segment", home, StringComparison.Ordinal);
+
+        // Ensure truthful operations title and real OperationProgress binding
+        Assert.Contains("CyberDefense_OperationsTitle", home, StringComparison.Ordinal);
+        Assert.Contains("OperationProgress", home, StringComparison.Ordinal);
+        Assert.Contains("progress.PresentationStage", home, StringComparison.Ordinal);
+        Assert.Contains("op-current", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalizationService_DoesNotContainFabricatedCyberDefenseNextGoalStrings()
+    {
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var english = (Dictionary<string, string>)typeof(LocalizationService).GetField("EnglishStrings", flags)!.GetValue(null)!;
+        var german = (Dictionary<string, string>)typeof(LocalizationService).GetField("GermanStrings", flags)!.GetValue(null)!;
+        var russian = (Dictionary<string, string>)typeof(LocalizationService).GetField("RussianStrings", flags)!.GetValue(null)!;
+
+        Assert.False(english.ContainsKey("CyberDefense_NextGoal"), "CyberDefense_NextGoal must not exist in English.");
+        Assert.False(german.ContainsKey("CyberDefense_NextGoal"), "CyberDefense_NextGoal must not exist in German.");
+        Assert.False(russian.ContainsKey("CyberDefense_NextGoal"), "CyberDefense_NextGoal must not exist in Russian.");
+
+        Assert.Equal("OPERATIONS", english["CyberDefense_OperationsTitle"]);
+        Assert.Equal("RECHENARTEN", german["CyberDefense_OperationsTitle"]);
+        Assert.Equal("ОПЕРАЦИИ", russian["CyberDefense_OperationsTitle"]);
     }
 
     [Fact]
