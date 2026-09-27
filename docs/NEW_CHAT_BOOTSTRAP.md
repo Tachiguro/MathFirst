@@ -4,11 +4,30 @@ This document defines the mandatory discovery and re-anchoring procedure for new
 
 ---
 
-## 1. Capability Gate
+## 1. Capability & Identity Gate
 
+### Capability Check
 Before making any claims about repository status, determine whether tools providing direct local repository access (e.g. terminal execution, file inspection) and GitHub access (e.g. `gh` CLI) are available in the current runtime environment:
 - **If repository access tools are available**: Execute the live discovery commands below. Never assume or rely on remembered chat history.
 - **If repository access tools are NOT available**: State clearly that live repository state cannot be verified directly. Never fabricate or extrapolate repository facts without tool access.
+
+### Project & Task Identity Check (Fail-Closed)
+Before answering the substantive task or making ANY repository mutation, verify:
+1. `PROJECT` matches `MathFirst`.
+2. `REPOSITORY` matches `Tachiguro/MathFirst`.
+3. Canonical checkout path resolves to `C:\Dev\MathFirst`.
+4. Requested task belongs to `MathFirst` and conforms to the explicitly declared `Operation Mode` and authorized package scope.
+
+If a foreign project/repository is detected:
+- Perform ZERO repository mutations;
+- Do NOT answer the foreign task substantively;
+- Output the standard `PROJECT_MISMATCH` report and HARD STOP.
+
+If an out-of-scope task is detected:
+- Perform ZERO repository mutations;
+- Output the standard `TASK_SCOPE_MISMATCH` report and HARD STOP.
+
+Follow-up conversation messages do NOT implicitly override project identity, repository identity, operation mode, or authorized scope.
 
 ---
 
@@ -91,37 +110,50 @@ Explicit authorization does not override GitHub or live Git evidence, create an 
 
 ---
 
-## 6. Current Verified Candidate Snapshot
+## 6. Reference Merged Baseline (Recorded 2026-09-27)
+
+> [!IMPORTANT]
+> **Reference & History Only**: The baseline recorded below reflects repository history as of 2026-09-27. It is strictly non-authoritative for current checkout or task state and MUST NOT be used to determine:
+> - Current branch
+> - Current HEAD SHA
+> - Current package in flight
+> - Current lifecycle phase
+> - Working-tree cleanliness or modification state
+> - Staged or untracked file state
+> - Open Pull Request state
+>
+> All current operational facts must be derived exclusively from live discovery commands (Section 2) and live GitHub queries at session startup. Live local Git and GitHub repository state always take precedence over documentation baselines.
 
 Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
-Worktrees: Exactly one normal worktree
+Worktrees: Exactly one normal worktree by default
 
-### Operational Baseline
-- Synchronized `main` commit SHA: `d37fbe3347679220bf847b06c83f7f9366738d03` (PR #47 merge `Merge pull request #47 from Tachiguro/codex/mf-ux-007-progress-presentation-cleanup`)
-- Most recently completed merged implementation package on `main`: `MF-UX-007` — Progress Presentation Cleanup (PR #47 at `d37fbe3347679220bf847b06c83f7f9366738d03`, validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, candidate/merge tree identity `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, exact-candidate test evidence 1,605 passed / 0 failed / 0 skipped, Schema V6 preserved without migration)
-- Active package: `MF-DOC-008` — Post-MF-UX-007 Merge State Reconciliation
-- Active task branch: `docs/mf-doc-008-post-mf-ux-007-merge-reconciliation`
-- Active lifecycle: `DOCUMENT_ONLY`
-- Authoritative merged `main` baseline: `d37fbe3347679220bf847b06c83f7f9366738d03`
-- Active implementation package: None (documentation reconciliation in progress)
-- Review Core evidence: 1,605 passed, 0 failed, 0 skipped.
-- Schema: V6 (preserved without migration).
+### Historical Merged Baseline (as of 2026-09-27)
+- Synchronized `main` commit SHA: `01472b05ef83f586144414a3cb3a0c7abbc45189` (PR #51 merge `Merge pull request #51 from Tachiguro/docs/adaptive-learning-policy-design`)
+- Latest merged Pull Request on `main`: PR #51 — `docs: record adaptive learning policy design` (`01472b05ef83f586144414a3cb3a0c7abbc45189`)
+- Preceding recently merged PRs:
+  - PR #50 (`fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`): `feat: add Cyber Defense training MVP`
+  - PR #49 (`a1a02716b0e0b0acb020c21f9d4c13045bf803c5`): `Progression Coherence Audit — deterministic regression coverage`
+  - PR #48 (`1a6b306a0346f4899247f9ea3dc05107c1afa03d`): `MF-DOC-008 — Post-MF-UX-007 Merge State Reconciliation`
+  - PR #47 (`d37fbe3347679220bf847b06c83f7f9366738d03`): `MF-UX-007 — Progress Presentation Cleanup`
+- Schema: V6 (preserved without migration)
 - Build 2 status: `REJECTED` (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`).
-- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, and MF-UX-007 and no longer represents current repository source.
-- Future candidate status: Any future production candidate after MF-UX-007 merge requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
-- Next lifecycle after `DOCUMENT_ONLY`: `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ Manual User Merge $\to$ `POST_MERGE_SYNC_ONLY`.
+- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, Cyber Defense MVP, and Adaptive Learning policy design, and no longer represents current repository source.
+- Future candidate status: Any future production candidate requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
-1. **Inspect live Git and GitHub first**: Check `git rev-parse HEAD`, `git branch -vv`, `git status`, and `gh pr list`.
-2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `d37fbe3347679220bf847b06c83f7f9366738d03` unless newer live evidence exists.
-3. **Recognize Historical Build 3 Status and Pending Candidate**: Build 3 passed technical smoke and physical verification on Samsung SM-S948B, Android 16, but its source predates MF-LEARN-004, MF-LEARN-005, and MF-UX-007. Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing.
-4. **Recognize completed MF-UX-007, MF-LEARN-005, MF-DOC-007, MF-LEARN-004, MF-DOC-006, MF-STAB-003, MF-DOC-005, and MF-UX-006 history**: PR #47 merged MF-UX-007 to `main` at `d37fbe3347679220bf847b06c83f7f9366738d03`. PR #46 merged MF-LEARN-005 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`. PR #45 merged MF-DOC-007 at `ef03dc09464ef169228e9bc1e00bba5a22e4a387`. PR #44 merged MF-LEARN-004 at `8f4ae59110abf6ea9d365733297a0c15d4c296ea`. PR #43 merged MF-DOC-006 at `a9d232f78e2f9ebcbc431bd18109a0aeb08a9303`. PR #42 merged MF-STAB-003 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`. PR #41 merged MF-DOC-005 at `284d7cf2c50be6e2d4f219c00aa20d92387338f9`. PR #40 merged MF-UX-006 at `ae69f4ae27397fc6edf36a23bb671b0410680be1`.
-5. **Resolve active work from live state**: Documentation may lag a newer branch or PR. Live Git and GitHub remain authoritative (Live Git/GitHub > documentation > chat history). When MF-DOC-008 is in flight, discover the current branch HEAD rather than blindly assuming stale candidate SHAs.
-6. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
+1. **Inspect live Git and GitHub first**: Live local Git and GitHub repository state always takes precedence over documentation snapshots or remembered context. Execute the discovery sequence in Section 2 to discover live branch, HEAD SHA, working tree, and open PR status.
+2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `01472b05ef83f586144414a3cb3a0c7abbc45189` unless newer live commits exist.
+3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing.
+4. **Resolve active work from live state**: Check for open PRs, local task branches, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch is active, and working tree on `main` is clean, there is no in-flight work.
+5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
 
 ### Durable Merged Baseline Summary
+- **Adaptive Learning Policy Design** (PR #51, merge `01472b05ef83f586144414a3cb3a0c7abbc45189`): Formalized evidence-adaptive discovery, absolute no-immediate-fact-repetition invariant, tiered weakness remediation, guided gate soft decoupling, and pace calibration benchmark in canonical specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and ADR-0010.
+- **Cyber Defense Training MVP** (PR #50, merge `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`): Delivered Cyber Defense mini-game training mode MVP.
+- **Progression Coherence Audit** (PR #49, merge `a1a02716b0e0b0acb020c21f9d4c13045bf803c5`): Added deterministic regression coverage for curriculum progression coherence.
+- **MF-DOC-008 Post-MF-UX-007 Merge State Reconciliation** (PR #48, merge `1a6b306a0346f4899247f9ea3dc05107c1afa03d`): Reconciled repository baseline documentation following PR #47 merge.
 - **MF-UX-007 Progress Presentation Cleanup** (PR #47, merge `d37fbe3347679220bf847b06c83f7f9366738d03`, candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`): Delivered concise learner-facing Stage terminology across English, German, and Russian, structured Ready Gate overview for returning learners with completed practice history, active practice HUD accessibility and tooltip descriptions (`Training_OperationProgressGroupAriaLabel`), responsive layout preservation across viewports, surface elevation design tokens, and exact-candidate `FULL_VALIDATION_PASS` (1,605 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, Schema V6 preserved without migration).
 - **MF-LEARN-005 Adaptive Practice Balance and Foundational Coverage** (PR #46, merge `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`, candidate `dd4b1b48f67cbb333f913eb2ec6aa37e895a8ebf`): Protected requested-New foundational material acquisition from remediation preemption, preserved remediation authority on non-New roles, enforced same-operation diversity inside selected semantic pools, validated sustained-failure and long-run simulations, preserved Schema V6 without migration, and exact-candidate `FULL_VALIDATION_PASS` (1,604 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `385ae4edcc6acb1a6817294b72e068c51b5a36de`).
 - **MF-DOC-007 Post-MF-LEARN-004 Documentation Reconciliation** (PR #45, merge `ef03dc09464ef169228e9bc1e00bba5a22e4a387`): Reconciled repository baseline documentation following PR #44 merge.
@@ -131,30 +163,10 @@ When initializing a new session:
 - **MF-DOC-005 Post-MF-UX-006 Documentation Reconciliation** (PR #41, merge `284d7cf2c50be6e2d4f219c00aa20d92387338f9`): Reconciled repository baseline documentation following PR #40 merge.
 - **MF-UX-006 V1 Privacy, Copy, and Localization Hardening** (PR #40, merge `ae69f4ae27397fc6edf36a23bb671b0410680be1`, candidate `606158a233d7cface85fa0ef7bd03c2f9ef4f4cb`): Delivered PC numpad reset copy alignment, Russian localization formatting and progression terminology polish, offline in-app `/privacy` surface and Settings entry with system Back integration, language-neutral and multilingual static fatal host fallback in `index.html`, and exact-candidate `FULL_VALIDATION_PASS` (1476 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity).
 - **MF-UX-005 Final Documentation Reconciliation** (PR #39, merge `60dba236aa38bca138ab583f610c9ff876994b04`): Established the post-MF-UX-005 synchronized documentation baseline on `main`.
-- **MF-UX-005 Timer Visual Remediation** (PR #38, merge `d1705bbdc0013372e44eadf7310ff2f313ecdcef`): Removed the Timer backing pill and retained bold white tabular numerals with a restrained dark local shadow/contour; 9/9 targeted visual-contract tests and 1463/1463 full Release Core tests passed.
-- **MF-UX-005 Release Size Hygiene** (PR #37, merge `dbc6bf045454a78a1ba32793fa02245f83b50437`): Release-only exclusion of `bootstrap.min.css.map`, with 9/9 targeted packaging tests and 1463/1463 full Release Core tests passing.
-- **MF-UX-005 Repeatable Tester APK Workflow** (PR #36, merge `e908bf2fba820f4f6adf03b278861b956e5dbbd5`): Dedicated `ReleaseProfile.Tester`, deterministic APK naming and workspace routing, authoritative offline APK validation in `MathFirst.ReleaseTool`, ValidationReceipt Schema v1 evidence, and PowerShell entrypoints `scripts/package-android-tester-apk.ps1` and `scripts/validate-android-apk.ps1`; historical automated evidence was 1462 passing Core tests.
-- **MF-UX-005 Investigation and Physical Evidence**: Installed Size/App Data/RAM investigation completed with evidence limitations. A Timer-specific `TEST_ONLY` run on Samsung SM-S948B, Android 16, arm64-v8a was explicitly accepted by the user; final release-grade physical validation remains separate.
-- **MF-UX-005 Post-PR #34 Documentation Reconciliation** (PR #35 at `336322b5386a872ebb726c7bdcf34bb207592650`): Reconciled baseline documentation on `main` following merge of PR #34.
-- **MF-UX-005 Tester Diagnostics & Settings UX** (PR #34 at `82c117912f72d6efe16055f8be754c9c577ae15a`): Support-safe deterministic diagnostics formatter, minimal platform info and clipboard abstractions (`IAppPlatformInfo`, `IClipboardService`) with MAUI implementations, Settings footer build identity display and localized "Copy diagnostic info" action with async execution and status feedback, complete EN/DE/RU localization keys.
-- **MF-UX-005 Build Identity Metadata** (PR #33 at `83b767c2265c1baba560abdeaa9fedad365d70da`): Extended runtime build metadata model/parser with `ApplicationId`, `SourceCommit`, and explicit fail-closed `BuildClassification` (`Local`, `Tester`, `SourceCandidate`, `Production`), deterministic short SHA formatting, MSBuild projection in `MathFirst.App.csproj`, and `AppBuildInfo` integration.
-- **MF-UX-005 Release Startup Order Fix** (PR #32 at `cf1d2a3f4779c16f1c6104fe8736f405eb14d94e`): Deferred `MainPage` resolution until `CreateWindow()`, ensuring `App.InitializeComponent()` loads `Application.Resources` before `MainPage` static resource resolution, eliminating startup `XamlParseException`.
-- **MF-UX-005 Startup White Flash Elimination** (PR #31 at `15d39ac73ecdc276db2d3f1a9b6ea3ac0f8849b6`): Continuous `#176B4D` background across splash, Android WebView canvas, and HTML first paint, removing raw unstyled placeholder.
-- **MF-UX-005 Native UX Polish Slices 1–6** (PR #30 at `bde91a7578753f5c468d0534282edd9fd13f32a0`): Timer render isolation and keypad reliability; KnownFirst onboarding layout and Android Back coordinator; teaching dwell lock, amber Pause styling, and the historical Timer pill later superseded by PR #38; configurable haptics; No Time Pressure visible elapsed count-up; restrained textual streak and transient Pause summary.
-- **Native V1 Forensic Remediation** (PR #28 plan at `4e997f35b4a7884b4b0592beab682a36319ea358`, PR #29 fix at `156d5afd32299ba19d8ca2a8f2f56a7babfe31d8`): Practice Fact Eligibility Invariant ($\text{owner}_O(F) \le B$) and session startup error boundary / recovery ([ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)).
-- **Predecessors**: `MF-REL-002` (PR #26), `MF-UX-004` (PR #25), `MF-DOC-004` (PR #24), `MF-STAB-002` (PR #21, #22, #23), MathFirst Privacy Policy (PR #20), `MF-DOC-003` (PR #19), `MF-SET-001` (PR #18), `MF-REL-001` (PR #17), `MF-LEARN-003` (PR #16), and prior foundational packages.
+- **Predecessors**: Slices and packages prior to PR #39 are documented in [docs/PROJECT_STATE.md](PROJECT_STATE.md).
 
 ### Downstream Roadmap Stages
-- **Phase 6 - Adaptive Practice Balance and Foundational Coverage (`MF-LEARN-005`)**: Complete and merged to `main` through PR #46 at `c7fea74554abe01181b7a0e3d3c4e554c48f7d1a`.
-- **Phase 6 - Progress Presentation Cleanup (`MF-UX-007`)**: Complete and merged to `main` through PR #47 at `d37fbe3347679220bf847b06c83f7f9366738d03` (validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, merge tree identical to candidate tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 1,605 Core tests passed, Schema V6 preserved).
-- **Phase 6 - Post-MF-UX-007 Documentation Reconciliation (`MF-DOC-008`)**: Active on task branch `docs/mf-doc-008-post-mf-ux-007-merge-reconciliation` (`DOCUMENT_ONLY`).
-- **Phase 6 - Final V1 Gap Audit**: Separately authorized audit step (no new package identifier).
-- **Phase 6 - Fresh Tester APK Packaging**: Build a fresh Tester APK from then-current synchronized `main`.
-- **Phase 6 - Tester APK Installation on Current Test Device**: Install the Tester APK on the user's current physical test device: Samsung Galaxy S26 Ultra.
-- **Phase 6 - Manual Physical-Device Tester Validation**: Manual validation of Tester APK on Samsung Galaxy S26 Ultra.
-- **Phase 6 - Production Packaging & Signing (Candidate `versionCode` $\ge 4$)**: Only after successful physical tester validation (`Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
-- **Phase 6 - Step 30 Technical Smoke**: On the new production candidate (`versionCode >= 4`) (agent-executable when explicitly authorized).
-- **Phase 6 - Step 31 Production Physical-Device Verification**: On the new production candidate (`versionCode >= 4`) (agent-executable when explicitly authorized).
-- **Phase 6 - Google Play Gate (Step 32)**: Pending, separately authorized (BLOCKED until Step 31 passes; Google Play Console upload, rollout, and publishing remain user responsibility).
+- **Adaptive Learning Implementation (`MF-LEARN-006`)**: Following the approved ADR-0010 design specification (`docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md`), downstream implementation will be dispatched under an explicitly authorized package and `PLAN_ONLY` phase.
+- **Release Verification & Distribution**: Release packaging (`versionCode >= 4`), tester validation, and Step 30–32 verification remain deferred until explicitly authorized.
 
-This snapshot is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
+This historical reference baseline is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

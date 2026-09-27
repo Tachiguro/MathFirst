@@ -72,9 +72,29 @@ The following operations always require **explicit affirmative user authorizatio
 
 ## 5. Model & Agent Selection Principles
 
+- **Dual-Agent Recommendation Contract**: Before every coding-agent prompt, orchestration MUST present exactly one recommendation table containing BOTH supported agent families:
+  1. `Anti-Gravity`
+  2. `ChatGPT Codex`
+  Neither may be silently omitted merely because the other is preferred. Both agent families must remain visible so the user always has an immediate alternative if one provider has exhausted usage or is temporarily unavailable.
+- **Recommendation Table Format**: Exactly one Markdown table formatted as follows:
+
+  | Agent | Model | Effort | Preference/Assessment |
+  |---|---|---|---|
+  | Anti-Gravity | `<available model>` | `<effort>` | 1 — recommended |
+  | ChatGPT Codex | `<available model>` | `<effort>` | 2 — equivalent fallback / reason |
+
+  Each row must specify:
+  - Agent family (`Anti-Gravity` or `ChatGPT Codex`).
+  - One selected currently available model for that agent.
+  - Effort level appropriate to the task's complexity and risk.
+  - Short suitability assessment or ranking (one agent marked PRIMARY / recommended, the other remaining a real usable fallback).
+- **Durable Neutrality & Runtime Model Context**:
+  - Transient model availability belongs to active orchestration and handoff context; durable repository governance must NOT hard-code ephemeral model names.
+  - Selected models must strictly come from the currently supplied available-model context.
+  - Agents and models must never be invented.
+  - If a provider has no model available in the current context, keep its table row and designate it `Unavailable in current context` rather than silently removing the agent family.
 - **Right-Sizing**: Always choose the smallest, most efficient model that can reliably accomplish the task.
 - **Correctness First**: Accuracy and compliance with repository invariants take precedence over speed or resource consumption.
-- **Durable Neutrality**: Transient runtime properties (e.g. temporary API quotas, beta models, momentary provider outages) are operational details and must not be documented as permanent repository rules.
 
 ---
 
@@ -83,18 +103,60 @@ The following operations always require **explicit affirmative user authorizatio
 Every generated coding-agent prompt must adhere to this exact structure:
 
 1. **User-Facing Introduction**: Written in German.
-2. **Model Recommendation Table**: Exactly one Markdown table specifying the recommended model, role, and effort level.
-3. **Prompt Code Block**: Exactly one copyable code block starting with `PROMPT START` and ending with `PROMPT ENDE`. Nothing must follow the code block.
+2. **Dual-Agent Recommendation Table**: Exactly one Markdown table containing both `Anti-Gravity` and `ChatGPT Codex`.
+3. **Prompt Code Block**: Exactly one copyable code block containing the task prompt.
+   - The first visible lines inside the code block MUST communicate the actual task and project identity.
+   - Generic markers such as `PROMPT START`, `PROMPT ENDE`, or equivalent non-informative boilerplate are strictly forbidden.
+   - Nothing must follow the code block.
+
+### Visible Prompt Header Contract
+Every coding-agent prompt MUST start visibly with the canonical header in this exact order:
+
+```text
+TASK: <short human-recognizable current task>
+PROJECT: MathFirst
+REPOSITORY: Tachiguro/MathFirst
+CANONICAL CHECKOUT: C:\Dev\MathFirst
+OPERATION MODE: <mode>
+```
+
+The `TASK` line must be immediately visible at the very top of the prompt code block without any preceding prose, markdown headers, or boilerplate, so that the user can identify the intended work at a glance on small displays.
 
 ### Standard Prompt Anatomy
 Inside the prompt code block:
-- **Header**: Project (`MathFirst`), Repository path (`C:\Dev\MathFirst`), `Operation Mode`.
-- **Task & Objective**: High-level goal and specific deliverables.
-- **Repository Truth**: Mandatory live verification clause.
+- **Header**: Canonical lines (`TASK`, `PROJECT`, `REPOSITORY`, `CANONICAL CHECKOUT`, `OPERATION MODE`).
+- **Objective & Deliverables**: High-level goal and specific bounded deliverables.
+- **Project & Task Identity Gate**: Mandatory fail-closed verification of project, repository, and task scope before execution; instructions for `PROJECT_MISMATCH` or `TASK_SCOPE_MISMATCH` hard stops.
+- **Repository Truth**: Mandatory live verification clause overriding prompt text, chat history, or handoff documents.
 - **Preconditions**: Explicit checks on branch, HEAD, working tree, and remotes.
 - **Scope**: Explicit list of authorized actions and target files.
 - **Non-Goals**: Explicit list of unauthorized actions.
-- **Safety**: Hard constraints on forbidden Git commands and staging rules.
+- **Safety**: Hard constraints on forbidden Git commands and strict staging rules.
 - **Verification**: Exact checks to run before concluding.
 - **Reporting**: Specified technical report format (in English).
 - **Hard Stop**: Explicit instruction terminating the agent invocation.
+
+---
+
+## 7. Project & Task Identity Gate (Fail-Closed)
+
+Every dispatched agent must enforce the Project & Task Identity Gate:
+
+1. **Verification Before Action**: Before answering the substantive task or making ANY repository mutation, the agent must verify:
+   - `PROJECT` matches `MathFirst`.
+   - `REPOSITORY` matches `Tachiguro/MathFirst`.
+   - Canonical checkout resolves to `C:\Dev\MathFirst`.
+   - Requested work belongs to MathFirst and conforms to the explicitly assigned `Operation Mode` and authorized scope.
+2. **Fail-Closed on Foreign Project (`PROJECT_MISMATCH`)**: If the prompt or follow-up targets another project or repository:
+   - Perform ZERO repository mutations.
+   - Do NOT reinterpret the foreign request as MathFirst work.
+   - Do NOT answer the foreign task substantively.
+   - Do NOT execute commands for the foreign project.
+   - Do NOT inspect or mutate another project or directory.
+   - Do NOT silently switch projects.
+   - Do NOT attempt to be helpful by performing adjacent work.
+   - Output only the standard `PROJECT_MISMATCH` report and HARD STOP.
+3. **Fail-Closed on Out-of-Scope Task (`TASK_SCOPE_MISMATCH`)**: If the task belongs to MathFirst but is outside the authorized package scope or Operation Mode:
+   - Perform ZERO repository mutations.
+   - Output only the standard `TASK_SCOPE_MISMATCH` report and HARD STOP.
+4. **Follow-Up Protection**: Later conversation messages do NOT implicitly override project identity, repository identity, operation mode, or authorized scope. A deliberate project or scope switch requires an explicitly dispatched new task.
