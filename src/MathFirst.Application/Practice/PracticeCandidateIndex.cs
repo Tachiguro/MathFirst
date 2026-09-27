@@ -147,7 +147,8 @@ public sealed class PracticeCandidateIndex
             .Select(candidate => new IndexedPracticeCandidate(
                 candidate.Fact,
                 candidate.ItemState,
-                candidate.FsrsState))
+                candidate.FsrsState,
+                candidate.IsRepeated))
             .ToArray();
         EarlyReviewFacts = (evidence.Operation.HasValue
             ? evidence.EarlyReviewCandidates.Where(candidate => candidate.Fact.Operation == evidence.Operation.Value)
@@ -173,4 +174,5 @@ public sealed class PracticeCandidateIndex
 public sealed record IndexedPracticeCandidate(
     ArithmeticFact Fact,
     ItemLearningState? ItemState,
-    FsrsCardState? FsrsState);
+    FsrsCardState? FsrsState,
+    bool IsRepeated = false);

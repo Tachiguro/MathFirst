@@ -68,6 +68,7 @@ public sealed class TrainingSession
     public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts => _operationAcceptedAttemptCounts;
     public long GetOperationAcceptedAttemptCount(ArithmeticOperation operation) => _operationAcceptedAttemptCounts.GetValueOrDefault(operation, 0);
     public PracticeCheckInSummary? PendingCheckIn { get; private set; }
+    public bool HasBroadWeakness => DeriveHasBroadWeakness();
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
     public int SessionTotalCount { get; private set; }
@@ -955,6 +956,66 @@ public sealed class TrainingSession
         return GuidedNumberSpaceGate.ForGuided(additionCurriculum, additionProgression.BandIndex);
     }
 
+    public bool DeriveHasBroadWeakness()
+    {
+        var enabledOperations = GetCurrentEnabledOperations();
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
+        return DeriveHasBroadWeakness(enabledOperations, effectiveGate);
+    }
+
+    private bool DeriveHasBroadWeakness(
+        IReadOnlyList<ArithmeticOperation> enabledOperations,
+        GuidedNumberSpaceGate effectiveGate)
+    {
+        var count = 0;
+        Dictionary<ArithmeticOperation, AcquisitionOwnershipResolver>? resolvers = null;
+
+        foreach (var itemState in ItemStates.Values)
+        {
+            if (!itemState.NeedsRemediation)
+            {
+                continue;
+            }
+
+            if (!enabledOperations.Contains(itemState.Operation))
+            {
+                continue;
+            }
+
+            resolvers ??= new Dictionary<ArithmeticOperation, AcquisitionOwnershipResolver>(4);
+            if (!resolvers.TryGetValue(itemState.Operation, out var ownership))
+            {
+                var curriculum = _curriculum.GetCurriculum(itemState.Operation);
+                ownership = new AcquisitionOwnershipResolver(curriculum);
+                resolvers[itemState.Operation] = ownership;
+            }
+
+            if (!Progression.OperationProgressions.TryGetValue(itemState.Operation, out var progression))
+            {
+                continue;
+            }
+
+            if (!ownership.IsEligible(itemState.FactId, progression.BandIndex))
+            {
+                continue;
+            }
+
+            var fact = new ArithmeticFact(itemState.Operation, itemState.LeftOperand, itemState.RightOperand);
+            if (!effectiveGate.Allows(fact))
+            {
+                continue;
+            }
+
+            count++;
+            if (count >= LearningPolicy.BroadWeaknessThreshold)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public void AdvanceToNextFact(bool startTiming = true)
     {
         var prospectivePosition = checked(Progression.PracticePosition + 1);
@@ -981,6 +1042,7 @@ public sealed class TrainingSession
         CurrentAnswerInput = string.Empty;
         CurrentPracticeTimeSetting = GetCurrentPracticeTimeSetting();
         var scheduledOperationOrdinal = checked(_operationAcceptedAttemptCounts[scheduledOperation] + 1);
+        var hasBroadWeakness = DeriveHasBroadWeakness(enabledOperations, effectiveGate);
         var context = new PracticeSelectionContext(
             prospectivePosition,
             SessionOrderCounter,
@@ -990,7 +1052,8 @@ public sealed class TrainingSession
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
             scheduledOperationAttemptOrdinal: scheduledOperationOrdinal,
             enabledOperations: enabledOperations,
-            guidedNumberSpaceGate: effectiveGate);
+            guidedNumberSpaceGate: effectiveGate,
+            hasBroadWeakness: hasBroadWeakness);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))

@@ -430,6 +430,22 @@ public sealed class SqliteLearnerStore : ILearnerStore
         }
 
         var currentBand = await ReadCurrentBandCandidatesAsync(request, cancellationToken).ConfigureAwait(false);
+        var remediation = await ReadCandidatesAsync(@"
+            WHERE item.operation = @operation
+              AND item.needs_remediation = 1
+              AND card.fact_id IS NOT NULL
+              AND card.last_review_practice_position IS NOT NULL
+              AND @practice_position >= card.last_review_practice_position + 2
+            ORDER BY card.last_review_practice_position ASC,
+                     item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
+        remediation = await EnrichRemediationCandidatesWithRepeatedStatusAsync(remediation, request.Operation, cancellationToken).ConfigureAwait(false);
+
+        var remediationEligibleFactIds = remediation
+            .Where(candidate => candidate.FsrsState?.LastReviewPracticePosition is not null
+                && request.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + (candidate.IsRepeated ? LearningPolicy.RepeatedRemediationSpacing : LearningPolicy.IsolatedRemediationSpacing))
+            .Select(c => c.Fact.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
         var due = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND card.fact_id IS NOT NULL
@@ -439,6 +455,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
                      CASE WHEN card.last_review_practice_position IS NULL THEN 0 ELSE 1 END ASC,
                      card.last_review_practice_position ASC,
                      item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
+        var dueCandidates = due.Where(c => !remediationEligibleFactIds.Contains(c.Fact.Id)).ToArray();
         var maintenance = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
               AND item.needs_remediation = 0
@@ -448,14 +465,6 @@ public sealed class SqliteLearnerStore : ILearnerStore
               AND @practice_position >= card.last_review_practice_position + 40
             ORDER BY card.last_review_practice_position ASC,
                      card.due_practice_position ASC,
-                     item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
-        var remediation = await ReadCandidatesAsync(@"
-            WHERE item.operation = @operation
-              AND item.needs_remediation = 1
-              AND card.fact_id IS NOT NULL
-              AND card.last_review_practice_position IS NOT NULL
-              AND @practice_position >= card.last_review_practice_position + 4
-            ORDER BY card.last_review_practice_position ASC,
                      item.fact_id ASC;", request, ownership, cancellationToken).ConfigureAwait(false);
         var earlyReview = await ReadCandidatesAsync(@"
             WHERE item.operation = @operation
@@ -471,7 +480,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             request.Operation,
             request.ProspectivePracticePosition,
             currentBand,
-            due,
+            dueCandidates,
             maintenance,
             remediation,
             earlyReview);
@@ -1246,6 +1255,76 @@ public sealed class SqliteLearnerStore : ILearnerStore
         }
 
         return candidates;
+    }
+
+    private async Task<IReadOnlyList<PracticeSelectionCandidate>> EnrichRemediationCandidatesWithRepeatedStatusAsync(
+        IReadOnlyList<PracticeSelectionCandidate> candidates,
+        ArithmeticOperation operation,
+        CancellationToken cancellationToken)
+    {
+        if (candidates.Count == 0 || _connection is null)
+        {
+            return candidates;
+        }
+
+        var factIds = candidates.Select(c => c.Fact.Id).Distinct(StringComparer.Ordinal).ToArray();
+        var paramNames = factIds.Select((_, index) => $"@fact_{index}").ToArray();
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = $@"
+            WITH ranked_attempts AS (
+                SELECT fact_id, is_correct, practice_position,
+                       ROW_NUMBER() OVER (PARTITION BY fact_id ORDER BY practice_position DESC) AS rn
+                FROM attempt_history
+                WHERE operation = @operation
+                  AND practice_position IS NOT NULL
+                  AND fact_id IN ({string.Join(", ", paramNames)})
+            )
+            SELECT fact_id, is_correct
+            FROM ranked_attempts
+            WHERE rn <= 2
+            ORDER BY fact_id ASC, practice_position DESC;";
+
+        command.Parameters.AddWithValue("@operation", operation.ToString());
+        for (var i = 0; i < factIds.Length; i++)
+        {
+            command.Parameters.AddWithValue(paramNames[i], factIds[i]);
+        }
+
+        var attemptsByFact = new Dictionary<string, List<bool>>(StringComparer.Ordinal);
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var fid = reader.GetString(0);
+            var isCorrect = reader.GetInt32(1) == 1;
+            if (!attemptsByFact.TryGetValue(fid, out var list))
+            {
+                list = new List<bool>(2);
+                attemptsByFact[fid] = list;
+            }
+            list.Add(isCorrect);
+        }
+
+        var enriched = new List<PracticeSelectionCandidate>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            var isRepeated = false;
+            if (attemptsByFact.TryGetValue(candidate.Fact.Id, out var attempts)
+                && attempts.Count == 2
+                && !attempts[0]
+                && !attempts[1])
+            {
+                isRepeated = true;
+            }
+
+            enriched.Add(new PracticeSelectionCandidate(
+                candidate.Fact,
+                candidate.ItemState,
+                candidate.FsrsState,
+                isRepeated));
+        }
+
+        return enriched;
     }
 
     private const string CandidateSelectSql = @"

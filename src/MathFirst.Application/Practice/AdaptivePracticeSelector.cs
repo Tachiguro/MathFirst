@@ -80,7 +80,7 @@ public sealed class AdaptivePracticeSelector
                 && context.GuidedNumberSpaceGate.Allows(candidate.Fact)
                 && candidate.ItemState?.NeedsRemediation == true
                 && candidate.FsrsState?.LastReviewPracticePosition is not null
-                && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
+                && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + (candidate.IsRepeated ? LearningPolicy.RepeatedRemediationSpacing : LearningPolicy.IsolatedRemediationSpacing))
             .ToArray();
 
         var protectNewIntroduction =
