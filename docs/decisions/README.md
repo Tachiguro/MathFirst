@@ -46,3 +46,5 @@ Every ADR must contain the following sections:
 | [ADR-0007](ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md) | Curriculum Fact Eligibility Invariant and Startup Resilience | Accepted | 2026-09-18 |
 | [ADR-0008](ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) | Independent Per-Operation Role Ordinals and Practice-Configuration Reconciliation | Accepted | 2026-09-20 |
 | [ADR-0009](ADR-0009-guided-four-operation-number-space-gate.md) | Guided Four-Operation Number-Space Gate | Accepted | 2026-09-20 |
+| [ADR-0010](ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) | Evidence-Adaptive Discovery, Operation-Specific Guided Decoupling, and Pace Calibration | Accepted | 2026-09-26 |
+

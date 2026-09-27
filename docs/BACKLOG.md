@@ -292,12 +292,44 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-DOC-008`
 - **Title**: Post-MF-UX-007 Merge State Reconciliation
 - **Type**: `Documentation`
-- **Status**: `Active`
+- **Status**: `Completed` (Merged through PR #48)
 - **Dependencies**: `MF-UX-007` complete and merged through PR #47
 - **Description**:
   Reconcile repository baseline documentation following the MF-UX-007 merge so operational, roadmap, backlog, changelog, bootstrap, and durable project-state documentation match live main.
 
 ---
 
+### MF-AUDIT-001: Progression Coherence Audit
+
+- **ID**: `MF-AUDIT-001`
+- **Title**: Progression Coherence Audit
+- **Type**: `Architecture`
+- **Status**: `Completed` (Merged through PR #49 at `a1a0271`)
+- **Dependencies**: `MF-DOC-008` complete
+- **Description**:
+  Verify multi-operation progression coherence across the canonical +10 / -20 / ×5 / ÷5 state, identifying discovery throttling, repeat defects, and coupling constraints.
+
+---
+
+### MF-LEARN-006: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration
+
+- **ID**: `MF-LEARN-006`
+- **Title**: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration
+- **Type**: `Feature`
+- **Status**: `Accepted` (Design approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) and spec `2026-09-26-adaptive-learning-policy-design.md`; documentation package lifecycle integration in progress; implementation planning pending)
+- **Dependencies**: Architecture investigation complete; Cyber Defense MVP prerequisite satisfied via PR #50 (`fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`); documentation lifecycle integration in progress.
+- **Description**:
+  Implement the approved ADR-0010 learning architecture (implementation planning in `PLAN_ONLY` mode will begin following documentation lifecycle integration; production implementation has not started):
+  1. **Evidence-Adaptive Discovery Policy**: Dynamically promote non-due review and consolidation turns to New when pools contain no pedagogically useful work and evidence is clean, targeting the 482-attempt theoretical lower bound for strong learners.
+  2. **Absolute No-Immediate-Fact-Repetition Invariant**: Enforce $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all outcomes, outranking anti-ladder aesthetics.
+  3. **Tiered Weakness & Remediation Model**: Differentiate isolated mistakes (ordinary remediation spacing, tested cooldown 4) from repeated local errors (tightened remediation spacing, tested cooldown 2; existing presentation teaching interventions preserved without adding new learning-engine intervention requirements) and broad systemic weakness (multiple simultaneously unresolved remediation facts within the relevant learning context, tested as active unresolved remediation facts $\ge 2$, suppressing New discovery). Preserve $\ge 90\%$ Dense progression mastery ($C \cdot 10 \ge N \cdot 9$).
+  4. **Guided Gate G3 Soft Decoupling**: Decouple Multiplication and Division from `AdditionCeiling` once their respective `BandIndex >= 3`, restoring autonomous canonical progression without magic jumps.
+  5. **Empirical Pace Calibration**: Declare pace calibration ready after $\ge 24$ positioned Correct attempts, where empirical drift drops below 10%.
+  6. **Downstream Gamification Contract**: Maintain Critical Hit as a presentation-only consumer (1 HP before calibration, 2 HP for fast Correct after calibration, 1 HP for slow Correct), with zero mutation of learning or FSRS telemetry.
+  7. **Lossless Persistence**: Implement fully within Schema V6 with zero schema migrations.
+
+---
+
 > [!NOTE]
 > Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).
+
