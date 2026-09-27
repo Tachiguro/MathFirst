@@ -760,7 +760,9 @@
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 if (eval.IsCorrect)
                 {
-                    var isCritical = eval.LatencyMs <= Session.CurrentFactEasyThresholdMs;
+                    var isCritical =
+                        Session.IsPaceCalibrationReady
+                        && eval.LatencyMs <= Session.CurrentFactEasyThresholdMs;
                     if (isCritical)
                     {
                         _cyberDefenseState.RecordCriticalHit();

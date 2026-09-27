@@ -582,6 +582,26 @@ public sealed class CyberDefenseUiContractTests
     }
 
     [Fact]
+    public void CyberDefenseHome_CriticalHitClassification_RequiresBothCalibrationReadinessAndLatencyThreshold()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath), "Home.razor must exist.");
+        var home = File.ReadAllText(homePath);
+
+        var match = Regex.Match(
+            home,
+            @"var\s+isCritical\s*=\s*(?<expr>[^;]+);",
+            RegexOptions.Singleline);
+
+        Assert.True(match.Success, "Home.razor must declare isCritical variable.");
+        var expr = match.Groups["expr"].Value;
+
+        Assert.Contains("Session.IsPaceCalibrationReady", expr, StringComparison.Ordinal);
+        Assert.Contains("Session.CurrentFactEasyThresholdMs", expr, StringComparison.Ordinal);
+        Assert.Contains("<=", expr, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CyberDefenseHud_RadarTimingArc_ResumesAtAuthoritativeElapsedFraction_ExcludingPauseTime()
     {
         var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
