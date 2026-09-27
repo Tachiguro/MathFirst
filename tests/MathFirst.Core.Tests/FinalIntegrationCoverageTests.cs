@@ -204,7 +204,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, new ScriptedClock());
         await session.InitializeAsync(startTiming: false);
-        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 8);
+        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 4);
         for (var position = 1L; position < triggerPos; position++)
         {
             await SubmitFluentAndAdvanceAsync(session, position);

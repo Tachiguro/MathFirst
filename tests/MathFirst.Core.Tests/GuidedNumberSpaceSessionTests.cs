@@ -271,24 +271,10 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
             Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
         } while (true);
 
-        // First Multiplication attempt in bag 1 requests role Due (from attempt ordinal 42).
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-
-        // Advance to the next Multiplication attempt (which requests role New at ordinal 43).
-        do
-        {
-            await session.AdvanceToNextFactAsync(startTiming: false);
-            if (session.CurrentFact.Operation == ArithmeticOperation.Multiplication)
-            {
-                break;
-            }
-            session.SubmitAnswer(session.CurrentFact.CorrectResult);
-            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
-        } while (true);
-
+        // First Multiplication attempt after ceiling expansion requests Due (attempt ordinal 42),
+        // which promotes to New under Evidence-Adaptive Discovery.
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
-        // Under Addition Band 1 (ceiling = 4), mul:2*2 (product = 4) is now eligible and selected!
+        // Under Addition Band 1 (ceiling = 4), mul:2*2 (product = 4) is now eligible and selected immediately!
         Assert.Equal("mul:2*2", session.CurrentFact.Id);
         Assert.Equal(4, session.CurrentFact.CorrectResult);
     }
@@ -364,14 +350,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         Assert.Equal(PracticeConfigurationReconciliationResult.RetainedCurrentFact, result);
         Assert.Equal(currentFactId, session.CurrentFact.Id);
 
-        // Answer current fact and advance to next (position 2 requests Due)
-        session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        await session.CommitCurrentEvaluationAsync();
-
-        await session.AdvanceToNextFactAsync(startTiming: false);
-        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
-
-        // Answer position 2 and advance to position 3 (requests New)
+        // Answer current fact and advance to next (position 2 requests Due, which promotes to New under Evidence-Adaptive Discovery)
         session.SubmitAnswer(session.CurrentFact.CorrectResult);
         await session.CommitCurrentEvaluationAsync();
 
@@ -953,7 +932,9 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         var session = new TrainingSession(sessionStore, new FixedClock(), preferenceStore: preferences);
         await session.InitializeAsync(startTiming: false);
 
-        for (var i = 0; i < 20; i++)
+        // 12 turns (3 turns per operation in Guided Mode) verifies dormancy while Addition is strictly in Band 0
+        // (under Evidence-Adaptive Discovery, Addition advances Band 0 on its 4th attempt at position 14).
+        for (var i = 0; i < 12; i++)
         {
             var fact = session.CurrentFact;
             if (fact.Operation == ArithmeticOperation.Multiplication)

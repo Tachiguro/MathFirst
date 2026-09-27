@@ -919,6 +919,20 @@ public sealed class FactEligibilityRegressionTests
             LastRating: FsrsRating.Good);
 
         // Malformed evidence: the future fact is the sole Due candidate.
+        // Materialize the rest of Band 1 in early review so the New pool is empty and the test isolates review fallback.
+        var otherBand1Candidates = new[]
+        {
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 0, 2),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 1, 2),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 0),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 1)
+        }.Select(f =>
+        {
+            var item = ItemLearningState.CreateNew(f);
+            item.IsProvisionallyMastered = true;
+            var fsrs = new FsrsCardState(f.Id, Guid.NewGuid(), State: 2, Step: null, Stability: 30.0, Difficulty: 5.0, DuePracticePosition: 100, LastReviewPracticePosition: 1, LastRating: FsrsRating.Good);
+            return new PracticeSelectionCandidate(f, item, fsrs);
+        }).ToArray();
         var evidence = new PracticeSelectionEvidence(
             ArithmeticOperation.Multiplication,
             prospectivePosition,
@@ -926,7 +940,7 @@ public sealed class FactEligibilityRegressionTests
             dueCandidates: [new PracticeSelectionCandidate(futureFact, futureItem, futureFsrs)],
             maintenanceCandidates: [],
             remediationCandidates: [],
-            earlyReviewCandidates: []);
+            earlyReviewCandidates: otherBand1Candidates);
 
         var context = CreateSelectorContext(curriculum, prospectivePosition, currentBandIndex, evidence);
 
@@ -997,8 +1011,22 @@ public sealed class FactEligibilityRegressionTests
 
         // Malformed evidence: the future fact is injected into the Remediation and
         // Due review pools; the eligible fact is only reachable via the Frontier pool.
+        // Materialize the rest of Band 1 in early review so the New pool is empty and the test isolates review fallback.
         var futureCandidate = new PracticeSelectionCandidate(futureFact, futureItem, futureFsrs);
         var eligibleCandidate = new PracticeSelectionCandidate(eligibleFact, eligibleItem, null);
+        var otherBand1Candidates = new[]
+        {
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 0, 2),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 1, 2),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 0),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 1)
+        }.Select(f =>
+        {
+            var item = ItemLearningState.CreateNew(f);
+            item.IsProvisionallyMastered = true;
+            var fsrs = new FsrsCardState(f.Id, Guid.NewGuid(), State: 2, Step: null, Stability: 30.0, Difficulty: 5.0, DuePracticePosition: 100, LastReviewPracticePosition: 1, LastRating: FsrsRating.Good);
+            return new PracticeSelectionCandidate(f, item, fsrs);
+        }).ToArray();
         var evidence = new PracticeSelectionEvidence(
             ArithmeticOperation.Multiplication,
             prospectivePosition,
@@ -1006,7 +1034,7 @@ public sealed class FactEligibilityRegressionTests
             dueCandidates: [futureCandidate],
             maintenanceCandidates: [],
             remediationCandidates: [futureCandidate],
-            earlyReviewCandidates: []);
+            earlyReviewCandidates: otherBand1Candidates);
 
         var context = CreateSelectorContext(curriculum, prospectivePosition, currentBandIndex, evidence);
 
