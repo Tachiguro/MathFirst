@@ -105,17 +105,21 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 40. Deliver Progress Presentation Cleanup (`MF-UX-007`) — **COMPLETED** and merged to `main` through Pull Request #47 at `d37fbe3347679220bf847b06c83f7f9366738d03` (validated candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`, merge tree identical to candidate tree `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 1,605 Core tests passed, Schema V6 preserved).
 41. Reconcile post-MF-UX-007 documentation baseline (`MF-DOC-008`) — complete and merged through Pull Request #48.
 42. Execute Progression Coherence Audit (`test/progression-coherence-audit`) — **COMPLETED** and merged to `main` through Pull Request #49 at `a1a0271` (verifying multi-operation progression coherence across +10 / -20 / ×5 / ÷5).
-43. Learning Architecture Investigation & Specification (`DOCUMENT_ONLY`) — **COMPLETED**; canonical design specification authored at `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md).
-44. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
-45. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
-46. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
-47. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
-48. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
-49. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
-50. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
-51. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
+43. Deliver Cyber Defense Training MVP (`feature/cyber-defense-mvp`) — **COMPLETED** and merged to `main` through Pull Request #50 at `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b` (validated feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`).
+44. Learning Architecture Investigation & Specification (`DOCUMENT_ONLY`) — **COMPLETED**; canonical design specification authored at `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md).
+45. Adaptive Learning Documentation Lifecycle Integration (`DOCUMENT_ONLY`) — **IN PROGRESS** (reconciling baseline documentation for approved ADR-0010 design specification).
+46. Adaptive Learning Policy Implementation Planning (`MF-LEARN-006` `PLAN_ONLY`) — **PENDING** (initiating implementation planning for the approved ADR-0010 architecture: Evidence-Adaptive Discovery, G3 Soft Decoupling, Pace Calibration readiness at $\ge 24$ positioned Correct attempts, and Absolute No-Immediate-Fact-Repetition Invariant).
+47. Adaptive Learning Policy Implementation (`MF-LEARN-006`) — **PENDING** (implementation proceeds only after implementation plan review and approval).
+48. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
+49. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
+50. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
+51. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
+52. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
+53. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
+54. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
+55. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
 
 ### Future Planned Roadmap Work
-- **Gamification & Combat Layer Integration**: The Cyber Defense MVP (`feature/cyber-defense-mvp`) is in candidate review. Downstream combat mechanics consume learning telemetry strictly without altering FSRS or progression.
-- **Adaptive Learning Policy Implementation (`MF-LEARN-006`)**: Following lifecycle integration of the Cyber Defense branch, initiate `PLAN_ONLY` and implementation for the approved ADR-0010 architecture (Evidence-Adaptive Discovery, G3 Soft Decoupling, Pace Calibration readiness at $\ge 24$ positioned Correct attempts, and Absolute No-Immediate-Fact-Repetition Invariant targeting the 482-attempt strong learner benchmark).
+- **Gamification & Combat Layer Integration**: The Cyber Defense MVP was completed and merged to `main` through Pull Request #50 at `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b` (validated feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`). Downstream combat mechanics consume learning telemetry strictly without altering FSRS or progression.
+- **Adaptive Learning Policy Implementation (`MF-LEARN-006`)**: Following documentation lifecycle integration, initiate `PLAN_ONLY` and subsequent implementation for the approved ADR-0010 architecture (Evidence-Adaptive Discovery, G3 Soft Decoupling, Pace Calibration readiness at $\ge 24$ positioned Correct attempts, and Absolute No-Immediate-Fact-Repetition Invariant targeting the 482-attempt strong learner benchmark). Implementation proceeds only after plan review and approval.
 

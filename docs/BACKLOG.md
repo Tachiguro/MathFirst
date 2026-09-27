@@ -316,10 +316,10 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-LEARN-006`
 - **Title**: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration
 - **Type**: `Feature`
-- **Status**: `Accepted` (Design approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) and spec `2026-09-26-adaptive-learning-policy-design.md`; implementation pending)
-- **Dependencies**: Architecture investigation complete; lifecycle integration of Cyber Defense MVP branch
+- **Status**: `Accepted` (Design approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) and spec `2026-09-26-adaptive-learning-policy-design.md`; documentation package lifecycle integration in progress; implementation planning pending)
+- **Dependencies**: Architecture investigation complete; Cyber Defense MVP prerequisite satisfied via PR #50 (`fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`); documentation lifecycle integration in progress.
 - **Description**:
-  Implement the approved ADR-0010 learning architecture:
+  Implement the approved ADR-0010 learning architecture (implementation planning in `PLAN_ONLY` mode will begin following documentation lifecycle integration; production implementation has not started):
   1. **Evidence-Adaptive Discovery Policy**: Dynamically promote non-due review and consolidation turns to New when pools contain no pedagogically useful work and evidence is clean, targeting the 482-attempt theoretical lower bound for strong learners.
   2. **Absolute No-Immediate-Fact-Repetition Invariant**: Enforce $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all outcomes, outranking anti-ladder aesthetics.
   3. **Tiered Weakness & Remediation Model**: Differentiate isolated mistakes (ordinary remediation spacing, tested cooldown 4) from repeated local errors (tightened remediation spacing, tested cooldown 2; existing presentation teaching interventions preserved without adding new learning-engine intervention requirements) and broad systemic weakness (multiple simultaneously unresolved remediation facts within the relevant learning context, tested as active unresolved remediation facts $\ge 2$, suppressing New discovery). Preserve $\ge 90\%$ Dense progression mastery ($C \cdot 10 \ge N \cdot 9$).

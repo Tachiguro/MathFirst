@@ -9,13 +9,12 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: Learning Architecture Specification and Decision Authoring
+- **Active Task**: Learning Architecture Documentation Lifecycle Integration
 - **Current Lifecycle**: `DOCUMENT_ONLY`
-- **Current Branch**: `feature/cyber-defense-mvp` (HEAD at `86938d2`, ahead of `main` at `a1a0271`)
-- **Authoritative Baseline (`main` / `origin/main`)**: `a1a02716b0e0b0acb020c21f9d4c13045bf803c5` (PR #49 merge commit)
-- **Status of Active Work**: The learning architecture investigation is COMPLETE. Approved architecture decisions (Evidence-Adaptive Discovery, Absolute No-Immediate-Fact-Repetition Invariant, Tiered Weakness/Remediation, Guided Gate G3 Soft Decoupling, Pace Calibration at $\ge 24$ positioned Correct attempts, Downstream Critical Hit boundaries, and the 482-attempt strong-learner benchmark) have been formalized in canonical design specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and recorded in [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md).
-- **Branch / Lifecycle Boundary**: The repository is currently on `feature/cyber-defense-mvp`, which contains candidate Cyber Defense MVP commits ahead of `main`. Per repository governance, this `DOCUMENT_ONLY` task does not perform branch switching, merge, rebase, or PR actions. The Cyber Defense branch should be reviewed and integrated before initiating implementation for the future learning package (`MF-LEARN-006`).
-- **Next Lifecycle Step**: Following user review and branch reconciliation, transition to `PLAN_ONLY` for package `MF-LEARN-006` (Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration).
+- **Authoritative Baseline (`main` / `origin/main`)**: `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b` (PR #50 merge commit: `feat: add Cyber Defense training MVP`, following PR #49 Progression Coherence Audit)
+- **Status of Active Work**: The learning architecture investigation is COMPLETE. Approved architecture decisions (Evidence-Adaptive Discovery, Absolute No-Immediate-Fact-Repetition Invariant, Tiered Weakness/Remediation, Guided Gate G3 Soft Decoupling, Pace Calibration at $\ge 24$ positioned Correct attempts, Downstream Critical Hit boundaries, and the 482-attempt strong-learner benchmark) have been formalized in canonical design specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and recorded in [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md). Design review is approved; documentation package is undergoing lifecycle integration. Production implementation has NOT started.
+- **Cyber Defense Integration Status**: Cyber Defense MVP was completed, validated at feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`, and merged into `main` through PR #50 at merge commit `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`. Post-merge synchronization is complete; Cyber Defense is no longer an open prerequisite.
+- **Next Lifecycle Step**: Following completion and integration of this documentation package, transition to `PLAN_ONLY` for package `MF-LEARN-006` (Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration).
 
 ---
 
@@ -100,10 +99,10 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
   - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Authorized Downstream Project Sequence:
-1. Candidate review and lifecycle reconciliation of active Cyber Defense branch (`feature/cyber-defense-mvp`).
-2. After Cyber Defense integration, initiate `PLAN_ONLY` for:
+1. Complete lifecycle integration of approved adaptive-learning policy documentation (`docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md`, ADR-0010, and baseline documentation reconciliation).
+2. Initiate `PLAN_ONLY` for:
    `MF-LEARN-006: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration`
-   implementing the approved ADR-0010 design specification (`docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md`).
+   implementing the approved ADR-0010 design specification (`docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md`). Production implementation proceeds only after plan review and approval.
 3. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
 
 
