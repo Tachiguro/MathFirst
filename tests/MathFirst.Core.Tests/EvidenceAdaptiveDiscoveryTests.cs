@@ -18,7 +18,8 @@ public sealed class EvidenceAdaptiveDiscoveryTests
         long scheduledOperationOrdinal = 1,
         IEnumerable<ArithmeticOperation>? enabledOperations = null,
         bool hasBroadWeakness = false,
-        PracticeSelectionEvidence? boundedEvidence = null)
+        PracticeSelectionEvidence? boundedEvidence = null,
+        IEnumerable<ArithmeticFact>? recentAcceptedFacts = null)
     {
         var expectedOperations = Enum.GetValues<ArithmeticOperation>();
         var progressions = expectedOperations.ToDictionary(
@@ -52,7 +53,7 @@ public sealed class EvidenceAdaptiveDiscoveryTests
             progressions,
             curricula,
             candidateIndex,
-            [],
+            recentAcceptedFacts ?? [],
             scheduledOperationOrdinal,
             enabledOperations ?? [ArithmeticOperation.Addition],
             guidedNumberSpaceGate: null,
@@ -177,18 +178,27 @@ public sealed class EvidenceAdaptiveDiscoveryTests
     [Fact]
     public void DiscoveryPromotion_GenuineDueWork_PreservesDue()
     {
-        // Fixture:
-        // Nominal requested role = Due (ordinal 2).
-        // Materialized fact is genuinely due (DuePracticePosition <= prospectivePosition).
-        // Unmaterialized material exists.
-        // HasBroadWeakness = false.
+        // Option-B reconciliation: Under Option B, a Due candidate whose latest outcome is Correct
+        // and clean does not block New. To genuinely preserve the Due role during active band acquisition,
+        // the Due candidate must have actionable repair evidence (non-Correct latest outcome).
         var curriculum = new ArithmeticCurriculum();
         var frontier = curriculum.Addition.Bands[0].Frontier;
         var dueFact = frontier[0];
 
         const long prospectivePosition = 100;
-        var card = CreateDefaultCard(dueFact, duePosition: 90, lastReviewPosition: 50); // 90 <= 100 -> Due!
+        var card = new FsrsCardState(
+            dueFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 90,
+            LastReviewPracticePosition: 50,
+            LastRating: FsrsRating.Again);
         var itemState = ItemLearningState.CreateNew(dueFact);
+        itemState.TotalAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 0;
 
         var context = CreateContext(
             prospectivePosition: prospectivePosition,
@@ -212,18 +222,27 @@ public sealed class EvidenceAdaptiveDiscoveryTests
     [Fact]
     public void DiscoveryPromotion_UnmasteredFrontier_PreservesFrontier()
     {
-        // Fixture:
-        // Nominal requested role = Frontier (ordinal 5).
-        // Materialized frontier candidate is unmastered (IsProvisionallyMastered = false).
-        // Unmaterialized material exists.
-        // HasBroadWeakness = false.
+        // Option-B reconciliation: Under Option B, provisional unmastery alone (TotalAttempts < 3)
+        // does not block New if latest outcome was Correct. To preserve Frontier during active acquisition,
+        // the candidate must have actionable repair evidence (non-Correct latest outcome).
         var curriculum = new ArithmeticCurriculum();
         var frontier = curriculum.Addition.Bands[0].Frontier;
         var unmasteredFact = frontier[0];
 
         const long prospectivePosition = 100;
-        var card = CreateDefaultCard(unmasteredFact, duePosition: 200, lastReviewPosition: 95);
+        var card = new FsrsCardState(
+            unmasteredFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 200,
+            LastReviewPracticePosition: 95,
+            LastRating: FsrsRating.Again);
         var itemState = ItemLearningState.CreateNew(unmasteredFact);
+        itemState.TotalAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 0;
         itemState.IsProvisionallyMastered = false;
 
         var context = CreateContext(
@@ -248,11 +267,9 @@ public sealed class EvidenceAdaptiveDiscoveryTests
     [Fact]
     public void DiscoveryPromotion_StaleMaintenanceWork_PreservesMaintenance()
     {
-        // Fixture:
-        // Nominal requested role = Maintenance (ordinal 4).
-        // Materialized fact is stale (lastReviewPosition <= prospectivePosition - 40, Due > prospectivePosition).
-        // Unmaterialized material exists.
-        // HasBroadWeakness = false.
+        // Option-B reconciliation: Under Option B, a stale Maintenance candidate does not block New
+        // while unmaterialized material exists for a clean learner. When unmaterialized material is
+        // exhausted (newPool empty) or broad weakness exists, Maintenance role preserves Maintenance.
         var curriculum = new ArithmeticCurriculum();
         var frontier = curriculum.Addition.Bands[0].Frontier;
         var staleFact = frontier[0];
@@ -261,12 +278,20 @@ public sealed class EvidenceAdaptiveDiscoveryTests
         var card = CreateDefaultCard(staleFact, duePosition: 200, lastReviewPosition: 50); // 100 - 50 = 50 >= 40
         var itemState = ItemLearningState.CreateNew(staleFact);
 
+        // All frontier facts materialized so newPool is empty
+        var allMaterialized = frontier;
+        var itemStates = frontier.ToDictionary(f => f.Id, f => ItemLearningState.CreateNew(f), StringComparer.Ordinal);
+        var fsrsStates = frontier.ToDictionary(
+            f => f.Id,
+            f => f.Id == staleFact.Id ? card : CreateDefaultCard(f, duePosition: 200, lastReviewPosition: 90),
+            StringComparer.Ordinal);
+
         var context = CreateContext(
             prospectivePosition: prospectivePosition,
             curriculum: curriculum,
-            materializedFacts: [staleFact],
-            itemStates: new Dictionary<string, ItemLearningState> { [staleFact.Id] = itemState },
-            fsrsStates: new Dictionary<string, FsrsCardState> { [staleFact.Id] = card },
+            materializedFacts: allMaterialized,
+            itemStates: itemStates,
+            fsrsStates: fsrsStates,
             scheduledOperationOrdinal: 4, // Maintenance
             hasBroadWeakness: false);
 
@@ -479,10 +504,10 @@ public sealed class EvidenceAdaptiveDiscoveryTests
     [Fact]
     public void DiscoveryPromotion_FrontierWithBothMasteredAndUnmastered_PreservesFrontier()
     {
-        // Fixture:
-        // Nominal requested role = Frontier (ordinal 5).
-        // Frontier contains two materialized facts: one mastered, one unmastered.
-        // Since unmastered learning work exists, useful work is present, so Frontier must NOT promote.
+        // Option-B reconciliation: Under Option B, a frontier candidate does not block New merely
+        // because IsProvisionallyMastered == false if its latest outcome was Correct.
+        // When unmastered frontier work has actionable repair evidence (non-Correct latest outcome),
+        // Frontier role is preserved and not promoted to New.
         var curriculum = new ArithmeticCurriculum();
         var frontier = curriculum.Addition.Bands[0].Frontier;
         var masteredFact = frontier[0];
@@ -490,12 +515,27 @@ public sealed class EvidenceAdaptiveDiscoveryTests
 
         const long prospectivePosition = 100;
         var masteredCard = CreateDefaultCard(masteredFact, duePosition: 200, lastReviewPosition: 90);
-        var unmasteredCard = CreateDefaultCard(unmasteredFact, duePosition: 200, lastReviewPosition: 90);
+        var unmasteredCard = new FsrsCardState(
+            unmasteredFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 200,
+            LastReviewPracticePosition: 90,
+            LastRating: FsrsRating.Again);
 
         var masteredState = ItemLearningState.CreateNew(masteredFact);
+        masteredState.TotalAttempts = 3;
+        masteredState.CorrectAttempts = 3;
+        masteredState.ConsecutiveCorrectStreak = 3;
         masteredState.IsProvisionallyMastered = true;
 
         var unmasteredState = ItemLearningState.CreateNew(unmasteredFact);
+        unmasteredState.TotalAttempts = 1;
+        unmasteredState.IncorrectAttempts = 1;
+        unmasteredState.ConsecutiveCorrectStreak = 0;
         unmasteredState.IsProvisionallyMastered = false;
 
         var context = CreateContext(
@@ -640,5 +680,484 @@ public sealed class EvidenceAdaptiveDiscoveryTests
         Assert.True(result.IsNewIntroduction);
         Assert.False(result.IsMaterialized);
         Assert.NotEqual(masteredFact.Id, result.Fact.Id);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_DueCorrectCleanCandidate_DoesNotBlockNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Due (ordinal 2).
+        // Candidate is Due (DuePracticePosition <= prospectivePosition).
+        // Candidate latest outcome is Correct (TotalAttempts = 1, ConsecutiveCorrectStreak = 1, LastRating = Good).
+        // Candidate NeedsRemediation == false.
+        // Candidate is not immediate predecessor.
+        // Eligible unmaterialized newPool is non-empty.
+        // HasBroadWeakness = false.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var dueFact = frontier[0];
+        var unmaterializedFacts = frontier.Skip(1).ToArray();
+        Assert.NotEmpty(unmaterializedFacts);
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            dueFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 90,
+            LastReviewPracticePosition: 50,
+            LastRating: FsrsRating.Good);
+
+        var itemState = ItemLearningState.CreateNew(dueFact);
+        itemState.TotalAttempts = 1;
+        itemState.CorrectAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 1;
+        itemState.NeedsRemediation = false;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [dueFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [dueFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [dueFact.Id] = card },
+            scheduledOperationOrdinal: 2, // Due
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+        Assert.Contains(result.Fact.Id, unmaterializedFacts.Select(f => f.Id));
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_FrontierCorrectUnmasteredCandidate_DoesNotBlockNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Frontier (ordinal 5).
+        // Materialized frontier candidate: IsProvisionallyMastered == false.
+        // Authoritative latest outcome Correct (TotalAttempts = 1, ConsecutiveCorrectStreak = 1, LastRating = Good).
+        // NeedsRemediation == false.
+        // Eligible newPool non-empty.
+        // HasBroadWeakness = false.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var frontierFact = frontier[0];
+        var unmaterializedFacts = frontier.Skip(1).ToArray();
+        Assert.NotEmpty(unmaterializedFacts);
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            frontierFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 200,
+            LastReviewPracticePosition: 95,
+            LastRating: FsrsRating.Good);
+
+        var itemState = ItemLearningState.CreateNew(frontierFact);
+        itemState.TotalAttempts = 1;
+        itemState.CorrectAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 1;
+        itemState.IsProvisionallyMastered = false;
+        itemState.NeedsRemediation = false;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [frontierFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [frontierFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [frontierFact.Id] = card },
+            scheduledOperationOrdinal: 5, // Frontier
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Frontier, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+        Assert.Contains(result.Fact.Id, unmaterializedFacts.Select(f => f.Id));
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_MaintenanceCorrectCleanCandidate_DoesNotBlockNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Maintenance (ordinal 4).
+        // Candidate is stale (prospectivePosition - lastReviewPosition >= 40, Due > prospectivePosition).
+        // Authoritative latest outcome Correct (TotalAttempts = 1, ConsecutiveCorrectStreak = 1, LastRating = Good).
+        // NeedsRemediation == false.
+        // Eligible newPool non-empty.
+        // HasBroadWeakness = false.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var staleFact = frontier[0];
+        var unmaterializedFacts = frontier.Skip(1).ToArray();
+        Assert.NotEmpty(unmaterializedFacts);
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            staleFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 200,
+            LastReviewPracticePosition: 50, // 100 - 50 = 50 >= 40
+            LastRating: FsrsRating.Good);
+
+        var itemState = ItemLearningState.CreateNew(staleFact);
+        itemState.TotalAttempts = 1;
+        itemState.CorrectAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 1;
+        itemState.NeedsRemediation = false;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [staleFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [staleFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [staleFact.Id] = card },
+            scheduledOperationOrdinal: 4, // Maintenance
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Maintenance, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+        Assert.Contains(result.Fact.Id, unmaterializedFacts.Select(f => f.Id));
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_DueIncorrectCandidate_BlocksNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Due (ordinal 2).
+        // Due candidate exists (DuePracticePosition <= prospectivePosition).
+        // Latest outcome is non-Correct (LastRating = Again, streak = 0).
+        // newPool non-empty.
+        // HasBroadWeakness = false.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var dueFact = frontier[0];
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            dueFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 90,
+            LastReviewPracticePosition: 50,
+            LastRating: FsrsRating.Again);
+
+        var itemState = ItemLearningState.CreateNew(dueFact);
+        itemState.TotalAttempts = 1;
+        itemState.IncorrectAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 0;
+        itemState.NeedsRemediation = false;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [dueFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [dueFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [dueFact.Id] = card },
+            scheduledOperationOrdinal: 2, // Due
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.Due, result.ResolvedRole);
+        Assert.False(result.IsNewIntroduction);
+        Assert.True(result.IsMaterialized);
+        Assert.Equal(dueFact.Id, result.Fact.Id);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_FrontierNonCorrectCandidate_BlocksNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Frontier (ordinal 5).
+        // Materialized frontier candidate with non-Correct latest outcome.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var frontierFact = frontier[0];
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            frontierFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 200,
+            LastReviewPracticePosition: 95,
+            LastRating: FsrsRating.Again);
+
+        var itemState = ItemLearningState.CreateNew(frontierFact);
+        itemState.TotalAttempts = 1;
+        itemState.IncorrectAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 0;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [frontierFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [frontierFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [frontierFact.Id] = card },
+            scheduledOperationOrdinal: 5, // Frontier
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Frontier, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.Frontier, result.ResolvedRole);
+        Assert.False(result.IsNewIntroduction);
+        Assert.True(result.IsMaterialized);
+        Assert.Equal(frontierFact.Id, result.Fact.Id);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_RemediationCandidate_BlocksNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Due (ordinal 2).
+        // Due candidate exists with NeedsRemediation == true.
+        // LastReview was recent so remediation override spacing hasn't elapsed,
+        // but within the Due pool, NeedsRemediation == true acts as acquisition-blocking work.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var dueFact = frontier[0];
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            dueFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 90,
+            LastReviewPracticePosition: 98, // Spacing: 100 - 98 = 2 < 4 (isolated spacing not elapsed)
+            LastRating: FsrsRating.Again);
+
+        var itemState = ItemLearningState.CreateNew(dueFact);
+        itemState.TotalAttempts = 1;
+        itemState.NeedsRemediation = true;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [dueFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [dueFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [dueFact.Id] = card },
+            scheduledOperationOrdinal: 2, // Due
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.Due, result.ResolvedRole);
+        Assert.False(result.IsNewIntroduction);
+        Assert.True(result.IsMaterialized);
+        Assert.Equal(dueFact.Id, result.Fact.Id);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_BroadWeakness_SuppressesCleanReviewPromotion()
+    {
+        // Fixture:
+        // Requested role = Due (ordinal 2).
+        // Due candidate is clean and Correct.
+        // Eligible newPool non-empty.
+        // HasBroadWeakness = true.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var dueFact = frontier[0];
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            dueFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 90,
+            LastReviewPracticePosition: 50,
+            LastRating: FsrsRating.Good);
+
+        var itemState = ItemLearningState.CreateNew(dueFact);
+        itemState.TotalAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 1;
+        itemState.NeedsRemediation = false;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [dueFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [dueFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [dueFact.Id] = card },
+            scheduledOperationOrdinal: 2, // Due
+            hasBroadWeakness: true);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.NotEqual(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.False(result.IsNewIntroduction);
+        Assert.True(result.IsMaterialized);
+        Assert.Equal(dueFact.Id, result.Fact.Id);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_NoUnmaterializedMaterial_PreservesRequestedReview()
+    {
+        // Fixture:
+        // Requested role = Due (ordinal 2).
+        // All facts in band materialized (newPool empty).
+        // Due candidate is clean and Correct.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+
+        const long prospectivePosition = 100;
+        var itemStates = frontier.ToDictionary(f => f.Id, f =>
+        {
+            var s = ItemLearningState.CreateNew(f);
+            s.TotalAttempts = 1;
+            s.ConsecutiveCorrectStreak = 1;
+            return s;
+        }, StringComparer.Ordinal);
+        var fsrsStates = frontier.ToDictionary(
+            f => f.Id,
+            f => new FsrsCardState(f.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: 90, LastReviewPracticePosition: 50, LastRating: FsrsRating.Good),
+            StringComparer.Ordinal);
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: frontier,
+            itemStates: itemStates,
+            fsrsStates: fsrsStates,
+            scheduledOperationOrdinal: 2, // Due
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.Due, result.ResolvedRole);
+        Assert.False(result.IsNewIntroduction);
+        Assert.True(result.IsMaterialized);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_NominalNew_PreservedWithUnmaterializedMaterial()
+    {
+        // Fixture:
+        // Requested role = New (ordinal 1).
+        // newPool non-empty.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var materializedFact = frontier[0];
+
+        const long prospectivePosition = 100;
+        var card = CreateDefaultCard(materializedFact, duePosition: 200, lastReviewPosition: 90);
+        var itemState = ItemLearningState.CreateNew(materializedFact);
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [materializedFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [materializedFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [materializedFact.Id] = card },
+            scheduledOperationOrdinal: 1, // New
+            hasBroadWeakness: false);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.New, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+    }
+
+    [Fact]
+    public void EvidenceAdaptiveDiscovery_ImmediatePredecessorOnlyReview_DoesNotBlockNewPromotion()
+    {
+        // Fixture:
+        // Requested role = Due (ordinal 2).
+        // The ONLY due candidate is the immediate predecessor (even with repair evidence).
+        // Since immediate predecessor cannot legally be selected under No-Immediate-Fact-Repetition invariant,
+        // it must not count as actionable acquisition-blocking work.
+        // Eligible newPool non-empty.
+        // HasBroadWeakness = false.
+        var curriculum = new ArithmeticCurriculum();
+        var frontier = curriculum.Addition.Bands[0].Frontier;
+        var dueFact = frontier[0];
+        var unmaterializedFacts = frontier.Skip(1).ToArray();
+        Assert.NotEmpty(unmaterializedFacts);
+
+        const long prospectivePosition = 100;
+        var card = new FsrsCardState(
+            dueFact.Id,
+            Guid.NewGuid(),
+            State: 1,
+            Step: null,
+            Stability: 1.0,
+            Difficulty: 1.0,
+            DuePracticePosition: 90,
+            LastReviewPracticePosition: 99,
+            LastRating: FsrsRating.Again);
+
+        var itemState = ItemLearningState.CreateNew(dueFact);
+        itemState.TotalAttempts = 1;
+        itemState.ConsecutiveCorrectStreak = 0;
+        itemState.NeedsRemediation = true;
+
+        var context = CreateContext(
+            prospectivePosition: prospectivePosition,
+            curriculum: curriculum,
+            materializedFacts: [dueFact],
+            itemStates: new Dictionary<string, ItemLearningState> { [dueFact.Id] = itemState },
+            fsrsStates: new Dictionary<string, FsrsCardState> { [dueFact.Id] = card },
+            scheduledOperationOrdinal: 2, // Due
+            hasBroadWeakness: false,
+            recentAcceptedFacts: [dueFact]);
+
+        var selector = new AdaptivePracticeSelector();
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(result.IsNewIntroduction);
+        Assert.False(result.IsMaterialized);
+        Assert.NotEqual(dueFact.Id, result.Fact.Id);
+        Assert.Contains(result.Fact.Id, unmaterializedFacts.Select(f => f.Id));
     }
 }

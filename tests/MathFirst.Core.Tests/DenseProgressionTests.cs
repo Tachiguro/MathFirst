@@ -758,24 +758,20 @@ public sealed class DenseProgressionTests : IDisposable
             else if (position == 50)
             {
                 // Position 50 (13 turns for ADD/SUB, 12 turns for MUL/DIV):
-                // ADD: Band 1 (advances to Band 2 at pos 51)
-                // SUB: Band 2 (advances to Band 3 at pos 55)
-                // MUL: Band 2 (completed MUL-D02 at attempt 12 / pos 49)
-                // DIV: Band 2
-                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                // Under Option B, clean review slots promote to New, accelerating dense discovery:
+                // ADD: Band 2, SUB: Band 3, MUL: Band 2, DIV: Band 2
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+                Assert.Equal(3, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
                 Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
                 Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
             else if (position == 100)
             {
                 // Position 100 (25 turns per op):
-                // ADD: Band 2 (advanced at pos 51)
-                // SUB: Band 4 (advanced to Band 3 at pos 55, Band 4 at pos 92)
-                // MUL: Band 2 (advanced at pos 49)
-                // DIV: Band 2 (advanced at pos 30)
-                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(4, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                // Under Option B, clean discovery velocity advances ADD to Band 4 and SUB to Band 5:
+                // ADD: Band 4, SUB: Band 5, MUL: Band 2, DIV: Band 2
+                Assert.Equal(4, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+                Assert.Equal(5, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
                 Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
                 Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }

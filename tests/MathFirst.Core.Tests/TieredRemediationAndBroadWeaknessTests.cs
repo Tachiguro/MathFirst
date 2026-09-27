@@ -190,7 +190,11 @@ public sealed class TieredRemediationAndBroadWeaknessTests : IDisposable
             var ctx = CreateContext(pos, curriculum, candidateIndex);
             var result = selector.SelectTargetFact(ctx);
             Assert.NotEqual(PracticeSelectionRole.Remediation, result.ResolvedRole);
-            Assert.Equal(fallbackFact.Id, result.Fact.Id);
+            Assert.NotEqual(remedFact.Id, result.Fact.Id);
+            // Under Option B, because the due candidate is clean and unmaterialized material exists,
+            // the turn promotes to New (selecting "add:1+0") rather than falling back to clean Due.
+            Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+            Assert.Equal("add:1+0", result.Fact.Id);
         }
 
         // Eligible at +4 (pos 14)
@@ -231,7 +235,10 @@ public sealed class TieredRemediationAndBroadWeaknessTests : IDisposable
         var ctxNotYet = CreateContext(11, curriculum, candidateIndex);
         var resultNotYet = selector.SelectTargetFact(ctxNotYet);
         Assert.NotEqual(PracticeSelectionRole.Remediation, resultNotYet.ResolvedRole);
-        Assert.Equal(fallbackFact.Id, resultNotYet.Fact.Id);
+        Assert.NotEqual(remedFact.Id, resultNotYet.Fact.Id);
+        // Under Option B, clean Due promotes to New
+        Assert.Equal(PracticeSelectionRole.New, resultNotYet.ResolvedRole);
+        Assert.Equal("add:1+0", resultNotYet.Fact.Id);
 
         // Eligible at +2 (pos 12)
         var ctxEligible = CreateContext(12, curriculum, candidateIndex);

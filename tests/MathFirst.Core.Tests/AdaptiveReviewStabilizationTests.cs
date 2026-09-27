@@ -49,7 +49,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         // f1 is materialized and Due at posDue
         var posDue = GetOpPosition(ArithmeticOperation.Addition, 2); // ordinal 2 requests Due
         var state1 = ItemLearningState.CreateNew(f1);
-        var card1 = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: posDue - 1, LastReviewPracticePosition: 1, LastRating: FsrsRating.Good);
+        var card1 = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: posDue - 1, LastReviewPracticePosition: 1, LastRating: FsrsRating.Again);
 
         var materialized = new MaterializedState(
             [f1],
@@ -79,7 +79,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         var posMaintenance = GetOpPosition(ArithmeticOperation.Addition, 14); // ordinal 14 requests Maintenance (14-1 % 10 = 3 -> Maintenance)
         var state1 = ItemLearningState.CreateNew(f1);
         // lastReview = 1. posMaintenance >= 1 + 40 -> eligible! Due is in the future (500)
-        var card1 = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: 500, LastReviewPracticePosition: 1, LastRating: FsrsRating.Good);
+        var card1 = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: 500, LastReviewPracticePosition: 1, LastRating: FsrsRating.Again);
 
         var materialized = new MaterializedState(
             [f1],
@@ -107,7 +107,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
 
         var posFrontier = GetOpPosition(ArithmeticOperation.Addition, 5); // ordinal 5 requests Frontier
         var state1 = ItemLearningState.CreateNew(f1);
-        var card1 = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: 500, LastReviewPracticePosition: posFrontier - 1, LastRating: FsrsRating.Good);
+        var card1 = new FsrsCardState(f1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, DuePracticePosition: 500, LastReviewPracticePosition: posFrontier - 1, LastRating: FsrsRating.Again);
 
         var materialized = new MaterializedState(
             [f1],
@@ -342,10 +342,10 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         Assert.All(Enum.GetValues<ArithmeticOperation>(), op =>
             Assert.True(session.Progression.OperationProgressions[op].BandIndex >= 1));
 
-        // Under ADR-0010 Evidence-Adaptive Discovery, strong learners promote empty review slots to New,
+        // Under ADR-0010 Option-B Evidence-Adaptive Discovery, strong learners promote clean review slots to New,
         // increasing acquisition speed while still interleaving review/consolidation periodically across the run.
-        Assert.True(newIntroductions >= 20, $"Expected >= 20 new introductions, got {newIntroductions}");
-        Assert.True(reviewAttempts >= 30, $"Expected >= 30 review attempts, got {reviewAttempts}");
+        Assert.True(newIntroductions >= 50, $"Expected >= 50 new introductions under Option B, got {newIntroductions}");
+        Assert.True(reviewAttempts >= 10, $"Expected >= 10 review attempts under Option B, got {reviewAttempts}");
         Assert.Equal(80, newIntroductions + reviewAttempts);
     }
 

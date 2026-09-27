@@ -205,15 +205,15 @@ public sealed class AdaptivePracticeSelector
             or PracticeSelectionRole.Frontier
             or PracticeSelectionRole.Maintenance)
         {
-            var hasUsefulWork = requestedRole switch
+            var hasBlockingWork = requestedRole switch
             {
-                PracticeSelectionRole.Due => duePool.Any(fact => immediatePredecessorId is null || !string.Equals(fact.Id, immediatePredecessorId, StringComparison.Ordinal)),
-                PracticeSelectionRole.Maintenance => maintenancePool.Any(fact => immediatePredecessorId is null || !string.Equals(fact.Id, immediatePredecessorId, StringComparison.Ordinal)),
-                PracticeSelectionRole.Frontier => frontierPool.Any(fact => (immediatePredecessorId is null || !string.Equals(fact.Id, immediatePredecessorId, StringComparison.Ordinal)) && context.CandidateIndex.GetCandidate(fact.Id).ItemState?.IsProvisionallyMastered != true),
+                PracticeSelectionRole.Due => HasAcquisitionBlockingReviewWork(duePool, context.CandidateIndex, immediatePredecessorId),
+                PracticeSelectionRole.Maintenance => HasAcquisitionBlockingReviewWork(maintenancePool, context.CandidateIndex, immediatePredecessorId),
+                PracticeSelectionRole.Frontier => HasAcquisitionBlockingReviewWork(frontierPool, context.CandidateIndex, immediatePredecessorId),
                 _ => true
             };
 
-            if (!hasUsefulWork && newPool.Length > 0 && !context.HasBroadWeakness)
+            if (!hasBlockingWork && newPool.Length > 0 && !context.HasBroadWeakness)
             {
                 if (TrySelectTargetCandidate(
                     newPool,
@@ -519,5 +519,46 @@ public sealed class AdaptivePracticeSelector
             recent.Operation == candidate.Operation
             && recent.LeftOperand == candidate.RightOperand
             && recent.RightOperand == candidate.LeftOperand);
+    }
+
+    private static bool HasAcquisitionBlockingReviewWork(
+        IReadOnlyList<ArithmeticFact> pool,
+        PracticeCandidateIndex candidateIndex,
+        string? immediatePredecessorId)
+    {
+        return pool.Any(fact => IsAcquisitionBlockingCandidate(candidateIndex.GetCandidate(fact.Id), immediatePredecessorId));
+    }
+
+    private static bool IsAcquisitionBlockingCandidate(
+        IndexedPracticeCandidate candidate,
+        string? immediatePredecessorId)
+    {
+        if (immediatePredecessorId is not null
+            && string.Equals(candidate.Fact.Id, immediatePredecessorId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (candidate.ItemState?.NeedsRemediation == true)
+        {
+            return true;
+        }
+
+        if (candidate.FsrsState?.LastRating == FsrsRating.Again)
+        {
+            return true;
+        }
+
+        if (candidate.ItemState is not null && candidate.ItemState.TotalAttempts > 0)
+        {
+            return candidate.ItemState.ConsecutiveCorrectStreak <= 0;
+        }
+
+        if (candidate.FsrsState?.LastRating is FsrsRating.Good or FsrsRating.Easy or FsrsRating.Hard)
+        {
+            return false;
+        }
+
+        return true;
     }
 }
