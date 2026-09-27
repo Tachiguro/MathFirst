@@ -17,7 +17,7 @@
 5. **Tiered Weakness & Targeted Remediation**: Preserve the distinction between an isolated error, repeated local weakness, and broad cross-operation weakness. Provide tighter remediation spacing for persistent local errors while preventing an isolated error from globally suppressing progress in unrelated operations.
 6. **Preservation of Dense Mastery**: Uphold the established Dense band progression requirement of 100% owned-frontier coverage and $\ge 90\%$ latest correctness ($C \cdot 10 \ge N \cdot 9$) without dilution.
 7. **Guided Gate Soft Decoupling (G3)**: Maintain the protective Addition-governed number-space ceiling for Multiplication and Division during introductory bands (Bands 0, 1, and 2), and softly decouple each operation once it independently proves competence by advancing to `BandIndex >= 3`.
-8. **Strong-Learner Acquisition Benchmark**: Establish the native theoretical benchmark of **482 global accepted attempts** for a 100%-correct fluent learner in four-operation Guided Mode to progress from cold start through `ADD-D10 -> ADD-P1-ANCHOR` (expanding AdditionCeiling from 20 to 180).
+8. **Strong-Learner Acquisition Benchmark**: Establish the normative benchmark of **482 global accepted attempts** for the canonical 100%-correct fluent learner fixture in four-operation Guided Mode to progress from cold start through `ADD-D10 -> ADD-P1-ANCHOR` (expanding AdditionCeiling from 20 to 180).
 9. **Empirically Calibrated Pace**: Establish pace calibration readiness at $\ge 24$ positioned Correct attempts, ensuring learner-relative speed thresholds stabilize (drift $< 10\%$) before granting speed-contingent game mechanics.
 10. **Downstream Game Authority Boundary**: Isolate combat and gamification mechanics (such as Cyber Defense Critical Hits) as strictly downstream presentation consumers with zero authority over learning telemetry, FSRS scheduling, or curriculum progression.
 11. **Lossless Returning-Learner Continuity**: Retain durable curriculum progress, FSRS states, and attempt histories across application restarts without artificial startup placement tests.
@@ -80,22 +80,45 @@ While this protects early learners during the very first steps, `AdditionCeiling
 
 The architecture transitions from a static 10-slot role assignment to an **Evidence-Adaptive Discovery Policy**.
 
-### 4.1 Discovery Opportunity Promotion
-The nominal role cycle continues to provide a deterministic baseline scaffolding. However, when a scheduled turn resolves to a review or consolidation role (`Due`, `Frontier`, or `Maintenance`), the engine evaluates whether that role contains **pedagogically useful work**:
+### 4.1 Discovery Opportunity Promotion and Acquisition-Blocking Work
+The nominal 10-slot role cycle provides deterministic baseline scaffolding (`RequestedRole`). However, when a scheduled turn resolves to a review or consolidation role (`Due`, `Frontier`, or `Maintenance`), the engine evaluates whether that role contains **acquisition-blocking work**:
 
-1. **Pedagogically Useful Work Definition**:
-   - `Due`: At least one eligible materialized fact has $\text{DuePracticePosition} \le \text{ProspectivePracticePosition}$.
-   - `Frontier Consolidation`: At least one materialized current-band fact is unmastered (`IsProvisionallyMastered == false` or latest outcome is non-correct).
-   - `Remediation`: At least one eligible fact has `NeedsRemediation == true`.
-   - `Maintenance`: At least one materialized fact has not been reviewed within the stale threshold ($\ge 40$ positions).
+1. **Acquisition-Blocking vs. Retention Review Work**:
+   During active Dense band acquisition (where eligible unmaterialized owned-frontier material remains, `newPool.Length > 0`), the engine distinguishes between general retention review and work that is legitimately acquisition-blocking:
+   - **Clean Evidence Subordination**: While the learner exhibits Clean Evidence (`HasBroadWeakness == false`), review candidates whose authoritative latest outcome is `Correct` and do not require remediation (`NeedsRemediation == false`) do **not** block promotion to `New`:
+     - **Due**: Materialized facts whose FSRS due position has arrived ($\text{DuePracticePosition} \le \text{ProspectivePracticePosition}$) do **not** block promotion to `New` if their latest outcome was `Correct` and `NeedsRemediation == false`. FSRS Due remains valid retention evidence, but is subordinate to initial Dense coverage for clean learners.
+     - **Frontier**: Materialized current-band facts do **not** block promotion to `New` merely because `IsProvisionallyMastered == false` due to accumulating fewer than the multi-attempt mastery threshold (`TotalAttempts < 3`), provided their latest outcome was `Correct` and `NeedsRemediation == false`. First-pass Dense curriculum discovery ($C \cdot 10 \ge N \cdot 9$) is decoupled from longer-term multi-attempt provisional mastery.
+     - **Maintenance**: Stale materialized facts ($\ge 40$ positions since last review) do **not** block promotion to `New` if their latest outcome was `Correct` and `NeedsRemediation == false`.
+   - **Retention Review Resume**: Once unmaterialized material for the active band is exhausted (`newPool.Length == 0`), ordinary FSRS review, provisional mastery consolidation, and maintenance resume authoritative control across their respective roles.
 
-2. **Promotion Rule**:
-   If the scheduled review/frontier role has **zero pedagogically useful work** AND the current band contains eligible unmaterialized material (`New` pool is non-empty) AND learner evidence is **Clean/Strong** (Section 5), the scheduled turn is **promoted to `PracticeSelectionRole.New`**.
+2. **Genuine Acquisition-Blocking Evidence**:
+   A scheduled review role contains **acquisition-blocking work** (strictly preserving the review role and forbidding promotion to `New`) if and only if actionable repair evidence exists:
+   - A candidate fact has an authoritative latest attempt outcome that is non-Correct; OR
+   - A candidate fact has `NeedsRemediation == true` (eligible remediation takes precedence under Section 6 tiered spacing); OR
+   - The learner exhibits active **Broad Weakness** (active unresolved remediation facts $\ge 2$ in the relevant learning context; Section 5.3), which immediately suppresses review-to-New promotion across all operations; OR
+   - The active band has zero eligible unmaterialized candidates remaining (`newPool.Length == 0`).
 
-3. **Emergent Discovery Ratio**:
-   - For a fluent learner with zero errors, zero overdue cards, and all active frontier facts mastered, review slots 2, 4, 5, 7, 9, 10 promote to New. Discovery pressure rises naturally toward 100% of available band material.
-   - For a learner with overdue cards or active misconceptions, review slots are preserved for consolidation. Discovery pressure naturally drops to 40% or lower.
-   - No static "90% New" ratio is hardcoded; the ratio is a mathematical consequence of live learner evidence.
+3. **Promotion Rule**:
+   If the scheduled review/consolidation role contains **zero acquisition-blocking work** AND the current band contains eligible unmaterialized material (`newPool.Length > 0`) AND learner evidence is **Clean** (`HasBroadWeakness == false`), the turn is **promoted to `PracticeSelectionRole.New`**.
+
+4. **Selection Decision Logic**:
+   ```text
+   if requestedRole in [Due, Frontier, Maintenance]:
+       if newPool.Length > 0 and not HasBroadWeakness:
+           # Check if candidate pool contains actionable repair work
+           hasBlockingWork = candidatePool.Any(c =>
+               c.FactId != immediatePredecessorId
+               and (c.LatestOutcome != Correct or c.ItemState.NeedsRemediation == true)
+           )
+           if not hasBlockingWork:
+               resolve candidate from newPool
+               return PracticeSelectionRole.New
+   ```
+
+5. **Emergent Discovery Velocity**:
+   - For a clean, fluent learner (zero errors, zero active remediation), review slots 2, 4, 5, 7, 9, 10 promote to `New` while unmaterialized band material exists. Discovery pressure naturally rises toward 100% of available band material, enabling the canonical strong-learner fixture to reach ADD-D10 completion at exactly 482 global accepted attempts.
+   - For a learner encountering mistakes or active remediation, review slots remain dedicated to repair and consolidation. Discovery pressure naturally drops to 40% or lower.
+   - No static "90% New" ratio is hardcoded; velocity emerges directly from live learner evidence.
 
 ---
 
@@ -292,8 +315,24 @@ This milestone transitions the Guided `AdditionCeiling` from **20** to **180**. 
    - Accounting for deterministic permutation bag alignment (where the final Addition turn occurs in the 2nd slot of the final bag), the exact theoretical minimum is:
      $$\mathbf{482\text{ global accepted attempts}}$$
 
-### 10.3 Benchmark Enforcement
-Future integration tests and policy simulations must use this 482-attempt figure as the reference lower bound for strong-learner performance. The evidence-adaptive fact selector should enable a 100%-correct simulated learner to achieve ADD-D10 completion at or very near 482 attempts.
+### 10.3 Benchmark Enforcement and Normative Fixture Contract
+The 482-attempt figure is the theoretical lower bound in general, and is established as the **exact normative requirement** for the canonical strong-learner acceptance fixture:
+
+1. **Canonical Perfect Learner Acceptance Fixture**:
+   - Fresh Schema-V6 learner state (zero initial attempts, cards, or progressions);
+   - All four arithmetic operations enabled in Guided Mode;
+   - Canonical curriculum definitions and deterministic operation permutation scheduling;
+   - Canonical `AdaptivePracticeSelector` without test-only shortcut overrides;
+   - 100% mathematically `Correct` answers submitted on every turn;
+   - Fluent active latency within adaptive thresholds (no timeouts, zero rating `Again`);
+   - Zero errors, zero remediation, and `HasBroadWeakness == false`;
+   - Uninterrupted baseline execution with zero configuration changes;
+   - Progression evaluated through `ADD-D10 -> ADD-P1-ANCHOR`.
+
+2. **Normative Acceptance Criteria**:
+   - Total Addition accepted attempts at transition: **exactly 121 attempts**;
+   - Total global accepted attempts at transition: **exactly 482 attempts** (Addition turn #121 occurs at global position 482);
+   - Rejection of tolerance windows: The implementation must not permit 484, 1090, or approximate ranges for this canonical fixture.
 
 ---
 
@@ -437,12 +476,12 @@ All approved architecture behaviors are implemented **strictly within Schema V6*
   - Once answered correctly, `NeedsRemediation` clears, and normal spacing resumes.
 
 ### Scenario 3: Strong Fluent Learner
-- **Profile**: Fluent learner, 100% correct, rapid automated recall (<1200 ms).
+- **Profile**: Fluent learner, 100% correct, rapid automated recall (<1200 ms), zero remediation.
 - **Behavior**:
-  - Review slots with zero due cards automatically promote to New.
+  - Scheduled review turns (`Due`, `Frontier`, `Maintenance`) with zero acquisition-blocking work automatically promote to `New` while unmaterialized band material exists.
   - Multiplication reaches `BandIndex >= 3` and softly decouples from `AdditionCeiling`, continuing gradual curriculum expansion without stalling.
   - After 24 positioned correct attempts, pace calibration activates, enabling Critical Hits for rapid correct answers.
-  - The learner reaches completion of Addition Band 10 (`ADD-D10 -> ADD-P1-ANCHOR`) at or very near the theoretical lower bound of **482 global accepted attempts**.
+  - The learner reaches completion of Addition Band 10 (`ADD-D10 -> ADD-P1-ANCHOR`) at **exactly the normative benchmark of 482 global accepted attempts** (121 Addition attempts).
 
 ---
 

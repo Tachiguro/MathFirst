@@ -35,15 +35,24 @@ This decision defines the approved architecture: Evidence-Adaptive Discovery, an
 
 The static 10-slot role assignment is replaced by an **Evidence-Adaptive Discovery Policy**:
 
-1. **Promotion of Non-Due Review Turns**:
-   When a scheduled operation turn resolves to a review or consolidation role (`Due`, `Maintenance`, or `Frontier`), the selector checks whether the pool contains **pedagogically useful work**:
-   - `Due`: Any eligible fact has $\text{DuePracticePosition} \le \text{ProspectivePracticePosition}$.
-   - `Frontier`: Any materialized current-frontier fact is unmastered (`IsProvisionallyMastered == false` or latest outcome is non-correct).
-   - `Maintenance`: Any materialized fact is stale ($\ge 40$ positions since last review).
-2. **Dynamic Promotion to New**:
-   If the scheduled review role contains **zero pedagogically useful work**, the current band contains eligible unmaterialized facts, and the learner exhibits **Clean/Strong Evidence** (clean evidence without active broad weakness), the turn is **promoted to `PracticeSelectionRole.New`**.
-3. **Emergent Ratio**:
-   No fixed global ratio (such as "90% New") is hardcoded. Discovery velocity emerges dynamically from demonstrated learner competence: fluent learners progress rapidly toward band completion, while struggling learners automatically receive consolidation turns.
+1. **Acquisition-Blocking Review Distinction**:
+   When a scheduled operation turn resolves to a review or consolidation role (`Due`, `Frontier`, or `Maintenance`), the selector distinguishes between general retention review and **acquisition-blocking work**:
+   - While eligible unmaterialized owned-frontier material remains in the current band (`newPool` is non-empty) and the learner exhibits **Clean Evidence** (`HasBroadWeakness == false`):
+     - **Due**: Materialized facts whose FSRS due Practice Position has arrived ($\text{DuePracticePosition} \le \text{ProspectivePracticePosition}$) do **not** block promotion to `New` if their authoritative latest outcome is `Correct` and `NeedsRemediation == false`. FSRS Due remains valid retention evidence, but is subordinate to introducing required unseen Dense material for a clean learner.
+     - **Frontier**: Materialized current-band facts do **not** block promotion to `New` merely because `IsProvisionallyMastered == false` due to accumulating fewer than the repeated-attempt mastery threshold (`TotalAttempts < 3`), provided their authoritative latest outcome is `Correct` and `NeedsRemediation == false`. This cleanly decouples first-pass Dense curriculum discovery from multi-attempt provisional mastery.
+     - **Maintenance**: Stale materialized facts ($\ge 40$ positions since last review) do **not** block promotion to `New` provided their authoritative latest outcome is `Correct` and `NeedsRemediation == false`.
+2. **Genuine Acquisition-Blocking Evidence**:
+   Review and consolidation work is **acquisition-blocking** (strictly preserving review roles and preventing promotion to `New`) if and only if actionable repair evidence exists:
+   - The candidate's authoritative latest attempt outcome is non-Correct; OR
+   - The candidate has `NeedsRemediation == true` (eligible remediation takes precedence under tiered spacing); OR
+   - The learner exhibits active **Broad Weakness** ($\ge 2$ active unresolved remediation facts in the relevant learning context), which suppresses review-to-New promotion; OR
+   - The current band contains zero eligible unmaterialized facts (`newPool` is exhausted), whereupon standard review fallback resumes.
+3. **Dynamic Promotion to New**:
+   If the scheduled review/consolidation role contains **zero acquisition-blocking work**, the current band contains eligible unmaterialized facts, and `HasBroadWeakness == false`, the turn is **promoted to `PracticeSelectionRole.New`**.
+4. **Emergent Discovery Velocity**:
+   No fixed global ratio (such as "90% New") is hardcoded. Discovery velocity emerges dynamically from demonstrated learner competence: fluent, clean learners progress rapidly through dense band acquisition without premature review stalls, while struggling learners automatically receive consolidation and remediation turns.
+5. **Architecture Clarification Note (Option B Reconciliation)**:
+   Initial implementation validation identified an architectural tension between literal review-pool usefulness (which blocked New on any FSRS-due card or single-attempt frontier card) and the approved strong-learner benchmark. The decision clarifies that already-Correct review work is non-blocking during initial dense acquisition for clean learners, reconciling runtime selection with the normative 482-attempt benchmark.
 
 ---
 
@@ -125,8 +134,8 @@ $$\text{ADD-D10} \longrightarrow \text{ADD-P1-ANCHOR}$$
 advancing Guided `AdditionCeiling` from **20** to **180**.
 
 - Completing Addition Dense Band 10 requires mastering all 121 unique Addition facts ($0+0$ through $10+10$).
-- Under deterministic four-operation bounded permutation scheduling with equal turn allocation, 121 Addition turns yield a mathematical lower bound of **482 global accepted attempts**.
-- This benchmark serves as the reference standard for future learning-engine regression tests.
+- Under deterministic four-operation bounded permutation scheduling with equal turn allocation, 121 Addition turns yield a mathematical lower bound of **482 global accepted attempts** (accounting for deterministic permutation bag alignment where Addition attempt #121 falls at global position 482).
+- **Normative Fixture Requirement**: For the canonical perfect strong-learner fixture (fresh Schema-V6 learner, four operations enabled in Guided Mode, canonical deterministic scheduler, 100% Correct answers, fluent latency, zero remediation, and zero broad weakness), reaching the `ADD-D10 -> ADD-P1-ANCHOR` milestone at **exactly 482 global accepted attempts** is a **normative runtime requirement**, not merely an aspirational reference or approximate range.
 
 ---
 
@@ -177,7 +186,7 @@ Game mechanics are strictly **downstream presentation consumers** of learning te
 ## Consequences
 
 ### Positive
-- **Optimal Learner Velocity**: Fluent learners avoid redundant review filler and progress toward the theoretical 482-attempt benchmark without artificial friction.
+- **Optimal Learner Velocity**: Fluent learners avoid redundant review filler and achieve the normative 482-attempt benchmark for clean acquisition without artificial friction.
 - **Cognitive Safety**: Struggling learners are protected from premature new introductions through automatic broad-weakness discovery suppression.
 - **Ergonomic Integrity**: The absolute no-immediate-repeat invariant completely eliminates repetitive back-to-back presentations (`X -> X`).
 - **Targeted Misconception Repair**: Repeated errors receive responsive, tighter remediation without penalizing unrelated operations.
@@ -187,7 +196,7 @@ Game mechanics are strictly **downstream presentation consumers** of learning te
 - **Zero Storage Friction**: Implemented fully within Schema V6 with zero migration risk.
 
 ### Negative and Operational Considerations
-- The practice selector logic requires clear state evaluation to distinguish between useful review work and empty review slots.
+- The practice selector logic requires clear state evaluation to distinguish acquisition-blocking review work from clean, non-blocking retention candidates.
 - Bounded fallback chains must carefully handle edge cases where candidate pools are constrained to ensure the no-immediate-repeat invariant is satisfied.
 
 ---

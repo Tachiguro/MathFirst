@@ -9,13 +9,10 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: None (no active implementation package in flight; documentation reconciliation complete)
-- **Current Lifecycle**: Inactive / Awaiting explicit dispatch
-- **Authoritative Baseline (`main` / `origin/main`)**: `f6a842b71df39b2d6facafae41874c86d6f3f611` (PR #52 merge commit: `docs: harden agent prompt governance`, following PR #51 merge commit `01472b05ef83f586144414a3cb3a0c7abbc45189`: `docs: record adaptive learning policy design` and PR #50 merge commit `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`: `feat: add Cyber Defense training MVP`)
-- **Status of Adaptive Learning Work**: The learning architecture investigation and design specification are COMPLETE and integrated into `main` via PR #51. Approved architecture decisions (Evidence-Adaptive Discovery, Absolute No-Immediate-Fact-Repetition Invariant, Tiered Weakness/Remediation, Guided Gate G3 Soft Decoupling, Pace Calibration at $\ge 24$ positioned Correct attempts, Downstream Critical Hit boundaries, and the 482-attempt strong-learner benchmark) are formalized in canonical design specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and recorded in [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md). Production implementation has NOT started.
-- **Agent Prompt Governance Hardening**: Integrated via PR #52 at `f6a842b71df39b2d6facafae41874c86d6f3f611`, establishing strict fail-closed project/task identity verification and prompt governance across `AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, and `docs/NEW_CHAT_BOOTSTRAP.md`.
-- **Cyber Defense Integration Status**: Cyber Defense MVP was completed, validated at feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`, and merged into `main` through PR #50 at merge commit `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`. Post-merge synchronization is complete; Cyber Defense is no longer an open prerequisite.
-- **Next Lifecycle Step**: Transition to `PLAN_ONLY` for package `MF-LEARN-006` (Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration) when explicitly dispatched.
+- **Active Task**: MF-LEARN-006 Option-B Architecture Reconciliation (Option B approved; documentation reconciliation performed; selector remediation still pending; Slice 7 remains pending)
+- **Current Lifecycle**: DOCUMENT_ONLY complete / Awaiting implementation remediation
+- **Status of Adaptive Learning Work**: Option B architecture reconciliation for Evidence-Adaptive Discovery has been approved by the user and reconciled across canonical documentation (ADR-0010, design specification, PRODUCT.md). Slices 1–6 are committed on task branch `feat/mf-learn-006-adaptive-learning-policy`. Selector Option-B remediation and Slice 7 verification (normative 482 strong-learner benchmark) remain pending.
+- **Next Lifecycle Step**: Execute implementation remediation for MF-LEARN-006 Option-B Evidence-Adaptive Discovery followed by Slice 7 verification.
 
 ---
 
