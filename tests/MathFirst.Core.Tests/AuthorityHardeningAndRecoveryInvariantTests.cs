@@ -51,7 +51,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         // Materialize one addition fact
         var additionFact = curriculum.Addition.Bands[0].Frontier[0];
         var additionState = ItemLearningState.CreateNew(additionFact);
-        var additionCard = new FsrsCardState(additionFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+        var additionCard = new FsrsCardState(additionFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Again);
         var index = new PracticeCandidateIndex(
             [additionFact],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [additionFact.Id] = additionState },

@@ -8,6 +8,9 @@ public static class LearningPolicy
     public const int MinConsecutiveCorrectForMastery = 3;
     public const double RangeMasteryThresholdRatio = 0.90;
     public const int RemediationInterveningCount = 3;
+    public const int IsolatedRemediationSpacing = 4;
+    public const int RepeatedRemediationSpacing = 2;
+    public const int BroadWeaknessThreshold = 2;
     public const int ExactFactCooldownDistance = 3;
     public const int MirrorFactCooldownDistance = 3;
     public const int MaxPreferredOperationStreak = 2;

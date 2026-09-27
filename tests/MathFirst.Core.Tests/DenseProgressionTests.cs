@@ -469,7 +469,7 @@ public sealed class DenseProgressionTests : IDisposable
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
 
-        var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 3);
+        var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 2);
 
         for (var p = 1L; p < divTriggerPos; p++)
         {
@@ -482,7 +482,7 @@ public sealed class DenseProgressionTests : IDisposable
             }
         }
 
-        // Division attempt 3 (DIV-D01 has 2 facts, introduced on ordinals 1 and 3) triggers advancement
+        // Division attempt 2 (DIV-D01 has 2 facts, introduced on ordinals 1 and 2 under Evidence-Adaptive Discovery) triggers advancement
         Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
         var divEval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(divEval.OperationAdvanced);
@@ -501,10 +501,10 @@ public sealed class DenseProgressionTests : IDisposable
         var session = new TrainingSession(store);
         await session.InitializeAsync(startTiming: false);
 
-        var divAdvancePos = GetOpPosition(ArithmeticOperation.Division, 3);
-        var subAdvancePos = GetOpPosition(ArithmeticOperation.Subtraction, 6);
-        var addAdvancePos = GetOpPosition(ArithmeticOperation.Addition, 8);
-        var mulAdvancePos = GetOpPosition(ArithmeticOperation.Multiplication, 8);
+        var divAdvancePos = GetOpPosition(ArithmeticOperation.Division, 2);
+        var subAdvancePos = GetOpPosition(ArithmeticOperation.Subtraction, 3);
+        var addAdvancePos = GetOpPosition(ArithmeticOperation.Addition, 4);
+        var mulAdvancePos = GetOpPosition(ArithmeticOperation.Multiplication, 4);
 
         for (var position = 1; position <= 32; position++)
         {
@@ -544,11 +544,12 @@ public sealed class DenseProgressionTests : IDisposable
             }
         }
 
-        // Verify exact deterministic band progression after 8 turns per operation: all 4 operations advance to Band 1
+        // Verify exact deterministic band progression after 8 turns per operation under Evidence-Adaptive Discovery:
+        // ADD and MUL are in Band 1; SUB and DIV have naturally advanced to Band 2.
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+        Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
         Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-        Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
+        Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
     }
 
     [Fact]
@@ -635,7 +636,7 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "atomicity-advancement.db");
         using var innerStore = new SqliteLearnerStore(path);
-        var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 3);
+        var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 2);
         var failingStore = new FailOnNthCommitStore(innerStore, failOnCommit: (int)divTriggerPos);
         var session = new TrainingSession(failingStore);
         await session.InitializeAsync(startTiming: false);
@@ -651,7 +652,7 @@ public sealed class DenseProgressionTests : IDisposable
             }
         }
 
-        // Division attempt 3 would advance DIV-D01 to Band 1, but commit will fail
+        // Division attempt 2 advances DIV-D01 to Band 1 under Evidence-Adaptive Discovery, but commit will fail
         var divEval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(divEval.OperationAdvanced); // in candidate evaluation
 
@@ -748,33 +749,29 @@ public sealed class DenseProgressionTests : IDisposable
 
             if (position == 32)
             {
-                // Position 32 (8 turns per op): all 4 operations advance to Band 1
+                // Position 32 (8 turns per op): ADD/MUL in Band 1, SUB/DIV in Band 2 under Evidence-Adaptive Discovery
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
             else if (position == 50)
             {
                 // Position 50 (13 turns for ADD/SUB, 12 turns for MUL/DIV):
-                // ADD: Band 1 (ADD-D02, needs 5 new facts)
-                // SUB: Band 2 (SUB-D03, completed SUB-D02 at attempt 13 / pos 50)
-                // MUL: Band 1 (MUL-D02, needs 5 new facts)
-                // DIV: Band 1 (DIV-D02, completes at attempt 13 / pos 52)
-                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
-                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
+                // Under Option B, clean review slots promote to New, accelerating dense discovery:
+                // ADD: Band 2, SUB: Band 3, MUL: Band 2, DIV: Band 2
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+                Assert.Equal(3, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
+                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }
             else if (position == 100)
             {
                 // Position 100 (25 turns per op):
-                // ADD: Band 2 (ADD-D03, completed ADD-D02 at attempt 21 / pos 84)
-                // SUB: Band 3 (SUB-D04, completed SUB-D03 at attempt 23 / pos 92)
-                // MUL: Band 2 (MUL-D03, completed MUL-D02 at attempt 21 / pos 82)
-                // DIV: Band 2 (DIV-D03, completed DIV-D02 at attempt 13 / pos 52)
-                Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-                Assert.Equal(3, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
+                // Under Option B, clean discovery velocity advances ADD to Band 4 and SUB to Band 5:
+                // ADD: Band 4, SUB: Band 5, MUL: Band 2, DIV: Band 2
+                Assert.Equal(4, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+                Assert.Equal(5, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
                 Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
                 Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Division].BandIndex);
             }

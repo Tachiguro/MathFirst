@@ -41,6 +41,12 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         Assert.Equal(9000, result.DeadlineMs);
     }
 
+    [Fact]
+    public void PaceCalibrationCorrectAttemptThreshold_IsCanonical24()
+    {
+        Assert.Equal(24, AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold);
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(7, 1)]

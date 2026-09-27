@@ -118,7 +118,8 @@ public sealed class PracticeSelectionEvidenceRequest
 public sealed record PracticeSelectionCandidate(
     ArithmeticFact Fact,
     ItemLearningState ItemState,
-    FsrsCardState? FsrsState);
+    FsrsCardState? FsrsState,
+    bool IsRepeated = false);
 
 public sealed class PracticeSelectionEvidence
 {
@@ -211,12 +212,34 @@ public sealed class PracticeSelectionEvidence
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(request);
 
+        var attemptsByFact = snapshot.RecentAttempts
+            .Where(a => a.Operation == request.Operation && a.PracticePosition.HasValue)
+            .GroupBy(a => a.FactId, StringComparer.Ordinal)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(a => a.PracticePosition!.Value).Take(2).ToArray(),
+                StringComparer.Ordinal);
+
         var candidates = snapshot.ItemStates.Values
             .Where(state => state.Operation == request.Operation)
-            .Select(state => new PracticeSelectionCandidate(
-                new ArithmeticFact(state.Operation, state.LeftOperand, state.RightOperand),
-                state,
-                snapshot.FsrsStates.GetValueOrDefault(state.FactId)))
+            .Select(state =>
+            {
+                var isRepeated = false;
+                if (state.NeedsRemediation
+                    && attemptsByFact.TryGetValue(state.FactId, out var attempts)
+                    && attempts.Length == 2
+                    && !attempts[0].IsCorrect
+                    && !attempts[1].IsCorrect)
+                {
+                    isRepeated = true;
+                }
+
+                return new PracticeSelectionCandidate(
+                    new ArithmeticFact(state.Operation, state.LeftOperand, state.RightOperand),
+                    state,
+                    snapshot.FsrsStates.GetValueOrDefault(state.FactId),
+                    isRepeated);
+            })
             .ToArray();
 
         // Task 2: Apply canonical curriculum eligibility filter BEFORE constructing
@@ -246,13 +269,16 @@ public sealed class PracticeSelectionEvidence
         var remediationCandidates = candidates
             .Where(candidate => candidate.ItemState.NeedsRemediation
                 && candidate.FsrsState?.LastReviewPracticePosition is not null
-                && request.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
+                && request.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 2)
             .OrderBy(candidate => candidate.FsrsState!.LastReviewPracticePosition!.Value)
             .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
             .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
             .ToArray();
 
-        var remediationEligibleFactIds = remediationCandidates.Select(c => c.Fact.Id).ToHashSet(StringComparer.Ordinal);
+        var remediationEligibleFactIds = remediationCandidates
+            .Where(candidate => request.ProspectivePracticePosition >= candidate.FsrsState!.LastReviewPracticePosition!.Value + (candidate.IsRepeated ? LearningPolicy.RepeatedRemediationSpacing : LearningPolicy.IsolatedRemediationSpacing))
+            .Select(c => c.Fact.Id)
+            .ToHashSet(StringComparer.Ordinal);
 
         var dueCandidates = candidates
             .Where(candidate => candidate.FsrsState is not null

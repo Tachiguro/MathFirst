@@ -149,6 +149,205 @@ public sealed class GuidedNumberSpaceGateTests
             GuidedNumberSpaceGate.IsGuidedMode([(ArithmeticOperation)999]));
     }
 
+    [Fact]
+    public void GuidedGate_CustomMode_RemainsUnrestricted()
+    {
+        var gate = GuidedNumberSpaceGate.Unrestricted;
+
+        Assert.False(gate.IsActive);
+        Assert.Null(gate.AdditionCeiling);
+        Assert.False(gate.IsMultiplicationDecoupled);
+        Assert.False(gate.IsDivisionDecoupled);
+
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Addition, 100, 100)));
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Subtraction, 100, 99)));
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 100, 100)));
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 100, 1)));
+    }
+
+    [Fact]
+    public void GuidedGate_Addition_RemainsUnrestricted()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 0);
+
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Addition, 100, 100)));
+    }
+
+    [Fact]
+    public void GuidedGate_Subtraction_RemainsUnrestricted()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 0);
+
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Subtraction, 100, 99)));
+    }
+
+    [Fact]
+    public void GuidedGate_Multiplication_Band0_IsAdditionCeilingGated()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, multiplicationBandIndex: 0);
+
+        Assert.False(gate.IsMultiplicationDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2))); // 4 <= 4
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 3))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Multiplication_Band1_IsAdditionCeilingGated()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, multiplicationBandIndex: 1);
+
+        Assert.False(gate.IsMultiplicationDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2))); // 4 <= 4
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 3))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Multiplication_Band2_IsAdditionCeilingGated()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, multiplicationBandIndex: 2);
+
+        Assert.False(gate.IsMultiplicationDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2))); // 4 <= 4
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 3))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Multiplication_Band3_IsDecoupled()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, multiplicationBandIndex: 3);
+
+        Assert.True(gate.IsMultiplicationDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 3))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Division_Band0_IsAdditionCeilingGated()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, divisionBandIndex: 0);
+
+        Assert.False(gate.IsDivisionDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 4, 2))); // 4 <= 4
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 6, 2))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Division_Band1_IsAdditionCeilingGated()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, divisionBandIndex: 1);
+
+        Assert.False(gate.IsDivisionDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 4, 2))); // 4 <= 4
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 6, 2))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Division_Band2_IsAdditionCeilingGated()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, divisionBandIndex: 2);
+
+        Assert.False(gate.IsDivisionDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 4, 2))); // 4 <= 4
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 6, 2))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_Division_Band3_IsDecoupled()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(new ArithmeticCurriculum().Addition, 1, divisionBandIndex: 3);
+
+        Assert.True(gate.IsDivisionDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 6, 2))); // 6 > 4
+    }
+
+    [Fact]
+    public void GuidedGate_MultiplicationBand3_DoesNotDecoupleDivisionBand2()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(
+            new ArithmeticCurriculum().Addition,
+            1,
+            multiplicationBandIndex: 3,
+            divisionBandIndex: 2);
+
+        Assert.True(gate.IsMultiplicationDecoupled);
+        Assert.False(gate.IsDivisionDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 3))); // 6 > 4 (MUL decoupled)
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 6, 2))); // 6 > 4 (DIV gated)
+    }
+
+    [Fact]
+    public void GuidedGate_DivisionBand3_DoesNotDecoupleMultiplicationBand2()
+    {
+        var gate = GuidedNumberSpaceGate.ForGuided(
+            new ArithmeticCurriculum().Addition,
+            1,
+            multiplicationBandIndex: 2,
+            divisionBandIndex: 3);
+
+        Assert.False(gate.IsMultiplicationDecoupled);
+        Assert.True(gate.IsDivisionDecoupled);
+        Assert.Equal(4, gate.AdditionCeiling);
+
+        Assert.False(gate.Allows(new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 3))); // 6 > 4 (MUL gated)
+        Assert.True(gate.Allows(new ArithmeticFact(ArithmeticOperation.Division, 6, 2))); // 6 > 4 (DIV decoupled)
+    }
+
+    [Fact]
+    public void GuidedGate_DecoupledCanonicalFact_AllowedWithoutMagicCeiling()
+    {
+        var additionCurriculum = new ArithmeticCurriculum().Addition;
+        var multiplicationCurriculum = new ArithmeticCurriculum().Multiplication;
+
+        var gateBeforeDecoupling = GuidedNumberSpaceGate.ForGuided(additionCurriculum, 0, multiplicationBandIndex: 2);
+        var gateAfterDecoupling = GuidedNumberSpaceGate.ForGuided(additionCurriculum, 0, multiplicationBandIndex: 3);
+
+        Assert.True(multiplicationCurriculum.TryGetBand(3, out var band3));
+        var canonicalFact = band3!.Frontier.First(f => f.CorrectResult > 2);
+
+        Assert.False(gateBeforeDecoupling.Allows(canonicalFact));
+        Assert.True(gateAfterDecoupling.Allows(canonicalFact));
+        Assert.Equal(2, gateAfterDecoupling.AdditionCeiling);
+    }
+
+    [Fact]
+    public void GuidedConstruction_RejectsNegativeMultiplicationOrDivisionBandIndex()
+    {
+        var additionCurriculum = new ArithmeticCurriculum().Addition;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            GuidedNumberSpaceGate.ForGuided(additionCurriculum, 0, multiplicationBandIndex: -1));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            GuidedNumberSpaceGate.ForGuided(additionCurriculum, 0, divisionBandIndex: -1));
+    }
+
+    [Fact]
+    public void GuidedConstruction_WithProgressionsDictionary_ConstructsExpectedGate()
+    {
+        var additionCurriculum = new ArithmeticCurriculum().Addition;
+        var progressions = new Dictionary<ArithmeticOperation, OperationProgression>
+        {
+            [ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, 1, 0),
+            [ArithmeticOperation.Multiplication] = new(ArithmeticOperation.Multiplication, 3, 0),
+            [ArithmeticOperation.Division] = new(ArithmeticOperation.Division, 2, 0)
+        };
+
+        var gate = GuidedNumberSpaceGate.ForGuided(additionCurriculum, progressions);
+
+        Assert.Equal(4, gate.AdditionCeiling);
+        Assert.True(gate.IsMultiplicationDecoupled);
+        Assert.False(gate.IsDivisionDecoupled);
+    }
+
     private static CurriculumBand CreateBand(int bandIndex, string id, params ArithmeticFact[] facts) =>
         new(
             ArithmeticOperation.Addition,

@@ -40,16 +40,37 @@ public sealed class TrainingSession
     private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
     private Dictionary<ArithmeticOperation, long> _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
 
-    private readonly record struct GateIdentity(bool IsActive, int? AdditionCeiling)
+    private enum GateSemanticKind
+    {
+        Unrestricted,
+        AdditionCeilingCoupled,
+        Decoupled
+    }
+
+    private readonly record struct GateIdentity(GateSemanticKind Kind, int? AdditionCeiling)
     {
         public static GateIdentity ForOperation(ArithmeticOperation operation, GuidedNumberSpaceGate gate)
         {
-            if (operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction)
+            if (operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction || !gate.IsActive)
             {
-                return new GateIdentity(false, null);
+                return new GateIdentity(GateSemanticKind.Unrestricted, null);
             }
 
-            return new GateIdentity(gate.IsActive, gate.AdditionCeiling);
+            if (operation == ArithmeticOperation.Multiplication)
+            {
+                return gate.IsMultiplicationDecoupled
+                    ? new GateIdentity(GateSemanticKind.Decoupled, null)
+                    : new GateIdentity(GateSemanticKind.AdditionCeilingCoupled, gate.AdditionCeiling);
+            }
+
+            if (operation == ArithmeticOperation.Division)
+            {
+                return gate.IsDivisionDecoupled
+                    ? new GateIdentity(GateSemanticKind.Decoupled, null)
+                    : new GateIdentity(GateSemanticKind.AdditionCeilingCoupled, gate.AdditionCeiling);
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown arithmetic operation.");
         }
     }
 
@@ -67,7 +88,10 @@ public sealed class TrainingSession
     public IReadOnlyDictionary<string, FsrsCardState> FsrsStates => _fsrsStates;
     public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts => _operationAcceptedAttemptCounts;
     public long GetOperationAcceptedAttemptCount(ArithmeticOperation operation) => _operationAcceptedAttemptCounts.GetValueOrDefault(operation, 0);
+    public int PositionedCorrectAttemptCount { get; private set; }
+    public bool IsPaceCalibrationReady => PositionedCorrectAttemptCount >= AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold;
     public PracticeCheckInSummary? PendingCheckIn { get; private set; }
+    public bool HasBroadWeakness => DeriveHasBroadWeakness();
     public int SessionOrderCounter { get; private set; }
     public int SessionCorrectCount { get; private set; }
     public int SessionTotalCount { get; private set; }
@@ -799,6 +823,14 @@ public sealed class TrainingSession
                 {
                     CurrentCorrectStreak = 0;
                 }
+                if (LastEvaluation.ChangeSet.Attempt.PracticePosition is > 0
+                    && LastEvaluation.ChangeSet.Attempt.Outcome == AttemptOutcome.Correct)
+                {
+                    if (PositionedCorrectAttemptCount < AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold)
+                    {
+                        PositionedCorrectAttemptCount++;
+                    }
+                }
                 LastResponseLatencyMs = LastEvaluation.LatencyMs;
                 Progression.StoreRevision = result.NewRevision.Value;
                 LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
@@ -950,9 +982,68 @@ public sealed class TrainingSession
             return GuidedNumberSpaceGate.Unrestricted;
         }
 
-        var additionProgression = Progression.OperationProgressions[ArithmeticOperation.Addition];
         var additionCurriculum = _curriculum.GetCurriculum(ArithmeticOperation.Addition);
-        return GuidedNumberSpaceGate.ForGuided(additionCurriculum, additionProgression.BandIndex);
+        return GuidedNumberSpaceGate.ForGuided(additionCurriculum, Progression.OperationProgressions);
+    }
+
+    public bool DeriveHasBroadWeakness()
+    {
+        var enabledOperations = GetCurrentEnabledOperations();
+        var effectiveGate = DeriveEffectiveGuidedNumberSpaceGate(enabledOperations);
+        return DeriveHasBroadWeakness(enabledOperations, effectiveGate);
+    }
+
+    private bool DeriveHasBroadWeakness(
+        IReadOnlyList<ArithmeticOperation> enabledOperations,
+        GuidedNumberSpaceGate effectiveGate)
+    {
+        var count = 0;
+        Dictionary<ArithmeticOperation, AcquisitionOwnershipResolver>? resolvers = null;
+
+        foreach (var itemState in ItemStates.Values)
+        {
+            if (!itemState.NeedsRemediation)
+            {
+                continue;
+            }
+
+            if (!enabledOperations.Contains(itemState.Operation))
+            {
+                continue;
+            }
+
+            resolvers ??= new Dictionary<ArithmeticOperation, AcquisitionOwnershipResolver>(4);
+            if (!resolvers.TryGetValue(itemState.Operation, out var ownership))
+            {
+                var curriculum = _curriculum.GetCurriculum(itemState.Operation);
+                ownership = new AcquisitionOwnershipResolver(curriculum);
+                resolvers[itemState.Operation] = ownership;
+            }
+
+            if (!Progression.OperationProgressions.TryGetValue(itemState.Operation, out var progression))
+            {
+                continue;
+            }
+
+            if (!ownership.IsEligible(itemState.FactId, progression.BandIndex))
+            {
+                continue;
+            }
+
+            var fact = new ArithmeticFact(itemState.Operation, itemState.LeftOperand, itemState.RightOperand);
+            if (!effectiveGate.Allows(fact))
+            {
+                continue;
+            }
+
+            count++;
+            if (count >= LearningPolicy.BroadWeaknessThreshold)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void AdvanceToNextFact(bool startTiming = true)
@@ -981,6 +1072,7 @@ public sealed class TrainingSession
         CurrentAnswerInput = string.Empty;
         CurrentPracticeTimeSetting = GetCurrentPracticeTimeSetting();
         var scheduledOperationOrdinal = checked(_operationAcceptedAttemptCounts[scheduledOperation] + 1);
+        var hasBroadWeakness = DeriveHasBroadWeakness(enabledOperations, effectiveGate);
         var context = new PracticeSelectionContext(
             prospectivePosition,
             SessionOrderCounter,
@@ -990,7 +1082,8 @@ public sealed class TrainingSession
             _recentAttempts.OrderBy(attempt => attempt.PracticePosition).Select(attempt => new ArithmeticFact(attempt.Operation, attempt.LeftOperand, attempt.RightOperand)),
             scheduledOperationAttemptOrdinal: scheduledOperationOrdinal,
             enabledOperations: enabledOperations,
-            guidedNumberSpaceGate: effectiveGate);
+            guidedNumberSpaceGate: effectiveGate,
+            hasBroadWeakness: hasBroadWeakness);
         CurrentFact = _selector.SelectTargetFact(context).Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
@@ -1214,6 +1307,9 @@ public sealed class TrainingSession
 
         ArgumentNullException.ThrowIfNull(snapshot.OperationAcceptedAttemptCounts);
         _operationAcceptedAttemptCounts = snapshot.OperationAcceptedAttemptCounts.ToDictionary(pair => pair.Key, pair => pair.Value);
+        PositionedCorrectAttemptCount = Math.Min(
+            AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold,
+            snapshot.PositionedCorrectAttemptCount);
     }
 
     private void ResetSessionCheckInSegment()

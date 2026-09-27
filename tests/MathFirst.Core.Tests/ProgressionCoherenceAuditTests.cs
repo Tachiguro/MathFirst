@@ -240,10 +240,11 @@ public sealed class ProgressionCoherenceAuditTests
         Assert.True(run1.Milestones.ContainsKey((ArithmeticOperation.Division, 5)));
         Assert.True(run1.Milestones.ContainsKey((ArithmeticOperation.Division, 6)));
 
-        // 3. Verify the +10 / -20 / x5 / /5 plateau occurred
-        Assert.NotNull(run1.FirstPlateauPosition);
-        Assert.NotNull(run1.LastPlateauPosition);
-        Assert.True(run1.PlateauDuration > 0);
+        // 3. Under G3 Evidence-Based Soft Decoupling, Multiplication and Division decoupled at Stage 4 (BandIndex >= 3)
+        // and advanced autonomously without entering the legacy ADR-0009 Stage-5 stagnation plateau.
+        Assert.Null(run1.FirstPlateauPosition);
+        Assert.Null(run1.LastPlateauPosition);
+        Assert.Equal(0, run1.PlateauDuration);
 
         _output.WriteLine("=== PROFILE A (STRONG LEARNER) MEASURED MILESTONES ===");
         _output.WriteLine($"Addition Stage 2 reached at global attempt:       {run1.Milestones[(ArithmeticOperation.Addition, 2)]}");
@@ -292,9 +293,11 @@ public sealed class ProgressionCoherenceAuditTests
                 return fact.CorrectResult;
             }));
 
-        Assert.NotNull(result.FirstPlateauPosition);
-        Assert.NotNull(result.LastPlateauPosition);
-        Assert.True(result.PlateauDuration > 0);
+        // Under G3 Evidence-Based Soft Decoupling, Multiplication and Division decoupled at Stage 4 (BandIndex >= 3)
+        // and progressed without the legacy ADR-0009 Stage-5 stagnation plateau.
+        Assert.Null(result.FirstPlateauPosition);
+        Assert.Null(result.LastPlateauPosition);
+        Assert.Equal(0, result.PlateauDuration);
 
         // Verify plateau eventually resolved without manual intervention
         Assert.True(result.Milestones.ContainsKey((ArithmeticOperation.Addition, 11)));
@@ -394,9 +397,10 @@ public sealed class ProgressionCoherenceAuditTests
         var addProgression = result.FinalProgression.OperationProgressions[ArithmeticOperation.Addition];
         var subProgression = result.FinalProgression.OperationProgressions[ArithmeticOperation.Subtraction];
 
-        // 1. Multiplication and Division reached Stage 5 and stayed frozen at Stage 5
-        Assert.Equal(4, mulProgression.BandIndex); // Stage 5
-        Assert.Equal(4, divProgression.BandIndex); // Stage 5
+        // 1. Under G3 Evidence-Based Soft Decoupling, Multiplication and Division decoupled at Stage 4 (BandIndex >= 3)
+        // and advanced independently past Stage 5 despite the targeted Addition weakness at Stage 8.
+        Assert.True(mulProgression.BandIndex >= 4);
+        Assert.True(divProgression.BandIndex >= 4);
 
         // 2. Subtraction continued advancing independently through dense foundation
         Assert.True(subProgression.BandIndex >= 19, $"Expected Subtraction to reach at least Stage 20, but was {subProgression.BandIndex + 1}");
@@ -404,29 +408,10 @@ public sealed class ProgressionCoherenceAuditTests
         // 3. Addition is blocked BEFORE Stage 10, specifically at Stage 8 (BandIndex 7, ADD-D08)
         Assert.Equal(7, addProgression.BandIndex); // Stage 8 (ADD-D08)
 
-        // 4. Mul/Div selector fallback roles: once in Stage 5 and eligible facts introduced,
-        // newPool is empty because mul:5*5 and div:25/5 are gated by Addition ceiling 16.
-        // Verify late attempts for Mul/Div (>= 1000) are non-new and use Due or Maintenance roles.
-        var lateMulTelemetry = result.Telemetry
-            .Where(t => t.Operation == ArithmeticOperation.Multiplication && t.PracticePosition >= 1000)
-            .ToList();
-        var lateDivTelemetry = result.Telemetry
-            .Where(t => t.Operation == ArithmeticOperation.Division && t.PracticePosition >= 1000)
-            .ToList();
-
-        Assert.NotEmpty(lateMulTelemetry);
-        Assert.NotEmpty(lateDivTelemetry);
-        Assert.DoesNotContain(lateMulTelemetry, t => t.FactId == "mul:5*5");
-        Assert.DoesNotContain(lateDivTelemetry, t => t.FactId == "div:25/5");
-        Assert.All(lateMulTelemetry, t =>
+        // 4. Verify all presented facts across the simulation respected the Guided gate
+        Assert.All(result.Telemetry, t =>
         {
-            Assert.False(t.IsNewIntroduction, "No new Multiplication facts may be introduced while 5*5 is gated.");
-            Assert.True(t.IsGateEligible, "Presented Multiplication facts must be gate-eligible.");
-        });
-        Assert.All(lateDivTelemetry, t =>
-        {
-            Assert.False(t.IsNewIntroduction, "No new Division facts may be introduced while 25/5 is gated.");
-            Assert.True(t.IsGateEligible, "Presented Division facts must be gate-eligible.");
+            Assert.True(t.IsGateEligible, $"Presented fact {t.FactId} must be gate-eligible.");
         });
 
         _output.WriteLine("=== PROFILE D (TARGETED WEAK ADDITION) AUDIT ===");
@@ -521,8 +506,7 @@ public sealed class ProgressionCoherenceAuditTests
             var opOrdinal = session.GetOperationAcceptedAttemptCount(op) + 1;
             var requestedRole = AdaptivePracticeSelector.GetRequestedRole(opOrdinal);
 
-            var addBand = session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
-            var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, addBand);
+            var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, session.Progression.OperationProgressions);
             var additionCeiling = currentGate.AdditionCeiling!.Value;
             var isGateEligible = currentGate.Allows(fact);
 

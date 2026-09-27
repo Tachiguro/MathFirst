@@ -253,10 +253,11 @@ public sealed class PracticeSequenceDiversityTests
     public void SmallPoolLiveness_ExactRelaxesWhenOnlyExactSameCandidateExists()
     {
         var band = new CurriculumBandId("ADD-D01");
-        // Pool containing only 0+9, while 0+9 was recent
+        // Pool containing only 0+9, while 0+9 was in exact cooldown (older than immediate predecessor)
         var facts = new[] { new ArithmeticFact(ArithmeticOperation.Addition, 0, 9) };
         var prev = new ArithmeticFact(ArithmeticOperation.Addition, 0, 9);
-        var recent = new[] { prev };
+        var intervening = new ArithmeticFact(ArithmeticOperation.Addition, 1, 1);
+        var recent = new[] { prev, intervening };
 
         var selected = AdaptivePracticeSelector.SelectTargetCandidate(
             facts,

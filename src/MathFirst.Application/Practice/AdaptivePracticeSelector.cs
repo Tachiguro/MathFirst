@@ -80,8 +80,11 @@ public sealed class AdaptivePracticeSelector
                 && context.GuidedNumberSpaceGate.Allows(candidate.Fact)
                 && candidate.ItemState?.NeedsRemediation == true
                 && candidate.FsrsState?.LastReviewPracticePosition is not null
-                && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + 4)
+                && context.ProspectivePracticePosition >= candidate.FsrsState.LastReviewPracticePosition.Value + (candidate.IsRepeated ? LearningPolicy.RepeatedRemediationSpacing : LearningPolicy.IsolatedRemediationSpacing))
             .ToArray();
+
+        var immediatePredecessor = context.RecentAcceptedFactsOldestToNewest.LastOrDefault();
+        var immediatePredecessorId = immediatePredecessor?.Id;
 
         var protectNewIntroduction =
             requestedRole == PracticeSelectionRole.New
@@ -93,13 +96,24 @@ public sealed class AdaptivePracticeSelector
                 .Take(TargetCandidateWindowSize)
                 .Select(candidate => candidate.Fact)
                 .ToArray();
-            return CreateTargetResult(
-                context,
-                band!,
+
+            if (TrySelectTargetCandidate(
+                remediationFacts,
+                context.RecentAcceptedFactsOldestToNewest,
                 operation,
-                requestedRole,
+                band!.Id,
                 PracticeSelectionRole.Remediation,
-                remediationFacts);
+                context.ProspectivePracticePosition,
+                out var remediationCandidate))
+            {
+                return CreateTargetResult(
+                    context,
+                    band!,
+                    operation,
+                    requestedRole,
+                    PracticeSelectionRole.Remediation,
+                    remediationCandidate);
+            }
         }
         var frontierPool = (context.CandidateIndex.HasBoundedSemanticPools
             ? context.CandidateIndex.CurrentBandMaterializedFacts
@@ -187,17 +201,62 @@ public sealed class AdaptivePracticeSelector
             [PracticeSelectionRole.EarlyReview] = earlyReviewPool
         };
 
+        if (requestedRole is PracticeSelectionRole.Due
+            or PracticeSelectionRole.Frontier
+            or PracticeSelectionRole.Maintenance)
+        {
+            var hasBlockingWork = requestedRole switch
+            {
+                PracticeSelectionRole.Due => HasAcquisitionBlockingReviewWork(duePool, context.CandidateIndex, immediatePredecessorId),
+                PracticeSelectionRole.Maintenance => HasAcquisitionBlockingReviewWork(maintenancePool, context.CandidateIndex, immediatePredecessorId),
+                PracticeSelectionRole.Frontier => HasAcquisitionBlockingReviewWork(frontierPool, context.CandidateIndex, immediatePredecessorId),
+                _ => true
+            };
+
+            if (!hasBlockingWork && newPool.Length > 0 && !context.HasBroadWeakness)
+            {
+                if (TrySelectTargetCandidate(
+                    newPool,
+                    context.RecentAcceptedFactsOldestToNewest,
+                    operation,
+                    band.Id,
+                    PracticeSelectionRole.New,
+                    context.ProspectivePracticePosition,
+                    out var newCandidate))
+                {
+                    return CreateTargetResult(
+                        context,
+                        band,
+                        operation,
+                        requestedRole,
+                        PracticeSelectionRole.New,
+                        newCandidate);
+                }
+            }
+        }
+
         foreach (var resolvedRole in GetFallbackChain(requestedRole))
         {
-            if (pools[resolvedRole].Count > 0)
+            var pool = pools[resolvedRole];
+            if (pool.Count > 0)
             {
-                return CreateTargetResult(
-                    context,
-                    band,
+                if (TrySelectTargetCandidate(
+                    pool,
+                    context.RecentAcceptedFactsOldestToNewest,
                     operation,
-                    requestedRole,
+                    band.Id,
                     resolvedRole,
-                    pools[resolvedRole]);
+                    context.ProspectivePracticePosition,
+                    out var fallbackCandidate))
+                {
+                    return CreateTargetResult(
+                        context,
+                        band,
+                        operation,
+                        requestedRole,
+                        resolvedRole,
+                        fallbackCandidate);
+                }
             }
         }
 
@@ -246,15 +305,9 @@ public sealed class AdaptivePracticeSelector
         ArithmeticOperation operation,
         PracticeSelectionRole requestedRole,
         PracticeSelectionRole resolvedRole,
-        IReadOnlyList<ArithmeticFact> semanticPool)
+        (ArithmeticFact Fact, PracticeCooldownRelaxation Relaxation) candidate)
     {
-        var (fact, relaxation) = SelectTargetCandidate(
-            semanticPool,
-            context.RecentAcceptedFactsOldestToNewest,
-            operation,
-            currentBand.Id,
-            resolvedRole,
-            context.ProspectivePracticePosition);
+        var (fact, relaxation) = candidate;
 
         if (fact.Operation != operation)
         {
@@ -303,6 +356,40 @@ public sealed class AdaptivePracticeSelector
             throw new ArgumentException("Candidate pool cannot be empty.", nameof(semanticPool));
         }
 
+        if (TrySelectTargetCandidate(
+            semanticPool,
+            recentAcceptedFactsOldestToNewest,
+            operation,
+            bandId,
+            role,
+            practicePosition,
+            out var result))
+        {
+            return result;
+        }
+
+        throw new InvalidOperationException(
+            $"No valid target practice candidate exists in the candidate pool for scheduled operation {operation} at position {practicePosition} after enforcing immediate-predecessor exclusion.");
+    }
+
+    internal static bool TrySelectTargetCandidate(
+        IReadOnlyList<ArithmeticFact> semanticPool,
+        IReadOnlyList<ArithmeticFact> recentAcceptedFactsOldestToNewest,
+        ArithmeticOperation operation,
+        CurriculumBandId? bandId,
+        PracticeSelectionRole role,
+        long practicePosition,
+        out (ArithmeticFact Fact, PracticeCooldownRelaxation Relaxation) result)
+    {
+        ArgumentNullException.ThrowIfNull(semanticPool);
+        ArgumentNullException.ThrowIfNull(recentAcceptedFactsOldestToNewest);
+
+        if (semanticPool.Count == 0)
+        {
+            result = default;
+            return false;
+        }
+
         var rankedPool = DeterministicFactRanker.Order(
             semanticPool,
             operation,
@@ -310,18 +397,33 @@ public sealed class AdaptivePracticeSelector
             role,
             practicePosition);
 
+        var immediatePredecessor = recentAcceptedFactsOldestToNewest.LastOrDefault();
+        var immediatePredecessorId = immediatePredecessor?.Id;
+
+        // Universal invariant: FactId(t + 1) != FactId(t) after every accepted fact presentation.
+        // Hard-exclude immediate predecessor from all relaxation tiers and fallbacks.
+        var poolWithoutImmediate = immediatePredecessorId is null
+            ? rankedPool
+            : rankedPool.Where(fact => !string.Equals(fact.Id, immediatePredecessorId, StringComparison.Ordinal)).ToArray();
+
+        if (poolWithoutImmediate.Count == 0)
+        {
+            result = default;
+            return false;
+        }
+
         var exactRecent = recentAcceptedFactsOldestToNewest.TakeLast(LearningPolicy.ExactFactCooldownDistance).ToArray();
         var mirrorRecent = recentAcceptedFactsOldestToNewest.TakeLast(LearningPolicy.MirrorFactCooldownDistance).ToArray();
         var recentExactIds = exactRecent.Select(fact => fact.Id).ToHashSet(StringComparer.Ordinal);
         var previousSameOpFact = recentAcceptedFactsOldestToNewest.LastOrDefault(fact => fact.Operation == operation);
         var hasAlternativeInPool = previousSameOpFact is not null
-            && semanticPool.Any(fact => fact.Id != previousSameOpFact.Id);
+            && poolWithoutImmediate.Any(fact => !string.Equals(fact.Id, previousSameOpFact.Id, StringComparison.Ordinal));
 
         // Tier 1: Exact cooldown + Commutative mirror cooldown + Same-op repeat guard + Anti-ladder
-        var exactAndMirrorFiltered = rankedPool
+        var exactAndMirrorFiltered = poolWithoutImmediate
             .Where(fact => !recentExactIds.Contains(fact.Id))
             .Where(fact => !HasRecentCommutativeMirror(fact, mirrorRecent))
-            .Where(fact => !(hasAlternativeInPool && fact.Id == previousSameOpFact!.Id))
+            .Where(fact => !(hasAlternativeInPool && string.Equals(fact.Id, previousSameOpFact!.Id, StringComparison.Ordinal)))
             .ToArray();
         if (exactAndMirrorFiltered.Length > 0)
         {
@@ -331,14 +433,16 @@ public sealed class AdaptivePracticeSelector
 
             if (nonLadder.Length > 0)
             {
-                return (nonLadder[0], PracticeCooldownRelaxation.None);
+                result = (nonLadder[0], PracticeCooldownRelaxation.None);
+                return true;
             }
 
-            return (exactAndMirrorFiltered[0], PracticeCooldownRelaxation.None);
+            result = (exactAndMirrorFiltered[0], PracticeCooldownRelaxation.None);
+            return true;
         }
 
         // Tier 2: Mirror relaxed, Exact cooldown preserved + Anti-ladder
-        var mirrorRelaxed = rankedPool
+        var mirrorRelaxed = poolWithoutImmediate
             .Where(fact => !recentExactIds.Contains(fact.Id))
             .ToArray();
         if (mirrorRelaxed.Length > 0)
@@ -349,23 +453,27 @@ public sealed class AdaptivePracticeSelector
 
             if (nonLadder.Length > 0)
             {
-                return (nonLadder[0], PracticeCooldownRelaxation.Mirror);
+                result = (nonLadder[0], PracticeCooldownRelaxation.Mirror);
+                return true;
             }
 
-            return (mirrorRelaxed[0], PracticeCooldownRelaxation.Mirror);
+            result = (mirrorRelaxed[0], PracticeCooldownRelaxation.Mirror);
+            return true;
         }
 
-        // Tier 3: Exact relaxed (entire pool available) + Anti-ladder
+        // Tier 3: Exact relaxed (pool without immediate predecessor available) + Anti-ladder
         var tier3NonLadder = previousSameOpFact is not null
-            ? rankedPool.Where(fact => !IsLadderContinuation(fact, previousSameOpFact)).ToArray()
-            : rankedPool;
+            ? poolWithoutImmediate.Where(fact => !IsLadderContinuation(fact, previousSameOpFact)).ToArray()
+            : poolWithoutImmediate;
 
         if (tier3NonLadder.Count > 0)
         {
-            return (tier3NonLadder[0], PracticeCooldownRelaxation.Exact);
+            result = (tier3NonLadder[0], PracticeCooldownRelaxation.Exact);
+            return true;
         }
 
-        return (rankedPool[0], PracticeCooldownRelaxation.Exact);
+        result = (poolWithoutImmediate[0], PracticeCooldownRelaxation.Exact);
+        return true;
     }
 
     public static bool IsLadderContinuation(ArithmeticFact candidate, ArithmeticFact previous)
@@ -411,5 +519,46 @@ public sealed class AdaptivePracticeSelector
             recent.Operation == candidate.Operation
             && recent.LeftOperand == candidate.RightOperand
             && recent.RightOperand == candidate.LeftOperand);
+    }
+
+    private static bool HasAcquisitionBlockingReviewWork(
+        IReadOnlyList<ArithmeticFact> pool,
+        PracticeCandidateIndex candidateIndex,
+        string? immediatePredecessorId)
+    {
+        return pool.Any(fact => IsAcquisitionBlockingCandidate(candidateIndex.GetCandidate(fact.Id), immediatePredecessorId));
+    }
+
+    private static bool IsAcquisitionBlockingCandidate(
+        IndexedPracticeCandidate candidate,
+        string? immediatePredecessorId)
+    {
+        if (immediatePredecessorId is not null
+            && string.Equals(candidate.Fact.Id, immediatePredecessorId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (candidate.ItemState?.NeedsRemediation == true)
+        {
+            return true;
+        }
+
+        if (candidate.FsrsState?.LastRating == FsrsRating.Again)
+        {
+            return true;
+        }
+
+        if (candidate.ItemState is not null && candidate.ItemState.TotalAttempts > 0)
+        {
+            return candidate.ItemState.ConsecutiveCorrectStreak <= 0;
+        }
+
+        if (candidate.FsrsState?.LastRating is FsrsRating.Good or FsrsRating.Easy or FsrsRating.Hard)
+        {
+            return false;
+        }
+
+        return true;
     }
 }

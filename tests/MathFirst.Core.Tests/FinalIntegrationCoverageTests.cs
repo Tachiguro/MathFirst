@@ -204,7 +204,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, new ScriptedClock());
         await session.InitializeAsync(startTiming: false);
-        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 8);
+        var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 4);
         for (var position = 1L; position < triggerPos; position++)
         {
             await SubmitFluentAndAdvanceAsync(session, position);
@@ -265,7 +265,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         var scheduledOrdinal = session.GetOperationAcceptedAttemptCount(scheduledOp) + 1;
         var gate = GuidedNumberSpaceGate.ForGuided(
             curricula[ArithmeticOperation.Addition],
-            session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+            session.Progression.OperationProgressions);
         var result = new AdaptivePracticeSelector().SelectTargetFact(new PracticeSelectionContext(
             session.Progression.PracticePosition + 1,
             session.SessionOrderCounter,

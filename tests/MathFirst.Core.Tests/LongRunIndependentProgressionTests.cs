@@ -132,7 +132,7 @@ public sealed class LongRunIndependentProgressionTests
 
         var mulAttempts = 0;
         var factorTwoReceived = false;
-        var targetPosition = GetOpPosition(ArithmeticOperation.Multiplication, 11);
+        var targetPosition = GetOpPosition(ArithmeticOperation.Multiplication, 5);
 
         for (var position = 1L; position <= targetPosition; position++)
         {
@@ -141,10 +141,10 @@ public sealed class LongRunIndependentProgressionTests
             if (isMul)
             {
                 mulAttempts++;
-                if (mulAttempts == 11)
+                if (mulAttempts == 5)
                 {
                     Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
-                    Assert.True(fact.LeftOperand == 2 || fact.RightOperand == 2, "11th multiplication attempt must introduce a factor-2 fact from MUL-D02.");
+                    Assert.True(fact.LeftOperand == 2 || fact.RightOperand == 2, "5th multiplication attempt must introduce a factor-2 fact from MUL-D02.");
                     factorTwoReceived = true;
                     break;
                 }
@@ -154,7 +154,7 @@ public sealed class LongRunIndependentProgressionTests
             var result = await session.CommitCurrentEvaluationAsync();
             Assert.True(result.IsSuccess);
 
-            if (isMul && mulAttempts == 8)
+            if (isMul && mulAttempts == 4)
             {
                 Assert.True(session.LastEvaluation!.OperationAdvanced);
                 Assert.Equal(1, session.Progression.OperationProgressions[ArithmeticOperation.Multiplication].BandIndex);
@@ -168,7 +168,7 @@ public sealed class LongRunIndependentProgressionTests
         }
 
         Assert.True(factorTwoReceived, "Learner should receive a factor-2 fact after advancing to Band 1.");
-        Assert.Equal(11, mulAttempts);
+        Assert.Equal(5, mulAttempts);
     }
 
     [Fact]

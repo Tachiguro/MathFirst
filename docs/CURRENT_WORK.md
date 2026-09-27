@@ -9,13 +9,32 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: None (no active implementation package in flight; documentation reconciliation complete)
-- **Current Lifecycle**: Inactive / Awaiting explicit dispatch
-- **Authoritative Baseline (`main` / `origin/main`)**: `f6a842b71df39b2d6facafae41874c86d6f3f611` (PR #52 merge commit: `docs: harden agent prompt governance`, following PR #51 merge commit `01472b05ef83f586144414a3cb3a0c7abbc45189`: `docs: record adaptive learning policy design` and PR #50 merge commit `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`: `feat: add Cyber Defense training MVP`)
-- **Status of Adaptive Learning Work**: The learning architecture investigation and design specification are COMPLETE and integrated into `main` via PR #51. Approved architecture decisions (Evidence-Adaptive Discovery, Absolute No-Immediate-Fact-Repetition Invariant, Tiered Weakness/Remediation, Guided Gate G3 Soft Decoupling, Pace Calibration at $\ge 24$ positioned Correct attempts, Downstream Critical Hit boundaries, and the 482-attempt strong-learner benchmark) are formalized in canonical design specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and recorded in [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md). Production implementation has NOT started.
-- **Agent Prompt Governance Hardening**: Integrated via PR #52 at `f6a842b71df39b2d6facafae41874c86d6f3f611`, establishing strict fail-closed project/task identity verification and prompt governance across `AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, and `docs/NEW_CHAT_BOOTSTRAP.md`.
-- **Cyber Defense Integration Status**: Cyber Defense MVP was completed, validated at feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`, and merged into `main` through PR #50 at merge commit `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`. Post-merge synchronization is complete; Cyber Defense is no longer an open prerequisite.
-- **Next Lifecycle Step**: Transition to `PLAN_ONLY` for package `MF-LEARN-006` (Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration) when explicitly dispatched.
+- **Active Task**: MF-LEARN-006: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration (Local implementation package complete through Slice 7; complete-package review passed with REVIEW_PASS; operational status docs reconciled; awaiting FULL_VALIDATION)
+- **Current Lifecycle**: DOCUMENT_ONLY complete (Operational status documentation reconciled) / Awaiting FULL_VALIDATION
+- **Status of Adaptive Learning Work**: The full MF-LEARN-006 implementation package is complete locally on task branch `feat/mf-learn-006-adaptive-learning-policy` through checkpoint `b51a63b3e559d35a49dcca1833c0750a72eb5f88` (10 implementation-related commits ahead of main). Complete-package `REVIEW_ONLY` passed with `REVIEW_PASS` (zero CRITICAL findings, zero IMPORTANT findings; full Debug suite: 1,772 passed, 0 failed, 0 skipped). Option-B architecture and implementation are fully aligned; Option-B selector remediation and Slice 7 verification are complete. The exact canonical strong-learner benchmark (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt exactly 482; Addition accepted attempts: exactly 121), real-SQLite restart equivalence, cold-restart next-selection determinism, and Schema V6 preservation (zero schema changes/migrations) are permanently locked under regression tests. The branch is strictly local and unpublished (no push has occurred, no PR exists, no merge has occurred).
+- **Next Lifecycle Step**: `FULL_VALIDATION — MF-LEARN-006 complete implementation package` (upon explicit user dispatch; followed if authorized by PUSH_ONLY, PR_ONLY, manual merge authorization, and POST_MERGE_SYNC_ONLY).
+
+### 1.1 MF-LEARN-006 Local Implementation Package Summary
+
+The completed package on `feat/mf-learn-006-adaptive-learning-policy` contains:
+1. **Tiered Remediation and Broad Weakness**: Differentiates isolated slips (cooldown 4) from repeated local errors (tightened cooldown 2; presentation teaching interventions preserved) and broad systemic distress ($\ge 2$ active unresolved remediation facts within operation/context, suppressing New discovery);
+2. **Evidence-Adaptive Discovery**: Review and consolidation turns are dynamically promoted to New when scheduled pools contain zero acquisition-blocking work and evidence is clean, achieving an emergent discovery ratio under the approved Option-B policy;
+3. **Absolute No-Immediate-Fact-Repetition Invariant**: Strict $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all attempt outcomes, strictly outranking anti-ladder candidate selection;
+4. **Guided Gate G3 Soft Decoupling**: Multiplication and Division softly decouple from `AdditionCeiling` once their respective `OperationProgression.BandIndex >= 3` (proving factor mastery across 0/1/2/3), restoring autonomous canonical progression without magic jumps;
+5. **Durable Pace Calibration Readiness**: Calibrated status declared at $\ge 24$ positioned Correct attempts (`PracticePosition > 0` and `Outcome == Correct`), where EasyThreshold drift drops reliably below 10%;
+6. **Critical Hit Calibration Gate**: Downstream gamification presentation contract strictly consuming learning telemetry (1 HP before calibration, 2 HP Critical Hit for fast Correct $\le \text{EasyThresholdMs}$ after calibration, 1 HP for slow Correct), with zero mutation of learning telemetry, FSRS, item states, or progression;
+7. **Option-B Architecture Reconciliation**: Reconciled and approved ADR-0010, canonical design specification, and PRODUCT.md to Option-B discovery policy;
+8. **Option-B Selector Remediation**: Implemented Option-B adaptive discovery in `AdaptivePracticeSelector`, correctly promoting clean consolidation turns without premature throttling;
+9. **Final Regression Package**: Exact 482 benchmark permanently locked (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt exactly 482, Addition accepted attempts: exactly 121), real-SQLite restart equivalence verified, cold-restart next-selection determinism verified, and Schema V6 preserved.
+
+### 1.2 Current Verified Quality State
+
+- **Complete-Package Review**: `REVIEW_PASS` (`REVIEW_ONLY` lifecycle concluded with zero CRITICAL findings and zero IMPORTANT findings).
+- **Automated Test Suite**: Full Debug suite: `1,772 passed, 0 failed, 0 skipped` (`MathFirst.Core.Tests`).
+- **Strong-Learner Benchmark**: Exact canonical benchmark `ADD-D10 -> ADD-P1-ANCHOR` achieved at global accepted attempt exactly `482`; Addition accepted attempts: exactly `121`.
+- **Restart Equivalence & Determinism**: Real-SQLite restart equivalence verified; cold-restart next-selection determinism verified.
+- **Persistence Contract**: Schema V6 preserved intact without migration, table, or column additions.
+- **Remote / Delivery Boundaries**: No remote CI has run; no PR exists; no push has occurred; nothing has been merged.
 
 ---
 
@@ -100,11 +119,13 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
   - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Authorized Downstream Project Sequence:
-1. Initiate `PLAN_ONLY` for:
-   `MF-LEARN-006: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration`
-   implementing the approved ADR-0010 design specification (`docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md`). Production implementation proceeds only after plan review and approval.
-2. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
-
+1. Execute `FULL_VALIDATION — MF-LEARN-006 complete implementation package` on task branch `feat/mf-learn-006-adaptive-learning-policy` when explicitly dispatched.
+2. Subsequent lifecycles upon separate explicit user authorization:
+   - `PUSH_ONLY`
+   - `PR_ONLY`
+   - manual merge authorization
+   - `POST_MERGE_SYNC_ONLY`
+3. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
 
 > [!IMPORTANT]
-> There is currently no active implementation package. Downstream packages or release steps must not be autonomously activated without explicit user dispatch.
+> Package `MF-LEARN-006` is implemented locally and has passed complete-package review, but remains unpublished on local task branch `feat/mf-learn-006-adaptive-learning-policy`. Downstream lifecycle steps (`FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`) or release steps must not be autonomously activated without explicit user dispatch.

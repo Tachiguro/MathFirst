@@ -419,7 +419,8 @@ public sealed class IndependentSelectorTests
         var mirrorContext = CreateSingleBandContext(posFrontier, new[] { forward, reverse }, new[] { forward });
         var mirror = new AdaptivePracticeSelector().SelectTargetFact(mirrorContext);
 
-        var exactContext = CreateSingleBandContext(posFrontier, new[] { forward }, new[] { forward });
+        var intervening = new ArithmeticFact(ArithmeticOperation.Subtraction, 0, 0);
+        var exactContext = CreateSingleBandContext(posFrontier, new[] { forward }, new[] { forward, intervening });
         var exact = new AdaptivePracticeSelector().SelectTargetFact(exactContext);
 
         var curriculum = new ArithmeticCurriculum();
@@ -430,7 +431,7 @@ public sealed class IndependentSelectorTests
             posDue,
             curriculum,
             dueMaterialized,
-            recentFacts: new[] { dueFact }));
+            recentFacts: new[] { dueFact, intervening }));
 
         Assert.Equal(reverse.Id, mirror.Fact.Id);
         Assert.Equal(PracticeCooldownRelaxation.Mirror, mirror.CooldownRelaxation);
@@ -582,7 +583,7 @@ public sealed class IndependentSelectorTests
         var curriculum = new ArithmeticCurriculum();
         var firstFact = curriculum.Addition.Bands[0].Frontier[0];
         var materialized = Materialize([firstFact]);
-        var context = CreateContext(position, curriculum, materialized);
+        var context = CreateContext(position, curriculum, materialized, hasBroadWeakness: true);
 
         var result = new AdaptivePracticeSelector().SelectTargetFact(context);
 
@@ -736,7 +737,7 @@ public sealed class IndependentSelectorTests
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [f1.Id] = state },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [f1.Id] = cardNotYet });
 
-        var contextNotYet = CreateContext(posEligible, curriculum, materializedNotYet);
+        var contextNotYet = CreateContext(posEligible, curriculum, materializedNotYet, hasBroadWeakness: true);
         var resNotYet = new AdaptivePracticeSelector().SelectTargetFact(contextNotYet);
 
         Assert.Equal(PracticeSelectionRole.Frontier, resNotYet.ResolvedRole);
@@ -760,7 +761,8 @@ public sealed class IndependentSelectorTests
             position,
             curriculum,
             EmptyMaterialized(),
-            operationProgressions: structuredProgressions);
+            operationProgressions: structuredProgressions,
+            hasBroadWeakness: true);
 
         Assert.Equal(requestedRole, AdaptivePracticeSelector.GetRequestedRole(attemptOrdinal));
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
@@ -829,14 +831,16 @@ public sealed class IndependentSelectorTests
         IEnumerable<ArithmeticFact>? recentFacts = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null,
-        long? scheduledOperationAttemptOrdinal = null) => new(
+        long? scheduledOperationAttemptOrdinal = null,
+        bool hasBroadWeakness = false) => new(
         position,
         currentSessionOrder,
         operationProgressions ?? CreateProgressions(),
         curricula ?? CreateCurricula(curriculum),
         new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
         recentFacts ?? Array.Empty<ArithmeticFact>(),
-        scheduledOperationAttemptOrdinal ?? (((position - 1) / 4) + 1));
+        scheduledOperationAttemptOrdinal ?? (((position - 1) / 4) + 1),
+        hasBroadWeakness: hasBroadWeakness);
 
     private static MaterializedState Materialize(
         IReadOnlyList<ArithmeticFact> facts,

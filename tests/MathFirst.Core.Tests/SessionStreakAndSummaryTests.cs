@@ -388,26 +388,41 @@ public sealed class SessionStreakAndSummaryTests
         Assert.Equal(1, session.CurrentCorrectStreak);
         Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: true));
 
-        // Submit wrong answers until a fact repeats and triggers TeachingIntervention
+        // Submit wrong answers on target fact until it repeats and triggers TeachingIntervention; answer other facts correctly
         var observedTeaching = false;
+        var targetFactId = session.CurrentFact.Id;
         for (var step = 0; step < 40; step++)
         {
             var fact = session.CurrentFact;
             var prevCount = session.GetConsecutiveErrorCount(fact.Id);
 
-            session.SubmitAnswer(fact.CorrectResult + 1);
+            if (fact.Id == targetFactId)
+            {
+                session.SubmitAnswer(fact.CorrectResult + 1);
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
             var persist = await session.CommitCurrentEvaluationAsync();
             Assert.True(persist.IsSuccess);
 
-            if (prevCount == 1)
+            if (prevCount == 1 && fact.Id == targetFactId)
             {
                 Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
                 observedTeaching = true;
                 break;
             }
 
-            Assert.Equal(1, session.GetConsecutiveErrorCount(fact.Id));
-            session.AdvanceToNextFact();
+            if (fact.Id == targetFactId)
+            {
+                Assert.Equal(1, session.GetConsecutiveErrorCount(fact.Id));
+                session.AdvanceToNextFact();
+            }
+            else
+            {
+                session.AdvanceAfterCorrectAnswer(startTiming: true);
+            }
         }
 
         Assert.True(observedTeaching, "Expected teaching intervention on second consecutive error.");

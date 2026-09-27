@@ -15,6 +15,7 @@ public sealed class PracticeSelectionContext
     public IReadOnlyList<ArithmeticOperation> EnabledOperations { get; }
     public long ScheduledOperationAttemptOrdinal { get; }
     public GuidedNumberSpaceGate GuidedNumberSpaceGate { get; }
+    public bool HasBroadWeakness { get; }
 
     public PracticeSelectionContext(
         long prospectivePracticePosition,
@@ -25,7 +26,8 @@ public sealed class PracticeSelectionContext
         IEnumerable<ArithmeticFact> recentAcceptedFactsOldestToNewest,
         long scheduledOperationAttemptOrdinal,
         IEnumerable<ArithmeticOperation>? enabledOperations = null,
-        GuidedNumberSpaceGate? guidedNumberSpaceGate = null)
+        GuidedNumberSpaceGate? guidedNumberSpaceGate = null,
+        bool hasBroadWeakness = false)
     {
         if (prospectivePracticePosition <= 0)
         {
@@ -94,5 +96,6 @@ public sealed class PracticeSelectionContext
         ScheduledOperationAttemptOrdinal = scheduledOperationAttemptOrdinal;
         GuidedNumberSpaceGate = guidedNumberSpaceGate
             ?? MathFirst.Domain.Curriculum.GuidedNumberSpaceGate.Unrestricted;
+        HasBroadWeakness = hasBroadWeakness;
     }
 }

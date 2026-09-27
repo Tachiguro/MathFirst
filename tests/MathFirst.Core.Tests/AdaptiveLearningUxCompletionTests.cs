@@ -393,7 +393,8 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
     public async Task G_ZeroCorrectWindow_ReportsZeroOutOf20_AndNullMedianLatency()
     {
         using var store = new SqliteLearnerStore(GetTempDbPath());
-        var session = new TrainingSession(store, new FakeClock());
+        var preferences = new SingleOperationPreferenceStore(ArithmeticOperation.Addition);
+        var session = new TrainingSession(store, new FakeClock(), preferenceStore: preferences);
         await session.InitializeAsync();
 
         for (var i = 1; i <= 20; i++)
@@ -775,4 +776,25 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
 
     private static string GetRepositoryRoot([CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
+
+    private sealed class SingleOperationPreferenceStore(ArithmeticOperation operation) : IPreferenceStore
+    {
+        public bool GetOnboardingCompleted() => true;
+        public void SetOnboardingCompleted(bool completed) { }
+        public string GetLanguagePreference() => "system";
+        public void SetLanguagePreference(string preference) { }
+        public ThemePreference GetThemePreference() => ThemePreference.System;
+        public void SetThemePreference(ThemePreference preference) { }
+        public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;
+        public void SetNumericKeypadLayout(NumericKeypadLayout layout) { }
+        public bool GetHapticFeedbackEnabled() => true;
+        public void SetHapticFeedbackEnabled(bool enabled) { }
+        public bool GetOperationEnabled(ArithmeticOperation op) => op == operation;
+        public void SetOperationEnabled(ArithmeticOperation op, bool enabled) { }
+        public IReadOnlyList<ArithmeticOperation> GetEnabledOperations() => [operation];
+        public PracticeTimeSetting GetPracticeTimeSetting() => PracticeTimeSetting.Standard;
+        public void SetPracticeTimeSetting(PracticeTimeSetting setting) { }
+        public void ResetPracticePreferences() { }
+        public void ResetAllPreferences() { }
+    }
 }

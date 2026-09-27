@@ -149,11 +149,10 @@ The canonical native strong-learner acquisition benchmark is defined as advancin
 $$\text{ADD-D10} \longrightarrow \text{ADD-P1-ANCHOR}$$
 which transitions the Guided `AdditionCeiling` from 20 to 180. There is no artificial ~100 Addition milestone.
 
-For a 100%-correct, fully fluent learner practicing in four-operation Guided Mode:
+For the canonical 100%-correct, fully fluent learner fixture practicing in four-operation Guided Mode (zero errors, zero remediation, no broad weakness):
 - Mastering the 121 unique Addition facts through ADD-D10 requires 121 successful Addition presentations;
-- With deterministic bounded permutation scheduling allocating equal turn share (25% nominal per operation), this yields an exact theoretical lower bound of **482 global accepted attempts** (accounting for deterministic permutation bag alignment).
-
-Future adaptive-selection implementations must use this benchmark as the reference standard to ensure that strong, fluent learners can progress close to this theoretical lower bound without encountering artificial review stagnation.
+- With deterministic bounded permutation scheduling allocating equal turn share (25% nominal per operation), this yields the exact theoretical lower bound of **482 global accepted attempts** (accounting for deterministic permutation bag alignment where Addition attempt #121 occurs at global position 482);
+- **Normative Fixture Benchmark**: The learning engine must realize this milestone at **exactly 482 global accepted attempts** for this canonical fixture, ensuring clean learners encounter required new material without premature review stalls.
 
 
 ### Open-Ended Arithmetic Scope and Terminal Safety
@@ -243,10 +242,10 @@ Cooldown relaxation occurs strictly inside the already selected semantic pool an
 
 ### Approved Evidence-Adaptive Discovery Policy ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
 - **Dynamic Role Promotion**: While the 10-slot cycle provides initial baseline scaffolding, review and consolidation slots (`Due`, `Maintenance`, `Frontier`) are dynamically promoted to `PracticeSelectionRole.New` whenever:
-  1. The scheduled review pool contains **zero pedagogically useful work** (no overdue cards, unmastered frontier items, or stale reviews);
+  1. The scheduled review pool contains **zero acquisition-blocking work** (no facts with non-Correct latest outcome or active remediation; clean Correct facts that are FSRS-due, unmastered by repeat-count criteria, or stale do not block New discovery while unmaterialized band material remains);
   2. The current band contains eligible unmaterialized facts;
-  3. The learner exhibits **Clean/Strong Evidence** (no active remediation and high recent accuracy).
-- **Emergent Discovery Velocity**: Discovery pressure is not governed by a hardcoded ratio (such as 90%). For a rapid, fluent learner, review slots naturally promote to New, driving acquisition velocity toward the theoretical 482-attempt lower bound. For a learner experiencing errors, review slots remain dedicated to consolidation, naturally reducing New discovery.
+  3. The learner exhibits **Clean Evidence** (absence of Broad Weakness, $\ge 2$ active unresolved remediation facts).
+- **Emergent Discovery Velocity**: Discovery pressure is not governed by a hardcoded ratio (such as 90%). For a rapid, fluent learner, review slots naturally promote to New, driving acquisition velocity to the normative 482-attempt benchmark for clean acquisition. For a learner experiencing errors, review slots remain dedicated to consolidation, naturally reducing New discovery until misconceptions are repaired.
 
 ### Approved Absolute No-Immediate-Fact-Repetition Invariant ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
 - **Universal Hard Invariant**:

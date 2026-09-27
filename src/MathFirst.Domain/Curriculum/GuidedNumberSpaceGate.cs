@@ -2,14 +2,23 @@ namespace MathFirst.Domain.Curriculum;
 
 public sealed class GuidedNumberSpaceGate
 {
-    public static GuidedNumberSpaceGate Unrestricted { get; } = new(null);
+    public const int DecouplingBandIndexThreshold = 3;
+
+    public static GuidedNumberSpaceGate Unrestricted { get; } = new(null, isMultiplicationDecoupled: false, isDivisionDecoupled: false);
 
     public bool IsActive => AdditionCeiling.HasValue;
     public int? AdditionCeiling { get; }
+    public bool IsMultiplicationDecoupled { get; }
+    public bool IsDivisionDecoupled { get; }
 
-    private GuidedNumberSpaceGate(int? additionCeiling)
+    private GuidedNumberSpaceGate(
+        int? additionCeiling,
+        bool isMultiplicationDecoupled = false,
+        bool isDivisionDecoupled = false)
     {
         AdditionCeiling = additionCeiling;
+        IsMultiplicationDecoupled = isMultiplicationDecoupled;
+        IsDivisionDecoupled = isDivisionDecoupled;
     }
 
     public static bool IsGuidedMode(IEnumerable<ArithmeticOperation>? enabledOperations)
@@ -30,7 +39,9 @@ public sealed class GuidedNumberSpaceGate
 
     public static GuidedNumberSpaceGate ForGuided(
         OperationCurriculum additionCurriculum,
-        int unlockedAdditionBandIndex)
+        int unlockedAdditionBandIndex,
+        int multiplicationBandIndex = 0,
+        int divisionBandIndex = 0)
     {
         ArgumentNullException.ThrowIfNull(additionCurriculum);
         if (additionCurriculum.Operation != ArithmeticOperation.Addition)
@@ -46,6 +57,22 @@ public sealed class GuidedNumberSpaceGate
                 nameof(unlockedAdditionBandIndex),
                 unlockedAdditionBandIndex,
                 "Unlocked Addition band index must be non-negative.");
+        }
+
+        if (multiplicationBandIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(multiplicationBandIndex),
+                multiplicationBandIndex,
+                "Multiplication band index must be non-negative.");
+        }
+
+        if (divisionBandIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(divisionBandIndex),
+                divisionBandIndex,
+                "Division band index must be non-negative.");
         }
 
         var additionCeiling = 0;
@@ -65,7 +92,42 @@ public sealed class GuidedNumberSpaceGate
             }
         }
 
-        return new GuidedNumberSpaceGate(additionCeiling);
+        var isMultiplicationDecoupled = multiplicationBandIndex >= DecouplingBandIndexThreshold;
+        var isDivisionDecoupled = divisionBandIndex >= DecouplingBandIndexThreshold;
+
+        return new GuidedNumberSpaceGate(
+            additionCeiling,
+            isMultiplicationDecoupled,
+            isDivisionDecoupled);
+    }
+
+    public static GuidedNumberSpaceGate ForGuided(
+        OperationCurriculum additionCurriculum,
+        IReadOnlyDictionary<ArithmeticOperation, OperationProgression> progressions)
+    {
+        ArgumentNullException.ThrowIfNull(additionCurriculum);
+        ArgumentNullException.ThrowIfNull(progressions);
+
+        if (!progressions.TryGetValue(ArithmeticOperation.Addition, out var additionProgression))
+        {
+            throw new ArgumentException(
+                "Operation progressions must contain Addition progression.",
+                nameof(progressions));
+        }
+
+        var multiplicationBandIndex = progressions.TryGetValue(ArithmeticOperation.Multiplication, out var mulProgression)
+            ? mulProgression.BandIndex
+            : 0;
+
+        var divisionBandIndex = progressions.TryGetValue(ArithmeticOperation.Division, out var divProgression)
+            ? divProgression.BandIndex
+            : 0;
+
+        return ForGuided(
+            additionCurriculum,
+            additionProgression.BandIndex,
+            multiplicationBandIndex,
+            divisionBandIndex);
     }
 
     public bool Allows(ArithmeticFact fact)
@@ -88,8 +150,8 @@ public sealed class GuidedNumberSpaceGate
         {
             ArithmeticOperation.Addition => true,
             ArithmeticOperation.Subtraction => true,
-            ArithmeticOperation.Multiplication => fact.CorrectResult <= AdditionCeiling!.Value,
-            ArithmeticOperation.Division => fact.LeftOperand <= AdditionCeiling!.Value,
+            ArithmeticOperation.Multiplication => IsMultiplicationDecoupled || fact.CorrectResult <= AdditionCeiling!.Value,
+            ArithmeticOperation.Division => IsDivisionDecoupled || fact.LeftOperand <= AdditionCeiling!.Value,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(fact),
                 fact.Operation,
