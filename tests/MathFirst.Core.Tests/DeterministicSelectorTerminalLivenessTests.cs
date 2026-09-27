@@ -643,14 +643,15 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         Assert.Equal(fMirror.Id, mirrorResult.Fact.Id);
         Assert.Equal(PracticeCooldownRelaxation.Mirror, mirrorResult.CooldownRelaxation);
 
-        // Case 2: Pool has only fForward. Recent has fForward.
+        // Case 2: Pool has only fForward. Recent has fForward in exact cooldown behind an intervening fact.
+        var fIntervening = new ArithmeticFact(ArithmeticOperation.Subtraction, 0, 0);
         var singleMat = new MaterializedState(
             [fForward],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fForward.Id] = states[fForward.Id] },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fForward.Id] = cards[fForward.Id] });
         var exactContext = CreateContext(
             pos13, curriculum, singleMat,
-            recentFacts: [fForward],
+            recentFacts: [fForward, fIntervening],
             operationProgressions: progressions,
             curricula: curricula);
         var exactResult = new AdaptivePracticeSelector().SelectTargetFact(exactContext);

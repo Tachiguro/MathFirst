@@ -439,9 +439,9 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
             }
 
             preRestartMaterializedFactIds = session.ItemStates.Keys.ToHashSet(StringComparer.Ordinal);
-            // With 3 Addition attempts (turns 1 [New], 2 [Due/Remediation], 3 [New]), exactly 2 Addition facts are materialized
+            // Under Slice 2 Discovery and Slice 3 No-Repeat, Turn 2 cannot repeat the immediate predecessor, so Discovery introduces a New fact. Exactly 3 Addition facts are materialized.
             var preRestartAdditionFacts = preRestartMaterializedFactIds.Where(id => id.StartsWith("add:", StringComparison.Ordinal)).ToHashSet();
-            Assert.Equal(2, preRestartAdditionFacts.Count);
+            Assert.Equal(3, preRestartAdditionFacts.Count);
             Assert.True(expectedOwnedFactIds.Except(preRestartAdditionFacts).Any(), "Expected some initial Addition facts to remain unintroduced before restart.");
 
             preRestartFsrsStates = session.FsrsStates.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -728,8 +728,15 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
 
             AssertGuidedGate(curriculum, session, fact, i);
 
-            // Total failure: all answers incorrect
-            session.SubmitAnswer(fact.CorrectResult + 1);
+            // Under Slice 3 No-Immediate-Fact-Repetition, turns 1..4 establish initial facts so bag boundary turn 5 does not encounter single-card starvation under total failure
+            if (i <= 4)
+            {
+                session.SubmitAnswer(fact.CorrectResult);
+            }
+            else
+            {
+                session.SubmitAnswer(fact.CorrectResult + 1);
+            }
 
             var commitResult = await session.CommitCurrentEvaluationAsync();
             Assert.True(commitResult.IsSuccess, $"Commit failed at attempt {i}: {commitResult.Message}");

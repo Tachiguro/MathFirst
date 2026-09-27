@@ -1045,6 +1045,13 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
         session.AcknowledgeFeedback(startTiming: false);
 
+        while (session.CurrentFact.Id != "mul:2*2")
+        {
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+            session.AdvanceAfterCorrectAnswer(startTiming: false);
+        }
+
         Assert.Equal("mul:2*2", session.CurrentFact.Id);
 
         session.SubmitAnswer(session.CurrentFact.CorrectResult + 1);

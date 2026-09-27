@@ -121,8 +121,8 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        // Let's run until a fact is seen a second time with errors
-        var errorCounts = new Dictionary<string, int>();
+        // Let's run until a target fact is seen a second time with errors
+        var targetFactId = session.CurrentFact.Id;
         var observedTeaching = false;
 
         for (var step = 0; step < 40; step++)
@@ -130,29 +130,41 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
             var fact = session.CurrentFact;
             var prevCount = session.GetConsecutiveErrorCount(fact.Id);
 
-            if (step % 2 == 0)
+            if (fact.Id == targetFactId)
             {
-                session.SubmitAnswer(fact.CorrectResult + 1); // Incorrect
+                if (step % 2 == 0)
+                {
+                    session.SubmitAnswer(fact.CorrectResult + 1); // Incorrect
+                }
+                else
+                {
+                    session.RecordTimeout(); // Timeout
+                }
             }
             else
             {
-                session.RecordTimeout(); // Timeout
+                session.SubmitAnswer(fact.CorrectResult);
             }
 
             var persist = await session.CommitCurrentEvaluationAsync();
             Assert.True(persist.IsSuccess);
 
-            if (prevCount == 1)
+            if (prevCount == 1 && fact.Id == targetFactId)
             {
                 Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
                 Assert.Equal(0, session.GetConsecutiveErrorCount(fact.Id));
                 observedTeaching = true;
                 break;
             }
-            else
+
+            if (fact.Id == targetFactId)
             {
                 Assert.Equal(1, session.GetConsecutiveErrorCount(fact.Id));
                 session.AdvanceToNextFact();
+            }
+            else
+            {
+                session.AdvanceAfterCorrectAnswer();
             }
         }
 
@@ -247,15 +259,23 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         await session.InitializeAsync();
 
         var teachingCount = 0;
+        var targetFactId = session.CurrentFact.Id;
 
         for (var step = 0; step < 80; step++)
         {
             var f = session.CurrentFact;
             var prev = session.GetConsecutiveErrorCount(f.Id);
-            session.SubmitAnswer(f.CorrectResult + 1);
+            if (f.Id == targetFactId)
+            {
+                session.SubmitAnswer(f.CorrectResult + 1);
+            }
+            else
+            {
+                session.SubmitAnswer(f.CorrectResult);
+            }
             await session.CommitCurrentEvaluationAsync();
 
-            if (prev == 1)
+            if (prev == 1 && f.Id == targetFactId)
             {
                 Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
                 Assert.Equal(0, session.GetConsecutiveErrorCount(f.Id));
@@ -272,9 +292,16 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
             }
             else
             {
-                Assert.Equal(1, session.GetConsecutiveErrorCount(f.Id));
-                Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
-                session.AdvanceToNextFact();
+                if (f.Id == targetFactId)
+                {
+                    Assert.Equal(1, session.GetConsecutiveErrorCount(f.Id));
+                    Assert.Equal(SessionInteractionState.IncorrectFeedback, session.InteractionState);
+                    session.AdvanceToNextFact();
+                }
+                else
+                {
+                    session.AdvanceAfterCorrectAnswer();
+                }
             }
         }
 
@@ -366,16 +393,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         await session.InitializeAsync();
 
         // Trigger teaching
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         var snapshotBefore = await store.LoadSnapshotAsync();
         var attemptsBefore = snapshotBefore.RecentAttempts.Count;
@@ -395,16 +413,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         var posBefore = session.Progression.PracticePosition;
         session.AcknowledgeTeachingIntervention();
@@ -420,16 +429,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         var snapshotBefore = await store.LoadSnapshotAsync();
         var revisionBefore = session.Progression.StoreRevision;
@@ -453,16 +453,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         var correctBefore = session.SessionCorrectCount;
         var totalBefore = session.SessionTotalCount;
@@ -480,16 +471,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
         Assert.False(session.IsTimingActive);
@@ -506,16 +488,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
 
@@ -531,16 +504,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         var currentPos = session.Progression.PracticePosition;
         session.AcknowledgeTeachingIntervention();
@@ -584,16 +548,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
             var session = new TrainingSession(store, new FakeClock());
             await session.InitializeAsync();
 
-            while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                var f = session.CurrentFact;
-                session.SubmitAnswer(f.CorrectResult + 1);
-                await session.CommitCurrentEvaluationAsync();
-                if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-                {
-                    session.AdvanceToNextFact();
-                }
-            }
+            await ReachTeachingInterventionAsync(session);
 
             Assert.Equal(SessionInteractionState.TeachingIntervention, session.InteractionState);
         }
@@ -639,16 +594,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        await ReachTeachingInterventionAsync(session);
 
         var pos1 = session.Progression.PracticePosition;
         var r1 = session.AcknowledgeTeachingIntervention();
@@ -680,21 +626,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         var session = new TrainingSession(store, new FakeClock());
         await session.InitializeAsync();
 
-        string? taughtFactId = null;
-        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
-        {
-            var f = session.CurrentFact;
-            session.SubmitAnswer(f.CorrectResult + 1);
-            await session.CommitCurrentEvaluationAsync();
-            if (session.InteractionState == SessionInteractionState.TeachingIntervention)
-            {
-                taughtFactId = f.Id;
-            }
-            else
-            {
-                session.AdvanceToNextFact();
-            }
-        }
+        var taughtFactId = await ReachTeachingInterventionAsync(session);
 
         Assert.NotNull(taughtFactId);
         Assert.True(session.ItemStates[taughtFactId].NeedsRemediation);
@@ -706,5 +638,42 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         // And in durable store:
         var snapshot = await store.LoadSnapshotAsync();
         Assert.True(snapshot.ItemStates[taughtFactId].NeedsRemediation);
+    }
+
+    private static async Task<string> ReachTeachingInterventionAsync(TrainingSession session)
+    {
+        var targetFactId = session.CurrentFact.Id;
+        while (session.InteractionState != SessionInteractionState.TeachingIntervention)
+        {
+            var f = session.CurrentFact;
+            if (f.Id == targetFactId)
+            {
+                session.SubmitAnswer(f.CorrectResult + 1);
+            }
+            else
+            {
+                session.SubmitAnswer(f.CorrectResult);
+            }
+
+            var persist = await session.CommitCurrentEvaluationAsync();
+            if (!persist.IsSuccess)
+            {
+                throw new InvalidOperationException($"Commit failed: {persist.Message}");
+            }
+
+            if (session.InteractionState != SessionInteractionState.TeachingIntervention)
+            {
+                if (session.InteractionState == SessionInteractionState.IncorrectFeedback)
+                {
+                    session.AdvanceToNextFact();
+                }
+                else
+                {
+                    session.AdvanceAfterCorrectAnswer();
+                }
+            }
+        }
+
+        return targetFactId;
     }
 }

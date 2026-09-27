@@ -419,7 +419,8 @@ public sealed class IndependentSelectorTests
         var mirrorContext = CreateSingleBandContext(posFrontier, new[] { forward, reverse }, new[] { forward });
         var mirror = new AdaptivePracticeSelector().SelectTargetFact(mirrorContext);
 
-        var exactContext = CreateSingleBandContext(posFrontier, new[] { forward }, new[] { forward });
+        var intervening = new ArithmeticFact(ArithmeticOperation.Subtraction, 0, 0);
+        var exactContext = CreateSingleBandContext(posFrontier, new[] { forward }, new[] { forward, intervening });
         var exact = new AdaptivePracticeSelector().SelectTargetFact(exactContext);
 
         var curriculum = new ArithmeticCurriculum();
@@ -430,7 +431,7 @@ public sealed class IndependentSelectorTests
             posDue,
             curriculum,
             dueMaterialized,
-            recentFacts: new[] { dueFact }));
+            recentFacts: new[] { dueFact, intervening }));
 
         Assert.Equal(reverse.Id, mirror.Fact.Id);
         Assert.Equal(PracticeCooldownRelaxation.Mirror, mirror.CooldownRelaxation);
