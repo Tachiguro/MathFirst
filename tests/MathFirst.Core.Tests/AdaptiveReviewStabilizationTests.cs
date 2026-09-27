@@ -173,7 +173,8 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         for (var ordinal = 1L; ordinal <= 20; ordinal++)
         {
             var pos = GetOpPosition(ArithmeticOperation.Addition, ordinal);
-            var context = CreateContext(pos, curriculum, Materialize(allMaterialized), scheduledOperationAttemptOrdinal: ordinal, operationProgressions: band4Progressions);
+            // Under broad weakness (or non-discovery state), non-New review turns do not promote to New, preserving the bounded cadence.
+            var context = CreateContext(pos, curriculum, Materialize(allMaterialized), scheduledOperationAttemptOrdinal: ordinal, operationProgressions: band4Progressions, hasBroadWeakness: true);
             var result = selector.SelectTargetFact(context);
 
             var unseenCount = band4.Frontier.Count(f => !allMaterialized.Any(m => m.Id == f.Id));
@@ -286,10 +287,10 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         Assert.Equal(PracticeSelectionRole.New, res1.ResolvedRole);
         Assert.True(res1.IsNewIntroduction);
 
-        // Ordinal 2 requests Due -> with res1 materialized, falls back to Frontier consolidation
+        // Ordinal 2 requests Due -> with res1 materialized and broad weakness active, falls back to Frontier consolidation
         var pos2 = GetOpPosition(ArithmeticOperation.Addition, 2);
         var mat1 = Materialize([res1.Fact]);
-        var ctx2 = CreateContext(pos2, curriculum, mat1, scheduledOperationAttemptOrdinal: 2, operationProgressions: structuredProgressions);
+        var ctx2 = CreateContext(pos2, curriculum, mat1, scheduledOperationAttemptOrdinal: 2, operationProgressions: structuredProgressions, hasBroadWeakness: true);
         var res2 = selector.SelectTargetFact(ctx2);
 
         Assert.Equal(PracticeSelectionRole.Due, res2.RequestedRole);
@@ -341,10 +342,10 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         Assert.All(Enum.GetValues<ArithmeticOperation>(), op =>
             Assert.True(session.Progression.OperationProgressions[op].BandIndex >= 1));
 
-        // Over 80 turns (20 per op), bounded New produces at most 8 New slots per op (32 max).
-        // Materialized review/consolidation is interleaved periodically across the run.
+        // Under ADR-0010 Evidence-Adaptive Discovery, strong learners promote empty review slots to New,
+        // increasing acquisition speed while still interleaving review/consolidation periodically across the run.
         Assert.True(newIntroductions >= 20, $"Expected >= 20 new introductions, got {newIntroductions}");
-        Assert.True(reviewAttempts >= 40, $"Expected >= 40 review attempts, got {reviewAttempts}");
+        Assert.True(reviewAttempts >= 30, $"Expected >= 30 review attempts, got {reviewAttempts}");
         Assert.Equal(80, newIntroductions + reviewAttempts);
     }
 
@@ -369,14 +370,16 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
         long scheduledOperationAttemptOrdinal,
         int currentSessionOrder = 0,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
-        IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null) => new(
+        IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null,
+        bool hasBroadWeakness = false) => new(
         position,
         currentSessionOrder,
         operationProgressions ?? CreateProgressions(),
         curricula ?? CreateCurricula(curriculum),
         new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
         Array.Empty<ArithmeticFact>(),
-        scheduledOperationAttemptOrdinal);
+        scheduledOperationAttemptOrdinal,
+        hasBroadWeakness: hasBroadWeakness);
 
     private static IReadOnlyDictionary<ArithmeticOperation, OperationProgression> CreateProgressions(
         params (ArithmeticOperation Operation, int BandIndex)[] overrides)

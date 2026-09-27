@@ -85,15 +85,15 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         Assert.False(newResult.IsMaterialized);
         Assert.True(newResult.IsNewIntroduction);
 
-        // 2. Non-New role with empty pools on structured band -> fails closed, never materializes
+        // 2. Non-New role with empty pools on structured band and broad weakness -> fails closed, never materializes
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
-        var dueContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 2), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var dueContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 2), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(dueContext));
 
-        var maintenanceContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 4), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var maintenanceContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 4), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(maintenanceContext));
 
-        var frontierContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 5), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var frontierContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 5), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
         Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(frontierContext));
 
         // 3. Requested New fallback (e.g. all new materialized, falls back to Frontier/Due/EarlyReview) -> never isNewIntroduction
@@ -128,7 +128,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact0.Id] = itemState },
             new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact0.Id] = fsrsState });
 
-        var context = CreateContext(pos13, curriculum, materialized, operationProgressions: progressions, curricula: curricula);
+        var context = CreateContext(pos13, curriculum, materialized, operationProgressions: progressions, curricula: curricula, hasBroadWeakness: true);
 
         // Must throw because no eligible semantic pool exists; must NOT fall back to AnyMaterialized!
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
@@ -910,7 +910,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         var curriculum = new ArithmeticCurriculum();
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
         var pos5 = GetOpPosition(ArithmeticOperation.Addition, 2);
-        var context = CreateContext(pos5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions);
+        var context = CreateContext(pos5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
 
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
         Assert.Contains("Addition", ex.Message);
@@ -1079,14 +1079,16 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         IEnumerable<ArithmeticFact>? recentFacts = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
         IReadOnlyDictionary<ArithmeticOperation, OperationCurriculum>? curricula = null,
-        long? scheduledOperationAttemptOrdinal = null) => new(
+        long? scheduledOperationAttemptOrdinal = null,
+        bool hasBroadWeakness = false) => new(
         position,
         currentSessionOrder,
         operationProgressions ?? CreateProgressions(),
         curricula ?? CreateCurricula(curriculum),
         new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
         recentFacts ?? Array.Empty<ArithmeticFact>(),
-        scheduledOperationAttemptOrdinal ?? (((position - 1) / 4) + 1));
+        scheduledOperationAttemptOrdinal ?? (((position - 1) / 4) + 1),
+        hasBroadWeakness: hasBroadWeakness);
 
     private static MaterializedState Materialize(
         IEnumerable<ArithmeticFact> facts,

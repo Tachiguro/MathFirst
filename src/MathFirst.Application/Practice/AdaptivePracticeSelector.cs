@@ -187,6 +187,30 @@ public sealed class AdaptivePracticeSelector
             [PracticeSelectionRole.EarlyReview] = earlyReviewPool
         };
 
+        if (requestedRole is PracticeSelectionRole.Due
+            or PracticeSelectionRole.Frontier
+            or PracticeSelectionRole.Maintenance)
+        {
+            var hasUsefulWork = requestedRole switch
+            {
+                PracticeSelectionRole.Due => duePool.Length > 0,
+                PracticeSelectionRole.Maintenance => maintenancePool.Length > 0,
+                PracticeSelectionRole.Frontier => frontierPool.Any(fact => context.CandidateIndex.GetCandidate(fact.Id).ItemState?.IsProvisionallyMastered != true),
+                _ => true
+            };
+
+            if (!hasUsefulWork && newPool.Length > 0 && !context.HasBroadWeakness)
+            {
+                return CreateTargetResult(
+                    context,
+                    band,
+                    operation,
+                    requestedRole,
+                    PracticeSelectionRole.New,
+                    newPool);
+            }
+        }
+
         foreach (var resolvedRole in GetFallbackChain(requestedRole))
         {
             if (pools[resolvedRole].Count > 0)
