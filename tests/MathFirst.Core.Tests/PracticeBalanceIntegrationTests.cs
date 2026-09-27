@@ -78,21 +78,11 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
             var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
             tracker.Record(op, fact.Id, opTurn);
 
-            // Invariant check: Guided Number Space Gate ceiling
-            var currentAddBand = session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
-            var currentCeiling = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, currentAddBand).AdditionCeiling!.Value;
-            if (op == ArithmeticOperation.Multiplication)
-            {
-                Assert.True(
-                    fact.CorrectResult <= currentCeiling,
-                    $"Multiplication fact {fact.Id} (result {fact.CorrectResult}) exceeded Addition ceiling {currentCeiling} at attempt {i}.");
-            }
-            else if (op == ArithmeticOperation.Division)
-            {
-                Assert.True(
-                    fact.LeftOperand <= currentCeiling,
-                    $"Division fact {fact.Id} (dividend {fact.LeftOperand}) exceeded Addition ceiling {currentCeiling} at attempt {i}.");
-            }
+            // Invariant check: Guided Number Space Gate compliance
+            var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, session.Progression.OperationProgressions);
+            Assert.True(
+                currentGate.Allows(fact),
+                $"{fact.Operation} fact {fact.Id} is not allowed by Guided gate at attempt {i}.");
 
             // Learner behavior: Addition always incorrect, all others correct
             if (op == ArithmeticOperation.Addition)
@@ -203,21 +193,11 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
             var opTurn = (int)session.GetOperationAcceptedAttemptCount(op) + 1;
             tracker.Record(op, fact.Id, opTurn);
 
-            // Invariant check: Guided Number Space Gate ceiling
-            var currentAddBand = session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
-            var currentCeiling = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, currentAddBand).AdditionCeiling!.Value;
-            if (op == ArithmeticOperation.Multiplication)
-            {
-                Assert.True(
-                    fact.CorrectResult <= currentCeiling,
-                    $"Multiplication fact {fact.Id} (result {fact.CorrectResult}) exceeded Addition ceiling {currentCeiling} at attempt {i}.");
-            }
-            else if (op == ArithmeticOperation.Division)
-            {
-                Assert.True(
-                    fact.LeftOperand <= currentCeiling,
-                    $"Division fact {fact.Id} (dividend {fact.LeftOperand}) exceeded Addition ceiling {currentCeiling} at attempt {i}.");
-            }
+            // Invariant check: Guided Number Space Gate compliance
+            var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, session.Progression.OperationProgressions);
+            Assert.True(
+                currentGate.Allows(fact),
+                $"{fact.Operation} fact {fact.Id} is not allowed by Guided gate at attempt {i}.");
 
             // Learner behavior: Multiplication always incorrect, all others correct
             if (op == ArithmeticOperation.Multiplication)
@@ -497,20 +477,11 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
             continuationTracker.Record(op, fact.Id, opTurn);
 
             // Invariant check: Guided Number Space Gate ceiling
-            var currentAddBand = restartedSession.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
-            var currentCeiling = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, currentAddBand).AdditionCeiling!.Value;
-            if (op == ArithmeticOperation.Multiplication)
-            {
-                Assert.True(
-                    fact.CorrectResult <= currentCeiling,
-                    $"Continuation Multiplication fact {fact.Id} (result {fact.CorrectResult}) exceeded Addition ceiling {currentCeiling} at attempt {i}.");
-            }
-            else if (op == ArithmeticOperation.Division)
-            {
-                Assert.True(
-                    fact.LeftOperand <= currentCeiling,
-                    $"Continuation Division fact {fact.Id} (dividend {fact.LeftOperand}) exceeded Addition ceiling {currentCeiling} at attempt {i}.");
-            }
+            // Invariant check: Guided Number Space Gate compliance
+            var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, restartedSession.Progression.OperationProgressions);
+            Assert.True(
+                currentGate.Allows(fact),
+                $"{fact.Operation} fact {fact.Id} is not allowed by Guided gate at attempt {i}.");
 
             if (op == ArithmeticOperation.Addition)
             {
@@ -1066,22 +1037,10 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         ArithmeticFact fact,
         int attemptOrdinal)
     {
-        var currentAddBand = session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex;
-        var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, currentAddBand);
-        var ceiling = currentGate.AdditionCeiling!.Value;
-
-        if (fact.Operation == ArithmeticOperation.Multiplication)
-        {
-            Assert.True(
-                fact.CorrectResult <= ceiling,
-                $"Multiplication fact {fact.Id} (result {fact.CorrectResult}) exceeded Addition ceiling {ceiling} at attempt {attemptOrdinal}.");
-        }
-        else if (fact.Operation == ArithmeticOperation.Division)
-        {
-            Assert.True(
-                fact.LeftOperand <= ceiling,
-                $"Division fact {fact.Id} (dividend {fact.LeftOperand}) exceeded Addition ceiling {ceiling} at attempt {attemptOrdinal}.");
-        }
+        var currentGate = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, session.Progression.OperationProgressions);
+        Assert.True(
+            currentGate.Allows(fact),
+            $"{fact.Operation} fact {fact.Id} is not allowed by Guided gate at attempt {attemptOrdinal}.");
     }
 
     private static HashSet<string> GetExpectedInitialEligibleFactIds(

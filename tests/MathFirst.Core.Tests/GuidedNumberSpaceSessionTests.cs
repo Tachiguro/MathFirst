@@ -1180,6 +1180,392 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
     }
 
     // ===========================================================================
+    // Slice 4: G3 Evidence-Based Soft Decoupling Tests
+    // ===========================================================================
+
+    [Fact]
+    public async Task GuidedSession_MultiplicationAdvancesToBand3_HigherCanonicalFactsBecomeImmediatelyEligible()
+    {
+        var dbPath = GetDatabasePath("guided-session-mul-advances-to-band3");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Addition Band 0 (ceiling = 2), Multiplication Band 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 2);
+        await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
+        await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
+
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        // Position 1 in All-Four is Multiplication.
+        // At Band 2 with Addition ceiling = 2, product CANNOT exceed 2.
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.True(session.CurrentFact.CorrectResult <= 2);
+
+        // Advance Multiplication to Band 3 in both database and session progression without restart
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 3);
+        session.Progression.OperationProgressions[ArithmeticOperation.Multiplication] =
+            new OperationProgression(ArithmeticOperation.Multiplication, 3, 0);
+
+        // Complete current turn and loop until Multiplication is scheduled again
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        do
+        {
+            await session.AdvanceToNextFactAsync(startTiming: false);
+            if (session.CurrentFact.Operation == ArithmeticOperation.Multiplication)
+            {
+                break;
+            }
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+        } while (true);
+
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        // Multiplication is now decoupled! Higher canonical facts (product > 2) are immediately eligible and selected!
+        Assert.True(
+            session.CurrentFact.CorrectResult > 2,
+            $"Expected decoupled Multiplication fact with product > 2, but got {session.CurrentFact.Id} with product {session.CurrentFact.CorrectResult}");
+    }
+
+    [Fact]
+    public async Task GuidedSession_DivisionAdvancesToBand3_HigherCanonicalFactsBecomeImmediatelyEligible()
+    {
+        var dbPath = GetDatabasePath("guided-session-div-advances-to-band3");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Addition Band 0 (ceiling = 2), Division Band 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 2);
+        await MaterializeDivisionLowFactsAsync(dbPath);
+
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        // Advance to first Division fact
+        while (session.CurrentFact.Operation != ArithmeticOperation.Division)
+        {
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+            await session.AdvanceToNextFactAsync(startTiming: false);
+        }
+
+        // At Band 2 with Addition ceiling = 2, dividend CANNOT exceed 2
+        Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
+        Assert.True(session.CurrentFact.LeftOperand <= 2);
+
+        // Advance Division to Band 3 in both database and session progression without restart
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 3);
+        session.Progression.OperationProgressions[ArithmeticOperation.Division] =
+            new OperationProgression(ArithmeticOperation.Division, 3, 0);
+
+        // Complete current turn and loop until Division is scheduled again
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        do
+        {
+            await session.AdvanceToNextFactAsync(startTiming: false);
+            if (session.CurrentFact.Operation == ArithmeticOperation.Division)
+            {
+                break;
+            }
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+        } while (true);
+
+        Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
+        // Division is now decoupled! Higher canonical facts (dividend > 2) are immediately eligible and selected!
+        Assert.True(
+            session.CurrentFact.LeftOperand > 2,
+            $"Expected decoupled Division fact with dividend > 2, but got {session.CurrentFact.Id} with dividend {session.CurrentFact.LeftOperand}");
+    }
+
+    [Fact]
+    public async Task GuidedSession_MultiplicationBand2To3_InvalidatesSelectionEvidenceGateIdentity()
+    {
+        var dbPath = GetDatabasePath("cache-identity-mul-band-change");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Addition Band 0 (ceiling = 2), Multiplication Band 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 2);
+        await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
+        await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
+
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        // Position 1 is Multiplication, cached under coupled gate identity
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.True(session.CurrentFact.CorrectResult <= 2);
+
+        // Cross Band 2 -> Band 3 while AdditionCeiling remains 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 3);
+        session.Progression.OperationProgressions[ArithmeticOperation.Multiplication] =
+            new OperationProgression(ArithmeticOperation.Multiplication, 3, 0);
+
+        // EnsureScheduledEvidenceAsync must detect the gate identity change (Coupled -> Decoupled) and invalidate cache
+        await session.EnsureScheduledEvidenceAsync();
+
+        // Answer and advance to next turn which uses the freshly reloaded evidence
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        do
+        {
+            await session.AdvanceToNextFactAsync(startTiming: false);
+            if (session.CurrentFact.Operation == ArithmeticOperation.Multiplication)
+            {
+                break;
+            }
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+        } while (true);
+
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+        Assert.True(
+            session.CurrentFact.CorrectResult > 2,
+            $"Expected decoupled Multiplication fact product > 2 after cache invalidation, but got {session.CurrentFact.Id} (product = {session.CurrentFact.CorrectResult})");
+    }
+
+    [Fact]
+    public async Task GuidedSession_DivisionBand2To3_InvalidatesSelectionEvidenceGateIdentity()
+    {
+        var dbPath = GetDatabasePath("cache-identity-div-band-change");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Addition Band 0 (ceiling = 2), Division Band 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 2);
+        await MaterializeDivisionLowFactsAsync(dbPath);
+
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        // Advance to Division
+        while (session.CurrentFact.Operation != ArithmeticOperation.Division)
+        {
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+            await session.AdvanceToNextFactAsync(startTiming: false);
+        }
+
+        Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
+        Assert.True(session.CurrentFact.LeftOperand <= 2);
+
+        // Cross Division Band 2 -> Band 3 while AdditionCeiling remains 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 3);
+        session.Progression.OperationProgressions[ArithmeticOperation.Division] =
+            new OperationProgression(ArithmeticOperation.Division, 3, 0);
+
+        // EnsureScheduledEvidenceAsync must detect gate identity change (Coupled -> Decoupled) and invalidate cache
+        await session.EnsureScheduledEvidenceAsync();
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        do
+        {
+            await session.AdvanceToNextFactAsync(startTiming: false);
+            if (session.CurrentFact.Operation == ArithmeticOperation.Division)
+            {
+                break;
+            }
+            session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+        } while (true);
+
+        Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
+        Assert.True(
+            session.CurrentFact.LeftOperand > 2,
+            $"Expected decoupled Division fact dividend > 2 after cache invalidation, but got {session.CurrentFact.Id} (dividend = {session.CurrentFact.LeftOperand})");
+    }
+
+    [Fact]
+    public async Task GuidedSession_MultiplicationDecoupling_DoesNotInvalidateDivisionEvidence()
+    {
+        var dbPath = GetDatabasePath("cache-identity-mul-div-independence");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Addition Band 0 (ceiling = 2), MUL Band 2, DIV Band 2
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 2);
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 2);
+        await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
+        await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
+        await MaterializeDivisionLowFactsAsync(dbPath);
+
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        await session.InitializeAsync(startTiming: false);
+
+        Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+
+        // MUL advances to Band 3, but DIV remains at Band 2 and Addition remains at Band 0
+        await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 3);
+        session.Progression.OperationProgressions[ArithmeticOperation.Multiplication] =
+            new OperationProgression(ArithmeticOperation.Multiplication, 3, 0);
+
+        for (var step = 0; step < 8; step++)
+        {
+            var fact = session.CurrentFact;
+            if (fact.Operation == ArithmeticOperation.Division)
+            {
+                Assert.True(
+                    fact.LeftOperand <= 2,
+                    $"Division must remain gated at ceiling 2 while DIV < Band 3, but got {fact.Id} (dividend = {fact.LeftOperand})");
+            }
+
+            session.SubmitAnswer(fact.CorrectResult);
+            Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+            await session.AdvanceToNextFactAsync(startTiming: false);
+        }
+    }
+
+    [Fact]
+    public async Task GuidedRestart_MultiplicationBand3_ReconstructsDecoupledStateFromProgression()
+    {
+        var dbPath = GetDatabasePath("restart-mul-band3-decoupled");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        // 1. Initial run: persist Multiplication at Band 3, Addition at Band 0 (ceiling = 2)
+        using (var store = new SqliteLearnerStore(dbPath))
+        {
+            await store.InitializeAsync();
+            await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+            await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 3);
+            await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
+            await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
+            await MaterializeMultiplicationBand3LowFactsAsync(dbPath);
+        }
+
+        // 2. Recreate store and session after restart
+        using (var store2 = new SqliteLearnerStore(dbPath))
+        {
+            await store2.InitializeAsync();
+            var session = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+            Assert.True(
+                session.CurrentFact.CorrectResult > 2,
+                $"Expected Multiplication to immediately decouple on restart at Band 3, but got {session.CurrentFact.Id} (product = {session.CurrentFact.CorrectResult})");
+        }
+
+        // 3. Contrast with Band 2 restart: must remain coupled
+        var dbPathBand2 = GetDatabasePath("restart-mul-band2-coupled");
+        using (var storeBand2 = new SqliteLearnerStore(dbPathBand2))
+        {
+            await storeBand2.InitializeAsync();
+            await SetOperationBandIndexAsync(dbPathBand2, ArithmeticOperation.Addition, 0);
+            await SetOperationBandIndexAsync(dbPathBand2, ArithmeticOperation.Multiplication, 2);
+            await MaterializeMultiplicationBand1LowFactsAsync(dbPathBand2);
+            await MaterializeMultiplicationBand2LowFactsAsync(dbPathBand2);
+        }
+
+        using (var storeBand2Restart = new SqliteLearnerStore(dbPathBand2))
+        {
+            await storeBand2Restart.InitializeAsync();
+            var session = new TrainingSession(storeBand2Restart, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
+            Assert.True(
+                session.CurrentFact.CorrectResult <= 2,
+                $"Expected Multiplication to remain coupled on restart at Band 2, but got {session.CurrentFact.Id} (product = {session.CurrentFact.CorrectResult})");
+        }
+    }
+
+    [Fact]
+    public async Task GuidedRestart_DivisionBand3_ReconstructsDecoupledStateFromProgression()
+    {
+        var dbPath = GetDatabasePath("restart-div-band3-decoupled");
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
+
+        // 1. Initial run: persist Division at Band 3, Addition at Band 0 (ceiling = 2)
+        using (var store = new SqliteLearnerStore(dbPath))
+        {
+            await store.InitializeAsync();
+            await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
+            await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 3);
+            await MaterializeDivisionLowFactsAsync(dbPath);
+        }
+
+        // 2. Recreate store and session after restart
+        using (var store2 = new SqliteLearnerStore(dbPath))
+        {
+            await store2.InitializeAsync();
+            var session = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            while (session.CurrentFact.Operation != ArithmeticOperation.Division)
+            {
+                session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+                await session.AdvanceToNextFactAsync(startTiming: false);
+            }
+
+            Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
+            Assert.True(
+                session.CurrentFact.LeftOperand > 2,
+                $"Expected Division to immediately decouple on restart at Band 3, but got {session.CurrentFact.Id} (dividend = {session.CurrentFact.LeftOperand})");
+        }
+
+        // 3. Contrast with Band 2 restart: must remain coupled
+        var dbPathBand2 = GetDatabasePath("restart-div-band2-coupled");
+        using (var storeBand2 = new SqliteLearnerStore(dbPathBand2))
+        {
+            await storeBand2.InitializeAsync();
+            await SetOperationBandIndexAsync(dbPathBand2, ArithmeticOperation.Addition, 0);
+            await SetOperationBandIndexAsync(dbPathBand2, ArithmeticOperation.Division, 2);
+            await MaterializeDivisionLowFactsAsync(dbPathBand2);
+        }
+
+        using (var storeBand2Restart = new SqliteLearnerStore(dbPathBand2))
+        {
+            await storeBand2Restart.InitializeAsync();
+            var session = new TrainingSession(storeBand2Restart, new FixedClock(), preferenceStore: preferences);
+            await session.InitializeAsync(startTiming: false);
+
+            while (session.CurrentFact.Operation != ArithmeticOperation.Division)
+            {
+                session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+                await session.AdvanceToNextFactAsync(startTiming: false);
+            }
+
+            Assert.Equal(ArithmeticOperation.Division, session.CurrentFact.Operation);
+            Assert.True(
+                session.CurrentFact.LeftOperand <= 2,
+                $"Expected Division to remain coupled on restart at Band 2, but got {session.CurrentFact.Id} (dividend = {session.CurrentFact.LeftOperand})");
+        }
+    }
+
+    // ===========================================================================
     // Helper Methods & Test Types
     // ===========================================================================
 
@@ -1209,6 +1595,57 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
             new ArithmeticFact(ArithmeticOperation.Multiplication, 1, 2),
             new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 0),
             new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 1)
+        };
+
+        foreach (var fact in lowFacts)
+        {
+            await SeedFactStateAsync(dbPath, fact, duePos: 1000, lastReviewPos: 1, isMastered: true);
+        }
+    }
+
+    private static async Task MaterializeMultiplicationBand2LowFactsAsync(string dbPath)
+    {
+        // Band 2 facts: 0*3, 1*3, 2*3, 3*0, 3*1, 3*2, 3*3
+        // Materialize facts with product <= 2 (0*3, 3*0) as mastered.
+        var lowFacts = new[]
+        {
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 0, 3),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 3, 0)
+        };
+
+        foreach (var fact in lowFacts)
+        {
+            await SeedFactStateAsync(dbPath, fact, duePos: 1000, lastReviewPos: 1, isMastered: true);
+        }
+    }
+
+    private static async Task MaterializeMultiplicationBand3LowFactsAsync(string dbPath)
+    {
+        // Band 3 facts with product <= 2: 0*4, 4*0
+        var lowFacts = new[]
+        {
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 0, 4),
+            new ArithmeticFact(ArithmeticOperation.Multiplication, 4, 0)
+        };
+
+        foreach (var fact in lowFacts)
+        {
+            await SeedFactStateAsync(dbPath, fact, duePos: 1000, lastReviewPos: 1, isMastered: true);
+        }
+    }
+
+    private static async Task MaterializeDivisionLowFactsAsync(string dbPath)
+    {
+        // Materialize Division facts with dividend <= 2 as mastered so only dividend > 2 facts are available New
+        var lowFacts = new[]
+        {
+            new ArithmeticFact(ArithmeticOperation.Division, 0, 1),
+            new ArithmeticFact(ArithmeticOperation.Division, 1, 1),
+            new ArithmeticFact(ArithmeticOperation.Division, 0, 2),
+            new ArithmeticFact(ArithmeticOperation.Division, 2, 1),
+            new ArithmeticFact(ArithmeticOperation.Division, 2, 2),
+            new ArithmeticFact(ArithmeticOperation.Division, 0, 3),
+            new ArithmeticFact(ArithmeticOperation.Division, 0, 4)
         };
 
         foreach (var fact in lowFacts)

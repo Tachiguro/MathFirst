@@ -40,16 +40,37 @@ public sealed class TrainingSession
     private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
     private Dictionary<ArithmeticOperation, long> _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
 
-    private readonly record struct GateIdentity(bool IsActive, int? AdditionCeiling)
+    private enum GateSemanticKind
+    {
+        Unrestricted,
+        AdditionCeilingCoupled,
+        Decoupled
+    }
+
+    private readonly record struct GateIdentity(GateSemanticKind Kind, int? AdditionCeiling)
     {
         public static GateIdentity ForOperation(ArithmeticOperation operation, GuidedNumberSpaceGate gate)
         {
-            if (operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction)
+            if (operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction || !gate.IsActive)
             {
-                return new GateIdentity(false, null);
+                return new GateIdentity(GateSemanticKind.Unrestricted, null);
             }
 
-            return new GateIdentity(gate.IsActive, gate.AdditionCeiling);
+            if (operation == ArithmeticOperation.Multiplication)
+            {
+                return gate.IsMultiplicationDecoupled
+                    ? new GateIdentity(GateSemanticKind.Decoupled, null)
+                    : new GateIdentity(GateSemanticKind.AdditionCeilingCoupled, gate.AdditionCeiling);
+            }
+
+            if (operation == ArithmeticOperation.Division)
+            {
+                return gate.IsDivisionDecoupled
+                    ? new GateIdentity(GateSemanticKind.Decoupled, null)
+                    : new GateIdentity(GateSemanticKind.AdditionCeilingCoupled, gate.AdditionCeiling);
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unknown arithmetic operation.");
         }
     }
 
@@ -951,9 +972,8 @@ public sealed class TrainingSession
             return GuidedNumberSpaceGate.Unrestricted;
         }
 
-        var additionProgression = Progression.OperationProgressions[ArithmeticOperation.Addition];
         var additionCurriculum = _curriculum.GetCurriculum(ArithmeticOperation.Addition);
-        return GuidedNumberSpaceGate.ForGuided(additionCurriculum, additionProgression.BandIndex);
+        return GuidedNumberSpaceGate.ForGuided(additionCurriculum, Progression.OperationProgressions);
     }
 
     public bool DeriveHasBroadWeakness()
