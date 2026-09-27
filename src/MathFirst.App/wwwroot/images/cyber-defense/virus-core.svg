@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" aria-hidden="true">
+  <defs>
+    <radialGradient id="vc-core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="25%" stop-color="#00ffff" />
+      <stop offset="60%" stop-color="#1be3a9" />
+      <stop offset="85%" stop-color="#0e3a2b" />
+      <stop offset="100%" stop-color="#051710" />
+    </radialGradient>
+    <linearGradient id="vc-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3effa8" />
+      <stop offset="50%" stop-color="#00ffff" />
+      <stop offset="100%" stop-color="#14664c" />
+    </linearGradient>
+    <linearGradient id="vc-facet-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e382d" />
+      <stop offset="50%" stop-color="#10241c" />
+      <stop offset="100%" stop-color="#08140f" />
+    </linearGradient>
+    <radialGradient id="vc-floor-glow" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#00ffff" stop-opacity="0.7" />
+      <stop offset="50%" stop-color="#1be3a9" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#08140f" stop-opacity="0" />
+    </radialGradient>
+    <filter id="vc-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient floor reflection -->
+  <ellipse cx="100" cy="180" rx="44" ry="10" fill="url(#vc-floor-glow)" />
+
+  <!-- Outer Orbital Ring 1 (Rotated) -->
+  <g transform="rotate(-25 100 100)">
+    <ellipse cx="100" cy="100" rx="78" ry="26" stroke="url(#vc-ring-grad)" stroke-width="2.5" stroke-dasharray="14 8" fill="none" opacity="0.85" filter="url(#vc-glow)" />
+    <!-- Node on ring -->
+    <circle cx="22" cy="100" r="5" fill="#00ffff" filter="url(#vc-glow)" />
+    <circle cx="178" cy="100" r="5" fill="#3effa8" filter="url(#vc-glow)" />
+  </g>
+
+  <!-- Outer Orbital Ring 2 (Counter-rotated) -->
+  <g transform="rotate(35 100 100)">
+    <ellipse cx="100" cy="100" rx="74" ry="24" stroke="#00ffff" stroke-width="2" stroke-dasharray="20 6" fill="none" opacity="0.75" />
+    <circle cx="100" cy="76" r="4" fill="#3effa8" filter="url(#vc-glow)" />
+    <circle cx="100" cy="124" r="4" fill="#00ffff" filter="url(#vc-glow)" />
+  </g>
+
+  <!-- Radiating Spike Emitters (Virus Proceptors) -->
+  <g stroke="#3effa8" stroke-width="2.5" stroke-linecap="round" filter="url(#vc-glow)">
+    <!-- Top & Bottom -->
+    <line x1="100" y1="20" x2="100" y2="44" />
+    <circle cx="100" cy="18" r="4.5" fill="#00ffff" stroke="none" />
+    <line x1="100" y1="180" x2="100" y2="156" />
+    <circle cx="100" cy="182" r="4.5" fill="#00ffff" stroke="none" />
+    <!-- Left & Right -->
+    <line x1="20" y1="100" x2="44" y2="100" />
+    <circle cx="18" cy="100" r="4.5" fill="#3effa8" stroke="none" />
+    <line x1="180" y1="100" x2="156" y2="100" />
+    <circle cx="182" cy="100" r="4.5" fill="#3effa8" stroke="none" />
+    <!-- Diagonals -->
+    <line x1="42" y1="42" x2="60" y2="60" />
+    <circle cx="40" cy="40" r="3.5" fill="#3effa8" stroke="none" />
+    <line x1="158" y1="42" x2="140" y2="60" />
+    <circle cx="160" cy="40" r="3.5" fill="#3effa8" stroke="none" />
+    <line x1="42" y1="158" x2="60" y2="140" />
+    <circle cx="40" cy="160" r="3.5" fill="#3effa8" stroke="none" />
+    <line x1="158" y1="158" x2="140" y2="140" />
+    <circle cx="160" cy="160" r="3.5" fill="#3effa8" stroke="none" />
+  </g>
+
+  <!-- Main Octagonal / Dodecahedron Capsid Shell -->
+  <polygon points="100,44 140,58 156,100 140,142 100,156 60,142 44,100 60,58" fill="url(#vc-facet-grad)" stroke="#2cda9d" stroke-width="2.5" stroke-linejoin="round" />
+
+  <!-- Shell Facets -->
+  <polygon points="100,44 140,58 100,74" fill="#25483a" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="100,44 60,58 100,74" fill="#1b362c" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="140,58 156,100 126,100" fill="#12261e" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="60,58 44,100 74,100" fill="#224235" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="156,100 140,142 126,100" fill="#183329" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="44,100 60,142 74,100" fill="#132720" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="140,142 100,156 100,126" fill="#10221a" stroke="#1be3a9" stroke-width="1.5" />
+  <polygon points="60,142 100,156 100,126" fill="#1c3b2e" stroke="#1be3a9" stroke-width="1.5" />
+
+  <!-- Inner Hexagonal Cavity -->
+  <polygon points="100,74 126,100 100,126 74,100" fill="#07130e" stroke="#00ffff" stroke-width="2" />
+
+  <!-- Pulsing Central Core Reactor -->
+  <circle cx="100" cy="100" r="22" fill="url(#vc-core-glow)" filter="url(#vc-glow)" />
+  <circle cx="100" cy="100" r="9" fill="#ffffff" />
+
+  <!-- Digital Glitch Fragments & Matrix Runes -->
+  <path d="M88 94 L84 100 L88 106" stroke="#00ffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M112 94 L116 100 L112 106" stroke="#00ffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="76" y="80" width="3.5" height="3.5" fill="#3effa8" />
+  <rect x="122" y="116" width="3.5" height="3.5" fill="#00ffff" />
+</svg>

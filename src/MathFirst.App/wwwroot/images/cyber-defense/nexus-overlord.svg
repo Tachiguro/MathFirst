@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" aria-hidden="true">
+  <defs>
+    <!-- Heavy Boss Armor Gradients -->
+    <radialGradient id="no-body-grad" cx="45%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#324f42" />
+      <stop offset="40%" stop-color="#192e25" />
+      <stop offset="85%" stop-color="#0a1712" />
+      <stop offset="100%" stop-color="#040a08" />
+    </radialGradient>
+    <linearGradient id="no-crimson-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3b5c" />
+      <stop offset="60%" stop-color="#ff1a40" />
+      <stop offset="100%" stop-color="#800018" />
+    </linearGradient>
+    <linearGradient id="no-neon-edge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="35%" stop-color="#3effa8" />
+      <stop offset="70%" stop-color="#0df2c9" />
+      <stop offset="100%" stop-color="#00ffff" />
+    </linearGradient>
+    <radialGradient id="no-boss-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="30%" stop-color="#ff4766" />
+      <stop offset="60%" stop-color="#3effa8" />
+      <stop offset="90%" stop-color="#0a2a1d" />
+      <stop offset="100%" stop-color="#040b08" />
+    </radialGradient>
+    <radialGradient id="no-floor-glow" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#ff3b5c" stop-opacity="0.65" />
+      <stop offset="45%" stop-color="#3effa8" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#040a08" stop-opacity="0" />
+    </radialGradient>
+    <filter id="no-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="no-boss-aura" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient floor reflection with crimson/cyan dual glow -->
+  <ellipse cx="100" cy="186" rx="58" ry="11" fill="url(#no-floor-glow)" />
+
+  <!-- Radiating Orbital Defense Field Rings -->
+  <g filter="url(#no-glow)" opacity="0.85">
+    <ellipse cx="100" cy="98" rx="88" ry="34" stroke="#ff3b5c" stroke-width="2" stroke-dasharray="16 10 4 10" />
+    <ellipse cx="100" cy="98" rx="76" ry="26" stroke="#3effa8" stroke-width="1.8" stroke-dasharray="24 8" />
+    <!-- Floating Sentinel Shield Nodes on Ring -->
+    <polygon points="12,98 18,92 24,98 18,104" fill="#ff3b5c" />
+    <polygon points="188,98 182,92 176,98 182,104" fill="#ff3b5c" />
+    <circle cx="100" cy="72" r="4" fill="#00ffff" />
+    <circle cx="100" cy="124" r="4" fill="#00ffff" />
+  </g>
+
+  <!-- Dual Heavy Shoulder Reactor Wings (Left & Right) -->
+  <!-- Left Reactor Pylon -->
+  <g>
+    <polygon points="56,64 18,48 10,94 48,114" fill="url(#no-body-grad)" stroke="#ff3b5c" stroke-width="2" stroke-linejoin="round" />
+    <polygon points="22,54 14,90 42,106 46,70" fill="#0d1f18" stroke="#3effa8" stroke-width="1.2" />
+    <!-- Pulse Energy Conduits -->
+    <line x1="20" y1="72" x2="38" y2="82" stroke="#ff4766" stroke-width="2.5" filter="url(#no-glow)" />
+    <circle cx="34" cy="92" r="3.5" fill="#3effa8" filter="url(#no-glow)" />
+  </g>
+
+  <!-- Right Reactor Pylon -->
+  <g>
+    <polygon points="144,64 182,48 190,94 152,114" fill="url(#no-body-grad)" stroke="#ff3b5c" stroke-width="2" stroke-linejoin="round" />
+    <polygon points="178,54 186,90 158,106 154,70" fill="#0d1f18" stroke="#3effa8" stroke-width="1.2" />
+    <!-- Pulse Energy Conduits -->
+    <line x1="180" y1="72" x2="162" y2="82" stroke="#ff4766" stroke-width="2.5" filter="url(#no-glow)" />
+    <circle cx="166" cy="92" r="3.5" fill="#3effa8" filter="url(#no-glow)" />
+  </g>
+
+  <!-- Crown / Overhead Command Horns -->
+  <polygon points="82,44 64,14 88,32" fill="url(#no-body-grad)" stroke="#ff3b5c" stroke-width="1.8" filter="url(#no-glow)" />
+  <polygon points="118,44 136,14 112,32" fill="url(#no-body-grad)" stroke="#ff3b5c" stroke-width="1.8" filter="url(#no-glow)" />
+  <polygon points="94,36 100,18 106,36" fill="#142820" stroke="#00ffff" stroke-width="1.5" />
+
+  <!-- Massive Central Fortress Carapace -->
+  <polygon points="70,48 130,48 148,100 126,148 100,168 74,148 52,100" fill="url(#no-body-grad)" stroke="url(#no-neon-edge)" stroke-width="2.2" stroke-linejoin="round" />
+
+  <!-- Inner Armor Subplates -->
+  <polygon points="76,96 100,116 124,96 116,62 84,62" fill="#0c1a14" stroke="#3effa8" stroke-width="1.5" />
+  <polygon points="80,126 100,154 120,126" fill="#10261e" stroke="#ff3b5c" stroke-width="1.5" />
+
+  <!-- Dominant Nexus Boss Core -->
+  <circle cx="100" cy="92" r="16" fill="url(#no-boss-core)" filter="url(#no-boss-aura)" />
+  <circle cx="100" cy="92" r="7" fill="#ffffff" filter="url(#no-glow)" />
+
+  <!-- Tri-Sensor Tactical Eye Array -->
+  <g filter="url(#no-glow)">
+    <circle cx="100" cy="72" r="3.5" fill="#ff3b5c" />
+    <circle cx="86" cy="80" r="3" fill="#00ffff" />
+    <circle cx="114" cy="80" r="3" fill="#00ffff" />
+    <line x1="88" y1="92" x2="112" y2="92" stroke="#ffffff" stroke-width="1.8" />
+  </g>
+
+  <!-- Command Circuit Bus Lines -->
+  <line x1="72" y1="134" x2="90" y2="148" stroke="#3effa8" stroke-width="2" />
+  <line x1="128" y1="134" x2="110" y2="148" stroke="#3effa8" stroke-width="2" />
+  <line x1="100" y1="154" x2="100" y2="178" stroke="#ff3b5c" stroke-width="2.5" stroke-linecap="round" filter="url(#no-glow)" />
+</svg>

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="sp-cloak-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#19332a" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#0e1f19" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#050d0a" stop-opacity="0.95" />
+    </linearGradient>
+    <linearGradient id="sp-holo-edge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffff" />
+      <stop offset="50%" stop-color="#72ffc2" />
+      <stop offset="100%" stop-color="#1be3a9" />
+    </linearGradient>
+    <radialGradient id="sp-core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="35%" stop-color="#00ffff" />
+      <stop offset="70%" stop-color="#3effa8" />
+      <stop offset="100%" stop-color="#081e16" />
+    </radialGradient>
+    <radialGradient id="sp-floor-glow" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#00ffff" stop-opacity="0.65" />
+      <stop offset="50%" stop-color="#1be3a9" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#050d0a" stop-opacity="0" />
+    </radialGradient>
+    <filter id="sp-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient floor reflection -->
+  <ellipse cx="100" cy="184" rx="40" ry="8" fill="url(#sp-floor-glow)" />
+
+  <!-- Holographic Glitch Shards (Phase offset) -->
+  <g stroke="#00ffff" stroke-width="1.2" opacity="0.6" filter="url(#sp-glow)">
+    <polygon points="34,70 48,60 42,82" fill="none" />
+    <polygon points="166,70 152,60 158,82" fill="none" />
+    <line x1="26" y1="110" x2="52" y2="110" stroke-dasharray="4 4" />
+    <line x1="148" y1="110" x2="174" y2="110" stroke-dasharray="4 4" />
+    <line x1="40" y1="135" x2="68" y2="135" stroke-dasharray="6 3" />
+    <line x1="132" y1="135" x2="160" y2="135" stroke-dasharray="6 3" />
+  </g>
+
+  <!-- Ethereal Phantom Cloak / Hood Silhouette -->
+  <!-- Outer Hood Wings -->
+  <polygon points="100,28 148,68 136,154 100,172 64,154 52,68" fill="url(#sp-cloak-grad)" stroke="url(#sp-holo-edge)" stroke-width="1.8" stroke-linejoin="round" />
+
+  <!-- Inner Hood Void -->
+  <polygon points="100,42 134,74 126,128 100,138 74,128 66,74" fill="#040b08" stroke="#3effa8" stroke-width="1.5" />
+
+  <!-- Spectral Ribs / Frequency Fins -->
+  <g stroke="#00ffff" stroke-width="1.5" stroke-linecap="round" opacity="0.85">
+    <path d="M72 100 L90 106" />
+    <path d="M128 100 L110 106" />
+    <path d="M76 118 L92 122" />
+    <path d="M124 118 L108 122" />
+    <path d="M80 136 L94 138" />
+    <path d="M120 136 L106 138" />
+  </g>
+
+  <!-- Glitching Spectral Core -->
+  <circle cx="100" cy="88" r="14" fill="url(#sp-core-glow)" filter="url(#sp-glow)" />
+  <circle cx="100" cy="88" r="6" fill="#ffffff" filter="url(#sp-glow)" />
+
+  <!-- Stealth Sensor Slit (Phantom Eyes) -->
+  <g filter="url(#sp-glow)">
+    <line x1="86" y1="76" x2="96" y2="80" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+    <line x1="114" y1="76" x2="104" y2="80" stroke="#ffffff" stroke-width="2" stroke-linecap="round" />
+    <circle cx="91" cy="78" r="1.5" fill="#00ffff" />
+    <circle cx="109" cy="78" r="1.5" fill="#00ffff" />
+  </g>
+
+  <!-- Phase Glitch Tail Tails -->
+  <polygon points="84,158 92,180 100,166" fill="#00ffff" opacity="0.6" filter="url(#sp-glow)" />
+  <polygon points="116,158 108,180 100,166" fill="#3effa8" opacity="0.6" filter="url(#sp-glow)" />
+</svg>

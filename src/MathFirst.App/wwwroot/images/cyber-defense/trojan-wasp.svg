@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" fill="none" aria-hidden="true">
+  <defs>
+    <radialGradient id="tw-chassis-grad" cx="40%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#2c4538" />
+      <stop offset="45%" stop-color="#14261e" />
+      <stop offset="100%" stop-color="#08140f" />
+    </radialGradient>
+    <linearGradient id="tw-wing-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#80ffff" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#2cda9d" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#051710" stop-opacity="0.1" />
+    </linearGradient>
+    <linearGradient id="tw-stinger-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="30%" stop-color="#00ffff" />
+      <stop offset="70%" stop-color="#1be3a9" />
+      <stop offset="100%" stop-color="#0a2a1d" />
+    </linearGradient>
+    <radialGradient id="tw-floor-glow" cx="50%" cy="0%" r="100%">
+      <stop offset="0%" stop-color="#00ffff" stop-opacity="0.75" />
+      <stop offset="50%" stop-color="#3effa8" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#08140f" stop-opacity="0" />
+    </radialGradient>
+    <filter id="tw-glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Ambient floor reflection -->
+  <ellipse cx="100" cy="184" rx="38" ry="8" fill="url(#tw-floor-glow)" />
+
+  <!-- Aerodynamic Interceptor Wings -->
+  <!-- Left Wing -->
+  <polygon points="86,72 16,36 34,78 78,86" fill="url(#tw-wing-grad)" stroke="#00ffff" stroke-width="1.5" stroke-linejoin="round" />
+  <line x1="28" y1="46" x2="68" y2="76" stroke="#3effa8" stroke-width="1.5" filter="url(#tw-glow)" />
+  <!-- Right Wing -->
+  <polygon points="114,72 184,36 166,78 122,86" fill="url(#tw-wing-grad)" stroke="#00ffff" stroke-width="1.5" stroke-linejoin="round" />
+  <line x1="172" y1="46" x2="132" y2="76" stroke="#3effa8" stroke-width="1.5" filter="url(#tw-glow)" />
+
+  <!-- Lower Stabilizer Winglets -->
+  <polygon points="84,98 44,106 58,122 82,112" fill="url(#tw-wing-grad)" stroke="#1be3a9" stroke-width="1" />
+  <polygon points="116,98 156,106 142,122 118,112" fill="url(#tw-wing-grad)" stroke="#1be3a9" stroke-width="1" />
+
+  <!-- Sleek Angular Thorax -->
+  <polygon points="100,52 118,68 114,102 100,108 86,102 82,68" fill="url(#tw-chassis-grad)" stroke="#3effa8" stroke-width="1.8" stroke-linejoin="round" />
+
+  <!-- Abdomen / Stinger Body Segment -->
+  <polygon points="100,110 120,126 114,152 100,172 86,152 80,126" fill="url(#tw-chassis-grad)" stroke="#00ffff" stroke-width="1.8" stroke-linejoin="round" />
+  <!-- Hazard Stripe Accents on Abdomen -->
+  <path d="M84 134 L116 134" stroke="#3effa8" stroke-width="2" />
+  <path d="M88 146 L112 146" stroke="#3effa8" stroke-width="2" />
+
+  <!-- High-Energy Payload Stinger Needle -->
+  <polygon points="98,170 102,170 100,186" fill="url(#tw-stinger-grad)" stroke="#ffffff" stroke-width="1" filter="url(#tw-glow)" />
+
+  <!-- Predatory Wasp Head -->
+  <polygon points="100,34 114,48 108,62 100,66 92,62 86,48" fill="#14261e" stroke="#3effa8" stroke-width="1.8" />
+
+  <!-- Hexagonal Compound Cyber-Eyes -->
+  <polygon points="90,46 96,44 98,52 94,56 88,54" fill="#00ffff" stroke="#ffffff" stroke-width="0.8" filter="url(#tw-glow)" />
+  <polygon points="110,46 104,44 102,52 106,56 112,54" fill="#00ffff" stroke="#ffffff" stroke-width="0.8" filter="url(#tw-glow)" />
+
+  <!-- Antennae Needles -->
+  <line x1="94" y1="36" x2="82" y2="20" stroke="#00ffff" stroke-width="1.5" stroke-linecap="round" />
+  <line x1="106" y1="36" x2="118" y2="20" stroke="#00ffff" stroke-width="1.5" stroke-linecap="round" />
+  <circle cx="82" cy="20" r="2" fill="#ffffff" filter="url(#tw-glow)" />
+  <circle cx="118" cy="20" r="2" fill="#ffffff" filter="url(#tw-glow)" />
+</svg>

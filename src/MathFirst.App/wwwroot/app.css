@@ -48,39 +48,39 @@
 :root[data-theme="dark"],
 .app-theme-root[data-theme="dark"] {
     color-scheme: dark;
-    --color-background: #121916;
-    --color-surface: #1a2420;
-    --color-surface-elevated: #202c27;
-    --color-surface-muted: #17211c;
-    --color-text: #e5eee9;
-    --color-muted: #a8b7af;
-    --color-primary: #65c99d;
-    --color-primary-hover: #7bd8ae;
-    --color-primary-contrast: #0b261b;
-    --color-primary-soft: #1d3b2e;
-    --color-border: #35463e;
-    --color-border-strong: #638676;
-    --color-input-background: #151e1a;
-    --color-input-border: #53675d;
-    --color-disabled: #738078;
-    --color-focus-ring: rgba(101, 201, 157, 0.4);
-    --color-success: #79d19d;
-    --color-success-surface: #183326;
-    --color-success-border: #376a4d;
-    --color-danger: #e27b75;
-    --color-danger-hover: #ee928c;
-    --color-danger-contrast: #260e0d;
-    --color-danger-surface: #2b1a1a;
-    --color-danger-border: #74423f;
-    --color-warning: #e09f3e;
-    --color-warning-hover: #ebb056;
-    --color-warning-contrast: #1f1402;
-    --color-warning-surface: #2b2214;
-    --color-warning-border: #735528;
+    --color-background: #081310;
+    --color-surface: #0e1e18;
+    --color-surface-elevated: #132a22;
+    --color-surface-muted: #0a1813;
+    --color-text: #eaf5f0;
+    --color-muted: #95a89f;
+    --color-primary: #1be3a9;
+    --color-primary-hover: #3effa8;
+    --color-primary-contrast: #04140d;
+    --color-primary-soft: rgba(27, 227, 169, 0.16);
+    --color-border: #1a382d;
+    --color-border-strong: #2c5e4c;
+    --color-input-background: #091611;
+    --color-input-border: #234d3d;
+    --color-disabled: #596b63;
+    --color-focus-ring: rgba(27, 227, 169, 0.45);
+    --color-success: #3effa8;
+    --color-success-surface: #0d261c;
+    --color-success-border: #1b6348;
+    --color-danger: #ff4766;
+    --color-danger-hover: #ff6b84;
+    --color-danger-contrast: #ffffff;
+    --color-danger-surface: #260d13;
+    --color-danger-border: #732230;
+    --color-warning: #ffd166;
+    --color-warning-hover: #ffe08a;
+    --color-warning-contrast: #1a1402;
+    --color-warning-surface: #261f0d;
+    --color-warning-border: #66501f;
     --color-pause: #e09f3e;
     --color-pause-hover: #ebb056;
     --color-pause-contrast: #1f1402;
-    --shadow-card: 0 14px 34px rgba(0, 0, 0, 0.28);
+    --shadow-card: 0 16px 36px rgba(0, 0, 0, 0.45);
 }
 
 *,
@@ -848,9 +848,35 @@ select:disabled {
 .mathfirst-title-group {
     display: flex;
     min-width: 0;
-    align-items: baseline;
-    gap: clamp(0.4rem, 1.5vw, 0.75rem);
-    flex-wrap: wrap;
+    align-items: center;
+    gap: clamp(0.45rem, 1.5vw, 0.75rem);
+}
+
+.brand-shield-emblem {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 6px var(--color-primary));
+}
+
+.brand-text-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.brand-subtitle {
+    font-size: clamp(0.48rem, 1.6vw, 0.62rem);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--color-primary);
+    opacity: 0.9;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .mathfirst-title {
@@ -874,9 +900,26 @@ select:disabled {
 }
 
 .settings-nav-btn {
-    min-height: clamp(2rem, 3.2vh, 2.4rem);
-    padding: 0.2rem clamp(0.5rem, 1.2vw, 0.75rem);
-    font-size: clamp(0.825rem, 1.2vw, 0.925rem);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: clamp(1.85rem, 3vh, 2.2rem);
+    padding: 0.2rem clamp(0.45rem, 1.2vw, 0.65rem);
+    font-size: clamp(0.75rem, 1.1vw, 0.85rem);
+    font-weight: 700;
+}
+
+.settings-gear-icon {
+    flex-shrink: 0;
+}
+
+@media (max-width: 440px) {
+    .settings-nav-btn .settings-nav-label {
+        display: none;
+    }
+    .settings-nav-btn {
+        padding: 0.35rem 0.55rem;
+    }
 }
 
 .training-card {
@@ -1265,12 +1308,12 @@ select:disabled {
 }
 
 .practice-layout {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: minmax(9rem, 1fr) auto;
+    gap: clamp(0.4rem, 1.1vh, 0.75rem);
     align-items: stretch;
-    gap: clamp(0.5rem, 1.5vh, 1rem);
 }
 
 .practice-interaction-column {
@@ -1284,6 +1327,146 @@ select:disabled {
     color: var(--color-muted);
 }
 
+/* ========================================================
+   SOLVE TO ATTACK PANEL
+   ======================================================== */
+.solve-to-attack-panel {
+    width: 100%;
+    min-width: 0;
+    position: relative;
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border-strong);
+    border-radius: clamp(0.75rem, 2vw, 1.1rem);
+    padding: clamp(0.45rem, 1.2vh, 0.75rem) clamp(0.6rem, 1.8vw, 1.1rem);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22), inset 0 0 14px rgba(27, 227, 169, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.2rem, 0.6vh, 0.4rem);
+}
+
+.app-theme-root[data-theme="dark"] .solve-to-attack-panel {
+    background: linear-gradient(180deg, rgba(8, 22, 19, 0.92) 0%, rgba(5, 15, 13, 0.96) 100%);
+    border-color: rgba(27, 227, 169, 0.3);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), inset 0 0 14px rgba(27, 227, 169, 0.05);
+}
+
+.solve-corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: #1be3a9;
+    pointer-events: none;
+    filter: drop-shadow(0 0 6px rgba(27, 227, 169, 0.7));
+}
+
+.solve-corner.corner-top-left {
+    top: -2px;
+    left: -2px;
+    border-top: 3px solid #1be3a9;
+    border-left: 3px solid #1be3a9;
+    border-top-left-radius: clamp(0.75rem, 2vw, 1.1rem);
+}
+
+.solve-corner.corner-top-right {
+    top: -2px;
+    right: -2px;
+    border-top: 3px solid #1be3a9;
+    border-right: 3px solid #1be3a9;
+    border-top-right-radius: clamp(0.75rem, 2vw, 1.1rem);
+}
+
+.solve-corner.corner-bottom-left {
+    bottom: -2px;
+    left: -2px;
+    border-bottom: 3px solid #1be3a9;
+    border-left: 3px solid #1be3a9;
+    border-bottom-left-radius: clamp(0.75rem, 2vw, 1.1rem);
+}
+
+.solve-corner.corner-bottom-right {
+    bottom: -2px;
+    right: -2px;
+    border-bottom: 3px solid #1be3a9;
+    border-right: 3px solid #1be3a9;
+    border-bottom-right-radius: clamp(0.75rem, 2vw, 1.1rem);
+}
+
+.solve-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    height: 1.55rem;
+    min-height: 1.55rem;
+    max-height: 1.55rem;
+    box-sizing: border-box;
+}
+
+.solve-panel-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-primary);
+    font-size: clamp(0.7rem, 1.1vw, 0.78rem);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.app-theme-root[data-theme="dark"] .solve-panel-tag {
+    color: #3effa8;
+    text-shadow: 0 0 8px rgba(62, 255, 168, 0.5);
+}
+
+.solve-panel-title {
+    line-height: 1;
+}
+
+.cyber-combo-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 6.2rem;
+    height: 1.45rem;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.cyber-combo-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.35rem;
+    min-height: 1.35rem;
+    box-sizing: border-box;
+    padding: 0 0.55rem;
+    border-radius: 4px;
+    background: rgba(8, 24, 18, 0.9);
+    border: 1px solid var(--color-primary);
+    box-shadow: 0 0 8px rgba(27, 227, 169, 0.3), inset 0 0 5px rgba(27, 227, 169, 0.15);
+    color: #3effa8;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1;
+    transition: opacity 120ms ease;
+}
+
+.cyber-combo-badge.combo-inactive {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.cyber-combo-badge.combo-active {
+    visibility: visible;
+    opacity: 1;
+}
+
 .practice-middle-region {
     width: 100%;
     display: flex;
@@ -1291,76 +1474,154 @@ select:disabled {
     align-items: center;
     justify-content: center;
     min-width: 0;
-    min-height: 9rem;
+    height: clamp(5rem, 9.5vh, 6.2rem);
+    min-height: clamp(5rem, 9.5vh, 6.2rem);
+    max-height: clamp(5rem, 9.5vh, 6.2rem);
+    position: relative;
+    box-sizing: border-box;
 }
 
 .expression-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(0.35rem, 1.8vw, 0.9rem);
     margin: 0;
     max-width: 100%;
-    flex-wrap: wrap;
+    min-width: 0;
+    flex-wrap: nowrap;
+    line-height: 1;
+    gap: var(--expression-gap, clamp(0.35rem, 1.8vw, 0.9rem));
 }
 
 .expression-problem {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(0.35rem, 1.8vw, 0.9rem);
+    min-width: 0;
+    flex-shrink: 0;
+    white-space: nowrap;
+    line-height: 1;
+    gap: var(--expression-gap, clamp(0.35rem, 1.8vw, 0.9rem));
+}
+
+/* CONTENT-AWARE EQUATION SCALING CLASSES */
+.expression-row.expression-short {
+    --expression-font-size: clamp(4.25rem, 11vw + 1.8vh, 5.5rem);
+    --expression-gap: clamp(0.45rem, 2.2vw, 1.1rem);
+}
+
+.expression-row.expression-medium {
+    --expression-font-size: clamp(3.0rem, 7.8vw + 1.4vh, 4.2rem);
+    --expression-gap: clamp(0.35rem, 1.8vw, 0.85rem);
+}
+
+.expression-row.expression-long {
+    --expression-font-size: clamp(2.4rem, 6.0vw + 1.1vh, 3.3rem);
+    --expression-gap: clamp(0.25rem, 1.3vw, 0.65rem);
+}
+
+.expression-row.expression-xlong {
+    --expression-font-size: clamp(1.85rem, 4.8vw + 0.9vh, 2.6rem);
+    --expression-gap: clamp(0.18rem, 1vw, 0.5rem);
 }
 
 .operand,
 .operator,
 .equals {
     font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
-    font-weight: 700;
+    font-size: var(--expression-font-size, clamp(2.5rem, 5vw + 1.2vh, 4.75rem));
+    font-weight: 800;
     color: var(--color-text);
     line-height: 1;
     user-select: none;
+    white-space: nowrap;
 }
 
-@media (max-height: 500px) {
-    .operand,
-    .operator,
-    .equals {
-        font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
-    }
-}
-
-.operator,
-.equals {
-    color: var(--color-muted);
+.app-theme-root[data-theme="dark"] .operand,
+.app-theme-root[data-theme="dark"] .operator,
+.app-theme-root[data-theme="dark"] .equals {
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
 }
 
 .answer-input {
     box-sizing: border-box;
     inline-size: min(10ch, 100%);
+    min-inline-size: 1.15ch;
     max-inline-size: 100%;
-    height: clamp(52px, 7vw + 2vh, 78px);
+    min-width: 0;
+    height: 100%;
     font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
-    font-weight: 700;
+    font-size: var(--expression-font-size, clamp(2.5rem, 5vw + 1.2vh, 4.75rem));
+    font-weight: 800;
     text-align: center;
-    border: 2px solid var(--color-input-border);
-    border-radius: clamp(0.5rem, 1.2vw, 0.75rem);
-    color: var(--color-text);
-    background: var(--color-input-background);
-    padding-inline: 0.3em;
+    border: none;
+    border-radius: 0;
+    color: var(--color-primary);
+    background: transparent;
+    padding: 0;
+    margin: 0;
     outline: none;
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    box-shadow: none;
+    caret-color: transparent;
+    flex-shrink: 0;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
 
-@media (max-height: 500px) {
-    .answer-input {
-        height: clamp(52px, 7vw + 2vh, 78px);
-        font-size: clamp(2.5rem, 5vw + 1.2vh, 4.75rem);
-    }
+/* Deterministic culture-safe input width classes based on displayed character length */
+.answer-input.answer-len-1 {
+    inline-size: 1.15ch;
+    width: 1.15ch;
+}
+
+.answer-input.answer-len-2 {
+    inline-size: 2.15ch;
+    width: 2.15ch;
+}
+
+.answer-input.answer-len-3 {
+    inline-size: 3.15ch;
+    width: 3.15ch;
+}
+
+.answer-input.answer-len-4 {
+    inline-size: 4.15ch;
+    width: 4.15ch;
+}
+
+.answer-input.answer-len-5 {
+    inline-size: 5.15ch;
+    width: 5.15ch;
+}
+
+.answer-input.answer-len-6 {
+    inline-size: 6.15ch;
+    width: 6.15ch;
+}
+
+.answer-input::placeholder {
+    color: var(--color-primary);
+    opacity: 0.9;
+    text-align: center;
+}
+
+.app-theme-root[data-theme="dark"] .answer-input {
+    color: #3effa8;
+    caret-color: transparent;
+    text-shadow: 0 0 16px rgba(62, 255, 168, 0.75);
+}
+
+.app-theme-root[data-theme="dark"] .answer-input::placeholder {
+    color: #3effa8;
+    opacity: 1;
+    text-shadow: 0 0 16px rgba(62, 255, 168, 0.85);
 }
 
 .answer-input:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px var(--color-focus-ring);
+    border: none;
+    box-shadow: none;
+    outline: none;
 }
 
 .validation-message {
@@ -1451,26 +1712,35 @@ select:disabled {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: repeat(4, minmax(2.75rem, 1fr));
-    width: min(100%, 30rem);
-    height: clamp(12rem, 30dvh, 19rem);
+    width: 100%;
+    max-width: min(100%, 30rem);
+    height: clamp(12rem, 28dvh, 17.5rem);
     margin: 0 auto;
-    gap: clamp(0.35rem, 1vh, 0.6rem);
+    gap: clamp(0.3rem, 0.9vh, 0.55rem);
 }
 
 .numeric-keypad-button {
     min-width: 0;
     min-height: 2.75rem;
-    border: 1px solid var(--color-input-border);
-    border-radius: clamp(0.45rem, 1vw, 0.7rem);
+    border: 1px solid var(--color-border);
+    border-radius: clamp(0.55rem, 1.4vw, 0.8rem);
     background: var(--color-surface-elevated);
     color: var(--color-text);
     cursor: pointer;
-    font-size: clamp(1.25rem, 2.4vw + 0.5vh, 1.8rem);
+    font-size: clamp(1.35rem, 2.8vw + 0.6vh, 1.95rem);
     font-weight: 750;
     line-height: 1;
     touch-action: manipulation;
     user-select: none;
-    transition: background-color 100ms ease, border-color 100ms ease, transform 60ms ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: background-color 100ms ease, border-color 100ms ease, transform 60ms ease, box-shadow 100ms ease;
+}
+
+.app-theme-root[data-theme="dark"] .numeric-keypad-button {
+    background: linear-gradient(180deg, #102621 0%, #071512 100%);
+    border-color: rgba(27, 227, 169, 0.4);
+    color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 6px rgba(0, 0, 0, 0.4), 0 0 8px rgba(27, 227, 169, 0.08);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1485,6 +1755,7 @@ select:disabled {
     background: var(--color-primary);
     color: var(--color-primary-contrast);
     transform: translateY(1px);
+    box-shadow: 0 0 14px var(--color-primary);
     transition: none;
 }
 
@@ -1499,8 +1770,138 @@ select:disabled {
 
 @media (max-height: 500px) {
     .numeric-keypad {
-        height: 12rem;
+        height: 11.5rem;
     }
+}
+
+/* ========================================================
+   OPERATION UNLOCK AREA
+   ======================================================== */
+.operation-unlock-area {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(0.35rem, 1.2vw, 0.75rem);
+    width: 100%;
+    max-width: min(100%, 30rem);
+    margin: 0 auto;
+    padding: clamp(0.3rem, 0.7vh, 0.45rem) clamp(0.45rem, 1.2vw, 0.7rem);
+    border: 1px solid var(--color-border);
+    border-radius: clamp(0.55rem, 1.4vw, 0.8rem);
+    background: var(--color-surface-elevated);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.app-theme-root[data-theme="dark"] .operation-unlock-area {
+    background: linear-gradient(180deg, rgba(8, 22, 19, 0.92) 0%, rgba(5, 15, 13, 0.96) 100%);
+    border-color: rgba(27, 227, 169, 0.25);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 0 10px rgba(27, 227, 169, 0.03);
+}
+
+.operation-unlock-goal {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.35rem, 1vw, 0.55rem);
+    min-width: max-content;
+    flex-shrink: 0;
+}
+
+.goal-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    border: 1px solid var(--color-border-strong);
+    flex-shrink: 0;
+}
+
+.app-theme-root[data-theme="dark"] .goal-badge {
+    background: rgba(27, 227, 169, 0.15);
+    border-color: rgba(27, 227, 169, 0.4);
+    color: #3effa8;
+}
+
+.goal-info {
+    display: flex;
+    align-items: center;
+    min-width: max-content;
+    flex-shrink: 0;
+}
+
+.goal-text {
+    font-size: clamp(0.65rem, 1.8vw, 0.75rem);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--color-primary);
+    white-space: nowrap;
+    text-transform: uppercase;
+}
+
+.app-theme-root[data-theme="dark"] .goal-text {
+    color: #1be3a9;
+    text-shadow: 0 0 6px rgba(27, 227, 169, 0.4);
+}
+
+.operation-unlock-area .operation-progress-hud,
+.operation-unlock-area .operation-progress-hud[data-operation-count="1"],
+.operation-unlock-area .operation-progress-hud[data-operation-count="2"],
+.operation-unlock-area .operation-progress-hud[data-operation-count="3"],
+.operation-unlock-area .operation-progress-hud[data-operation-count="4"] {
+    display: flex !important;
+    grid-template-columns: none !important;
+    width: auto !important;
+    align-items: center;
+    gap: clamp(0.2rem, 0.6vw, 0.35rem);
+    flex-shrink: 0;
+}
+
+.operation-progress-entry {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: clamp(24px, 3.2vw, 30px);
+    height: clamp(22px, 3vh, 26px);
+    padding: 0 0.3rem;
+    border: 1px solid var(--color-border);
+    border-radius: clamp(0.3rem, 0.7vw, 0.45rem);
+    background: var(--color-surface-muted);
+    color: var(--color-muted);
+    font-size: clamp(0.72rem, 1.1vw, 0.82rem);
+    font-weight: 750;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.app-theme-root[data-theme="dark"] .operation-progress-entry {
+    background: rgba(8, 20, 17, 0.65);
+    border-color: rgba(27, 227, 169, 0.25);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.operation-progress-entry.op-current {
+    border-color: #ffd166;
+    background: rgba(255, 209, 102, 0.16);
+    color: #ffd166;
+    box-shadow: 0 0 8px rgba(255, 209, 102, 0.45);
+}
+
+.operation-progress-entry.op-unlocked {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.operation-lock-glyph {
+    font-size: 0.65rem;
+    opacity: 0.6;
+    margin-left: 2px;
+}
+
+.timer-hidden {
+    display: none !important;
 }
 
 /* SHORT PHONE LANDSCAPE: metadata/timer stay full-width; interaction and keypad share the body. */
@@ -1607,13 +2008,11 @@ select:disabled {
     .operand,
     .operator,
     .equals {
-        font-size: clamp(2rem, 5.2vw, 3.25rem);
+        font-size: var(--expression-font-size, clamp(2rem, 5.2vw, 3.25rem));
     }
 
     .answer-input {
-        inline-size: min(6ch, 100%);
-        height: clamp(48px, 13vh, 58px);
-        font-size: clamp(2rem, 5.2vw, 3.25rem);
+        font-size: var(--expression-font-size, clamp(2rem, 5.2vw, 3.25rem));
     }
 
     .validation-message {
@@ -1650,32 +2049,117 @@ select:disabled {
 @media (orientation: portrait) {
     .training-host,
     .mathfirst-shell {
-        padding: clamp(1rem, 2.5vh, 2.25rem) clamp(0.5rem, 3vw, 1.5rem);
+        padding: clamp(0.75rem, 2vh, 1.75rem) clamp(0.5rem, 2.5vw, 1.25rem);
     }
 
     .mathfirst-container {
-        gap: clamp(0.75rem, 2.5vh, 1.75rem);
+        gap: clamp(0.5rem, 1.8vh, 1.25rem);
     }
 
     .training-card {
-        padding: clamp(1.25rem, 3.5vh, 2.75rem) clamp(0.85rem, 3.5vw, 2rem);
+        min-height: clamp(34rem, calc(100dvh - 5.5rem), 54rem);
+        padding: clamp(0.85rem, 2.5vh, 2rem) clamp(0.6rem, 2.5vw, 1.5rem);
     }
 
     .expression-row {
         margin: 0;
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .expression-problem {
+        min-width: 0;
     }
 
     .operand,
     .operator,
     .equals {
-        font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
+        font-size: var(--expression-font-size, clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem));
     }
 
     .answer-input {
-        height: clamp(56px, 8.5vw + 2vh, 84px);
-        font-size: clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem);
+        height: 100%;
+        font-size: var(--expression-font-size, clamp(2.5rem, 6.5vw + 1.5vh, 4.75rem));
+    }
+}
+
+@media (orientation: portrait) and (max-width: 480px) {
+    .training-card {
+        padding: clamp(0.5rem, 1.5vh, 1rem) clamp(0.4rem, 2vw, 0.75rem);
+        gap: clamp(0.35rem, 1vh, 0.65rem);
     }
 
+    .expression-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: nowrap;
+        gap: var(--expression-gap, clamp(0.25rem, 1.4vw, 0.55rem));
+    }
+
+    .expression-row.expression-short {
+        --expression-font-size: clamp(4.25rem, 16vw + 0.8vh, 4.85rem);
+        --expression-gap: clamp(0.35rem, 2.2vw, 0.75rem);
+    }
+
+    .expression-row.expression-medium {
+        --expression-font-size: clamp(2.85rem, 9.8vw + 0.6vh, 3.35rem);
+        --expression-gap: clamp(0.25rem, 1.5vw, 0.5rem);
+    }
+
+    .expression-row.expression-long {
+        --expression-font-size: clamp(2.25rem, 7.6vw + 0.4vh, 2.65rem);
+        --expression-gap: clamp(0.2rem, 1.1vw, 0.38rem);
+    }
+
+    .expression-row.expression-xlong {
+        --expression-font-size: clamp(1.8rem, 5.8vw + 0.3vh, 2.1rem);
+        --expression-gap: clamp(0.15rem, 0.8vw, 0.3rem);
+    }
+
+    .expression-problem {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        white-space: nowrap;
+        gap: var(--expression-gap, clamp(0.25rem, 1.4vw, 0.55rem));
+    }
+
+    .operand,
+    .operator,
+    .equals {
+        font-size: var(--expression-font-size, clamp(2.2rem, 7.5vw, 3.8rem));
+    }
+
+    .answer-input {
+        box-sizing: border-box;
+        height: 100%;
+        font-size: var(--expression-font-size, clamp(2.2rem, 7.5vw, 3.8rem));
+        padding: 0;
+        margin: 0;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .numeric-keypad {
+        width: 100%;
+        height: clamp(11.5rem, 28dvh, 16rem);
+        gap: clamp(0.25rem, 0.8vh, 0.45rem);
+    }
+
+    .numeric-keypad-button {
+        min-height: 2.5rem;
+    }
+
+    .solve-to-attack-panel {
+        padding: clamp(0.35rem, 1vh, 0.55rem) clamp(0.45rem, 1.5vw, 0.75rem);
+    }
+
+    .operation-unlock-area {
+        padding: clamp(0.25rem, 0.6vh, 0.4rem) clamp(0.35rem, 1.2vw, 0.6rem);
+    }
 }
 
 @media (orientation: portrait) and (max-width: 600px) {
