@@ -88,6 +88,8 @@ public sealed class TrainingSession
     public IReadOnlyDictionary<string, FsrsCardState> FsrsStates => _fsrsStates;
     public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts => _operationAcceptedAttemptCounts;
     public long GetOperationAcceptedAttemptCount(ArithmeticOperation operation) => _operationAcceptedAttemptCounts.GetValueOrDefault(operation, 0);
+    public int PositionedCorrectAttemptCount { get; private set; }
+    public bool IsPaceCalibrationReady => PositionedCorrectAttemptCount >= AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold;
     public PracticeCheckInSummary? PendingCheckIn { get; private set; }
     public bool HasBroadWeakness => DeriveHasBroadWeakness();
     public int SessionOrderCounter { get; private set; }
@@ -821,6 +823,14 @@ public sealed class TrainingSession
                 {
                     CurrentCorrectStreak = 0;
                 }
+                if (LastEvaluation.ChangeSet.Attempt.PracticePosition is > 0
+                    && LastEvaluation.ChangeSet.Attempt.Outcome == AttemptOutcome.Correct)
+                {
+                    if (PositionedCorrectAttemptCount < AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold)
+                    {
+                        PositionedCorrectAttemptCount++;
+                    }
+                }
                 LastResponseLatencyMs = LastEvaluation.LatencyMs;
                 Progression.StoreRevision = result.NewRevision.Value;
                 LatestAcceptedPracticeAt = LastEvaluation.ChangeSet.Attempt.Timestamp;
@@ -1297,6 +1307,9 @@ public sealed class TrainingSession
 
         ArgumentNullException.ThrowIfNull(snapshot.OperationAcceptedAttemptCounts);
         _operationAcceptedAttemptCounts = snapshot.OperationAcceptedAttemptCounts.ToDictionary(pair => pair.Key, pair => pair.Value);
+        PositionedCorrectAttemptCount = Math.Min(
+            AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold,
+            snapshot.PositionedCorrectAttemptCount);
     }
 
     private void ResetSessionCheckInSegment()

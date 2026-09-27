@@ -15,6 +15,7 @@ public sealed record AdaptivePaceResult(
 
 public static class AdaptivePacePolicy
 {
+    public const int PaceCalibrationCorrectAttemptThreshold = 24;
     public const long StaticPriorMs = 4500;
     public const long MinimumSampleMs = 600;
     public const long MaximumSampleMs = 12000;

@@ -4,6 +4,7 @@ using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
@@ -220,6 +221,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
         var latestAcceptedPracticeAt = await ReadLatestAcceptedPracticeAtAsync(cancellationToken).ConfigureAwait(false);
         var operationAcceptedAttemptCounts = await ReadOperationAcceptedAttemptCountsAsync(cancellationToken).ConfigureAwait(false);
+        var positionedCorrectAttemptCount = await ReadPositionedCorrectAttemptCountAsync(cancellationToken).ConfigureAwait(false);
 
         return new LearnerSnapshot(
             progression,
@@ -230,7 +232,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
             version,
             operationProgressions,
             latestAcceptedPracticeAt,
-            operationAcceptedAttemptCounts);
+            operationAcceptedAttemptCounts,
+            positionedCorrectAttemptCount);
     }
 
     public async Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken cancellationToken = default)
@@ -251,6 +254,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         var recentAttempts = await ReadBoundedRecentAttemptsAsync(cancellationToken).ConfigureAwait(false);
         var latestAcceptedPracticeAt = await ReadLatestAcceptedPracticeAtAsync(cancellationToken).ConfigureAwait(false);
         var operationAcceptedAttemptCounts = await ReadOperationAcceptedAttemptCountsAsync(cancellationToken).ConfigureAwait(false);
+        var positionedCorrectAttemptCount = await ReadPositionedCorrectAttemptCountAsync(cancellationToken).ConfigureAwait(false);
 
         return new LearnerSnapshot(
             progression,
@@ -261,7 +265,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
             version,
             operationProgressions,
             latestAcceptedPracticeAt,
-            operationAcceptedAttemptCounts);
+            operationAcceptedAttemptCounts,
+            positionedCorrectAttemptCount);
     }
 
     public async Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
@@ -1504,6 +1509,31 @@ public sealed class SqliteLearnerStore : ILearnerStore
         }
 
         return counts;
+    }
+
+    private async Task<int> ReadPositionedCorrectAttemptCountAsync(CancellationToken cancellationToken)
+    {
+        if (_connection is null)
+        {
+            return 0;
+        }
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = @"
+            SELECT COUNT(*)
+            FROM (
+                SELECT 1
+                FROM attempt_history
+                WHERE practice_position IS NOT NULL
+                  AND practice_position > 0
+                  AND outcome = @correct
+                LIMIT @threshold
+            );";
+        command.Parameters.AddWithValue("@correct", AttemptOutcome.Correct.ToString());
+        command.Parameters.AddWithValue("@threshold", AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold);
+
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return result is null or DBNull ? 0 : Convert.ToInt32(result);
     }
 
     private async Task<IReadOnlyList<AttemptRecord>> ReadBoundedRecentAttemptsAsync(CancellationToken cancellationToken)

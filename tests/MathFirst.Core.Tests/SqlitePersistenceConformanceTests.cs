@@ -49,6 +49,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.Empty(snapshot.ItemStates);
         Assert.Empty(snapshot.RecentAttempts);
         Assert.Null(snapshot.LatestAcceptedPracticeAt);
+        Assert.Equal(0, snapshot.PositionedCorrectAttemptCount);
     }
 
     [Fact]
@@ -88,10 +89,12 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.Equal(subId, snapshot.RecentAttempts[0].SubmissionId);
         Assert.True(snapshot.RecentAttempts[0].IsFluent);
         Assert.Equal(acceptedAt, snapshot.LatestAcceptedPracticeAt);
+        Assert.Equal(1, snapshot.PositionedCorrectAttemptCount);
 
         var runtimeSnapshot = await store.LoadRuntimeSnapshotAsync();
         Assert.Empty(runtimeSnapshot.ItemStates);
         Assert.Equal(acceptedAt, runtimeSnapshot.LatestAcceptedPracticeAt);
+        Assert.Equal(1, runtimeSnapshot.PositionedCorrectAttemptCount);
     }
 
     [Fact]
@@ -623,5 +626,220 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         // Duplicate fact IDs
         await Assert.ThrowsAsync<ArgumentException>(() =>
             store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, ["add:0+0", "add:0+0"]));
+    }
+
+    [Fact]
+    public async Task Conformance_19_DurablePaceCalibrationReadiness_BoundedQueryAndV6SchemaPreserved()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var dt = new DateTimeOffset(2026, 9, 27, 10, 0, 0, TimeSpan.Zero);
+
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+
+            // Insert 23 positioned Correct attempts
+            for (var i = 1; i <= 23; i++)
+            {
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                        response_latency_ms, timestamp, practice_position
+                    ) VALUES (
+                        'sub-correct-{i}', 'add:0+1', 'Addition', 0, 1,
+                        1, 1, 1, 1, 'Correct',
+                        1000, @ts, {i}
+                    );";
+                cmd.Parameters.Clear();
+                cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Insert 5 positioned Incorrect attempts
+            for (var i = 1; i <= 5; i++)
+            {
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                        response_latency_ms, timestamp, practice_position
+                    ) VALUES (
+                        'sub-incorrect-{i}', 'add:0+1', 'Addition', 0, 1,
+                        99, 1, 0, 0, 'Incorrect',
+                        3000, @ts, {23 + i}
+                    );";
+                cmd.Parameters.Clear();
+                cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Insert 5 positioned Timeout attempts
+            for (var i = 1; i <= 5; i++)
+            {
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                        response_latency_ms, timestamp, practice_position
+                    ) VALUES (
+                        'sub-timeout-{i}', 'add:0+1', 'Addition', 0, 1,
+                        NULL, 1, 0, 0, 'Timeout',
+                        30000, @ts, {28 + i}
+                    );";
+                cmd.Parameters.Clear();
+                cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Insert 5 unpositioned (legacy NULL practice_position) Correct attempts
+            for (var i = 1; i <= 5; i++)
+            {
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                        response_latency_ms, timestamp, practice_position
+                    ) VALUES (
+                        'sub-unpositioned-{i}', 'add:0+1', 'Addition', 0, 1,
+                        1, 1, 1, 1, 'Correct',
+                        1000, @ts, NULL
+                    );";
+                cmd.Parameters.Clear();
+                cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Bounded count must filter exactly: practice_position IS NOT NULL AND practice_position > 0 AND outcome = 'Correct'
+        var snapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(23, snapshot.PositionedCorrectAttemptCount);
+
+        var runtimeSnapshot = await store.LoadRuntimeSnapshotAsync();
+        Assert.Equal(23, runtimeSnapshot.PositionedCorrectAttemptCount);
+
+        // Add 1 more positioned Correct attempt (#24)
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO attempt_history (
+                    submission_id, fact_id, operation, left_operand, right_operand,
+                    submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                    response_latency_ms, timestamp, practice_position
+                ) VALUES (
+                    'sub-correct-24', 'add:0+1', 'Addition', 0, 1,
+                    1, 1, 1, 1, 'Correct',
+                    1000, @ts, 34
+                );";
+            cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        snapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(24, snapshot.PositionedCorrectAttemptCount);
+
+        // Add 10 more positioned Correct attempts (saturates at 24)
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            for (var i = 25; i <= 34; i++)
+            {
+                cmd.CommandText = $@"
+                    INSERT INTO attempt_history (
+                        submission_id, fact_id, operation, left_operand, right_operand,
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome,
+                        response_latency_ms, timestamp, practice_position
+                    ) VALUES (
+                        'sub-correct-{i}', 'add:0+1', 'Addition', 0, 1,
+                        1, 1, 1, 1, 'Correct',
+                        1000, @ts, {10 + i}
+                    );";
+                cmd.Parameters.Clear();
+                cmd.Parameters.AddWithValue("@ts", dt.ToString("O"));
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        snapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(24, snapshot.PositionedCorrectAttemptCount);
+
+        runtimeSnapshot = await store.LoadRuntimeSnapshotAsync();
+        Assert.Equal(24, runtimeSnapshot.PositionedCorrectAttemptCount);
+
+        // Schema V6 conformance assertions:
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+
+            // 1. schema_version is 6
+            using (var versionCmd = conn.CreateCommand())
+            {
+                versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
+                var version = await versionCmd.ExecuteScalarAsync();
+                Assert.Equal("6", version);
+            }
+
+            // 2. Expected tables only
+            var expectedTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "schema_info",
+                "learner_progression",
+                "operation_progression",
+                "item_learning_state",
+                "attempt_history",
+                "fsrs_card_state"
+            };
+
+            using (var tableCmd = conn.CreateCommand())
+            {
+                tableCmd.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';";
+                using var reader = await tableCmd.ExecuteReaderAsync();
+                var actualTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (await reader.ReadAsync())
+                {
+                    actualTables.Add(reader.GetString(0));
+                }
+
+                Assert.Equal(expectedTables, actualTables);
+            }
+
+            // 3. Columns on attempt_history remain exactly V6
+            var expectedAttemptColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "submission_id",
+                "fact_id",
+                "operation",
+                "left_operand",
+                "right_operand",
+                "submitted_answer",
+                "correct_answer",
+                "is_correct",
+                "is_fluent",
+                "outcome",
+                "response_latency_ms",
+                "timestamp",
+                "practice_position"
+            };
+
+            using (var colCmd = conn.CreateCommand())
+            {
+                colCmd.CommandText = "PRAGMA table_info(attempt_history);";
+                using var reader = await colCmd.ExecuteReaderAsync();
+                var actualColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (await reader.ReadAsync())
+                {
+                    actualColumns.Add(reader.GetString(1));
+                }
+
+                Assert.Equal(expectedAttemptColumns, actualColumns);
+            }
+        }
     }
 }

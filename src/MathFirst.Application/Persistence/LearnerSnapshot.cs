@@ -14,6 +14,7 @@ public sealed record LearnerSnapshot
     public IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? OperationProgressions { get; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; }
     public IReadOnlyDictionary<ArithmeticOperation, long> OperationAcceptedAttemptCounts { get; }
+    public int PositionedCorrectAttemptCount { get; }
 
     public LearnerSnapshot(
         LearnerProgression progression,
@@ -24,12 +25,17 @@ public sealed record LearnerSnapshot
         int schemaVersion,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression>? operationProgressions = null,
         DateTimeOffset? latestAcceptedPracticeAt = null,
-        IReadOnlyDictionary<ArithmeticOperation, long>? operationAcceptedAttemptCounts = null)
+        IReadOnlyDictionary<ArithmeticOperation, long>? operationAcceptedAttemptCounts = null,
+        int positionedCorrectAttemptCount = 0)
     {
         ArgumentNullException.ThrowIfNull(progression);
         ArgumentNullException.ThrowIfNull(itemStates);
         ArgumentNullException.ThrowIfNull(fsrsStates);
         ArgumentNullException.ThrowIfNull(recentAttempts);
+        if (positionedCorrectAttemptCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(positionedCorrectAttemptCount), positionedCorrectAttemptCount, "Positioned correct attempt count cannot be negative.");
+        }
 
         Progression = progression;
         ItemStates = itemStates;
@@ -39,6 +45,7 @@ public sealed record LearnerSnapshot
         SchemaVersion = schemaVersion;
         OperationProgressions = operationProgressions;
         LatestAcceptedPracticeAt = latestAcceptedPracticeAt;
+        PositionedCorrectAttemptCount = positionedCorrectAttemptCount;
 
         if (operationAcceptedAttemptCounts is not null)
         {
