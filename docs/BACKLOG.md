@@ -335,7 +335,7 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-UX-008`
 - **Title**: Static Combat Layout and Boss Presentation
 - **Type**: `Feature`
-- **Status**: `Implementation and Acceptance Complete` (Task branch `fix/mf-ux-008-static-combat-layout`; publication and PR pending)
+- **Status**: `Completed` (Merged through PR #55 at `76116d11b8563b0407188ba53ccefd998eda958d`)
 - **Dependencies**: `MF-LEARN-006` complete (merged through PR #54)
 - **Description**:
   Establishes active combat positional stability and layout-isolated boss presentation:
@@ -344,7 +344,7 @@ When items are accepted into the backlog, they are recorded with:
   3. **Boss Visual Model & Aggressiveness**: Boss visual magnification is achieved via compositor transforms (`transform: scale(1.42)` / `boss-hover` / `boss-recoil`), intense dropshadow/glow, and restrained aggressive animations safely degraded under `prefers-reduced-motion`.
   4. **Bounded Battle Stage**: Fixed battle stage height (`height: clamp(110px, 18vh, 155px); overflow: hidden;`) contains and clips visual overflow without expanding layout or causing document scroll.
   5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected.
-  6. **Review and Acceptance Evidence**: Technical review completed with `REVIEW_PASS`; automated validation passed (Debug build 0 warnings/0 errors, 1,786 Debug tests passed); physical Android user acceptance completed with `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`. Remaining exact opponent size and placement tuning is explicitly deferred as nonblocking visual polish. Branch publication and PR creation remain pending.
+  6. **Review, Physical Acceptance, and Delivery Evidence**: Completed across 5 checkpoint commits on task branch `fix/mf-ux-008-static-combat-layout` (head `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`). Technical review passed (`REVIEW_PASS`); physical Android user acceptance passed (`USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`); merged to `main` via PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`); post-merge validation passed with 1,786 Core tests (0 failed, 0 skipped) and 0 compiler warnings/errors. Remaining exact opponent size/placement tuning is explicitly deferred as nonblocking visual polish. Schema V6 and learning telemetry preserved without mutation.
 
 ---
 

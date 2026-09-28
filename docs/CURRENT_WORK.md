@@ -9,38 +9,35 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: `MF-UX-008`: Static Combat Layout, Layout-Isolated Boss Presentation, Combat Visual Layering, and Progressive Opponent Sizing on task branch `fix/mf-ux-008-static-combat-layout`
-- **Current Lifecycle**: `DOCUMENT_ONLY` (`MF-UX-008 IMPLEMENTATION_AND_ACCEPTANCE_COMPLETE`)
-- **Status of Active Work**: Implementation, technical review, and physical Android user acceptance of `MF-UX-008` (Static Combat Layout, Layout-Isolated Boss Presentation, Combat Visual Layering, Progressive Opponent Sizing, and Feedback Scale Composition) are complete. Establishes active combat positional stability: numeric keypad coordinates remain static across enemy changes, boss appearances, hit/crit/blocked feedback, HP changes, and text updates; removes boss layout-box expansion (`clamp(110px..160px)`), reserving the identical structural artwork slot (`clamp(90px, 16vh, 140px)`) across normal and boss states; establishes explicit visual layering with higher z-index (`z-index: 4`) and localized gradient scrim protection on `.scene-intel` over background artwork (`z-index: 1`); enhances description and title legibility via contrast, text shadow, and font weight; implements deterministic presentation-only progressive opponent scaling via `CyberDefenseOpponentScalePolicy` (early regular enemies start small at scale `0.65`, growing progressively across waves `0.78` -> `0.90` -> `1.05` to bosses `1.42` and sector bosses `1.50`) without structural layout shift; remediates combat animation scale-composition defect ensuring all tiers (Small 0.65, MediumSmall 0.78, Medium 0.90, Large 1.05, Boss 1.42, SectorBoss 1.50) preserve their exact base scale across hover, hit recoil, critical recoil, blocked deflect, and reduced-motion states with higher-specificity feedback selectors overriding idle hover; scopes scroll suppression to active gameplay (`.training-host.active-gameplay`) while keeping Settings and Onboarding naturally scrollable (`overflow-y: auto;`); preserves safe-area insets.
+- **Active Task**: None. Package `MF-UX-008` (Static Combat Layout, Layout-Isolated Boss Presentation, Combat Visual Layering, Progressive Opponent Sizing, and Feedback Scale Composition) is complete and merged into `main` via PR #55 at merge commit `76116d11b8563b0407188ba53ccefd998eda958d`. There is currently no active implementation package in flight. Next product or design lifecycle requires explicit user dispatch.
+- **Current Lifecycle**: `POST_MERGE_RECONCILIATION_COMPLETE`
+- **Status of Active Work**: No implementation package in flight. `MF-UX-008` delivered static combat layout positional stability (keypad and arithmetic display remain static across enemy changes, boss appearances, hits, crits, blocked attacks, and text updates), layout-isolated boss presentation (`clamp(90px, 16vh, 140px)`), explicit visual layering (`z-index: 4` on `.scene-intel` with localized gradient scrim over background artwork `z-index: 1`), enhanced title and description legibility, progressive opponent visual scaling via `CyberDefenseOpponentScalePolicy` (Small 0.65, MediumSmall 0.78, Medium 0.90, Large 1.05, Boss 1.42, SectorBoss 1.50) without structural layout shift, tier-preserving feedback animation scale composition (`SCALE_PRESERVED_ACROSS_ALL_STATES` across idle, hover, hit, crit, blocked, and reduced-motion states), and scoped active-gameplay scroll suppression (`.training-host.active-gameplay`) with `overscroll-behavior: none;`.
   - **Technical Review**: Concluded with `REVIEW_PASS` (0 Blocker, 0 Major, 0 Minor findings).
-  - **Automated Validation**: Debug build passed with 0 warnings and 0 errors; 39 focused package tests passed; 1,786 full Debug tests passed (0 failed, 0 skipped).
-  - **Physical Device User Acceptance**: Concluded with `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`. The user physically inspected the current Android behavior and reports that the result looks very good, is acceptable for the current MF-UX-008 scope, and is no longer blocked by the previously reported boss/keypad/layout issue.
-  - **Nonblocking Visual Fine-Tuning**: The user explicitly notes that exact opponent sizes and placement may be tuned further in the future; current values are acceptable for now and do not block MF-UX-008 completion. This is recorded as nonblocking future visual polish without allocating a new canonical `MF-*` package identifier.
-  - **Branch Publication & PR State**: Task branch `fix/mf-ux-008-static-combat-layout` is ahead of `main` by 4 implementation commits (plus 1 documentation checkpoint); no remote push has been executed; no Pull Request exists yet.
+  - **Physical Device User Acceptance**: Concluded with `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`. The user physically inspected the current Android behavior on a physical device and confirmed the result looks very good, is acceptable for current MF-UX-008 scope, and is no longer blocked by previous layout issues.
+  - **Pull Request & Merge**: PR #55 merged into `main` at merge commit `76116d11b8563b0407188ba53ccefd998eda958d` (feature HEAD `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`).
+  - **Post-Merge Verification**: Synchronized on canonical checkout `C:\Dev\MathFirst` (`POST_MERGE_SYNC_COMPLETE`); post-merge validation: 39 focused Cyber Defense tests passed, Debug build 0 warnings / 0 errors, 1,786 full Debug tests passed (0 failed, 0 skipped).
+  - **Nonblocking Visual Fine-Tuning**: Remaining exact opponent size and placement tuning is explicitly deferred as nonblocking future visual polish without allocating a new canonical `MF-*` package identifier.
   - **Preserved Unallocated Topics**: Adaptive Timing and Early Calibration Redesign (`DESIGN_REQUIRED`), Tester Telemetry Export and Share (`DESIGN_REQUIRED`), and Light-Theme Cyber Defense Visual Reconciliation (`DEFERRED`).
-- **Next Lifecycle Step**: `PUSH_ONLY` — publish `fix/mf-ux-008-static-combat-layout` task branch to remote.
+- **Next Lifecycle Step**: Next work requires explicit user instruction and prompt dispatch; no package is autonomously selected.
 
-### 1.1 MF-LEARN-006 Merged Package Summary
+### 1.1 MF-UX-008 Merged Package Summary
 
-The completed package merged on `main` contains:
-1. **Tiered Remediation and Broad Weakness**: Differentiates isolated slips (cooldown 4) from repeated local errors (tightened cooldown 2; presentation teaching interventions preserved) and broad systemic distress ($\ge 2$ active unresolved remediation facts within operation/context, suppressing New discovery);
-2. **Evidence-Adaptive Discovery**: Review and consolidation turns are dynamically promoted to New when scheduled pools contain zero acquisition-blocking work and evidence is clean, achieving an emergent discovery ratio under the approved Option-B policy;
-3. **Absolute No-Immediate-Fact-Repetition Invariant**: Strict $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all attempt outcomes, strictly outranking anti-ladder candidate selection;
-4. **Guided Gate G3 Soft Decoupling**: Multiplication and Division softly decouple from `AdditionCeiling` once their respective `OperationProgression.BandIndex >= 3` (proving factor mastery across 0/1/2/3), restoring autonomous canonical progression without magic jumps;
-5. **Durable Pace Calibration Readiness**: Calibrated status declared at $\ge 24$ positioned Correct attempts (`PracticePosition > 0` and `Outcome == Correct`), where EasyThreshold drift drops reliably below 10%;
-6. **Critical Hit Calibration Gate**: Downstream gamification presentation contract strictly consuming learning telemetry (1 HP before calibration, 2 HP Critical Hit for fast Correct $\le \text{EasyThresholdMs}$ after calibration, 1 HP for slow Correct), with zero mutation of learning telemetry, FSRS, item states, or progression;
-7. **Option-B Architecture Reconciliation**: Reconciled and approved ADR-0010, canonical design specification, and PRODUCT.md to Option-B discovery policy;
-8. **Option-B Selector Remediation**: Implemented Option-B adaptive discovery in `AdaptivePracticeSelector`, correctly promoting clean consolidation turns without premature throttling;
-9. **Final Regression Package**: Exact 482 benchmark permanently locked (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt exactly 482, Addition accepted attempts: exactly 121), real-SQLite restart equivalence verified, cold-restart next-selection determinism verified, and Schema V6 preserved.
+The completed package merged on `main` via PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`) delivers:
+1. **Positional Stability Invariant**: Keypad, arithmetic problem typography, and answer input area remain strictly stationary across enemy changes, boss spawns, HP/shield mutations, and combat floating feedback;
+2. **Layout-Isolated Boss Presentation**: Boss visual scaling uses compositor-driven CSS transforms (`scale(1.42)` / `scale(1.50)`) within the identical structural artwork slot (`clamp(90px, 16vh, 140px)`), preventing container expansion or layout shifts (`visual scale != layout scale`);
+3. **Combat Visual Layering**: Elevates `.scene-intel` with higher `z-index: 4` and localized gradient scrim protection over background artwork (`z-index: 1`), with enhanced title/description contrast and font weight across themes;
+4. **Progressive Opponent Scaling**: Pure domain `CyberDefenseOpponentScalePolicy` scaling early regular enemies smaller (`0.65`), growing progressively (`0.78` -> `0.90` -> `1.05`) to bosses (`1.42`) and sector bosses (`1.50`) without structural layout shifts;
+5. **Tier-Preserving Feedback Scale Composition**: Combat feedback animations (hit recoil, critical recoil, blocked deflect) preserve exact base scale tier across all opponent types (`SCALE_PRESERVED_ACROSS_ALL_STATES`), with explicit tier preservation under `prefers-reduced-motion`;
+6. **Scoped Active-Gameplay Scroll Suppression**: Scroll suppression and overscroll containment (`overflow: hidden; overscroll-behavior: none;`) scoped strictly to `.training-host.active-gameplay`, leaving Settings and Onboarding naturally scrollable (`overflow-y: auto;`);
+7. **Zero Learning Mutation**: Combat UI remains strictly a presentation consumer; zero mutation of FSRS, item states, progression, or learning telemetry; Schema V6 preserved intact.
 
 ### 1.2 Current Verified Quality State
 
-- **Complete-Package Review**: `REVIEW_PASS` (`REVIEW_ONLY` lifecycle concluded with zero CRITICAL findings and zero IMPORTANT findings).
-- **Candidate Full Validation**: `FULL_VALIDATION_PASS` on candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb` (Debug & Release builds: 0 warnings, 0 errors; Debug & Release tests: 1,772 passed, 0 failed, 0 skipped).
-- **Pre-Merge Review & Merge**: PR #54 pre-merge review passed (`REVIEW_PASS`), merged by user at merge commit `bc7471b098e2f79262ff6e71302820bd281a14d5`.
-- **Post-Merge Verification**: `POST_MERGE_SYNC_COMPLETE` on canonical checkout `C:\Dev\MathFirst`; post-merge Debug tests: `1,772 passed, 0 failed, 0 skipped`.
-- **Strong-Learner Benchmark**: Exact canonical benchmark `ADD-D10 -> ADD-P1-ANCHOR` achieved at global accepted attempt exactly `482`; Addition accepted attempts: exactly `121`.
-- **Restart Equivalence & Determinism**: Real-SQLite restart equivalence verified; cold-restart next-selection determinism verified.
+- **Complete-Package Review**: `REVIEW_PASS` (`MF-UX-008` concluded with zero Blocker, zero Major, zero Minor findings).
+- **Physical Acceptance**: `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS` on physical Android device.
+- **Merge Commit**: `76116d11b8563b0407188ba53ccefd998eda958d` (PR #55).
+- **Post-Merge Verification**: `POST_MERGE_SYNC_COMPLETE` on canonical checkout `C:\Dev\MathFirst`; post-merge Debug tests: `1,786 passed, 0 failed, 0 skipped`; Debug build: `0 warnings, 0 errors`.
+- **Benchmark & Determinism**: Exact 482 strong-learner benchmark (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt 482; 121 Addition attempts), real-SQLite restart equivalence, and cold-restart next-selection determinism locked.
 - **Persistence Contract**: Schema V6 preserved intact without migration, table, or column additions.
 
 ---
@@ -126,8 +123,8 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
   - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Authorized Downstream Project Sequence:
-1. MF-LEARN-006 is complete, fully validated, merged to `main` via PR #54 (merge commit `bc7471b098e2f79262ff6e71302820bd281a14d5`), and synchronized (`POST_MERGE_SYNC_COMPLETE`).
+1. Packages `MF-LEARN-006` and `MF-UX-008` are complete, fully validated, merged to `main` via PR #54 (`bc7471b098e2f79262ff6e71302820bd281a14d5`) and PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`), and synchronized (`POST_MERGE_SYNC_COMPLETE`).
 2. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
 
 > [!IMPORTANT]
-> Package `MF-LEARN-006` is complete and merged into `main`. Downstream release preparation or next feature package must not be autonomously activated without explicit user dispatch.
+> Package `MF-UX-008` is complete and merged into `main`. Downstream release preparation or next feature/design package must not be autonomously activated without explicit user dispatch.
