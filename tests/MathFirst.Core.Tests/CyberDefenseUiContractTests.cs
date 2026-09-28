@@ -899,6 +899,194 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains(".scene-artwork-wrapper.opponent-scale-sector-boss .scene-opponent-image", css, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CyberDefenseCombatLayout_CombatFeedbackSelectors_HaveHigherSpecificityThanIdleHoverAcrossAllTiers()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        string[] regularTiers =
+        [
+            CyberDefenseOpponentScalePolicy.SmallClass,
+            CyberDefenseOpponentScalePolicy.MediumSmallClass,
+            CyberDefenseOpponentScalePolicy.MediumClass,
+            CyberDefenseOpponentScalePolicy.LargeClass
+        ];
+
+        string[] feedbackClasses =
+        [
+            "opponent-hit-recoil",
+            "opponent-crit-recoil",
+            "opponent-block-deflect"
+        ];
+
+        // Regular scale tiers MUST define feedback selectors scoped to the wrapper tier class
+        // so specificity (0,4,0) exceeds the idle hover rule (0,3,0).
+        foreach (var tier in regularTiers)
+        {
+            var hoverPattern = $@"\.scene-artwork-wrapper\.{tier}\s+\.scene-opponent-image\b";
+            Assert.Matches(hoverPattern, css);
+
+            foreach (var feedback in feedbackClasses)
+            {
+                var feedbackPattern = $@"\.scene-artwork-wrapper\.{tier}\s+\.scene-opponent-image\.{feedback}\b";
+                Assert.True(
+                    Regex.IsMatch(css, feedbackPattern),
+                    $"Tier {tier} must define a feedback selector matching '{feedbackPattern}' to take precedence over idle hover.");
+            }
+        }
+
+        // Boss and Sector Boss must similarly define explicit feedback selectors
+        foreach (var feedback in feedbackClasses)
+        {
+            Assert.True(
+                Regex.IsMatch(css, $@"\.scene-artwork-wrapper\.is-boss\s+\.scene-opponent-image\.{feedback}\b"),
+                $"Boss must define feedback selector for {feedback}");
+            Assert.True(
+                Regex.IsMatch(css, $@"\.scene-artwork-wrapper\.opponent-scale-sector-boss\s+\.scene-opponent-image\.{feedback}\b"),
+                $"Sector boss must define explicit feedback selector for {feedback}");
+        }
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_AllScaleTiers_PreserveBaseScaleInKeyframesAcrossHitCritAndBlockedStates()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Verification matrix: Tier, ExpectedBaseScale, RecoilAnimName, CritAnimName, DeflectAnimName
+        (string tier, double baseScale, string recoilAnim, string critAnim, string deflectAnim)[] tierSpecs =
+        [
+            ("small", 0.65, "opponent-recoil-small", "opponent-crit-small", "opponent-deflect-small"),
+            ("medium-small", 0.78, "opponent-recoil-medium-small", "opponent-crit-medium-small", "opponent-deflect-medium-small"),
+            ("medium", 0.90, "opponent-recoil-medium", "opponent-crit-medium", "opponent-deflect-medium"),
+            ("large", 1.05, "opponent-recoil-large", "opponent-crit-large", "opponent-deflect-large"),
+            ("boss", 1.42, "boss-recoil", "boss-crit-shake", "boss-deflect"),
+            ("sector-boss", 1.50, "sector-boss-recoil", "sector-boss-crit-shake", "sector-boss-deflect")
+        ];
+
+        foreach (var (tier, baseScale, recoilAnim, critAnim, deflectAnim) in tierSpecs)
+        {
+            var baseScaleStr = baseScale.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+            // 1. Hit Recoil: must start (0%) and end (100%) at tier base scale
+            var recoilKeyframes = ExtractKeyframeBlock(css, recoilAnim);
+            Assert.False(string.IsNullOrWhiteSpace(recoilKeyframes), $"Keyframe block for {recoilAnim} must exist.");
+            Assert.Matches($@"0%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", recoilKeyframes);
+            Assert.Matches($@"100%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", recoilKeyframes);
+
+            // Recoil must NOT collapse to generic scale(1) unless base is 1.0
+            if (baseScale != 1.0)
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\)", recoilKeyframes);
+            }
+
+            // 2. Critical Recoil: must return cleanly (100%) to tier base scale
+            var critKeyframes = ExtractKeyframeBlock(css, critAnim);
+            Assert.False(string.IsNullOrWhiteSpace(critKeyframes), $"Keyframe block for {critAnim} must exist.");
+            Assert.Matches($@"100%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", critKeyframes);
+
+            // Sector Boss crit must return to 1.50 and NOT ordinary boss 1.42
+            if (tier == "sector-boss")
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\.42\)", critKeyframes);
+            }
+
+            // 3. Blocked Deflect: must start (0%) and return (100%) to tier base scale
+            var deflectKeyframes = ExtractKeyframeBlock(css, deflectAnim);
+            Assert.False(string.IsNullOrWhiteSpace(deflectKeyframes), $"Keyframe block for {deflectAnim} must exist.");
+            Assert.Matches($@"0%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", deflectKeyframes);
+            Assert.Matches($@"100%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", deflectKeyframes);
+
+            // Deflect must NOT collapse to generic scale(1) unless base is 1.0
+            if (baseScale != 1.0)
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\)", deflectKeyframes);
+            }
+
+            // Sector Boss deflect must return to 1.50 and NOT ordinary boss 1.42
+            if (tier == "sector-boss")
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\.42\)", deflectKeyframes);
+            }
+        }
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ReducedMotion_PreservesExplicitTierScalesAcrossAllStates()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Find the reduced-motion block
+        var reducedMotionIndex = css.IndexOf("@media (prefers-reduced-motion: reduce)", StringComparison.Ordinal);
+        Assert.True(reducedMotionIndex >= 0, "Reduced motion media query must exist.");
+        var reducedMotionBlock = css[reducedMotionIndex..];
+
+        (string tierClass, double scale)[] expectations =
+        [
+            (CyberDefenseOpponentScalePolicy.SmallClass, 0.65),
+            (CyberDefenseOpponentScalePolicy.MediumSmallClass, 0.78),
+            (CyberDefenseOpponentScalePolicy.MediumClass, 0.90),
+            (CyberDefenseOpponentScalePolicy.LargeClass, 1.05),
+            (CyberDefenseOpponentScalePolicy.BossClass, 1.42),
+            (CyberDefenseOpponentScalePolicy.SectorBossClass, 1.50)
+        ];
+
+        string[] feedbackModifiers =
+        [
+            "",
+            ".opponent-hit-recoil",
+            ".opponent-crit-recoil",
+            ".opponent-block-deflect"
+        ];
+
+        foreach (var (tierClass, scale) in expectations)
+        {
+            var scaleStr = scale.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+            // For boss, it can be matched via is-boss or opponent-scale-boss
+            var selectorTier = tierClass == CyberDefenseOpponentScalePolicy.BossClass ? "(?:is-boss|opponent-scale-boss)" : tierClass;
+
+            foreach (var feedback in feedbackModifiers)
+            {
+                var selectorPattern = $@"\.scene-artwork-wrapper\.{selectorTier}\s+\.scene-opponent-image{Regex.Escape(feedback)}";
+                Assert.True(
+                    Regex.IsMatch(reducedMotionBlock, selectorPattern),
+                    $"Reduced motion must cover {selectorPattern}");
+            }
+
+            // Ensure the block assigns transform: scale(...) !important with correct tier scale
+            var tierRulePattern = $@"\.scene-artwork-wrapper\.{selectorTier}[^{{]*\{{[^}}]*transform:\s*scale\({Regex.Escape(scaleStr)}\)\s*!important;";
+            Assert.True(
+                Regex.IsMatch(reducedMotionBlock, tierRulePattern),
+                $"Reduced motion must enforce scale({scaleStr}) !important for {tierClass}");
+        }
+    }
+
+    private static string ExtractKeyframeBlock(string css, string animationName)
+    {
+        var pattern = $@"(?:@-webkit-keyframes|@keyframes)\s+{Regex.Escape(animationName)}\s*\{{";
+        var match = Regex.Match(css, pattern);
+        if (!match.Success) return string.Empty;
+
+        var startIndex = match.Index + match.Length;
+        var depth = 1;
+        var currentIndex = startIndex;
+
+        while (currentIndex < css.Length && depth > 0)
+        {
+            if (css[currentIndex] == '{') depth++;
+            else if (css[currentIndex] == '}') depth--;
+            currentIndex++;
+        }
+
+        return css[startIndex..(currentIndex - 1)];
+    }
+
     private sealed class FakeClock : IClock
     {
         private long _timestamp = 1_000_000;
