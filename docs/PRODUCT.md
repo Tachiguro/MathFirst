@@ -460,7 +460,7 @@ During active gameplay in gamified modes (such as Cyber Defense), the interactiv
 - **Scoped Scroll Boundary**: The active gameplay surface (`.training-host.active-gameplay`) strictly suppresses horizontal and vertical scrolling via bounded layout geometry, definite height chain, `overflow: hidden;`, and defensive `overscroll-behavior: none;` (`touch-action: manipulation` is preserved for responsive tap interactions without double-tap delay, while scroll prevention is achieved through layout bounding). The active battle view must fit within the fixed viewport without scrolling on mobile and desktop devices. This scroll containment is strictly scoped: Settings (`.settings-page`), Onboarding (`.onboarding-host`), Privacy, and long modal dialogs must retain natural scrolling (`overflow-y: auto`).
 - **Deferred Future Topics**:
   - *Adaptive Timing and Early Calibration Redesign (`DESIGN_REQUIRED`)*: Exploring adaptive, individual-calibrated countdowns or pacing models for diverse learner profiles (accommodating beginners with generous ~15–30s initial window and fast learners across ~18–24 early calibration attempts) while preserving the core mastery model.
-  - *Tester Telemetry Export and Share (`DESIGN_REQUIRED`)*: Privacy-preserving manual export of local learner telemetry and diagnostic session data (with Android native share intent for WhatsApp, email, Drive, etc.) to assist with qualitative testing feedback.
+  - *Tester Telemetry Export and Share (`MF-TELEM-001`)*: Privacy-preserving manual export of local learner telemetry and diagnostic session data from Settings via native Android Share sheet ([ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md), canonical spec `docs/superpowers/specs/2026-09-28-mf-telem-001-tester-telemetry-export-share-design.md`). Specification complete; implementation pending.
   - *Light-Theme Cyber Defense Visual Reconciliation (`DEFERRED`)*: Visual harmonization of combat scenes when operating under light appearance mode.
 
 ---
@@ -589,7 +589,7 @@ The following register contains both resolved and unresolved product decisions. 
 | **Export/Import Specification** | Exact schema, file format, and migration rules for manual data transfer. | `UNRESOLVED` |
 | **Active Combat Positional Stability** | Positional stability invariant (fixed keypad coordinates, layout-isolated boss presentation via compositor transforms, scoped gameplay scroll suppression) (`MF-UX-008`). | `RESOLVED` |
 | **Adaptive Timing Calibration** | Adaptive, learner-calibrated countdowns and pacing models (accommodating young beginners and fast adults). | `DESIGN_REQUIRED` |
-| **Tester Telemetry Export** | Privacy-preserving manual export of diagnostic session telemetry for testing with platform share intent. | `DESIGN_REQUIRED` |
+| **Tester Telemetry Export** | Privacy-preserving manual export of diagnostic session telemetry for testing with platform share intent (`MF-TELEM-001`, [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md)). | `RESOLVED (Design Complete)` |
 | **Light-Theme Combat Background** | Visual background styling and contrast harmonization for Cyber Defense in light theme. | `DEFERRED` |
 
 ---

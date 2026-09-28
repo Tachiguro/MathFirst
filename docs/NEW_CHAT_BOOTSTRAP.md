@@ -108,6 +108,13 @@ Use the live-state discovery rules above to distinguish the following cases:
 
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
 
+### Active Package Lifecycle Context: MF-TELEM-001
+When live repository state or `docs/CURRENT_WORK.md` identifies `MF-TELEM-001` (Tester Telemetry Export and Share) as the active package:
+- The formal package design specification exists (`docs/superpowers/specs/2026-09-28-mf-telem-001-tester-telemetry-export-share-design.md`) and architecture is approved via [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md);
+- An implementation plan has NOT yet been authored or approved;
+- Application source implementation has NOT started;
+- The unambiguous next lifecycle step is: review the formal `MF-TELEM-001` package definition and specification, then author the detailed TDD implementation plan in a separate authorized lifecycle task.
+
 ---
 
 ## 6. Reference Merged Baseline (Recorded 2026-09-27)
