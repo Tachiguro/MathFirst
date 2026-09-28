@@ -818,6 +818,7 @@ select:disabled {
 /* Active Gameplay Positional Stability and Scroll Suppression (MF-UX-008) */
 .training-host.active-gameplay {
     overflow: hidden;
+    overscroll-behavior: none;
     height: 100%;
     min-height: 100%;
     max-height: 100dvh;

@@ -810,9 +810,10 @@ public sealed class CyberDefenseUiContractTests
         // Active gameplay is explicitly flagged in markup
         Assert.Contains("active-gameplay", home, StringComparison.Ordinal);
 
-        // Active gameplay suppresses scrolling
+        // Active gameplay suppresses scrolling and sets defensive overscroll containment
         Assert.Contains(".training-host.active-gameplay", css, StringComparison.Ordinal);
         Assert.Contains("overflow: hidden;", css, StringComparison.Ordinal);
+        Assert.Contains("overscroll-behavior: none;", css, StringComparison.Ordinal);
 
         // Settings and onboarding maintain their required scrollability
         Assert.Contains(".settings-page", css, StringComparison.Ordinal);
@@ -820,8 +821,10 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains(".onboarding-host", css, StringComparison.Ordinal);
         Assert.Matches(@"\.onboarding-host\s*\{[^}]*overflow-y:\s*auto", css);
 
-        // No blanket body overflow: hidden !important that breaks non-gameplay pages
+        // No blanket body overflow: hidden !important or global overscroll containment that breaks non-gameplay pages
         Assert.DoesNotContain("body { overflow: hidden !important; }", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("html { overscroll-behavior: none;", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("body { overscroll-behavior: none;", css, StringComparison.Ordinal);
     }
 
     private sealed class FakeClock : IClock

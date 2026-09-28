@@ -343,30 +343,29 @@ When items are accepted into the backlog, they are recorded with:
   2. **Boss Layout-Box Isolation**: Eliminates boss layout-box expansion (`clamp(110px..160px)`), reserving the identical structural artwork slot (`clamp(90px, 16vh, 140px)`) across normal and boss encounters (`visual scale != layout scale`).
   3. **Boss Visual Model & Aggressiveness**: Boss visual magnification is achieved via compositor transforms (`transform: scale(1.42)` / `boss-hover` / `boss-recoil`), intense dropshadow/glow, and restrained aggressive animations safely degraded under `prefers-reduced-motion`.
   4. **Bounded Battle Stage**: Fixed battle stage height (`height: clamp(110px, 18vh, 155px); overflow: hidden;`) contains and clips visual overflow without expanding layout or causing document scroll.
-  5. **Scoped Scroll Boundary**: Gameplay scroll suppression (`overflow: hidden; touch-action: manipulation;`) is strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected.
+  5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected. Physical device verification remains required.
 
 ---
 
-### MF-LEARN-007: Adaptive Timing and Early Calibration Redesign
+### Future Topic: Adaptive Timing and Early Calibration Redesign — DESIGN_REQUIRED
 
-- **ID**: `MF-LEARN-007`
-- **Title**: Adaptive Timing and Early Calibration Redesign
+- **Topic**: Adaptive Timing and Early Calibration Redesign
 - **Type**: `Product`
 - **Status**: `Proposed` (`DESIGN_REQUIRED`)
 - **Dependencies**: `MF-LEARN-006` complete
 - **Description**:
   Redesign the early training pace calibration and answer deadline model to accommodate both young beginners (e.g. four-year-olds) and fast adult arithmetic learners:
-  1. Deliberately generous starting deadline window (candidate starting window ~15–30s rather than an aggressive adult-oriented short threshold).
+  1. Deliberately generous starting deadline window (candidate starting window ~15–30s rather than an aggressive adult-oriented short threshold, not finalized).
   2. Rapid pace adaptation from early authentic attempts (target early calibration region of approximately 18–24 meaningful attempts; exact numbers and algorithms uncommitted, pending design approval).
   3. Durable learned pace preservation across sessions so returning learners do not restart as unknown every session.
-  4. Age-agnostic learned pace for fast/bonus combat feedback rather than one-size-fits-all raw time thresholds.
+  4. Age-agnostic learned pace for fast/bonus combat feedback (Critical Hit / bonus timing depending on learned individual pace rather than a universal raw threshold).
+  5. Final algorithm remains: `DESIGN_REQUIRED`.
 
 ---
 
-### MF-DIAG-001: Tester Telemetry Export and Share
+### Future Topic: Tester Telemetry Export and Share — DESIGN_REQUIRED
 
-- **ID**: `MF-DIAG-001`
-- **Title**: Tester Telemetry Export and Share
+- **Topic**: Tester Telemetry Export and Share
 - **Type**: `Feature`
 - **Status**: `Proposed` (`DESIGN_REQUIRED`)
 - **Dependencies**: `MF-UX-005` tester diagnostics baseline
@@ -376,18 +375,19 @@ When items are accepted into the backlog, they are recorded with:
   2. Native Android Share intent (`Intent.ACTION_SEND` / share sheet) supporting export via WhatsApp, email, Drive, etc., alongside file save/backup.
   3. Exported telemetry payload: presented fact/problem, operation, answer/outcome, response latency, practice position, progression and calibration context, and sufficient state to assess difficulty ("too easy / appropriate / too hard").
   4. Privacy, data minimization, and optional future import/restore specifications to be defined during formal design before implementation.
+  5. Status remains: `DESIGN_REQUIRED`.
 
 ---
 
-### MF-UX-009: Light-Theme Cyber Defense Visual Reconciliation
+### Future Topic: Light-Theme Cyber Defense Visual Reconciliation — DEFERRED
 
-- **ID**: `MF-UX-009`
-- **Title**: Light-Theme Cyber Defense Visual Reconciliation
+- **Topic**: Light-Theme Cyber Defense Visual Reconciliation
 - **Type**: `Refactoring`
 - **Status**: `Deferred`
 - **Dependencies**: `MF-UX-008` complete
 - **Description**:
   Reconcile the Cyber Defense battle scene background in Light theme mode. While global application themes switch cleanly between light and dark modes, the battle scene stage interior remains dark. Reconcile background tokens and contrast for light theme without compromising atmospheric neon/cyber aesthetic or readability.
+  Status remains: `DEFERRED`.
 
 ---
 
