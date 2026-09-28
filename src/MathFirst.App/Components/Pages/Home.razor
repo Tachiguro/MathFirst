@@ -14,7 +14,7 @@
 @inject IJSRuntime JSRuntime
 @inject IHapticFeedbackService HapticService
 
-<div class="training-host" @onkeydown="HandleGlobalKeyDown" tabindex="0">
+<div class="training-host @(IsActiveGameplay ? "active-gameplay" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
         <header class="mathfirst-header">
             <div class="mathfirst-title-group">
@@ -81,7 +81,7 @@
         }
         else
         {
-            <main class="training-card">
+            <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "")">
                 @if (Session.PracticeGate != PracticeGateState.Running)
                 {
                     <section class="practice-overlay practice-gate-overlay"
@@ -408,6 +408,15 @@
     private long _operationProgressPracticePosition = long.MinValue;
     private HashSet<ArithmeticOperation>? _enabledOperations;
     private readonly CyberDefenseEncounterState _cyberDefenseState = new();
+    private bool IsActiveGameplay =>
+        !_startupFailed &&
+        Session.IsInitialized &&
+        Session.CurrentFact is not null &&
+        Session.PracticeGate == PracticeGateState.Running &&
+        Session.InteractionState != SessionInteractionState.PersistenceFailure &&
+        Session.InteractionState != SessionInteractionState.TeachingIntervention &&
+        Session.InteractionState != SessionInteractionState.SessionCheckIn &&
+        !IsAwaitingAcknowledgement;
 
     private string GetExpressionSizeClass()
     {

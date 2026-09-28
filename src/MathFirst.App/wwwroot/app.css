@@ -815,6 +815,65 @@ select:disabled {
     }
 }
 
+/* Active Gameplay Positional Stability and Scroll Suppression (MF-UX-008) */
+.training-host.active-gameplay {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+    min-height: 100%;
+    max-height: 100dvh;
+    touch-action: manipulation;
+    padding-top: max(clamp(0.5rem, 1.5vh, 1.25rem), env(safe-area-inset-top));
+    padding-bottom: max(clamp(0.5rem, 1.5vh, 1.25rem), env(safe-area-inset-bottom));
+    padding-left: max(clamp(0.5rem, 2vw, 1.25rem), env(safe-area-inset-left));
+    padding-right: max(clamp(0.5rem, 2vw, 1.25rem), env(safe-area-inset-right));
+}
+
+.training-host.active-gameplay .mathfirst-container {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.training-host.active-gameplay .mathfirst-header {
+    flex: 0 0 auto;
+}
+
+.training-host.active-gameplay .training-card {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    flex: 1 1 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-items: stretch;
+}
+
+.training-host.active-gameplay .training-top-region {
+    flex: 0 0 auto;
+}
+
+.training-host.active-gameplay .practice-layout {
+    min-height: 0;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 560px) {
+    .training-host.active-gameplay .practice-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 42fr) minmax(16rem, 58fr);
+        grid-template-rows: minmax(0, 1fr);
+    }
+}
+
 .mathfirst-container {
     width: 100%;
     max-width: min(48rem, 100%);
@@ -1717,6 +1776,7 @@ select:disabled {
     height: clamp(12rem, 28dvh, 17.5rem);
     margin: 0 auto;
     gap: clamp(0.3rem, 0.9vh, 0.55rem);
+    flex-shrink: 0;
 }
 
 .numeric-keypad-button {
@@ -1790,6 +1850,7 @@ select:disabled {
     border-radius: clamp(0.55rem, 1.4vw, 0.8rem);
     background: var(--color-surface-elevated);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    flex-shrink: 0;
 }
 
 .app-theme-root[data-theme="dark"] .operation-unlock-area {

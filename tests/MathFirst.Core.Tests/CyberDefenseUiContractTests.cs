@@ -704,6 +704,389 @@ public sealed class CyberDefenseUiContractTests
         Assert.Equal(-2000, resumeTiming.NegativeDelayMs);
     }
 
+    [Fact]
+    public void CyberDefenseCombatLayout_BossStructuralGeometryMatchesNormalMode_AndDoesNotEnlargeLayoutBox()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Normal structural wrapper geometry is defined
+        Assert.Contains(".scene-artwork-wrapper", css, StringComparison.Ordinal);
+        Assert.Contains("clamp(90px, 16vh, 140px)", css, StringComparison.Ordinal);
+
+        // Boss mode MUST NOT enlarge layout box geometry
+        Assert.DoesNotMatch(@"\.scene-artwork-wrapper\.is-boss\s*\{[^}]*width:", css);
+        Assert.DoesNotMatch(@"\.scene-artwork-wrapper\.is-boss\s*\{[^}]*height:", css);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_BattleStageProvidesBoundedClippingRegion_PreventingLayoutExpansion()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Stage and scene establish bounded overflow/clipping boundaries
+        Assert.Contains(".scene-stage", css, StringComparison.Ordinal);
+        Assert.Contains(".enemy-battle-scene", css, StringComparison.Ordinal);
+        Assert.Contains("overflow: hidden;", css, StringComparison.Ordinal);
+
+        // Stage establishes fixed height bounds so oversized artwork cannot push down layout
+        Assert.Matches(@"\.scene-stage\s*\{[^}]*[\r\n]\s*height:\s*clamp\(110px,\s*18vh,\s*155px\);", css);
+        Assert.DoesNotContain("min-height: clamp(110px, 18vh, 155px);", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_BossVisualEnlargementUsesNonLayoutPresentationMechanisms()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Boss visual scale is compositor-driven via transform: scale(...) rather than layout dimensions
+        Assert.Contains(".scene-artwork-wrapper.is-boss .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Matches(@"@keyframes\s+boss-hover\s*\{[^}]*scale\(1\.[3-5]", css);
+
+        // Reduced motion contract preserves safe degraded scaling without animation
+        Assert.Contains("@media (prefers-reduced-motion: reduce)", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.is-boss .scene-opponent-image", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_TransientFeedbackRemainsOverlayBased_WithoutLayoutShift()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Feedback overlay is absolutely positioned and pointer-transparent
+        Assert.Contains(".battle-feedback-overlay", css, StringComparison.Ordinal);
+        Assert.Contains("position: absolute;", css, StringComparison.Ordinal);
+        Assert.Contains("inset: 0;", css, StringComparison.Ordinal);
+        Assert.Contains("pointer-events: none;", css, StringComparison.Ordinal);
+
+        // Feedback badges and numbers reside within overlay
+        Assert.Contains("hit-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("crit-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("blocked-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("badge-hit", hud, StringComparison.Ordinal);
+        Assert.Contains("badge-crit", hud, StringComparison.Ordinal);
+        Assert.Contains("badge-blocked", hud, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ActiveGameLayoutMaintainsReservedKeypadRegion()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Keypad grid rows and columns are structurally reserved
+        Assert.Contains(".numeric-keypad", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-rows: repeat(4, minmax(", css, StringComparison.Ordinal);
+        Assert.Contains(".numeric-keypad-button", css, StringComparison.Ordinal);
+        Assert.Contains("min-height:", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ScrollSuppressionIsScopedToActiveGameplay()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+
+        Assert.True(File.Exists(homePath));
+        Assert.True(File.Exists(cssPath));
+
+        var home = File.ReadAllText(homePath);
+        var css = File.ReadAllText(cssPath);
+
+        // Active gameplay is explicitly flagged in markup
+        Assert.Contains("active-gameplay", home, StringComparison.Ordinal);
+
+        // Active gameplay suppresses scrolling and sets defensive overscroll containment
+        Assert.Contains(".training-host.active-gameplay", css, StringComparison.Ordinal);
+        Assert.Contains("overflow: hidden;", css, StringComparison.Ordinal);
+        Assert.Contains("overscroll-behavior: none;", css, StringComparison.Ordinal);
+
+        // Settings and onboarding maintain their required scrollability
+        Assert.Contains(".settings-page", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.settings-page\s*\{[^}]*overflow-y:\s*auto", css);
+        Assert.Contains(".onboarding-host", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.onboarding-host\s*\{[^}]*overflow-y:\s*auto", css);
+
+        // No blanket body overflow: hidden !important or global overscroll containment that breaks non-gameplay pages
+        Assert.DoesNotContain("body { overflow: hidden !important; }", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("html { overscroll-behavior: none;", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("body { overscroll-behavior: none;", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_VisualLayeringEnsuresIntelTextHasExplicitForegroundPriorityOverArtwork()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Explicit visual priority: intel region sits at higher z-index (4) than artwork wrapper (1)
+        Assert.Contains(".scene-intel", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-intel\s*\{[^}]*position:\s*relative;", css);
+        Assert.Matches(@"\.scene-intel\s*\{[^}]*z-index:\s*4;", css);
+
+        Assert.Contains(".scene-artwork-wrapper", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-artwork-wrapper\s*\{[^}]*z-index:\s*1;", css);
+
+        // Intel region has backdrop scrim gradient treatment protecting foreground text
+        Assert.Matches(@"\.scene-intel\s*\{[^}]*background:\s*linear-gradient\(90deg,", css);
+        Assert.Contains(".scene-stage-boss .scene-intel", css, StringComparison.Ordinal);
+
+        // Foreground text contrast and text shadow protections
+        Assert.Matches(@"\.scene-enemy-name\s*\{[^}]*text-shadow:", css);
+        Assert.Contains(".boss-enemy-name", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-enemy-desc\s*\{[^}]*text-shadow:", css);
+        Assert.Matches(@"\.scene-enemy-desc\s*\{[^}]*font-weight:\s*600;", css);
+        Assert.Contains(".scene-stage-boss .scene-enemy-desc", css, StringComparison.Ordinal);
+
+        // Battle feedback overlay (damage numbers and crit badges) remains top layer (z-index: 10)
+        Assert.Matches(@"\.battle-feedback-overlay\s*\{[^}]*z-index:\s*10;", css);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ProgressiveOpponentScaling_IsPresentationDrivenAndConfiguredAcrossTiers()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Markup applies OpponentScaleClass to artwork wrapper
+        Assert.Contains("OpponentScaleClass", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseOpponentScalePolicy.GetScaleClass", hud, StringComparison.Ordinal);
+
+        // CSS defines presentation scaling for all tiers
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-small .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-medium-small .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-medium .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-large .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-sector-boss .scene-opponent-image", css, StringComparison.Ordinal);
+
+        // Early enemies start noticeably smaller (scale 0.65) in keyframe animations
+        Assert.Matches(@"@keyframes\s+opponent-hover-small\s*\{[^}]*scale\(0\.65\)", css);
+        Assert.Matches(@"@keyframes\s+opponent-hover-medium-small\s*\{[^}]*scale\(0\.78\)", css);
+        Assert.Matches(@"@keyframes\s+opponent-hover-medium\s*\{[^}]*scale\(0\.90\)", css);
+        Assert.Matches(@"@keyframes\s+opponent-hover-large\s*\{[^}]*scale\(1\.05\)", css);
+        Assert.Matches(@"@keyframes\s+boss-hover\s*\{[^}]*scale\(1\.42\)", css);
+        Assert.Matches(@"@keyframes\s+sector-boss-hover\s*\{[^}]*scale\(1\.50\)", css);
+
+        // Prefers reduced motion covers all scale tiers without animation
+        Assert.Contains("@media (prefers-reduced-motion: reduce)", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-small .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-sector-boss .scene-opponent-image", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_CombatFeedbackSelectors_HaveHigherSpecificityThanIdleHoverAcrossAllTiers()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        string[] regularTiers =
+        [
+            CyberDefenseOpponentScalePolicy.SmallClass,
+            CyberDefenseOpponentScalePolicy.MediumSmallClass,
+            CyberDefenseOpponentScalePolicy.MediumClass,
+            CyberDefenseOpponentScalePolicy.LargeClass
+        ];
+
+        string[] feedbackClasses =
+        [
+            "opponent-hit-recoil",
+            "opponent-crit-recoil",
+            "opponent-block-deflect"
+        ];
+
+        // Regular scale tiers MUST define feedback selectors scoped to the wrapper tier class
+        // so specificity (0,4,0) exceeds the idle hover rule (0,3,0).
+        foreach (var tier in regularTiers)
+        {
+            var hoverPattern = $@"\.scene-artwork-wrapper\.{tier}\s+\.scene-opponent-image\b";
+            Assert.Matches(hoverPattern, css);
+
+            foreach (var feedback in feedbackClasses)
+            {
+                var feedbackPattern = $@"\.scene-artwork-wrapper\.{tier}\s+\.scene-opponent-image\.{feedback}\b";
+                Assert.True(
+                    Regex.IsMatch(css, feedbackPattern),
+                    $"Tier {tier} must define a feedback selector matching '{feedbackPattern}' to take precedence over idle hover.");
+            }
+        }
+
+        // Boss and Sector Boss must similarly define explicit feedback selectors
+        foreach (var feedback in feedbackClasses)
+        {
+            Assert.True(
+                Regex.IsMatch(css, $@"\.scene-artwork-wrapper\.is-boss\s+\.scene-opponent-image\.{feedback}\b"),
+                $"Boss must define feedback selector for {feedback}");
+            Assert.True(
+                Regex.IsMatch(css, $@"\.scene-artwork-wrapper\.opponent-scale-sector-boss\s+\.scene-opponent-image\.{feedback}\b"),
+                $"Sector boss must define explicit feedback selector for {feedback}");
+        }
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_AllScaleTiers_PreserveBaseScaleInKeyframesAcrossHitCritAndBlockedStates()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Verification matrix: Tier, ExpectedBaseScale, RecoilAnimName, CritAnimName, DeflectAnimName
+        (string tier, double baseScale, string recoilAnim, string critAnim, string deflectAnim)[] tierSpecs =
+        [
+            ("small", 0.65, "opponent-recoil-small", "opponent-crit-small", "opponent-deflect-small"),
+            ("medium-small", 0.78, "opponent-recoil-medium-small", "opponent-crit-medium-small", "opponent-deflect-medium-small"),
+            ("medium", 0.90, "opponent-recoil-medium", "opponent-crit-medium", "opponent-deflect-medium"),
+            ("large", 1.05, "opponent-recoil-large", "opponent-crit-large", "opponent-deflect-large"),
+            ("boss", 1.42, "boss-recoil", "boss-crit-shake", "boss-deflect"),
+            ("sector-boss", 1.50, "sector-boss-recoil", "sector-boss-crit-shake", "sector-boss-deflect")
+        ];
+
+        foreach (var (tier, baseScale, recoilAnim, critAnim, deflectAnim) in tierSpecs)
+        {
+            var baseScaleStr = baseScale.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+            // 1. Hit Recoil: must start (0%) and end (100%) at tier base scale
+            var recoilKeyframes = ExtractKeyframeBlock(css, recoilAnim);
+            Assert.False(string.IsNullOrWhiteSpace(recoilKeyframes), $"Keyframe block for {recoilAnim} must exist.");
+            Assert.Matches($@"0%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", recoilKeyframes);
+            Assert.Matches($@"100%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", recoilKeyframes);
+
+            // Recoil must NOT collapse to generic scale(1) unless base is 1.0
+            if (baseScale != 1.0)
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\)", recoilKeyframes);
+            }
+
+            // 2. Critical Recoil: must return cleanly (100%) to tier base scale
+            var critKeyframes = ExtractKeyframeBlock(css, critAnim);
+            Assert.False(string.IsNullOrWhiteSpace(critKeyframes), $"Keyframe block for {critAnim} must exist.");
+            Assert.Matches($@"100%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", critKeyframes);
+
+            // Sector Boss crit must return to 1.50 and NOT ordinary boss 1.42
+            if (tier == "sector-boss")
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\.42\)", critKeyframes);
+            }
+
+            // 3. Blocked Deflect: must start (0%) and return (100%) to tier base scale
+            var deflectKeyframes = ExtractKeyframeBlock(css, deflectAnim);
+            Assert.False(string.IsNullOrWhiteSpace(deflectKeyframes), $"Keyframe block for {deflectAnim} must exist.");
+            Assert.Matches($@"0%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", deflectKeyframes);
+            Assert.Matches($@"100%\s*\{{[^}}]*scale\({Regex.Escape(baseScaleStr)}\)", deflectKeyframes);
+
+            // Deflect must NOT collapse to generic scale(1) unless base is 1.0
+            if (baseScale != 1.0)
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\)", deflectKeyframes);
+            }
+
+            // Sector Boss deflect must return to 1.50 and NOT ordinary boss 1.42
+            if (tier == "sector-boss")
+            {
+                Assert.DoesNotMatch(@"100%\s*\{[^}]*scale\(1\.42\)", deflectKeyframes);
+            }
+        }
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ReducedMotion_PreservesExplicitTierScalesAcrossAllStates()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Find the reduced-motion block
+        var reducedMotionIndex = css.IndexOf("@media (prefers-reduced-motion: reduce)", StringComparison.Ordinal);
+        Assert.True(reducedMotionIndex >= 0, "Reduced motion media query must exist.");
+        var reducedMotionBlock = css[reducedMotionIndex..];
+
+        (string tierClass, double scale)[] expectations =
+        [
+            (CyberDefenseOpponentScalePolicy.SmallClass, 0.65),
+            (CyberDefenseOpponentScalePolicy.MediumSmallClass, 0.78),
+            (CyberDefenseOpponentScalePolicy.MediumClass, 0.90),
+            (CyberDefenseOpponentScalePolicy.LargeClass, 1.05),
+            (CyberDefenseOpponentScalePolicy.BossClass, 1.42),
+            (CyberDefenseOpponentScalePolicy.SectorBossClass, 1.50)
+        ];
+
+        string[] feedbackModifiers =
+        [
+            "",
+            ".opponent-hit-recoil",
+            ".opponent-crit-recoil",
+            ".opponent-block-deflect"
+        ];
+
+        foreach (var (tierClass, scale) in expectations)
+        {
+            var scaleStr = scale.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+            // For boss, it can be matched via is-boss or opponent-scale-boss
+            var selectorTier = tierClass == CyberDefenseOpponentScalePolicy.BossClass ? "(?:is-boss|opponent-scale-boss)" : tierClass;
+
+            foreach (var feedback in feedbackModifiers)
+            {
+                var selectorPattern = $@"\.scene-artwork-wrapper\.{selectorTier}\s+\.scene-opponent-image{Regex.Escape(feedback)}";
+                Assert.True(
+                    Regex.IsMatch(reducedMotionBlock, selectorPattern),
+                    $"Reduced motion must cover {selectorPattern}");
+            }
+
+            // Ensure the block assigns transform: scale(...) !important with correct tier scale
+            var tierRulePattern = $@"\.scene-artwork-wrapper\.{selectorTier}[^{{]*\{{[^}}]*transform:\s*scale\({Regex.Escape(scaleStr)}\)\s*!important;";
+            Assert.True(
+                Regex.IsMatch(reducedMotionBlock, tierRulePattern),
+                $"Reduced motion must enforce scale({scaleStr}) !important for {tierClass}");
+        }
+    }
+
+    private static string ExtractKeyframeBlock(string css, string animationName)
+    {
+        var pattern = $@"(?:@-webkit-keyframes|@keyframes)\s+{Regex.Escape(animationName)}\s*\{{";
+        var match = Regex.Match(css, pattern);
+        if (!match.Success) return string.Empty;
+
+        var startIndex = match.Index + match.Length;
+        var depth = 1;
+        var currentIndex = startIndex;
+
+        while (currentIndex < css.Length && depth > 0)
+        {
+            if (css[currentIndex] == '{') depth++;
+            else if (css[currentIndex] == '}') depth--;
+            currentIndex++;
+        }
+
+        return css[startIndex..(currentIndex - 1)];
+    }
+
     private sealed class FakeClock : IClock
     {
         private long _timestamp = 1_000_000;

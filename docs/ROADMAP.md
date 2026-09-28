@@ -112,16 +112,21 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 47. Adaptive Learning Policy Implementation Planning (`MF-LEARN-006` `PLAN_ONLY`) — **COMPLETED** (Option-B architecture and design specification reconciled and approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) and design spec).
 48. Adaptive Learning Policy Implementation (`MF-LEARN-006`) — **COMPLETED** and merged to `main` through Pull Request #54 at `bc7471b098e2f79262ff6e71302820bd281a14d5` (validated candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb`, `REVIEW_PASS`, `FULL_VALIDATION_PASS`, 1,772 Core tests passed in Debug and Release, exact 482 strong-learner benchmark locked, Schema V6 preserved).
 49. Reconcile post-MF-LEARN-006 documentation baseline (`MF-DOC-009`) — **COMPLETED** (documenting merged MF-LEARN-006 quality and operational baseline on `main`).
-50. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
-51. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
-52. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
-53. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
-54. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
-55. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
-56. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
-57. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
+50. Deliver Static Combat Layout and Layout-Isolated Boss Presentation (`MF-UX-008`) — **IMPLEMENTATION AND ACCEPTANCE COMPLETE** on task branch `fix/mf-ux-008-static-combat-layout` (`REVIEW_PASS`, `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`; publication and PR pending).
+51. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
+52. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
+53. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
+54. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
+55. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
+56. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
+57. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
+58. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
 
 ### Future Planned Roadmap Work
 - **Gamification & Combat Layer Integration**: The Cyber Defense MVP was completed and merged to `main` through Pull Request #50 at `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b` (validated feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`). Downstream combat mechanics consume learning telemetry strictly without altering FSRS or progression.
+- **Static Combat Layout & Boss Presentation (`MF-UX-008`)**: Active gameplay positional stability, layout-isolated boss presentation via compositor transforms and overflow clipping, and scoped active gameplay scroll suppression.
 - **Adaptive Learning Policy Implementation (`MF-LEARN-006`)**: **COMPLETED** and merged to `main` via PR #54 (`bc7471b098e2f79262ff6e71302820bd281a14d5`), delivering Option-B Evidence-Adaptive Discovery, G3 Soft Decoupling, Pace Calibration readiness at $\ge 24$ positioned Correct attempts, Absolute No-Immediate-Fact-Repetition Invariant, and the exact 482-attempt normative strong-learner benchmark.
+- **Adaptive Timing and Early Calibration Redesign**: Future redesign of early pace calibration and answer deadline model (`DESIGN_REQUIRED`), accommodating young beginners (15–30s initial window) and fast learners with durable pace memory across sessions.
+- **Tester Telemetry Export and Share**: Future learning telemetry export from Settings with native Android Share sheet integration (`DESIGN_REQUIRED`) to analyze real tester difficulty and pace evidence.
+- **Light-Theme Cyber Defense Visual Reconciliation**: Future visual polish reconciling dark Cyber Defense battle scene styling within the light application theme (`DEFERRED`).
 
