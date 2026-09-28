@@ -704,6 +704,126 @@ public sealed class CyberDefenseUiContractTests
         Assert.Equal(-2000, resumeTiming.NegativeDelayMs);
     }
 
+    [Fact]
+    public void CyberDefenseCombatLayout_BossStructuralGeometryMatchesNormalMode_AndDoesNotEnlargeLayoutBox()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Normal structural wrapper geometry is defined
+        Assert.Contains(".scene-artwork-wrapper", css, StringComparison.Ordinal);
+        Assert.Contains("clamp(90px, 16vh, 140px)", css, StringComparison.Ordinal);
+
+        // Boss mode MUST NOT enlarge layout box geometry
+        Assert.DoesNotMatch(@"\.scene-artwork-wrapper\.is-boss\s*\{[^}]*width:", css);
+        Assert.DoesNotMatch(@"\.scene-artwork-wrapper\.is-boss\s*\{[^}]*height:", css);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_BattleStageProvidesBoundedClippingRegion_PreventingLayoutExpansion()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Stage and scene establish bounded overflow/clipping boundaries
+        Assert.Contains(".scene-stage", css, StringComparison.Ordinal);
+        Assert.Contains(".enemy-battle-scene", css, StringComparison.Ordinal);
+        Assert.Contains("overflow: hidden;", css, StringComparison.Ordinal);
+
+        // Stage establishes fixed height bounds so oversized artwork cannot push down layout
+        Assert.Matches(@"\.scene-stage\s*\{[^}]*[\r\n]\s*height:\s*clamp\(110px,\s*18vh,\s*155px\);", css);
+        Assert.DoesNotContain("min-height: clamp(110px, 18vh, 155px);", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_BossVisualEnlargementUsesNonLayoutPresentationMechanisms()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Boss visual scale is compositor-driven via transform: scale(...) rather than layout dimensions
+        Assert.Contains(".scene-artwork-wrapper.is-boss .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Matches(@"@keyframes\s+boss-hover\s*\{[^}]*scale\(1\.[3-5]", css);
+
+        // Reduced motion contract preserves safe degraded scaling without animation
+        Assert.Contains("@media (prefers-reduced-motion: reduce)", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.is-boss .scene-opponent-image", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_TransientFeedbackRemainsOverlayBased_WithoutLayoutShift()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Feedback overlay is absolutely positioned and pointer-transparent
+        Assert.Contains(".battle-feedback-overlay", css, StringComparison.Ordinal);
+        Assert.Contains("position: absolute;", css, StringComparison.Ordinal);
+        Assert.Contains("inset: 0;", css, StringComparison.Ordinal);
+        Assert.Contains("pointer-events: none;", css, StringComparison.Ordinal);
+
+        // Feedback badges and numbers reside within overlay
+        Assert.Contains("hit-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("crit-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("blocked-feedback-overlay", hud, StringComparison.Ordinal);
+        Assert.Contains("badge-hit", hud, StringComparison.Ordinal);
+        Assert.Contains("badge-crit", hud, StringComparison.Ordinal);
+        Assert.Contains("badge-blocked", hud, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ActiveGameLayoutMaintainsReservedKeypadRegion()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // Keypad grid rows and columns are structurally reserved
+        Assert.Contains(".numeric-keypad", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(3, minmax(0, 1fr));", css, StringComparison.Ordinal);
+        Assert.Contains("grid-template-rows: repeat(4, minmax(", css, StringComparison.Ordinal);
+        Assert.Contains(".numeric-keypad-button", css, StringComparison.Ordinal);
+        Assert.Contains("min-height:", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ScrollSuppressionIsScopedToActiveGameplay()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+
+        Assert.True(File.Exists(homePath));
+        Assert.True(File.Exists(cssPath));
+
+        var home = File.ReadAllText(homePath);
+        var css = File.ReadAllText(cssPath);
+
+        // Active gameplay is explicitly flagged in markup
+        Assert.Contains("active-gameplay", home, StringComparison.Ordinal);
+
+        // Active gameplay suppresses scrolling
+        Assert.Contains(".training-host.active-gameplay", css, StringComparison.Ordinal);
+        Assert.Contains("overflow: hidden;", css, StringComparison.Ordinal);
+
+        // Settings and onboarding maintain their required scrollability
+        Assert.Contains(".settings-page", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.settings-page\s*\{[^}]*overflow-y:\s*auto", css);
+        Assert.Contains(".onboarding-host", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.onboarding-host\s*\{[^}]*overflow-y:\s*auto", css);
+
+        // No blanket body overflow: hidden !important that breaks non-gameplay pages
+        Assert.DoesNotContain("body { overflow: hidden !important; }", css, StringComparison.Ordinal);
+    }
+
     private sealed class FakeClock : IClock
     {
         private long _timestamp = 1_000_000;

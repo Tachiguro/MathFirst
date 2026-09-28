@@ -326,4 +326,6 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - Zero runtime networking or network permissions contract is preserved.
 - Correctness and response latency are separate learning evidence.
 - Negative subtraction, division with remainder, cloud synchronization/accounts, export/import, and larger-than-`Int32` arithmetic remain deferred.
+- Active combat layout positional stability invariant: on-screen numeric keypad coordinates, arithmetic typography, and answer input area remain completely static across enemy spawn, replacement, boss appearance, HP/shield mutations, and floating feedback overlays; boss visual scale uses compositor-driven CSS transforms (`scale(1.42)`) decoupled from layout geometry (`visual scale != layout scale`); gameplay scroll suppression is scoped strictly to `.training-host.active-gameplay` while Settings, Onboarding, and dialogs retain scrolling (`MF-UX-008`).
+- Adaptive timing calibration (`MF-LEARN-007`) and tester telemetry export (`MF-DIAG-001`) remain pending design (`DESIGN_REQUIRED`); Light-theme Cyber Defense background reconciliation (`MF-UX-009`) remains deferred (`DEFERRED`).
 - Packaging, signing, store publication, and deployment require separate authorized lifecycle work.

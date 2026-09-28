@@ -452,6 +452,17 @@ Contextual copy is presentation behavior only. It does not change FactId, curric
   - *Full Local Reset*: Clears all learner progress and restores all settings, operation preferences, practice-time preferences, keypad layout, and UI preferences to defaults.
   - All three reset actions remain explicit two-step confirmations. After an inline confirmation is rendered, it receives programmatic focus and is scrolled into view with nearest-block behavior; reduced-motion preferences disable smooth scrolling.
 
+### Active Combat Positional Stability (MF-UX-008)
+
+During active gameplay in gamified modes (such as Cyber Defense), the interactive mathematical canvas must maintain strict positional stability:
+- **Positional Stability Invariant**: The on-screen numeric keypad coordinates, arithmetic problem typography, and answer input area must never shift, bounce, or resize in response to enemy spawn, normal enemy replacement, boss appearance, HP/shield mutations, combat floating feedback overlays (Hit, Crit, Blocked), or dynamic status copy.
+- **Layout-Isolated Boss Presentation**: Boss enemies must appear visually commanding, larger, and more threatening than standard enemies, but their visual scale must remain completely decoupled from layout geometry (`visual scale != layout scale`). Boss presentation uses compositor-driven CSS transforms (`transform: scale(...)`) on isolated artwork layers within fixed-dimension bounding boxes. Boss presence must never expand the surrounding DOM containers, stage wrappers, or combat layout boxes.
+- **Scoped Scroll Boundary**: The active gameplay surface (`.training-host.active-gameplay`) strictly suppresses horizontal and vertical scrolling (`overflow: hidden; touch-action: manipulation;`). The active battle view must fit within the fixed viewport without scrolling on mobile and desktop devices. This scroll suppression is strictly scoped: Settings (`.settings-page`), Onboarding (`.onboarding-host`), Privacy, and long modal dialogs must retain natural scrolling (`overflow-y: auto`).
+- **Deferred Future Capabilities**:
+  - *Adaptive Timing Calibration (`DESIGN_REQUIRED` / `MF-LEARN-007`)*: Exploring adaptive, individual-calibrated countdowns or pacing models for diverse learner profiles while preserving the core mastery model.
+  - *Tester Telemetry Export (`DESIGN_REQUIRED` / `MF-DIAG-001`)*: Privacy-preserving manual export of local learner telemetry and diagnostic session data to assist with qualitative testing feedback.
+  - *Light-Theme Cyber Defense Background Reconciliation (`DEFERRED` / `MF-UX-009`)*: Visual harmonization of combat scenes when operating under light appearance mode.
+
 ---
 
 ## 10. Offline, Accounts, and Local Progress
@@ -576,6 +587,10 @@ The following register contains both resolved and unresolved product decisions. 
 | **Monetization Model** | Long-term project funding structure (e.g. completely free open source, donations, or optional support). | `UNRESOLVED` |
 | **Cloud Account & Sync Architecture** | Optional cloud synchronization design and account backend protocols. | `UNRESOLVED` |
 | **Export/Import Specification** | Exact schema, file format, and migration rules for manual data transfer. | `UNRESOLVED` |
+| **Active Combat Positional Stability** | Positional stability invariant (fixed keypad coordinates, layout-isolated boss presentation via compositor transforms, scoped gameplay scroll suppression) (`MF-UX-008`). | `RESOLVED` |
+| **Adaptive Timing Calibration** | Adaptive, learner-calibrated countdowns and pacing models (`MF-LEARN-007`). | `DESIGN_REQUIRED` |
+| **Tester Telemetry Export** | Privacy-preserving manual export of diagnostic session telemetry for testing (`MF-DIAG-001`). | `DESIGN_REQUIRED` |
+| **Light-Theme Combat Background** | Visual background styling and contrast harmonization for Cyber Defense in light theme (`MF-UX-009`). | `DEFERRED` |
 
 ---
 

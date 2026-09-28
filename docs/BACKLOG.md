@@ -330,6 +330,67 @@ When items are accepted into the backlog, they are recorded with:
 
 ---
 
+### MF-UX-008: Static Combat Layout and Boss Presentation
+
+- **ID**: `MF-UX-008`
+- **Title**: Static Combat Layout and Boss Presentation
+- **Type**: `Feature`
+- **Status**: `Accepted` (In progress on task branch `fix/mf-ux-008-static-combat-layout`)
+- **Dependencies**: `MF-LEARN-006` complete (merged through PR #54)
+- **Description**:
+  Establishes active combat positional stability and layout-isolated boss presentation:
+  1. **Active Combat Positional Stability**: Keypad coordinates remain strictly stationary during active gameplay across enemy changes, boss appearances, hits, critical hits, blocked attacks, HP changes, and feedback overlays.
+  2. **Boss Layout-Box Isolation**: Eliminates boss layout-box expansion (`clamp(110px..160px)`), reserving the identical structural artwork slot (`clamp(90px, 16vh, 140px)`) across normal and boss encounters (`visual scale != layout scale`).
+  3. **Boss Visual Model & Aggressiveness**: Boss visual magnification is achieved via compositor transforms (`transform: scale(1.42)` / `boss-hover` / `boss-recoil`), intense dropshadow/glow, and restrained aggressive animations safely degraded under `prefers-reduced-motion`.
+  4. **Bounded Battle Stage**: Fixed battle stage height (`height: clamp(110px, 18vh, 155px); overflow: hidden;`) contains and clips visual overflow without expanding layout or causing document scroll.
+  5. **Scoped Scroll Boundary**: Gameplay scroll suppression (`overflow: hidden; touch-action: manipulation;`) is strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected.
+
+---
+
+### MF-LEARN-007: Adaptive Timing and Early Calibration Redesign
+
+- **ID**: `MF-LEARN-007`
+- **Title**: Adaptive Timing and Early Calibration Redesign
+- **Type**: `Product`
+- **Status**: `Proposed` (`DESIGN_REQUIRED`)
+- **Dependencies**: `MF-LEARN-006` complete
+- **Description**:
+  Redesign the early training pace calibration and answer deadline model to accommodate both young beginners (e.g. four-year-olds) and fast adult arithmetic learners:
+  1. Deliberately generous starting deadline window (candidate starting window ~15–30s rather than an aggressive adult-oriented short threshold).
+  2. Rapid pace adaptation from early authentic attempts (target early calibration region of approximately 18–24 meaningful attempts; exact numbers and algorithms uncommitted, pending design approval).
+  3. Durable learned pace preservation across sessions so returning learners do not restart as unknown every session.
+  4. Age-agnostic learned pace for fast/bonus combat feedback rather than one-size-fits-all raw time thresholds.
+
+---
+
+### MF-DIAG-001: Tester Telemetry Export and Share
+
+- **ID**: `MF-DIAG-001`
+- **Title**: Tester Telemetry Export and Share
+- **Type**: `Feature`
+- **Status**: `Proposed` (`DESIGN_REQUIRED`)
+- **Dependencies**: `MF-UX-005` tester diagnostics baseline
+- **Description**:
+  Provide learning and practice telemetry export from Settings to support empirical difficulty and pacing analysis across diverse tester demographics:
+  1. Export affordance in Settings allowing testers to share diagnostic learning evidence.
+  2. Native Android Share intent (`Intent.ACTION_SEND` / share sheet) supporting export via WhatsApp, email, Drive, etc., alongside file save/backup.
+  3. Exported telemetry payload: presented fact/problem, operation, answer/outcome, response latency, practice position, progression and calibration context, and sufficient state to assess difficulty ("too easy / appropriate / too hard").
+  4. Privacy, data minimization, and optional future import/restore specifications to be defined during formal design before implementation.
+
+---
+
+### MF-UX-009: Light-Theme Cyber Defense Visual Reconciliation
+
+- **ID**: `MF-UX-009`
+- **Title**: Light-Theme Cyber Defense Visual Reconciliation
+- **Type**: `Refactoring`
+- **Status**: `Deferred`
+- **Dependencies**: `MF-UX-008` complete
+- **Description**:
+  Reconcile the Cyber Defense battle scene background in Light theme mode. While global application themes switch cleanly between light and dark modes, the battle scene stage interior remains dark. Reconcile background tokens and contrast for light theme without compromising atmospheric neon/cyber aesthetic or readability.
+
+---
+
 > [!NOTE]
 > Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).
 
