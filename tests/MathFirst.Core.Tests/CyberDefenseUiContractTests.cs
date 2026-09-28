@@ -827,6 +827,78 @@ public sealed class CyberDefenseUiContractTests
         Assert.DoesNotContain("body { overscroll-behavior: none;", css, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CyberDefenseCombatLayout_VisualLayeringEnsuresIntelTextHasExplicitForegroundPriorityOverArtwork()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Explicit visual priority: intel region sits at higher z-index (4) than artwork wrapper (1)
+        Assert.Contains(".scene-intel", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-intel\s*\{[^}]*position:\s*relative;", css);
+        Assert.Matches(@"\.scene-intel\s*\{[^}]*z-index:\s*4;", css);
+
+        Assert.Contains(".scene-artwork-wrapper", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-artwork-wrapper\s*\{[^}]*z-index:\s*1;", css);
+
+        // Intel region has backdrop scrim gradient treatment protecting foreground text
+        Assert.Matches(@"\.scene-intel\s*\{[^}]*background:\s*linear-gradient\(90deg,", css);
+        Assert.Contains(".scene-stage-boss .scene-intel", css, StringComparison.Ordinal);
+
+        // Foreground text contrast and text shadow protections
+        Assert.Matches(@"\.scene-enemy-name\s*\{[^}]*text-shadow:", css);
+        Assert.Contains(".boss-enemy-name", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-enemy-desc\s*\{[^}]*text-shadow:", css);
+        Assert.Matches(@"\.scene-enemy-desc\s*\{[^}]*font-weight:\s*600;", css);
+        Assert.Contains(".scene-stage-boss .scene-enemy-desc", css, StringComparison.Ordinal);
+
+        // Battle feedback overlay (damage numbers and crit badges) remains top layer (z-index: 10)
+        Assert.Matches(@"\.battle-feedback-overlay\s*\{[^}]*z-index:\s*10;", css);
+    }
+
+    [Fact]
+    public void CyberDefenseCombatLayout_ProgressiveOpponentScaling_IsPresentationDrivenAndConfiguredAcrossTiers()
+    {
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+
+        Assert.True(File.Exists(hudPath));
+        Assert.True(File.Exists(cssPath));
+
+        var hud = File.ReadAllText(hudPath);
+        var css = File.ReadAllText(cssPath);
+
+        // Markup applies OpponentScaleClass to artwork wrapper
+        Assert.Contains("OpponentScaleClass", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseOpponentScalePolicy.GetScaleClass", hud, StringComparison.Ordinal);
+
+        // CSS defines presentation scaling for all tiers
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-small .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-medium-small .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-medium .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-large .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-sector-boss .scene-opponent-image", css, StringComparison.Ordinal);
+
+        // Early enemies start noticeably smaller (scale 0.65) in keyframe animations
+        Assert.Matches(@"@keyframes\s+opponent-hover-small\s*\{[^}]*scale\(0\.65\)", css);
+        Assert.Matches(@"@keyframes\s+opponent-hover-medium-small\s*\{[^}]*scale\(0\.78\)", css);
+        Assert.Matches(@"@keyframes\s+opponent-hover-medium\s*\{[^}]*scale\(0\.90\)", css);
+        Assert.Matches(@"@keyframes\s+opponent-hover-large\s*\{[^}]*scale\(1\.05\)", css);
+        Assert.Matches(@"@keyframes\s+boss-hover\s*\{[^}]*scale\(1\.42\)", css);
+        Assert.Matches(@"@keyframes\s+sector-boss-hover\s*\{[^}]*scale\(1\.50\)", css);
+
+        // Prefers reduced motion covers all scale tiers without animation
+        Assert.Contains("@media (prefers-reduced-motion: reduce)", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-small .scene-opponent-image", css, StringComparison.Ordinal);
+        Assert.Contains(".scene-artwork-wrapper.opponent-scale-sector-boss .scene-opponent-image", css, StringComparison.Ordinal);
+    }
+
     private sealed class FakeClock : IClock
     {
         private long _timestamp = 1_000_000;

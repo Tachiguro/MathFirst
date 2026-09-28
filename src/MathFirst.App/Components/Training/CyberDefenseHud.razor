@@ -77,7 +77,7 @@
             </div>
 
             <!-- Right: Large Opponent Artwork -->
-            <div class="scene-artwork-wrapper @(State.IsBoss ? "is-boss" : "") @ArtworkFeedbackClass" @key="@($"opponent-{State.FeedbackRevision}")">
+            <div class="scene-artwork-wrapper @(State.IsBoss ? "is-boss" : "") @OpponentScaleClass @ArtworkFeedbackClass" @key="@($"opponent-{State.FeedbackRevision}")">
                 <img src="@OpponentAssetPath"
                      alt="@OpponentName"
                      class="scene-opponent-image @OpponentFeedbackClass" />
@@ -213,6 +213,9 @@
     private string OpponentDescription => Localizer[State.CurrentEnemy.DescKey];
 
     private string OpponentAssetPath => State.CurrentEnemy.AssetPath;
+
+    private string OpponentScaleClass =>
+        CyberDefenseOpponentScalePolicy.GetScaleClass(State.CurrentEnemy, State.EnemyIndex);
 
     private int EnemyHpPercentage =>
         (int)Math.Round((double)Math.Clamp(State.EnemyHitPoints, 0, State.EnemyMaxHitPoints)
