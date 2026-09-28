@@ -316,17 +316,17 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-LEARN-006`
 - **Title**: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration
 - **Type**: `Feature`
-- **Status**: `Accepted` (Design approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) and spec `2026-09-26-adaptive-learning-policy-design.md`; adaptive-learning policy documentation integration complete via PR #51; Agent Prompt Governance Hardening complete separately via PR #52; implementation planning pending explicit `PLAN_ONLY` dispatch; production implementation has not started)
+- **Status**: `Completed` (Merged through PR #54 at `bc7471b098e2f79262ff6e71302820bd281a14d5`, validated candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb`, review `REVIEW_PASS`, full validation `FULL_VALIDATION_PASS`, post-merge tests: 1,772 passed, 0 failed, 0 skipped, Schema V6 preserved without migration)
 - **Dependencies**: Architecture investigation complete; Cyber Defense MVP prerequisite satisfied via PR #50 (`fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`); adaptive-learning documentation integration complete via PR #51 (`01472b05ef83f586144414a3cb3a0c7abbc45189`); Agent Prompt Governance Hardening complete via PR #52 (`f6a842b71df39b2d6facafae41874c86d6f3f611`).
 - **Description**:
-  Implement the approved ADR-0010 learning architecture (implementation planning in `PLAN_ONLY` mode will begin upon explicit dispatch; production implementation has not started):
-  1. **Evidence-Adaptive Discovery Policy**: Dynamically promote review and consolidation turns to New when pools contain zero acquisition-blocking work and evidence is clean, achieving the exact 482-attempt normative benchmark for the canonical strong learner fixture under the approved Option-B policy.
-  2. **Absolute No-Immediate-Fact-Repetition Invariant**: Enforce $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all outcomes, outranking anti-ladder aesthetics.
-  3. **Tiered Weakness & Remediation Model**: Differentiate isolated mistakes (ordinary remediation spacing, tested cooldown 4) from repeated local errors (tightened remediation spacing, tested cooldown 2; existing presentation teaching interventions preserved without adding new learning-engine intervention requirements) and broad systemic weakness (multiple simultaneously unresolved remediation facts within the relevant learning context, tested as active unresolved remediation facts $\ge 2$, suppressing New discovery). Preserve $\ge 90\%$ Dense progression mastery ($C \cdot 10 \ge N \cdot 9$).
-  4. **Guided Gate G3 Soft Decoupling**: Decouple Multiplication and Division from `AdditionCeiling` once their respective `BandIndex >= 3`, restoring autonomous canonical progression without magic jumps.
-  5. **Empirical Pace Calibration**: Declare pace calibration ready after $\ge 24$ positioned Correct attempts, where empirical drift drops below 10%.
-  6. **Downstream Gamification Contract**: Maintain Critical Hit as a presentation-only consumer (1 HP before calibration, 2 HP for fast Correct after calibration, 1 HP for slow Correct), with zero mutation of learning or FSRS telemetry.
-  7. **Lossless Persistence**: Implement fully within Schema V6 with zero schema migrations.
+  Delivered the approved ADR-0010 learning architecture and Option-B discovery policy:
+  1. **Evidence-Adaptive Discovery Policy**: Dynamically promotes review and consolidation turns to New when pools contain zero acquisition-blocking work and evidence is clean, achieving the exact 482-attempt normative benchmark for the canonical strong learner fixture under the approved Option-B policy.
+  2. **Absolute No-Immediate-Fact-Repetition Invariant**: Enforces $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all outcomes, strictly outranking anti-ladder aesthetics.
+  3. **Tiered Weakness & Remediation Model**: Differentiates isolated mistakes (ordinary remediation spacing, tested cooldown 4) from repeated local errors (tightened remediation spacing, tested cooldown 2; existing presentation teaching interventions preserved) and broad systemic weakness (multiple simultaneously unresolved remediation facts within the relevant learning context, tested as active unresolved remediation facts $\ge 2$, suppressing New discovery). Preserves $\ge 90\%$ Dense progression mastery ($C \cdot 10 \ge N \cdot 9$).
+  4. **Guided Gate G3 Soft Decoupling**: Decouples Multiplication and Division from `AdditionCeiling` once their respective `BandIndex >= 3`, restoring autonomous canonical progression without magic jumps.
+  5. **Empirical Pace Calibration**: Declares pace calibration ready after $\ge 24$ positioned Correct attempts, where empirical drift drops below 10%.
+  6. **Downstream Gamification Contract**: Maintains Critical Hit as a presentation-only consumer (1 HP before calibration, 2 HP for fast Correct after calibration, 1 HP for slow Correct), with zero mutation of learning or FSRS telemetry.
+  7. **Lossless Persistence**: Implemented fully within Schema V6 with zero schema migrations.
 
 ---
 

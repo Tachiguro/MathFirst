@@ -9,14 +9,14 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: MF-LEARN-006: Evidence-Adaptive Discovery, Guided Soft Decoupling, and Pace Calibration (Local implementation package complete through Slice 7; complete-package review passed with REVIEW_PASS; operational status docs reconciled; awaiting FULL_VALIDATION)
-- **Current Lifecycle**: DOCUMENT_ONLY complete (Operational status documentation reconciled) / Awaiting FULL_VALIDATION
-- **Status of Adaptive Learning Work**: The full MF-LEARN-006 implementation package is complete locally on task branch `feat/mf-learn-006-adaptive-learning-policy` through checkpoint `b51a63b3e559d35a49dcca1833c0750a72eb5f88` (10 implementation-related commits ahead of main). Complete-package `REVIEW_ONLY` passed with `REVIEW_PASS` (zero CRITICAL findings, zero IMPORTANT findings; full Debug suite: 1,772 passed, 0 failed, 0 skipped). Option-B architecture and implementation are fully aligned; Option-B selector remediation and Slice 7 verification are complete. The exact canonical strong-learner benchmark (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt exactly 482; Addition accepted attempts: exactly 121), real-SQLite restart equivalence, cold-restart next-selection determinism, and Schema V6 preservation (zero schema changes/migrations) are permanently locked under regression tests. The branch is strictly local and unpublished (no push has occurred, no PR exists, no merge has occurred).
-- **Next Lifecycle Step**: `FULL_VALIDATION — MF-LEARN-006 complete implementation package` (upon explicit user dispatch; followed if authorized by PUSH_ONLY, PR_ONLY, manual merge authorization, and POST_MERGE_SYNC_ONLY).
+- **Active Task**: None (MF-LEARN-006 completed and merged into `main` via PR #54; awaiting explicit user dispatch for downstream release preparation or next package)
+- **Current Lifecycle**: DOCUMENT_ONLY complete (Operational status documentation reconciled on `main`)
+- **Status of Adaptive Learning Work**: The full MF-LEARN-006 package (`MF-LEARN-006: adaptive learning policy, 482 benchmark, and durable calibration`) is complete and merged into `main` via PR #54 (merge commit `bc7471b098e2f79262ff6e71302820bd281a14d5`, validated feature HEAD `576836db96d4d16e3be2d701c66c5adea3ecd1fb`). Post-merge synchronization is complete (`POST_MERGE_SYNC_COMPLETE`), with local `main` matching `origin/main`. Full test suite passes: `1,772 passed, 0 failed, 0 skipped` (`MathFirst.Core.Tests`). Option-B architecture and selector implementation are authoritative on `main`; the exact 482 strong-learner benchmark (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt exactly 482; Addition accepted attempts: exactly 121), real-SQLite restart equivalence, cold-restart next-selection determinism, pace calibration readiness at $\ge 24$ positioned Correct attempts, Guided G3 soft decoupling, absolute no-immediate-fact-repetition, and Schema V6 preservation (zero migrations or schema changes) are permanently locked under regression tests on `main`.
+- **Next Lifecycle Step**: Awaiting explicit user dispatch for downstream work (e.g. final V1 gap audit, fresh Tester APK build, manual physical-device validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32).
 
-### 1.1 MF-LEARN-006 Local Implementation Package Summary
+### 1.1 MF-LEARN-006 Merged Package Summary
 
-The completed package on `feat/mf-learn-006-adaptive-learning-policy` contains:
+The completed package merged on `main` contains:
 1. **Tiered Remediation and Broad Weakness**: Differentiates isolated slips (cooldown 4) from repeated local errors (tightened cooldown 2; presentation teaching interventions preserved) and broad systemic distress ($\ge 2$ active unresolved remediation facts within operation/context, suppressing New discovery);
 2. **Evidence-Adaptive Discovery**: Review and consolidation turns are dynamically promoted to New when scheduled pools contain zero acquisition-blocking work and evidence is clean, achieving an emergent discovery ratio under the approved Option-B policy;
 3. **Absolute No-Immediate-Fact-Repetition Invariant**: Strict $\text{FactId}(t+1) \ne \text{FactId}(t)$ across all attempt outcomes, strictly outranking anti-ladder candidate selection;
@@ -30,11 +30,12 @@ The completed package on `feat/mf-learn-006-adaptive-learning-policy` contains:
 ### 1.2 Current Verified Quality State
 
 - **Complete-Package Review**: `REVIEW_PASS` (`REVIEW_ONLY` lifecycle concluded with zero CRITICAL findings and zero IMPORTANT findings).
-- **Automated Test Suite**: Full Debug suite: `1,772 passed, 0 failed, 0 skipped` (`MathFirst.Core.Tests`).
+- **Candidate Full Validation**: `FULL_VALIDATION_PASS` on candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb` (Debug & Release builds: 0 warnings, 0 errors; Debug & Release tests: 1,772 passed, 0 failed, 0 skipped).
+- **Pre-Merge Review & Merge**: PR #54 pre-merge review passed (`REVIEW_PASS`), merged by user at merge commit `bc7471b098e2f79262ff6e71302820bd281a14d5`.
+- **Post-Merge Verification**: `POST_MERGE_SYNC_COMPLETE` on canonical checkout `C:\Dev\MathFirst`; post-merge Debug tests: `1,772 passed, 0 failed, 0 skipped`.
 - **Strong-Learner Benchmark**: Exact canonical benchmark `ADD-D10 -> ADD-P1-ANCHOR` achieved at global accepted attempt exactly `482`; Addition accepted attempts: exactly `121`.
 - **Restart Equivalence & Determinism**: Real-SQLite restart equivalence verified; cold-restart next-selection determinism verified.
 - **Persistence Contract**: Schema V6 preserved intact without migration, table, or column additions.
-- **Remote / Delivery Boundaries**: No remote CI has run; no PR exists; no push has occurred; nothing has been merged.
 
 ---
 
@@ -113,19 +114,14 @@ MF-UX-007 delivers a refined, accessible learner-facing progress presentation wh
 
 ### Release Context:
 - **Build 2 Rejection**: Historical. Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to the selector crash/starvation bug on operation reconfiguration and restart, resolved by `MF-STAB-003`.
-- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004`, `MF-LEARN-005`, and `MF-UX-007` and no longer represents current repository source.
+- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004`, `MF-LEARN-005`, `MF-UX-007`, and `MF-LEARN-006` and no longer represents current repository source.
 - **Future Production Candidate**:
-  - Any future production candidate packaging after MF-UX-007 merge will have `versionCode >= 4`.
+  - Any future production candidate packaging after package merges will have `versionCode >= 4`.
   - Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Authorized Downstream Project Sequence:
-1. Execute `FULL_VALIDATION — MF-LEARN-006 complete implementation package` on task branch `feat/mf-learn-006-adaptive-learning-policy` when explicitly dispatched.
-2. Subsequent lifecycles upon separate explicit user authorization:
-   - `PUSH_ONLY`
-   - `PR_ONLY`
-   - manual merge authorization
-   - `POST_MERGE_SYNC_ONLY`
-3. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
+1. MF-LEARN-006 is complete, fully validated, merged to `main` via PR #54 (merge commit `bc7471b098e2f79262ff6e71302820bd281a14d5`), and synchronized (`POST_MERGE_SYNC_COMPLETE`).
+2. Subsequent release preparation sequence (final V1 gap audit, fresh Tester APK build, manual physical-device tester validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
 
 > [!IMPORTANT]
-> Package `MF-LEARN-006` is implemented locally and has passed complete-package review, but remains unpublished on local task branch `feat/mf-learn-006-adaptive-learning-policy`. Downstream lifecycle steps (`FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`) or release steps must not be autonomously activated without explicit user dispatch.
+> Package `MF-LEARN-006` is complete and merged into `main`. Downstream release preparation or next feature package must not be autonomously activated without explicit user dispatch.

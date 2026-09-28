@@ -150,6 +150,9 @@ When initializing a new session:
 5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
 
 ### Durable Merged Baseline Summary
+- **MF-LEARN-006 Adaptive Learning Policy, 482 Benchmark, and Durable Calibration** (PR #54, merge `bc7471b098e2f79262ff6e71302820bd281a14d5`, candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb`): Delivered Option-B Evidence-Adaptive Discovery, absolute no-immediate-fact-repetition invariant ($\text{FactId}(t+1) \ne \text{FactId}(t)$), tiered remediation (4 / 2 cooldown spacing; broad weakness threshold 2), Guided Gate G3 soft decoupling at `BandIndex >= 3`, durable pace calibration at $\ge 24$ positioned Correct attempts, calibrated downstream Cyber Defense Critical Hits, exact 482 strong-learner benchmark, restart determinism, and exact-candidate `FULL_VALIDATION_PASS` (1,772 Core tests passed in Debug/Release, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, Schema V6 preserved without migration).
+- **Post-PR #51/#52 Documentation Reconciliation** (PR #53, merge `50aed4714937777f98058cc64afb75a75d749709`): Reconciled baseline documentation following PR #51 and PR #52.
+- **Agent Prompt Governance Hardening** (PR #52, merge `f6a842b71df39b2d6facafae41874c86d6f3f611`): Hardened repository governance with strict fail-closed project/task identity verification, single-canonical-checkout enforcement, forbidden Git operations, strict staging rules, and multi-mode operation boundaries across `AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, and `docs/NEW_CHAT_BOOTSTRAP.md`.
 - **Adaptive Learning Policy Design** (PR #51, merge `01472b05ef83f586144414a3cb3a0c7abbc45189`): Formalized evidence-adaptive discovery, absolute no-immediate-fact-repetition invariant, tiered weakness remediation, guided gate soft decoupling, and pace calibration benchmark in canonical specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and ADR-0010.
 - **Cyber Defense Training MVP** (PR #50, merge `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`): Delivered Cyber Defense mini-game training mode MVP.
 - **Progression Coherence Audit** (PR #49, merge `a1a02716b0e0b0acb020c21f9d4c13045bf803c5`): Added deterministic regression coverage for curriculum progression coherence.
@@ -166,7 +169,6 @@ When initializing a new session:
 - **Predecessors**: Slices and packages prior to PR #39 are documented in [docs/PROJECT_STATE.md](PROJECT_STATE.md).
 
 ### Downstream Roadmap Stages
-- **Adaptive Learning Implementation (`MF-LEARN-006`)**: Following the approved ADR-0010 design specification (`docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md`), downstream implementation will be dispatched under an explicitly authorized package and `PLAN_ONLY` phase.
-- **Release Verification & Distribution**: Release packaging (`versionCode >= 4`), tester validation, and Step 30–32 verification remain deferred until explicitly authorized.
+- **Release Verification & Distribution**: Release preparation (final V1 gap audit, fresh Tester APK build, manual physical-device validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 30–32) remains deferred until explicitly authorized.
 
 This historical reference baseline is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
