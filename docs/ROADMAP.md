@@ -112,7 +112,7 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 47. Adaptive Learning Policy Implementation Planning (`MF-LEARN-006` `PLAN_ONLY`) — **COMPLETED** (Option-B architecture and design specification reconciled and approved via [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) and design spec).
 48. Adaptive Learning Policy Implementation (`MF-LEARN-006`) — **COMPLETED** and merged to `main` through Pull Request #54 at `bc7471b098e2f79262ff6e71302820bd281a14d5` (validated candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb`, `REVIEW_PASS`, `FULL_VALIDATION_PASS`, 1,772 Core tests passed in Debug and Release, exact 482 strong-learner benchmark locked, Schema V6 preserved).
 49. Reconcile post-MF-LEARN-006 documentation baseline (`MF-DOC-009`) — **COMPLETED** (documenting merged MF-LEARN-006 quality and operational baseline on `main`).
-50. Deliver Static Combat Layout and Layout-Isolated Boss Presentation (`MF-UX-008`) — **IN PROGRESS** on task branch `fix/mf-ux-008-static-combat-layout`.
+50. Deliver Static Combat Layout and Layout-Isolated Boss Presentation (`MF-UX-008`) — **IMPLEMENTATION AND ACCEPTANCE COMPLETE** on task branch `fix/mf-ux-008-static-combat-layout` (`REVIEW_PASS`, `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`; publication and PR pending).
 51. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
 52. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
 53. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).

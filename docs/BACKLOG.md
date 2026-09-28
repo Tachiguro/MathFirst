@@ -335,7 +335,7 @@ When items are accepted into the backlog, they are recorded with:
 - **ID**: `MF-UX-008`
 - **Title**: Static Combat Layout and Boss Presentation
 - **Type**: `Feature`
-- **Status**: `Accepted` (In progress on task branch `fix/mf-ux-008-static-combat-layout`)
+- **Status**: `Implementation and Acceptance Complete` (Task branch `fix/mf-ux-008-static-combat-layout`; publication and PR pending)
 - **Dependencies**: `MF-LEARN-006` complete (merged through PR #54)
 - **Description**:
   Establishes active combat positional stability and layout-isolated boss presentation:
@@ -343,7 +343,8 @@ When items are accepted into the backlog, they are recorded with:
   2. **Boss Layout-Box Isolation**: Eliminates boss layout-box expansion (`clamp(110px..160px)`), reserving the identical structural artwork slot (`clamp(90px, 16vh, 140px)`) across normal and boss encounters (`visual scale != layout scale`).
   3. **Boss Visual Model & Aggressiveness**: Boss visual magnification is achieved via compositor transforms (`transform: scale(1.42)` / `boss-hover` / `boss-recoil`), intense dropshadow/glow, and restrained aggressive animations safely degraded under `prefers-reduced-motion`.
   4. **Bounded Battle Stage**: Fixed battle stage height (`height: clamp(110px, 18vh, 155px); overflow: hidden;`) contains and clips visual overflow without expanding layout or causing document scroll.
-  5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected. Physical device verification remains required.
+  5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected.
+  6. **Review and Acceptance Evidence**: Technical review completed with `REVIEW_PASS`; automated validation passed (Debug build 0 warnings/0 errors, 1,786 Debug tests passed); physical Android user acceptance completed with `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`. Remaining exact opponent size and placement tuning is explicitly deferred as nonblocking visual polish. Branch publication and PR creation remain pending.
 
 ---
 
