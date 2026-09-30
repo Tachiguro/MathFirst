@@ -121,7 +121,12 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 outcome TEXT NOT NULL DEFAULT 'Incorrect',
                 response_latency_ms INTEGER NOT NULL,
                 timestamp TEXT NOT NULL,
-                practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0)
+                practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0),
+                attempt_context_version INTEGER,
+                presented_deadline_ms INTEGER,
+                expected_pace_ms INTEGER,
+                resolved_role TEXT,
+                operation_band_before INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS fsrs_card_state (
@@ -160,6 +165,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
@@ -167,25 +173,33 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 5)
         {
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 6)
+        {
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == LearnerProgression.DefaultSchemaVersion)
         {
-            // Already at default V6
+            // Already at default V7
         }
         else if (version > LearnerProgression.DefaultSchemaVersion)
         {
@@ -2073,6 +2087,59 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 {
                     throw new InvalidOperationException("V5 to V6 migration did not update the expected schema-version row.");
                 }
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV6ToV7Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var pragmaCmd = connection.CreateCommand())
+            {
+                pragmaCmd.Transaction = transaction;
+                pragmaCmd.CommandText = "PRAGMA table_info(attempt_history);";
+                using var reader = await pragmaCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    existingColumns.Add(reader.GetString(1));
+                }
+            }
+
+            var columnsToAdd = new (string Name, string Type)[]
+            {
+                ("attempt_context_version", "INTEGER"),
+                ("presented_deadline_ms", "INTEGER"),
+                ("expected_pace_ms", "INTEGER"),
+                ("resolved_role", "TEXT"),
+                ("operation_band_before", "INTEGER")
+            };
+
+            foreach (var (colName, colType) in columnsToAdd)
+            {
+                if (!existingColumns.Contains(colName))
+                {
+                    using var alterCmd = connection.CreateCommand();
+                    alterCmd.Transaction = transaction;
+                    alterCmd.CommandText = $"ALTER TABLE attempt_history ADD COLUMN {colName} {colType};";
+                    await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            using (var updateVersionCmd = connection.CreateCommand())
+            {
+                updateVersionCmd.Transaction = transaction;
+                updateVersionCmd.CommandText = "UPDATE schema_info SET value = '7' WHERE key = 'schema_version';";
+                await updateVersionCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
             transaction.Commit();

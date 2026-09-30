@@ -2,7 +2,7 @@ namespace MathFirst.Domain;
 
 public sealed class LearnerProgression
 {
-    public const int DefaultSchemaVersion = 6;
+    public const int DefaultSchemaVersion = 7;
 
     public long PracticePosition { get; set; }
     public Dictionary<ArithmeticOperation, OperationProgression> OperationProgressions { get; set; } = CreateInitialOperationProgressions();

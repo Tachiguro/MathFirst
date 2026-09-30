@@ -1315,8 +1315,8 @@ public sealed class FactEligibilityRegressionTests
 
                 var snapshot = await store.LoadSnapshotAsync();
 
-                // Invariant A & D: Migration succeeded and reached V6.
-                Assert.Equal(6, snapshot.SchemaVersion);
+                // Invariant A & D: Migration succeeded and reached V7.
+                Assert.Equal(7, snapshot.SchemaVersion);
                 Assert.Equal(initialStoreRevision, snapshot.Revision);
                 Assert.Equal(initialPracticePosition, snapshot.Progression.PracticePosition);
 
@@ -1382,7 +1382,7 @@ public sealed class FactEligibilityRegressionTests
                 await reopenedStore.InitializeAsync();
                 var reopenedSnapshot = await reopenedStore.LoadSnapshotAsync();
 
-                Assert.Equal(6, reopenedSnapshot.SchemaVersion);
+                Assert.Equal(7, reopenedSnapshot.SchemaVersion);
                 Assert.Equal(initialStoreRevision, reopenedSnapshot.Revision);
                 Assert.True(reopenedSnapshot.ItemStates.ContainsKey("mul:2*8"));
                 Assert.True(reopenedSnapshot.FsrsStates.TryGetValue("mul:2*8", out var reopenedFsrs));
@@ -1486,7 +1486,7 @@ public sealed class FactEligibilityRegressionTests
                 await reopenedStore.InitializeAsync();
                 var snapshot = await reopenedStore.LoadSnapshotAsync();
 
-                Assert.Equal(6, snapshot.SchemaVersion);
+                Assert.Equal(7, snapshot.SchemaVersion);
                 Assert.Equal(initialStoreRevision, snapshot.Revision);
 
                 var mulProgression = snapshot.OperationProgressions![ArithmeticOperation.Multiplication];

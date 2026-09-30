@@ -778,12 +778,12 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         {
             await conn.OpenAsync();
 
-            // 1. schema_version is 6
+            // 1. schema_version is 7
             using (var versionCmd = conn.CreateCommand())
             {
                 versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
                 var version = await versionCmd.ExecuteScalarAsync();
-                Assert.Equal("6", version);
+                Assert.Equal("7", version);
             }
 
             // 2. Expected tables only
@@ -810,7 +810,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
                 Assert.Equal(expectedTables, actualTables);
             }
 
-            // 3. Columns on attempt_history remain exactly V6
+            // 3. Columns on attempt_history remain exactly V7
             var expectedAttemptColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "submission_id",
@@ -825,7 +825,12 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
                 "outcome",
                 "response_latency_ms",
                 "timestamp",
-                "practice_position"
+                "practice_position",
+                "attempt_context_version",
+                "presented_deadline_ms",
+                "expected_pace_ms",
+                "resolved_role",
+                "operation_band_before"
             };
 
             using (var colCmd = conn.CreateCommand())
