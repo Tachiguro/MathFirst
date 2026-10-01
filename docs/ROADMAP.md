@@ -114,20 +114,42 @@ MF-LEARN-001 is complete and integrated into `main` through Pull Request #9. It 
 49. Reconcile post-MF-LEARN-006 documentation baseline (`MF-DOC-009`) — **COMPLETED** (documenting merged MF-LEARN-006 quality and operational baseline on `main`).
 50. Deliver Static Combat Layout and Layout-Isolated Boss Presentation (`MF-UX-008`) — **COMPLETED** and merged to `main` through Pull Request #55 at `76116d11b8563b0407188ba53ccefd998eda958d` (validated feature HEAD `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`, `REVIEW_PASS`, `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`, post-merge tests: 1,786 passed, 0 failed, 0 skipped, Schema V6 preserved).
 50b. Deliver Tester Telemetry Export and Share (`MF-TELEM-001`) — **COMPLETED** and merged to `main` through Pull Request #56 at `bbdf62652927efa26475a9f2d83778de6465f5e1` (delivering Schema V7 persistence with five presentation-context columns, pseudonymous random installation UUID, canonical JSON export, sandboxed native share, Full Local Reset cleanup, and learning non-interference regression coverage; `REVIEW_PASS`, 1,906 Core tests passed, 0 compiler warnings/errors).
-51. Execute final V1 gap audit — **PENDING** (separately authorized; no new package identifier).
-52. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **PENDING** (agent-executable when explicitly authorized).
-53. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **PENDING** (user/agent-executable when authorized).
-54. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **PENDING** (manual user verification).
-55. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **PENDING** (only after successful physical tester validation; `Distributable` profile with external production keystore; agent-executable when explicitly authorized; Build 4 does not exist yet).
-56. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **PENDING** (agent-executable when explicitly authorized).
-57. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **PENDING** (agent-executable when explicitly authorized).
-58. Google Play gate (Step 32) — **PENDING** (BLOCKED until Step 31 passes; separately authorized, user responsibility in Google Play Console).
+51. Execute final V1 gap audit — **COMPLETED** (`STEP_51_READY_FOR_STEP_52`; read-only audit of `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f`, zero Step-52 blockers found).
+52. Build fresh Tester APK from synchronized `main` (`ReleaseProfile.Tester`) — **COMPLETED** (`STEP_52_TESTER_APK_PASS`; source `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f`, package `com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`, development/debug signed, repository remained clean).
+53. Install Tester APK on physical test device: Samsung Galaxy S26 Ultra — **COMPLETED** (`STEP_53_INSTALL_PASS`; Samsung SM-S948B / m3q, Android 16 / API 36, package `com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, production package unmodified).
+54. Manual physical-device tester validation on Samsung Galaxy S26 Ultra — **COMPLETED** (`STEP_54_MANUAL_VALIDATION_PASS`; physical device Samsung Galaxy S26 Ultra; manual validation covered launch, normal practice, correct answer, incorrect answer, pause/resume, Cyber Defense combat presentation, multi-question continuity, background/resume, Settings, Privacy, telemetry export/share, localization; zero manual findings reported; source repository unchanged).
+55. Perform production packaging and signing for candidate (`versionCode` $\ge 4$) — **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54; deferred pending pre-Step55 refinement program; no production AAB, no versionCode 4, no release signing, no Google Play upload).
+56. Perform technical smoke verification (Step 30) on production candidate (`versionCode` $\ge 4$) — **DEFERRED / NOT AUTHORIZED** (pending future explicit Step 55 authorization).
+57. Perform manual physical-device functional verification (Step 31) on production candidate (`versionCode` $\ge 4$) (Samsung Galaxy S26 Ultra) — **DEFERRED / NOT AUTHORIZED** (pending future explicit Step 55 authorization).
+58. Google Play gate (Step 32) — **DEFERRED / NOT AUTHORIZED** (blocked until future Step 31 passes; user responsibility in Google Play Console).
 
-### Future Planned Roadmap Work
-- **Gamification & Combat Layer Integration**: The Cyber Defense MVP was completed and merged to `main` through Pull Request #50 at `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b` (validated feature HEAD `4a7d500328b31a7b7b7a017d0f697fd719f04596`). Downstream combat mechanics consume learning telemetry strictly without altering FSRS or progression.
-- **Static Combat Layout & Boss Presentation (`MF-UX-008`)**: **COMPLETED** and merged to `main` via PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`), establishing active combat positional stability, layout-isolated boss presentation via compositor transforms, visual layering, progressive opponent scaling, and scoped active gameplay scroll suppression.
-- **Adaptive Learning Policy Implementation (`MF-LEARN-006`)**: **COMPLETED** and merged to `main` via PR #54 (`bc7471b098e2f79262ff6e71302820bd281a14d5`), delivering Option-B Evidence-Adaptive Discovery, G3 Soft Decoupling, Pace Calibration readiness at $\ge 24$ positioned Correct attempts, Absolute No-Immediate-Fact-Repetition Invariant, and the exact 482-attempt normative strong-learner benchmark.
-- **Tester Telemetry Export and Share (`MF-TELEM-001`)**: **COMPLETED** and merged to `main` via PR #56 (`bbdf62652927efa26475a9f2d83778de6465f5e1`), delivering Schema V7 persistence with presentation context, pseudonymous random installation UUID, complete attempt history JSON export (`telemetry_export_schema_v1`), sandboxed native sharing, Full Reset cleanup, and non-interference regression coverage.
-- **Adaptive Timing and Early Calibration Redesign**: Future redesign of early pace calibration and answer deadline model (`DESIGN_REQUIRED`), accommodating young beginners (15–30s initial window) and fast learners with durable pace memory across sessions, driven by empirical telemetry evidence gathered from `MF-TELEM-001`.
-- **Light-Theme Cyber Defense Visual Reconciliation**: Future visual polish reconciling dark Cyber Defense battle scene styling within the light application theme (`DEFERRED`).
+---
+
+### Phase 7: Pre-Step55 V1 Refinement Program & Strategic Sequence
+
+Following Step 54 validation, the user established the **Pre-Step55 V1 Refinement Program** documented authoritatively in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md).
+
+#### Core Product Invariants:
+1. **Learning First**: Every user must become better at mental arithmetic; game mechanics must never reduce learning quality.
+2. **Gameplay Must Not Control Learning Truth**: Game state has zero authority over curriculum, progression, FSRS, remediation, fact scheduling, or correctness.
+3. **Minimal Friction**: Avoid mandatory extra clicks; non-mathematical interaction must not inflate arithmetic response latency.
+4. **No Loss of Learning Progress from Game Failure**: Losing game resources/battles never erases mathematical progress.
+5. **Skill-Based, Not Age-Based**: Progression adapts dynamically to demonstrated mathematical competence.
+
+#### Refinement Workstreams (P-Items):
+- **P0: Zero-Answer / `0 + 0` Core-Flow Freeze** (`P0 Blocker`): Investigate and resolve physical-device freeze on `0 + 0 = 0` input from fresh/reset state. **Next planned work item under `PLAN_ONLY`; implementation not authorized by documentation lifecycle.**
+- **P1: Normal Practice Without Deadline Failure**: Remove automatic timeout question termination from normal practice; preserve active response latency measurement, adaptive pace estimation, and FSRS rating semantics.
+- **P1b: Active Thinking Time / Interruption Safety**: Pause timing on UI navigation/backgrounding/interruption; exclude contaminated latency from pace/fluency modeling.
+- **P2: Direct-to-Practice Start / Remove Onboarding**: Eliminate 5-step onboarding; launch directly into active practice with sensible defaults (System language/theme, Numpad, haptics enabled, Addition only).
+- **P3: Cumulative Operation Unlock Progression**: Replace unrestricted starting selection with evidence-based cumulative unlocking ($+ \to + - \to + - \times \to + - \times \div$); validate via three deterministic simulation personas (Beginner, Mixed/Weakness, Strong).
+- **P4: Settings Simplification**: Streamline Settings; remove normal-practice time selection; ensure operation controls cannot bypass mathematical unlock progression.
+- **P5: Cyber Defense Visual Consistency**: Reconcile Settings and secondary UI with dark technical Cyber Defense visual language.
+- **P6: Tester Diagnostics / Telemetry Release Boundary**: Enforce strict compile/profile boundary isolating Tester diagnostic controls from Distributable production UI.
+- **P8: Test-Coverage Audit & Targeted Hardening**: Conduct factual coverage baseline audit and harden critical domain, persistence, and release policy invariants.
+- **P7: Later Game-Design & Game-Polish Program** (*Deferred / Post-Core*): Boss pressure mechanics respecting the Boss Timer Separation Principle (game consequences on expiry without fabricating arithmetic failure), seeded deterministic procedural enemy generation, cosmetic shop, and meta-progression.
+
+#### Execution Sequence & Chat Handoff Protocol:
+- **Default Work Order**: $\text{P0} \to \text{P1} \to \text{P1b} \to \text{P2} \to \text{P3} \to \text{P4} \to \text{P5} \to \text{P6} \to \text{P8} \to [\text{Step 55 Proposed}]$.
+- **Chat Handoff**: Each P-item is executed as an isolated development package. Upon completion and post-merge synchronization of a P-item, the agent reports completion and recommends opening a new chat. The new chat discovers its next task strictly from repository documentation.
+- **Step 55 Gate**: Step 55 may only be proposed after P0–P6 and P8 are completed and merged, requiring fresh explicit user authorization.
 

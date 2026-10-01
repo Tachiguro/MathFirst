@@ -346,21 +346,39 @@ When items are accepted into the backlog, they are recorded with:
   5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected.
   6. **Review, Physical Acceptance, and Delivery Evidence**: Completed across 5 checkpoint commits on task branch `fix/mf-ux-008-static-combat-layout` (head `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`). Technical review passed (`REVIEW_PASS`); physical Android user acceptance passed (`USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`); merged to `main` via PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`); post-merge validation passed with 1,786 Core tests (0 failed, 0 skipped) and 0 compiler warnings/errors. Remaining exact opponent size/placement tuning is explicitly deferred as nonblocking visual polish. Schema V6 and learning telemetry preserved without mutation.
 
+### MF-TELEM-001: Tester Telemetry Export and Share
+
+- **ID**: `MF-TELEM-001`
+- **Title**: Tester Telemetry Export and Share
+- **Type**: `Feature`
+- **Status**: `Completed` (Merged through PR #56 at `bbdf62652927efa26475a9f2d83778de6465f5e1`)
+- **Dependencies**: `MF-UX-008` complete (merged through PR #55)
+- **Description**:
+  Delivered complete tester telemetry persistence, export, and platform sharing:
+  1. **Schema V7 Persistence**: Enriches SQLite `attempt_history` table with five nullable presentation-context columns (`attempt_context_version`, `presented_deadline_ms`, `expected_pace_ms`, `resolved_role`, `operation_band_before`) committed atomically with attempt evaluation while losslessly preserving historical attempts.
+  2. **Pseudonymous Installation Identity**: Generates persistent random UUID stored in application preferences for cross-session export correlation without identifying user or device.
+  3. **Canonical JSON Telemetry Export**: Implements `telemetry_export_schema_v1` serializing complete attempt history in deterministic ordering with 15 privacy-sanitized fields.
+  4. **Platform-Native Sharing**: Dispatches export file via MAUI `Share.Default.RequestAsync` and sandboxed Android `FileProvider` (`telemetry-share` cache path only).
+  5. **Full Local Reset Coordination**: Clears telemetry share cache and regenerates the installation UUID upon Full Local Reset.
+  6. **Settings Integration & Localization**: Settings export and full reset UI cards with complete EN/DE/RU localization.
+  7. **Strict Non-Interference**: Non-interference regression tests confirm zero alteration to FSRS-6, progression rules, pace calibration readiness, the 482 strong-learner benchmark, or Cyber Defense Critical Hits. Verified with 1,906 Core tests passing.
+
 ---
 
-### Future Topic: Adaptive Timing and Early Calibration Redesign — DESIGN_REQUIRED
+### Pre-Step55 V1 Refinement Program (P0–P8 Workstreams)
 
-- **Topic**: Adaptive Timing and Early Calibration Redesign
-- **Type**: `Product`
-- **Status**: `Proposed` (`DESIGN_REQUIRED`)
-- **Dependencies**: `MF-LEARN-006` complete, empirical telemetry evidence from `MF-TELEM-001`
-- **Description**:
-  Redesign the early training pace calibration and answer deadline model to accommodate both young beginners (e.g. four-year-olds) and fast adult arithmetic learners:
-  1. Deliberately generous starting deadline window (candidate starting window ~15–30s rather than an aggressive adult-oriented short threshold, not finalized).
-  2. Rapid pace adaptation from early authentic attempts (target early calibration region of approximately 18–24 meaningful attempts; exact numbers and algorithms uncommitted, pending design approval).
-  3. Durable learned pace preservation across sessions so returning learners do not restart as unknown every session.
-  4. Age-agnostic learned pace for fast/bonus combat feedback (Critical Hit / bonus timing depending on learned individual pace rather than a universal raw threshold).
-  5. Final algorithm remains: `DESIGN_REQUIRED`.
+The accepted pre-production refinement program is defined canonically in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md). Workstream identifiers (P0–P8) represent planning/workstream sequences and do not invent formal `MF-*` package IDs until individual `PLAN_ONLY` lifecycles:
+
+- **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`P0 Blocker` — Next planned item under `PLAN_ONLY`)
+- **P1**: Normal Practice Without Deadline Failure (product decision: remove automatic timeout question termination; preserve response latency & pace modeling; supersedes legacy timing modes)
+- **P1b**: Active Thinking Time / Interruption Safety (pause timing on UI navigation/backgrounding/interruption; exclude contaminated latency from pace/fluency modeling)
+- **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only)
+- **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas)
+- **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass)
+- **P5**: Cyber Defense Visual Consistency (dark technical surfaces, restrained neon/cyber accents)
+- **P6**: Tester Diagnostics / Telemetry Release Boundary (hard compile/profile boundary isolating Tester diagnostic controls from Distributable UI)
+- **P8**: Test-Coverage Audit & Targeted Hardening (factual baseline, critical invariant coverage)
+- **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*; boss timer separation principle; seeded deterministic procedural enemy generation)
 
 ---
 
@@ -377,5 +395,5 @@ When items are accepted into the backlog, they are recorded with:
 ---
 
 > [!NOTE]
-> Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md).
+> Active work is tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md). High-level development phases and sequencing are outlined in [docs/ROADMAP.md](ROADMAP.md). Canonical pre-Step55 refinement program is specified in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md).
 

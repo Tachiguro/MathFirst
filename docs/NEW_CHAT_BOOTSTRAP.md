@@ -107,9 +107,9 @@ Use the live-state discovery rules above to distinguish the following cases:
 
 1. **Verified active package**: An open Pull Request, a genuinely divergent local task branch with unmerged checkpoint work, or `docs/CURRENT_WORK.md` consistent with live state identifies a package in flight. Report that package and continue only within its verified lifecycle.
 2. **No active package**: If no package is active and no explicit authorization is supplied, do not autonomously select a BACKLOG or ROADMAP item. State clearly that there is currently no active work in flight.
-3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package/task and lifecycle step (e.g. Roadmap Step 51 Final V1 Gap Audit), first verify live repository state, then proceed only with that authorized task under repository governance.
+3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package/task and lifecycle step (e.g. P0 PLAN_ONLY), first verify live repository state, then proceed only with that authorized task under repository governance.
 
-Agents must NOT autonomously begin Roadmap Step 51 or any other downstream activity merely because it is listed as next; explicit user/orchestrator dispatch is required.
+Agents must NOT autonomously begin P0 implementation, Roadmap Step 55, or any other downstream activity merely because it is listed as planned; explicit user/orchestrator dispatch is required.
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
 
 ---
@@ -133,6 +133,13 @@ Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
 ### Historical Reference Delivery Baseline (Snapshot as of 2026-10-01)
+- **Historical Testing Verification (Roadmap Steps 51–54)**:
+  - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
+  - Step 52: Fresh Tester APK packaged and validated offline (`STEP_52_TESTER_APK_PASS`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`).
+  - Step 53: Installed on physical Samsung Galaxy S26 Ultra (`STEP_53_INSTALL_PASS`).
+  - Step 54: Manual physical-device tester validation completed (`STEP_54_MANUAL_VALIDATION_PASS`).
+- **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54).
+- **Pre-Step55 V1 Refinement Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) covering P0 through P8, with P0 (Zero-Answer / `0 + 0` Core-Flow Freeze) as next planned item under `PLAN_ONLY`.
 - **Historical Documentation Reconciliation Reference**: PR #57 (`975fb134636f33fba4a54b399aedae80edf95235`): `docs: reconcile post-mf-telem-001 project state`
 - **Delivered Implementation Package Reference (MF-TELEM-001)**: PR #56 (`bbdf62652927efa26475a9f2d83778de6465f5e1`): `MF-TELEM-001: Tester Telemetry Export and Share`
 - **Preceding Historical Reference PRs**:
@@ -151,9 +158,9 @@ Worktrees: Exactly one normal worktree by default
 When initializing a new session:
 1. **Inspect live Git and GitHub first**: Live local Git and GitHub repository state always takes precedence over documentation snapshots or remembered context. Execute the discovery sequence in Section 2 to discover live branch, HEAD SHA, working tree, tracking status, and open PR status.
 2. **Verify live repository synchronization**: Fetch `origin` (`git fetch origin`), inspect live `origin/main` (`git rev-parse origin/main`), and verify that local `main` is synchronized with `origin/main` (`git status`, `git log origin/main..HEAD`, `git log HEAD..origin/main`). Never require equality to a documentation-embedded SHA; live synchronization is determined by Git tracking state.
-3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing.
+3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing. Step 55 remains unauthorized.
 4. **Resolve active work from live state**: Check for open PRs (`gh pr list --state open`), divergent local task branches with unmerged work, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch has unmerged work, and working tree on `main` is clean, there is no in-flight work.
-5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as Roadmap Step 51 Final V1 Gap Audit). State that there is currently no active work item and await explicit dispatch.
+5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P0 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
 - **Post-MF-TELEM-001 Documentation Reconciliation** (PR #57, merge `975fb134636f33fba4a54b399aedae80edf95235`): Reconciled repository baseline documentation following the merge of PR #56.
@@ -170,6 +177,7 @@ When initializing a new session:
 - **Predecessors**: Slices and packages prior to PR #47 are documented in [docs/PROJECT_STATE.md](PROJECT_STATE.md).
 
 ### Downstream Roadmap Stages
-- **Release Verification & Distribution**: Release preparation (final V1 gap audit, fresh Tester APK build, manual physical-device validation on Samsung Galaxy S26 Ultra, production packaging `versionCode >= 4`, Steps 52–58) remains deferred until explicitly authorized.
+- **Pre-Step55 V1 Refinement Program**: The active planned path follows workstreams P0 through P8 documented in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md).
+- **Release Verification & Distribution**: Production packaging (Step 55, `versionCode >= 4`, `Distributable` profile), Step 56 smoke, Step 57 device verification, and Step 58 Google Play publication remain explicitly deferred and unauthorized until pre-Step55 refinement is complete and separate user authorization is granted.
 
 This historical reference baseline is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

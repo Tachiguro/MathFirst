@@ -42,6 +42,16 @@ MathFirst is designed to be **age-neutral**. It serves any learner seeking to bu
 4. **Frictionless Interaction**: Fast, low-latency input tailored to the ergonomics of each supported platform.
 5. **Offline Core and Account Independence**: Core learning must function without an active network connection, the MVP does not require a user account, and learning progress must persist locally across sessions.
 
+### Core Learning-First Invariants
+
+The following invariants govern all design, gamification, progression, and timing systems (see [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md)):
+
+1. **Learning First**: Every user, regardless of age or initial skill, must become better at mental arithmetic through continued use. Cyber Defense and all game systems exist to motivate continued learning. Game mechanics must never reduce learning quality or cognitive clarity.
+2. **Gameplay Must Not Control Learning Truth**: Game state has zero authority over curriculum selection, mathematical progression, FSRS spaced repetition, remediation, fact scheduling, correctness evaluation, or durable learning progress. Game systems consume learning events; they never redefine them.
+3. **Minimal Friction**: Normal use requires as few non-mathematical interactions as reasonably possible. Mandatory interstitial clicks between arithmetic questions are avoided. Settings, shops, dialogs, animations, and game screens must not contaminate measured arithmetic response time.
+4. **No Loss of Learning Progress From Game Failure**: Losing shields, battles, bosses, encounters, streaks, or game resources must never erase or roll back mathematical learning progress.
+5. **Skill-Based, Not Age-Based**: Progression adapts strictly to demonstrated mathematical ability and attempt evidence, never gating learning by age, school grade, or arbitrary question counts when learner evidence can determine readiness.
+
 ### Native Product Identity
 
 - **Product identity**: MathFirst (`com.tachiguro.mathfirst`) currently presents release version `1.0` and build `1`.
