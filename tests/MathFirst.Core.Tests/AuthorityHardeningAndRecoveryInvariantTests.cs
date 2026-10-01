@@ -397,9 +397,9 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
             PracticeOperationPreferencePolicy.AllOperations,
             op => Assert.Equal(1, session.GetOperationAcceptedAttemptCount(op) + 1));
 
-        // Durable snapshot verification: Schema remains V6, position is 0, counts are all 0
+        // Durable snapshot verification: Schema remains V7, position is 0, counts are all 0
         var durableSnapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(6, durableSnapshot.SchemaVersion);
+        Assert.Equal(7, durableSnapshot.SchemaVersion);
         Assert.Equal(0, durableSnapshot.Progression.PracticePosition);
         Assert.NotNull(durableSnapshot.OperationAcceptedAttemptCounts);
         Assert.Equal(4, durableSnapshot.OperationAcceptedAttemptCounts.Count);
@@ -502,7 +502,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         await store.InitializeAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(6, snapshot.SchemaVersion);
+        Assert.Equal(7, snapshot.SchemaVersion);
         Assert.Equal(20, snapshot.Progression.PracticePosition);
         Assert.NotNull(snapshot.OperationAcceptedAttemptCounts);
 

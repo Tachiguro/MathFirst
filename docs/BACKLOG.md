@@ -353,7 +353,7 @@ When items are accepted into the backlog, they are recorded with:
 - **Topic**: Adaptive Timing and Early Calibration Redesign
 - **Type**: `Product`
 - **Status**: `Proposed` (`DESIGN_REQUIRED`)
-- **Dependencies**: `MF-LEARN-006` complete
+- **Dependencies**: `MF-LEARN-006` complete, empirical telemetry evidence from `MF-TELEM-001`
 - **Description**:
   Redesign the early training pace calibration and answer deadline model to accommodate both young beginners (e.g. four-year-olds) and fast adult arithmetic learners:
   1. Deliberately generous starting deadline window (candidate starting window ~15–30s rather than an aggressive adult-oriented short threshold, not finalized).
@@ -361,22 +361,6 @@ When items are accepted into the backlog, they are recorded with:
   3. Durable learned pace preservation across sessions so returning learners do not restart as unknown every session.
   4. Age-agnostic learned pace for fast/bonus combat feedback (Critical Hit / bonus timing depending on learned individual pace rather than a universal raw threshold).
   5. Final algorithm remains: `DESIGN_REQUIRED`.
-
----
-
-### Future Topic: Tester Telemetry Export and Share — DESIGN_REQUIRED
-
-- **Topic**: Tester Telemetry Export and Share
-- **Type**: `Feature`
-- **Status**: `Proposed` (`DESIGN_REQUIRED`)
-- **Dependencies**: `MF-UX-005` tester diagnostics baseline
-- **Description**:
-  Provide learning and practice telemetry export from Settings to support empirical difficulty and pacing analysis across diverse tester demographics:
-  1. Export affordance in Settings allowing testers to share diagnostic learning evidence.
-  2. Native Android Share intent (`Intent.ACTION_SEND` / share sheet) supporting export via WhatsApp, email, Drive, etc., alongside file save/backup.
-  3. Exported telemetry payload: presented fact/problem, operation, answer/outcome, response latency, practice position, progression and calibration context, and sufficient state to assess difficulty ("too easy / appropriate / too hard").
-  4. Privacy, data minimization, and optional future import/restore specifications to be defined during formal design before implementation.
-  5. Status remains: `DESIGN_REQUIRED`.
 
 ---
 

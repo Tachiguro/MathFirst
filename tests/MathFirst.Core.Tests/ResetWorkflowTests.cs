@@ -2,7 +2,9 @@ namespace MathFirst.Core.Tests;
 
 using MathFirst.Application;
 using MathFirst.Application.Copy;
+using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Telemetry;
 using MathFirst.Domain;
 using Xunit;
 
@@ -307,5 +309,150 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
+    }
+
+    [Fact]
+    public async Task PartialReset_ResetLearningProgress_PreservesInstallationIdAndShareCache()
+    {
+        var dbPath = Path.Combine(_testDbDir, "partial_reset_learning.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        var session = new TrainingSession(store);
+        await session.InitializeAsync();
+
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+        Assert.Single(session.ItemStates);
+        Assert.NotNull(session.LatestAcceptedPracticeAt);
+
+        var idStore = new InMemoryInstallationIdStore();
+        var idProvider = new PreferenceInstallationIdProvider(idStore);
+        var initialId = idProvider.GetOrCreateInstallationId();
+        var shareService = new SpyTelemetryShareService();
+
+        await session.ResetLearningProgressAsync();
+
+        Assert.Empty(session.ItemStates);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+
+        Assert.Equal(0, idStore.ClearCallCount);
+        Assert.Equal(initialId, idProvider.GetOrCreateInstallationId());
+        Assert.Equal(initialId, idStore.StoredValue);
+
+        Assert.Equal(0, shareService.PurgeCallCount);
+    }
+
+    [Fact]
+    public void PartialReset_ResetAllPreferences_PreservesInstallationIdAndShareCache()
+    {
+        var prefs = new InMemoryPreferenceStore
+        {
+            OnboardingCompleted = true,
+            Language = "de",
+            Theme = ThemePreference.Dark
+        };
+
+        var idStore = new InMemoryInstallationIdStore();
+        var idProvider = new PreferenceInstallationIdProvider(idStore);
+        var initialId = idProvider.GetOrCreateInstallationId();
+        var shareService = new SpyTelemetryShareService();
+
+        prefs.ResetAllPreferences();
+
+        Assert.False(prefs.GetOnboardingCompleted());
+        Assert.Equal("system", prefs.GetLanguagePreference());
+        Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
+
+        Assert.Equal(0, idStore.ClearCallCount);
+        Assert.Equal(initialId, idProvider.GetOrCreateInstallationId());
+        Assert.Equal(initialId, idStore.StoredValue);
+
+        Assert.Equal(0, shareService.PurgeCallCount);
+    }
+
+    [Fact]
+    public async Task FullReset_ClearsInstallationIdAndPurgesShareCache()
+    {
+        var dbPath = Path.Combine(_testDbDir, "full_reset_id_cache.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        var prefs = new InMemoryPreferenceStore
+        {
+            OnboardingCompleted = true,
+            Language = "de",
+            Theme = ThemePreference.Dark
+        };
+
+        var session = new TrainingSession(store);
+        await session.InitializeAsync();
+        session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await session.CommitCurrentEvaluationAsync();
+
+        var idStore = new InMemoryInstallationIdStore();
+        var idProvider = new PreferenceInstallationIdProvider(idStore);
+        var initialId = idProvider.GetOrCreateInstallationId();
+        Assert.NotNull(idStore.StoredValue);
+
+        var shareService = new SpyTelemetryShareService();
+
+        var coordinator = new AppResetCoordinator(session, prefs, idProvider, shareService);
+
+        await coordinator.ExecuteFullResetAsync();
+
+        Assert.Empty(session.ItemStates);
+        Assert.Null(session.LatestAcceptedPracticeAt);
+
+        Assert.False(prefs.GetOnboardingCompleted());
+        Assert.Equal("system", prefs.GetLanguagePreference());
+
+        Assert.Equal(1, idStore.ClearCallCount);
+        Assert.Null(idStore.StoredValue);
+
+        Assert.Equal(1, shareService.PurgeCallCount);
+    }
+
+    private sealed class InMemoryInstallationIdStore : IInstallationIdStore
+    {
+        public string? StoredValue { get; set; }
+        public int GetCallCount { get; private set; }
+        public int SetCallCount { get; private set; }
+        public int ClearCallCount { get; private set; }
+
+        public InMemoryInstallationIdStore(string? initialValue = null)
+        {
+            StoredValue = initialValue;
+        }
+
+        public string? Get()
+        {
+            GetCallCount++;
+            return StoredValue;
+        }
+
+        public void Set(string value)
+        {
+            SetCallCount++;
+            StoredValue = value;
+        }
+
+        public void Clear()
+        {
+            ClearCallCount++;
+            StoredValue = null;
+        }
+    }
+
+    private sealed class SpyTelemetryShareService : ITelemetryShareService
+    {
+        public int PurgeCallCount { get; private set; }
+
+        public Task<string> PrepareShareFileAsync(string fileName, Stream content, CancellationToken cancellationToken = default) =>
+            Task.FromResult("C:\\Cache\\" + fileName);
+
+        public Task DispatchSystemShareAsync(string filePath, string title) =>
+            Task.CompletedTask;
+
+        public void PurgeShareCache()
+        {
+            PurgeCallCount++;
+        }
     }
 }

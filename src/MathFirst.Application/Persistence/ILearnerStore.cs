@@ -21,6 +21,9 @@ public interface ILearnerStore : IDisposable
         IReadOnlyList<string> frontierFactIds,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Authoritative latest-per-frontier query requires explicit store support.");
+    Task<IReadOnlyList<AttemptRecord>> LoadCompleteAttemptTelemetryAsync(
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Complete attempt telemetry query requires explicit store support.");
     Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default);
     Task ResetLearningProgressAsync(CancellationToken cancellationToken = default);
     Task CloseAsync(CancellationToken cancellationToken = default);

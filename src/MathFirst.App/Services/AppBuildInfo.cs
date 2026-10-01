@@ -1,9 +1,10 @@
 using System.Reflection;
 using MathFirst.Application;
+using MathFirst.Application.Telemetry;
 
 namespace MathFirst.App.Services;
 
-public sealed class AppBuildInfo
+public sealed class AppBuildInfo : IAppBuildInfo
 {
     public AppBuildInfo()
     {

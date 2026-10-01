@@ -121,7 +121,12 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 outcome TEXT NOT NULL DEFAULT 'Incorrect',
                 response_latency_ms INTEGER NOT NULL,
                 timestamp TEXT NOT NULL,
-                practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0)
+                practice_position INTEGER CHECK (practice_position IS NULL OR practice_position > 0),
+                attempt_context_version INTEGER,
+                presented_deadline_ms INTEGER,
+                expected_pace_ms INTEGER,
+                resolved_role TEXT,
+                operation_band_before INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS fsrs_card_state (
@@ -160,6 +165,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
@@ -167,25 +173,33 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
             await MigrateV3ToV4Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 5)
         {
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 6)
+        {
+            await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == LearnerProgression.DefaultSchemaVersion)
         {
-            // Already at default V6
+            // Already at default V7
         }
         else if (version > LearnerProgression.DefaultSchemaVersion)
         {
@@ -348,6 +362,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
                     response_latency_ms,
                     timestamp,
                     practice_position,
+                    attempt_context_version,
+                    presented_deadline_ms,
+                    expected_pace_ms,
+                    resolved_role,
+                    operation_band_before,
                     ROW_NUMBER() OVER (
                         PARTITION BY fact_id
                         ORDER BY practice_position DESC
@@ -371,7 +390,12 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 outcome,
                 response_latency_ms,
                 timestamp,
-                practice_position
+                practice_position,
+                attempt_context_version,
+                presented_deadline_ms,
+                expected_pace_ms,
+                resolved_role,
+                operation_band_before
             FROM ranked_attempts
             WHERE rn = 1
             ORDER BY fact_id ASC;";
@@ -398,6 +422,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
             var latency = reader.GetInt64(10);
             var timestamp = DateTimeOffset.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
             var practicePosition = reader.GetInt64(12);
+            int? contextVersion = reader.IsDBNull(13) ? null : reader.GetInt32(13);
+            int? presentedDeadlineMs = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+            int? expectedPaceMs = reader.IsDBNull(15) ? null : reader.GetInt32(15);
+            string? resolvedRole = reader.IsDBNull(16) ? null : reader.GetString(16);
+            int? operationBandBefore = reader.IsDBNull(17) ? null : reader.GetInt32(17);
 
             var attempt = new AttemptRecord(
                 reader.GetString(0),
@@ -412,7 +441,96 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 latency,
                 timestamp,
                 outcome,
-                practicePosition);
+                practicePosition,
+                contextVersion,
+                presentedDeadlineMs,
+                expectedPaceMs,
+                resolvedRole,
+                operationBandBefore);
+
+            results.Add(attempt);
+        }
+
+        return results;
+    }
+
+    public async Task<IReadOnlyList<AttemptRecord>> LoadCompleteAttemptTelemetryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_connection is null)
+        {
+            return [];
+        }
+
+        const string query = @"
+            SELECT
+                submission_id,
+                fact_id,
+                operation,
+                left_operand,
+                right_operand,
+                submitted_answer,
+                correct_answer,
+                is_correct,
+                is_fluent,
+                outcome,
+                response_latency_ms,
+                timestamp,
+                practice_position,
+                attempt_context_version,
+                presented_deadline_ms,
+                expected_pace_ms,
+                resolved_role,
+                operation_band_before
+            FROM attempt_history
+            ORDER BY
+                CASE WHEN practice_position IS NULL THEN 0 ELSE 1 END ASC,
+                CASE WHEN practice_position IS NULL THEN timestamp END ASC,
+                CASE WHEN practice_position IS NULL THEN submission_id END ASC,
+                practice_position ASC;";
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = query;
+
+        var results = new List<AttemptRecord>();
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var op = Enum.Parse<ArithmeticOperation>(reader.GetString(2));
+            int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+            var correct = reader.GetInt32(7) == 1;
+            var isFluent = reader.GetInt32(8) == 1;
+            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
+            var latency = reader.GetInt64(10);
+            var timestamp = DateTimeOffset.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            long? practicePosition = reader.IsDBNull(12) ? null : reader.GetInt64(12);
+            int? contextVersion = reader.IsDBNull(13) ? null : reader.GetInt32(13);
+            int? presentedDeadlineMs = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+            int? expectedPaceMs = reader.IsDBNull(15) ? null : reader.GetInt32(15);
+            string? resolvedRole = reader.IsDBNull(16) ? null : reader.GetString(16);
+            int? operationBandBefore = reader.IsDBNull(17) ? null : reader.GetInt32(17);
+
+            var attempt = new AttemptRecord(
+                reader.GetString(0),
+                reader.GetString(1),
+                op,
+                reader.GetInt32(3),
+                reader.GetInt32(4),
+                submitted,
+                reader.GetInt32(6),
+                correct,
+                isFluent,
+                latency,
+                timestamp,
+                outcome,
+                practicePosition,
+                contextVersion,
+                presentedDeadlineMs,
+                expectedPaceMs,
+                resolvedRole,
+                operationBandBefore);
 
             results.Add(attempt);
         }
@@ -552,10 +670,12 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 attCmd.CommandText = @"
                     INSERT INTO attempt_history (
                         submission_id, fact_id, operation, left_operand, right_operand,
-                        submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position
+                        submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position,
+                        attempt_context_version, presented_deadline_ms, expected_pace_ms, resolved_role, operation_band_before
                     ) VALUES (
                         @submission_id, @fact_id, @operation, @left_operand, @right_operand,
-                        @submitted_answer, @correct_answer, @is_correct, @is_fluent, @outcome, @response_latency_ms, @timestamp, @practice_position
+                        @submitted_answer, @correct_answer, @is_correct, @is_fluent, @outcome, @response_latency_ms, @timestamp, @practice_position,
+                        @attempt_context_version, @presented_deadline_ms, @expected_pace_ms, @resolved_role, @operation_band_before
                     );
                 ";
                 attCmd.Parameters.AddWithValue("@submission_id", changeSet.Attempt.SubmissionId);
@@ -571,6 +691,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 attCmd.Parameters.AddWithValue("@response_latency_ms", changeSet.Attempt.ResponseLatencyMs);
                 attCmd.Parameters.AddWithValue("@timestamp", changeSet.Attempt.Timestamp.ToString("O"));
                 attCmd.Parameters.AddWithValue("@practice_position", (object?)changeSet.Attempt.PracticePosition ?? DBNull.Value);
+                attCmd.Parameters.AddWithValue("@attempt_context_version", (object?)changeSet.Attempt.ContextVersion ?? DBNull.Value);
+                attCmd.Parameters.AddWithValue("@presented_deadline_ms", (object?)changeSet.Attempt.PresentedDeadlineMs ?? DBNull.Value);
+                attCmd.Parameters.AddWithValue("@expected_pace_ms", (object?)changeSet.Attempt.ExpectedPaceMs ?? DBNull.Value);
+                attCmd.Parameters.AddWithValue("@resolved_role", (object?)changeSet.Attempt.ResolvedRole ?? DBNull.Value);
+                attCmd.Parameters.AddWithValue("@operation_band_before", (object?)changeSet.Attempt.OperationBandBefore ?? DBNull.Value);
                 await attCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -1583,14 +1708,38 @@ public sealed class SqliteLearnerStore : ILearnerStore
     private async Task ReadLegacyAttemptsAsync(int limit, IDictionary<string, AttemptRecord> destination, CancellationToken cancellationToken)
     {
         using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = @"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp FROM attempt_history WHERE practice_position IS NULL ORDER BY timestamp DESC LIMIT @limit;";
+        cmd.CommandText = @"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, attempt_context_version, presented_deadline_ms, expected_pace_ms, resolved_role, operation_band_before FROM attempt_history WHERE practice_position IS NULL ORDER BY timestamp DESC LIMIT @limit;";
         cmd.Parameters.AddWithValue("@limit", limit);
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
             var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
-            var attempt = new AttemptRecord(reader.GetString(0), reader.GetString(1), Enum.Parse<ArithmeticOperation>(reader.GetString(2)), reader.GetInt32(3), reader.GetInt32(4), submitted, reader.GetInt32(6), reader.GetInt32(7) == 1, reader.GetInt32(8) == 1, reader.GetInt64(10), DateTimeOffset.Parse(reader.GetString(11)), outcome);
+            int? contextVersion = reader.IsDBNull(12) ? null : reader.GetInt32(12);
+            int? presentedDeadlineMs = reader.IsDBNull(13) ? null : reader.GetInt32(13);
+            int? expectedPaceMs = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+            string? resolvedRole = reader.IsDBNull(15) ? null : reader.GetString(15);
+            int? operationBandBefore = reader.IsDBNull(16) ? null : reader.GetInt32(16);
+
+            var attempt = new AttemptRecord(
+                reader.GetString(0),
+                reader.GetString(1),
+                Enum.Parse<ArithmeticOperation>(reader.GetString(2)),
+                reader.GetInt32(3),
+                reader.GetInt32(4),
+                submitted,
+                reader.GetInt32(6),
+                reader.GetInt32(7) == 1,
+                reader.GetInt32(8) == 1,
+                reader.GetInt64(10),
+                DateTimeOffset.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+                outcome,
+                practicePosition: null,
+                contextVersion: contextVersion,
+                presentedDeadlineMs: presentedDeadlineMs,
+                expectedPaceMs: expectedPaceMs,
+                resolvedRole: resolvedRole,
+                operationBandBefore: operationBandBefore);
             destination.TryAdd(attempt.SubmissionId, attempt);
         }
     }
@@ -1598,7 +1747,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
     private async Task ReadAttemptsAsync(string predicate, string? parameter, string? value, int limit, IDictionary<string, AttemptRecord> destination, CancellationToken cancellationToken)
     {
         using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = $@"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position FROM attempt_history WHERE practice_position IS NOT NULL AND {predicate} ORDER BY practice_position DESC LIMIT @limit;";
+        cmd.CommandText = $@"SELECT submission_id, fact_id, operation, left_operand, right_operand, submitted_answer, correct_answer, is_correct, is_fluent, outcome, response_latency_ms, timestamp, practice_position, attempt_context_version, presented_deadline_ms, expected_pace_ms, resolved_role, operation_band_before FROM attempt_history WHERE practice_position IS NOT NULL AND {predicate} ORDER BY practice_position DESC LIMIT @limit;";
         if (parameter is not null) cmd.Parameters.AddWithValue(parameter, value!);
         cmd.Parameters.AddWithValue("@limit", limit);
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -1608,7 +1757,31 @@ public sealed class SqliteLearnerStore : ILearnerStore
             int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
             var correct = reader.GetInt32(7) == 1;
             var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
-            var attempt = new AttemptRecord(reader.GetString(0), reader.GetString(1), op, reader.GetInt32(3), reader.GetInt32(4), submitted, reader.GetInt32(6), correct, reader.GetInt32(8) == 1, reader.GetInt64(10), DateTimeOffset.Parse(reader.GetString(11)), outcome, reader.GetInt64(12));
+            int? contextVersion = reader.IsDBNull(13) ? null : reader.GetInt32(13);
+            int? presentedDeadlineMs = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+            int? expectedPaceMs = reader.IsDBNull(15) ? null : reader.GetInt32(15);
+            string? resolvedRole = reader.IsDBNull(16) ? null : reader.GetString(16);
+            int? operationBandBefore = reader.IsDBNull(17) ? null : reader.GetInt32(17);
+
+            var attempt = new AttemptRecord(
+                reader.GetString(0),
+                reader.GetString(1),
+                op,
+                reader.GetInt32(3),
+                reader.GetInt32(4),
+                submitted,
+                reader.GetInt32(6),
+                correct,
+                reader.GetInt32(8) == 1,
+                reader.GetInt64(10),
+                DateTimeOffset.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+                outcome,
+                reader.GetInt64(12),
+                contextVersion: contextVersion,
+                presentedDeadlineMs: presentedDeadlineMs,
+                expectedPaceMs: expectedPaceMs,
+                resolvedRole: resolvedRole,
+                operationBandBefore: operationBandBefore);
             destination.TryAdd(attempt.SubmissionId, attempt);
         }
     }
@@ -2073,6 +2246,59 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 {
                     throw new InvalidOperationException("V5 to V6 migration did not update the expected schema-version row.");
                 }
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV6ToV7Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (var pragmaCmd = connection.CreateCommand())
+            {
+                pragmaCmd.Transaction = transaction;
+                pragmaCmd.CommandText = "PRAGMA table_info(attempt_history);";
+                using var reader = await pragmaCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    existingColumns.Add(reader.GetString(1));
+                }
+            }
+
+            var columnsToAdd = new (string Name, string Type)[]
+            {
+                ("attempt_context_version", "INTEGER"),
+                ("presented_deadline_ms", "INTEGER"),
+                ("expected_pace_ms", "INTEGER"),
+                ("resolved_role", "TEXT"),
+                ("operation_band_before", "INTEGER")
+            };
+
+            foreach (var (colName, colType) in columnsToAdd)
+            {
+                if (!existingColumns.Contains(colName))
+                {
+                    using var alterCmd = connection.CreateCommand();
+                    alterCmd.Transaction = transaction;
+                    alterCmd.CommandText = $"ALTER TABLE attempt_history ADD COLUMN {colName} {colType};";
+                    await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            using (var updateVersionCmd = connection.CreateCommand())
+            {
+                updateVersionCmd.Transaction = transaction;
+                updateVersionCmd.CommandText = "UPDATE schema_info SET value = '7' WHERE key = 'schema_version';";
+                await updateVersionCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
             transaction.Commit();
