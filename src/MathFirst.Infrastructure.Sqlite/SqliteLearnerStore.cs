@@ -454,6 +454,90 @@ public sealed class SqliteLearnerStore : ILearnerStore
         return results;
     }
 
+    public async Task<IReadOnlyList<AttemptRecord>> LoadCompleteAttemptTelemetryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_connection is null)
+        {
+            return [];
+        }
+
+        const string query = @"
+            SELECT
+                submission_id,
+                fact_id,
+                operation,
+                left_operand,
+                right_operand,
+                submitted_answer,
+                correct_answer,
+                is_correct,
+                is_fluent,
+                outcome,
+                response_latency_ms,
+                timestamp,
+                practice_position,
+                attempt_context_version,
+                presented_deadline_ms,
+                expected_pace_ms,
+                resolved_role,
+                operation_band_before
+            FROM attempt_history
+            ORDER BY
+                CASE WHEN practice_position IS NULL THEN 0 ELSE 1 END ASC,
+                CASE WHEN practice_position IS NULL THEN timestamp END ASC,
+                CASE WHEN practice_position IS NULL THEN submission_id END ASC,
+                practice_position ASC;";
+
+        using var command = _connection.CreateCommand();
+        command.CommandText = query;
+
+        var results = new List<AttemptRecord>();
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var op = Enum.Parse<ArithmeticOperation>(reader.GetString(2));
+            int? submitted = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+            var correct = reader.GetInt32(7) == 1;
+            var isFluent = reader.GetInt32(8) == 1;
+            var outcome = Enum.Parse<AttemptOutcome>(reader.GetString(9));
+            var latency = reader.GetInt64(10);
+            var timestamp = DateTimeOffset.Parse(reader.GetString(11), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+            long? practicePosition = reader.IsDBNull(12) ? null : reader.GetInt64(12);
+            int? contextVersion = reader.IsDBNull(13) ? null : reader.GetInt32(13);
+            int? presentedDeadlineMs = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+            int? expectedPaceMs = reader.IsDBNull(15) ? null : reader.GetInt32(15);
+            string? resolvedRole = reader.IsDBNull(16) ? null : reader.GetString(16);
+            int? operationBandBefore = reader.IsDBNull(17) ? null : reader.GetInt32(17);
+
+            var attempt = new AttemptRecord(
+                reader.GetString(0),
+                reader.GetString(1),
+                op,
+                reader.GetInt32(3),
+                reader.GetInt32(4),
+                submitted,
+                reader.GetInt32(6),
+                correct,
+                isFluent,
+                latency,
+                timestamp,
+                outcome,
+                practicePosition,
+                contextVersion,
+                presentedDeadlineMs,
+                expectedPaceMs,
+                resolvedRole,
+                operationBandBefore);
+
+            results.Add(attempt);
+        }
+
+        return results;
+    }
+
     public async Task<PracticeSelectionEvidence> LoadPracticeSelectionEvidenceAsync(
         PracticeSelectionEvidenceRequest request,
         CancellationToken cancellationToken = default)
