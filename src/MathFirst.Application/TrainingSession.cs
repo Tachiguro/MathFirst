@@ -14,6 +14,7 @@ public sealed class TrainingSession
     private readonly AdaptivePracticeSelector _selector;
     private readonly IFsrsScheduler _fsrsScheduler;
     private readonly IPreferenceStore? _preferenceStore;
+    private AttemptPresentationContext? _currentPresentationContext;
     private Dictionary<string, FsrsCardState> _fsrsStates = new(StringComparer.Ordinal);
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
@@ -145,6 +146,12 @@ public sealed class TrainingSession
     public bool IsCurrentSubmissionCommitted { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
     public bool HasCompletedPracticeHistory => LatestAcceptedPracticeAt.HasValue;
+    public AttemptPresentationContext? CurrentPresentationContext => _currentPresentationContext;
+
+    public void DiscardPresentationSnapshot()
+    {
+        _currentPresentationContext = null;
+    }
 
     public int GetConsecutiveErrorCount(string factId)
     {
@@ -762,7 +769,12 @@ public sealed class TrainingSession
             elapsedMs,
             DateTimeOffset.UtcNow,
             outcome,
-            practicePosition);
+            practicePosition,
+            contextVersion: _currentPresentationContext?.ContextVersion,
+            presentedDeadlineMs: _currentPresentationContext?.PresentedDeadlineMs,
+            expectedPaceMs: _currentPresentationContext?.ExpectedPaceMs,
+            resolvedRole: _currentPresentationContext?.ResolvedRole,
+            operationBandBefore: _currentPresentationContext?.OperationBandBefore);
 
         var changeSet = new SubmissionChangeSet(
             submissionId,
@@ -1084,7 +1096,8 @@ public sealed class TrainingSession
             enabledOperations: enabledOperations,
             guidedNumberSpaceGate: effectiveGate,
             hasBroadWeakness: hasBroadWeakness);
-        CurrentFact = _selector.SelectTargetFact(context).Fact;
+        var selectionResult = _selector.SelectTargetFact(context);
+        CurrentFact = selectionResult.Fact;
         var currentProgression = Progression.OperationProgressions[CurrentFact.Operation];
         var ownedFrontierFactIds = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(CurrentFact.Operation))
             .GetOwnedFrontier(currentProgression.BandIndex)
@@ -1096,6 +1109,13 @@ public sealed class TrainingSession
         CurrentFactFluencyThresholdMs = adaptivePace.FluencyThresholdMs;
         var deadlineFloorMs = PracticeTimePreferencePolicy.GetDeadlineFloorMs(CurrentPracticeTimeSetting);
         CurrentFactDeadlineMs = Math.Max(adaptivePace.DeadlineMs, deadlineFloorMs);
+
+        _currentPresentationContext = new AttemptPresentationContext(
+            ContextVersion: 1,
+            PresentedDeadlineMs: HasEnforcedDeadline ? (int)CurrentFactDeadlineMs : null,
+            ExpectedPaceMs: (int)CurrentFactExpectedPaceMs,
+            ResolvedRole: selectionResult.ResolvedRole.ToString(),
+            OperationBandBefore: currentProgression.BandIndex);
 
         ItemReadyTimestamp = _clock.GetTimestamp();
         _activeSegmentStartTimestamp = ItemReadyTimestamp;
@@ -1294,6 +1314,7 @@ public sealed class TrainingSession
     private void ApplyRuntimeSnapshot(LearnerSnapshot snapshot)
     {
         _learnerStateGenerationRevision = checked(_learnerStateGenerationRevision + 1);
+        _currentPresentationContext = null;
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
