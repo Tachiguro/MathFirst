@@ -11,7 +11,7 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - **Current Status**: Live repository HEAD commit SHA and synchronization status must always be discovered dynamically from live local Git (`git rev-parse HEAD`, `git status`) and GitHub (`gh repo view`, `gh pr list`).
   - **Durable Product Baseline**: Package `MF-TELEM-001` (Tester Telemetry Export and Share) is complete, fully validated, and merged into `main` via PR #56 at merge commit `bbdf62652927efa26475a9f2d83778de6465f5e1` (following PR #55 merge commit `76116d11b8563b0407188ba53ccefd998eda958d`, PR #54 merge commit `bc7471b098e2f79262ff6e71302820bd281a14d5`, PR #53 merge commit `50aed4714937777f98058cc64afb75a75d749709`, PR #52 merge commit `f6a842b71df39b2d6facafae41874c86d6f3f611`, PR #51 merge commit `01472b05ef83f586144414a3cb3a0c7abbc45189`, and PR #50 merge commit `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`). Schema V7 persistence with five nullable attempt presentation-context columns, pseudonymous persistent random installation UUID, complete-history JSON telemetry export (`telemetry_export_schema_v1`), sandboxed native platform sharing (`telemetry-share`), Full Local Reset cache cleanup, and non-interference regression coverage are delivered on `main`. Technical review passed (`REVIEW_PASS`); post-merge validation passed (`POST_MERGE_SYNC_COMPLETE`, 1,906 passed, 0 failed, 0 skipped in `MathFirst.Core.Tests`). Schema V7 is current live persistence.
   - **Historical Documentation Reconciliation**: PR #57 (`975fb134636f33fba4a54b399aedae80edf95235`) reconciled repository baseline documentation following the PR #56 merge.
-  - **Release Baseline**: Prior native V1 Build 2 remains rejected (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`). Build 3 is historical. Any future production candidate after package merges requires `versionCode >= 4`. Build 4 does not exist yet (not packaged, not signed, not tested). Technical release preparation is agent-executable when explicitly authorized; Google Play Console upload and publishing remain user responsibility. Target-audience selection (A/B/C) remains unresolved.
+  - **Release & Testing Baseline**: Prior native V1 Build 2 remains rejected (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`). Build 3 is historical. In Roadmap Steps 51–54, a fresh Tester APK from `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f` (`com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`) was packaged, validated offline (`STEP_52_TESTER_APK_PASS`), installed on physical Samsung Galaxy S26 Ultra (`STEP_53_INSTALL_PASS`), and manually validated (`STEP_54_MANUAL_VALIDATION_PASS`). Roadmap Step 55 was explicitly declined by the user and remains **NOT EXECUTED / NOT AUTHORIZED**. The active planned roadmap follows the Pre-Step55 V1 Refinement Program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md)) with P0 (`PLAN_ONLY`) as the next planned item. Any future production candidate after refinement requires `versionCode >= 4`. Build 4 does not exist yet (not packaged, not signed, not tested). Production release packaging and store publication remain strictly unauthorized. Target-audience selection (A/B/C) remains unresolved.
 
 
 ---
@@ -238,10 +238,12 @@ This document records stable, verified facts about MathFirst. It excludes transi
   - Native V1 candidate Build 2 was subsequently rejected during physical-device verification (`REAL_DEVICE_VERIFICATION_FAILED`, `RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`): Step 30 (technical smoke) passed (`TECHNICAL_SMOKE_PASS`), but Step 31 (physical-device verification) failed due to the 26-Addition $\to$ Subtraction-only restart role-misassignment blocker.
   - MF-STAB-003 resolved this blocker in merged code on `main` (PR #42 at `caffe0e883f83249bee2c9a1f2122543e88c9ab0`, validated candidate `766d8ea7692d139425e2301121f93af7901cf238`, `REVIEW_APPROVED`, `FULL_VALIDATION_PASS`).
   - Production candidate Build 3 (`versionCode 3`) historically passed Step 30 technical smoke (`TECHNICAL_SMOKE_PASS`) and Step 31 manual physical-device verification on Samsung SM-S948B, Android 16. However, its source predates `MF-LEARN-004`, `MF-LEARN-005`, `MF-UX-007`, Cyber Defense MVP, Adaptive Learning policy design, and Agent Prompt Governance Hardening, and therefore no longer represents current repository source.
-  - Any future production candidate requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
-  - Production packaging and signing (`Distributable` AAB): **PENDING / SEPARATELY AUTHORIZED** (agent-executable when explicitly authorized).
-  - Final technical smoke (Step 30) and manual physical-device functional verification (Step 31) of the exact future production candidate (`versionCode >= 4`): **PENDING** (agent-executable when explicitly authorized).
-  - Google Play publication gate (Step 32): **PENDING / SEPARATELY AUTHORIZED** (Google Play Console upload, rollout, and publishing remain user responsibility, blocked until Step 31 verification succeeds).
+  - Roadmap Steps 51–54 executed a fresh native Tester packaging and validation cycle: Step 51 Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`), Step 52 fresh Tester APK packaging from `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f` passed (`STEP_52_TESTER_APK_PASS`, `com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`), Step 53 installation on physical Samsung Galaxy S26 Ultra passed (`STEP_53_INSTALL_PASS`), and Step 54 manual physical-device tester validation passed (`STEP_54_MANUAL_VALIDATION_PASS`).
+  - Roadmap Step 55 (Production Packaging) was explicitly declined by the user following Step 54 and remains **NOT EXECUTED / NOT AUTHORIZED**.
+  - Any future production candidate after the pre-Step55 refinement program requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
+  - Production packaging and signing (`Distributable` AAB): **NOT AUTHORIZED**.
+  - Final technical smoke (Step 30/56) and manual physical-device functional verification (Step 31/57) of the exact future production candidate (`versionCode >= 4`): **PENDING** (only upon explicit future authorization).
+  - Google Play publication gate (Step 32/58): **NOT AUTHORIZED** (Google Play Console upload, rollout, and publishing remain user responsibility).
 
 ---
 
@@ -345,6 +347,14 @@ This document records stable, verified facts about MathFirst. It excludes transi
   - *Post-Merge State*: Merged to `main` via PR #56; post-merge synchronization completed (`POST_MERGE_SYNC_COMPLETE`); post-merge Core tests: 1,906 passed, 0 failed, 0 skipped; Android and Windows builds: 0 warnings, 0 errors.
 - **Post-MF-TELEM-001 Documentation Reconciliation** was merged to `main` through Pull Request #57 on 2026-10-01 at `975fb134636f33fba4a54b399aedae80edf95235`:
   - Reconciled repository baseline documentation across operational, state, roadmap, bootstrap, and changelog documents following the merge of PR #56.
+- **Roadmap Steps 51–54 Physical-Device Tester Verification**:
+  - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
+  - Step 52: Fresh Tester APK built from `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f` (`com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`) and validated offline (`STEP_52_TESTER_APK_PASS`).
+  - Step 53: Installed onto physical Samsung Galaxy S26 Ultra (`STEP_53_INSTALL_PASS`).
+  - Step 54: Completed manual physical-device validation (`STEP_54_MANUAL_VALIDATION_PASS`) with zero findings.
+  - Step 55 was explicitly declined by the user and remains **NOT EXECUTED / NOT AUTHORIZED**.
+- **Pre-Step55 V1 Refinement Program Reconciliation**:
+  - Established canonical pre-production program in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) defining core learning-first invariants, workstreams P0–P8, and chat handoff protocols, establishing P0 (`PLAN_ONLY`) as the next planned work item.
 
 ---
 
@@ -356,5 +366,11 @@ This document records stable, verified facts about MathFirst. It excludes transi
 - Correctness and response latency are separate learning evidence.
 - Negative subtraction, division with remainder, cloud synchronization/accounts, export/import, and larger-than-`Int32` arithmetic remain deferred.
 - Active combat layout positional stability invariant: on-screen numeric keypad coordinates, arithmetic typography, and answer input area remain completely static across enemy spawn, replacement, boss appearance, HP/shield mutations, and floating feedback overlays; boss visual scale uses compositor-driven CSS transforms (`scale(1.42)`) decoupled from layout geometry (`visual scale != layout scale`); gameplay scroll suppression and defensive overscroll containment (`overscroll-behavior: none;`) are scoped strictly to `.training-host.active-gameplay` while Settings, Onboarding, and dialogs retain scrolling (`MF-UX-008`).
-- Adaptive timing calibration redesign remains pending design (`DESIGN_REQUIRED`), to be driven by empirical telemetry evidence; Tester Telemetry Export and Share is complete and merged as package `MF-TELEM-001` (PR #56, [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md)); Light-theme Cyber Defense background reconciliation remains deferred (`DEFERRED`).
-- Packaging, signing, store publication, and deployment require separate authorized lifecycle work.
+- **Core Learning-First Invariants ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md))**:
+  1. *Learning First*: MathFirst exists to automate arithmetic recall; game mechanics must never reduce learning quality.
+  2. *Gameplay Must Not Control Learning Truth*: Game state has zero authority over curriculum, progression, FSRS, remediation, fact scheduling, or correctness.
+  3. *Minimal Friction*: Normal use requires minimal non-mathematical interaction; interruptions and UI do not contaminate measured latency.
+  4. *No Loss of Learning Progress from Game Failure*: Game setbacks never erase mathematical progress.
+  5. *Skill-Based, Not Age-Based*: Progression adapts dynamically to demonstrated mathematical competence.
+- **Pre-Step55 Refinement Program**: Workstreams P0 through P8 govern pre-production refinement. P0 (Zero-Answer / `0 + 0` Core-Flow Freeze) is the next planned item under `PLAN_ONLY`.
+- Packaging, signing, store publication, and deployment require separate authorized lifecycle work. Step 55 is **NOT AUTHORIZED**.
