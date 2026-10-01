@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging;
 using MathFirst.Application;
 using MathFirst.Application.Copy;
+using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Navigation;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
+using MathFirst.Application.Telemetry;
 using MathFirst.App.Services;
 using MathFirst.Infrastructure.Sqlite;
 
@@ -40,8 +42,17 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IAppBackNavigationCoordinator, AppBackNavigationCoordinator>();
 		builder.Services.AddTransient<MainPage>();
 		builder.Services.AddSingleton<AppBuildInfo>();
+		builder.Services.AddSingleton<IAppBuildInfo>(
+			sp => sp.GetRequiredService<AppBuildInfo>());
 		builder.Services.AddSingleton<IAppPlatformInfo, MauiAppPlatformInfo>();
 		builder.Services.AddSingleton<IClipboardService, MauiClipboardService>();
+		builder.Services.AddSingleton<IInstallationIdStore, MauiInstallationIdStore>();
+		builder.Services.AddSingleton<IInstallationIdProvider, PreferenceInstallationIdProvider>();
+		builder.Services.AddSingleton<ITelemetryJsonSerializer, TelemetryJsonSerializer>();
+		builder.Services.AddSingleton<ITelemetryShareService, MauiTelemetryShareService>();
+		builder.Services.AddSingleton<TelemetryExportCoordinator>();
+		builder.Services.AddSingleton<IAppResetCoordinator, AppResetCoordinator>();
+		builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));
