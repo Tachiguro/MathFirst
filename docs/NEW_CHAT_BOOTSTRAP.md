@@ -80,12 +80,15 @@ Read the essential governance documents:
 To determine what package is currently in flight or what should happen next, evaluate sources in strict priority order:
 
 1. **Open Active Pull Request**: An open PR on GitHub indicates a package in the candidate/review/merge phase.
-2. **Local Task Branch with Checkpoint Commits**: A dedicated task branch diverging from `main` with unpushed checkpoint commits indicates active in-flight implementation.
-3. **`docs/CURRENT_WORK.md`**: Operational evidence of active package context and lifecycle phase.
+2. **Genuinely Divergent Local Task Branch / Checkpoint Work**: A dedicated local task branch with unmerged commits or active checkpoint work (where `git log main..<branch>` contains unmerged commits not part of an already-merged/closed PR) indicates active in-flight implementation.
+3. **`docs/CURRENT_WORK.md`**: Operational evidence of active package context and lifecycle phase, consistent with live Git state.
 4. **`docs/BACKLOG.md`**: Authoritative registry of accepted inactive work.
 
-> [!NOTE]
-> The absence of an open Pull Request does NOT prove that there is no active work. An in-flight task branch or local slice implementation may be actively progressing.
+> [!IMPORTANT]
+> **Active Branch vs. Historical Branch Discrimination**:
+> - The mere existence of a local or remote task branch does **NOT** prove that active work is in flight. A branch that has already been fully merged into `main` and associated with a merged/closed Pull Request is historical.
+> - An active task branch requires actual unmerged, divergent, or checkpoint commits relative to `main` (`git log main..<branch>` or unpushed work). Live PR state and commit ancestry determine whether a branch represents in-flight work.
+> - The absence of an open Pull Request does NOT prove that there is no active work, because local slice implementation or unpushed task branches may be actively progressing.
 
 ---
 
@@ -102,20 +105,21 @@ To determine what package is currently in flight or what should happen next, eva
 
 Use the live-state discovery rules above to distinguish the following cases:
 
-1. **Verified active package**: An open Pull Request, active task branch with checkpoint work, or `docs/CURRENT_WORK.md` consistent with live state identifies a package in flight. Report that package and continue only within its verified lifecycle.
-2. **No active package**: If no package is active and no explicit authorization is supplied, do not autonomously select a BACKLOG or ROADMAP item.
-3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package and lifecycle step, first verify live repository state, then proceed only with that authorized package under the repository governance.
+1. **Verified active package**: An open Pull Request, a genuinely divergent local task branch with unmerged checkpoint work, or `docs/CURRENT_WORK.md` consistent with live state identifies a package in flight. Report that package and continue only within its verified lifecycle.
+2. **No active package**: If no package is active and no explicit authorization is supplied, do not autonomously select a BACKLOG or ROADMAP item. State clearly that there is currently no active work in flight.
+3. **Explicitly authorized next package**: If the user or active orchestration supplies a named package/task and lifecycle step (e.g. Roadmap Step 51 Final V1 Gap Audit), first verify live repository state, then proceed only with that authorized task under repository governance.
 
+Agents must NOT autonomously begin Roadmap Step 51 or any other downstream activity merely because it is listed as next; explicit user/orchestrator dispatch is required.
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
 
 ---
 
-## 6. Reference Merged Baseline (Recorded 2026-10-01)
+## 6. Historical Reference Snapshot (Recorded 2026-10-01)
 
 > [!IMPORTANT]
-> **Reference & History Only**: The baseline recorded below reflects repository history as of 2026-10-01. It is strictly non-authoritative for current checkout or task state and MUST NOT be used to determine:
+> **Reference & History Only**: The snapshot recorded below reflects historical reference points as of 2026-10-01. It is strictly non-authoritative for current checkout or task state and MUST NOT be used to determine:
 > - Current branch
-> - Current HEAD SHA
+> - Current HEAD commit SHA
 > - Current package in flight
 > - Current lifecycle phase
 > - Working-tree cleanliness or modification state
@@ -128,10 +132,10 @@ Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
-### Historical Merged Baseline (as of 2026-10-01)
-- Synchronized `main` commit SHA: `bbdf62652927efa26475a9f2d83778de6465f5e1` (PR #56 merge `Merge pull request #56 from Tachiguro/mf-telem-001-tester-telemetry`)
-- Latest merged Pull Request on `main`: PR #56 — `MF-TELEM-001: Tester Telemetry Export and Share` (`bbdf62652927efa26475a9f2d83778de6465f5e1`)
-- Preceding recently merged PRs:
+### Historical Reference Delivery Baseline (Snapshot as of 2026-10-01)
+- **Historical Documentation Reconciliation Reference**: PR #57 (`975fb134636f33fba4a54b399aedae80edf95235`): `docs: reconcile post-mf-telem-001 project state`
+- **Delivered Implementation Package Reference (MF-TELEM-001)**: PR #56 (`bbdf62652927efa26475a9f2d83778de6465f5e1`): `MF-TELEM-001: Tester Telemetry Export and Share`
+- **Preceding Historical Reference PRs**:
   - PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`): `MF-UX-008: stabilize Cyber Defense combat layout and opponent presentation`
   - PR #54 (`bc7471b098e2f79262ff6e71302820bd281a14d5`): `MF-LEARN-006: adaptive learning policy, 482 benchmark, and durable calibration`
   - PR #53 (`50aed4714937777f98058cc64afb75a75d749709`): `docs: reconcile post-pr51 pr52 project state`
@@ -145,13 +149,14 @@ Worktrees: Exactly one normal worktree by default
 
 ### Session Discovery & Candidate Resolution Protocol
 When initializing a new session:
-1. **Inspect live Git and GitHub first**: Live local Git and GitHub repository state always takes precedence over documentation snapshots or remembered context. Execute the discovery sequence in Section 2 to discover live branch, HEAD SHA, working tree, and open PR status.
-2. **Verify synchronized `main`**: Ensure local `main` and `origin/main` resolve to `bbdf62652927efa26475a9f2d83778de6465f5e1` unless newer live commits exist.
+1. **Inspect live Git and GitHub first**: Live local Git and GitHub repository state always takes precedence over documentation snapshots or remembered context. Execute the discovery sequence in Section 2 to discover live branch, HEAD SHA, working tree, tracking status, and open PR status.
+2. **Verify live repository synchronization**: Fetch `origin` (`git fetch origin`), inspect live `origin/main` (`git rev-parse origin/main`), and verify that local `main` is synchronized with `origin/main` (`git status`, `git log origin/main..HEAD`, `git log HEAD..origin/main`). Never require equality to a documentation-embedded SHA; live synchronization is determined by Git tracking state.
 3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing.
-4. **Resolve active work from live state**: Check for open PRs, local task branches, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch is active, and working tree on `main` is clean, there is no in-flight work.
-5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task.
+4. **Resolve active work from live state**: Check for open PRs (`gh pr list --state open`), divergent local task branches with unmerged work, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch has unmerged work, and working tree on `main` is clean, there is no in-flight work.
+5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as Roadmap Step 51 Final V1 Gap Audit). State that there is currently no active work item and await explicit dispatch.
 
-### Durable Merged Baseline Summary
+### Historical Delivered Baseline Summary
+- **Post-MF-TELEM-001 Documentation Reconciliation** (PR #57, merge `975fb134636f33fba4a54b399aedae80edf95235`): Reconciled repository baseline documentation following the merge of PR #56.
 - **MF-TELEM-001 Tester Telemetry Export and Share** (PR #56, merge `bbdf62652927efa26475a9f2d83778de6465f5e1`): Delivered Schema V7 persistence with five nullable presentation-context columns, pseudonymous random installation UUID, canonical JSON export contract (`telemetry_export_schema_v1`), sandboxed native platform sharing (`telemetry-share`), Full Local Reset cleanup, localized Settings export and reset UI, and non-interference regression coverage (`REVIEW_PASS`, 1,906 Core tests passed, 0 warnings/errors Windows & Android builds).
 - **MF-UX-008 Static Combat Layout and Boss Presentation** (PR #55, merge `76116d11b8563b0407188ba53ccefd998eda958d`, feature HEAD `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`): Delivered static combat layout positional stability (keypad and arithmetic typography stationary across combat transitions), layout-isolated boss presentation (`clamp(90px, 16vh, 140px)`), visual layering (`z-index: 4` + scrim protection), progressive opponent scaling (0.65 to 1.50), tier-preserving feedback scale composition (`SCALE_PRESERVED_ACROSS_ALL_STATES`), and scoped active-gameplay scroll suppression (`.training-host.active-gameplay`) (`REVIEW_PASS`, `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`, 1,786 Core tests passed, Schema V6 preserved).
 - **MF-LEARN-006 Adaptive Learning Policy, 482 Benchmark, and Durable Calibration** (PR #54, merge `bc7471b098e2f79262ff6e71302820bd281a14d5`, candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb`): Delivered Option-B Evidence-Adaptive Discovery, absolute no-immediate-fact-repetition invariant ($\text{FactId}(t+1) \ne \text{FactId}(t)$), tiered remediation (4 / 2 cooldown spacing; broad weakness threshold 2), Guided Gate G3 soft decoupling at `BandIndex >= 3`, durable pace calibration at $\ge 24$ positioned Correct attempts, calibrated downstream Cyber Defense Critical Hits, exact 482 strong-learner benchmark, restart determinism, and exact-candidate `FULL_VALIDATION_PASS` (1,772 Core tests passed in Debug/Release, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, Schema V6 preserved without migration).
