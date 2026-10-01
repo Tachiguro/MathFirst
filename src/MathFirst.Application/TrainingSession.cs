@@ -146,12 +146,6 @@ public sealed class TrainingSession
     public bool IsCurrentSubmissionCommitted { get; private set; }
     public DateTimeOffset? LatestAcceptedPracticeAt { get; private set; }
     public bool HasCompletedPracticeHistory => LatestAcceptedPracticeAt.HasValue;
-    public AttemptPresentationContext? CurrentPresentationContext => _currentPresentationContext;
-
-    public void DiscardPresentationSnapshot()
-    {
-        _currentPresentationContext = null;
-    }
 
     public int GetConsecutiveErrorCount(string factId)
     {

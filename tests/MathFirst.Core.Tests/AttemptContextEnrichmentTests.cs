@@ -398,7 +398,7 @@ public sealed class AttemptContextEnrichmentTests
             var session = new TrainingSession(store);
             await session.InitializeAsync();
 
-            session.DiscardPresentationSnapshot();
+            ClearPresentationContextForTest(session);
             var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
 
             Assert.NotNull(eval.ChangeSet);
@@ -408,6 +408,17 @@ public sealed class AttemptContextEnrichmentTests
             Assert.Null(attempt.ExpectedPaceMs);
             Assert.Null(attempt.ResolvedRole);
             Assert.Null(attempt.OperationBandBefore);
+
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess);
+
+            var snapshot = await store.LoadSnapshotAsync();
+            var persistedAttempt = Assert.Single(snapshot.RecentAttempts);
+            Assert.Null(persistedAttempt.ContextVersion);
+            Assert.Null(persistedAttempt.PresentedDeadlineMs);
+            Assert.Null(persistedAttempt.ExpectedPaceMs);
+            Assert.Null(persistedAttempt.ResolvedRole);
+            Assert.Null(persistedAttempt.OperationBandBefore);
         }
         finally
         {
@@ -428,12 +439,27 @@ public sealed class AttemptContextEnrichmentTests
             var session = new TrainingSession(store);
             await session.InitializeAsync();
 
-            Assert.NotNull(session.CurrentPresentationContext);
-            session.DiscardPresentationSnapshot();
-            Assert.Null(session.CurrentPresentationContext);
+            var initialFact = session.CurrentFact;
+            Assert.NotNull(initialFact);
 
-            var snapshot = await store.LoadSnapshotAsync();
-            Assert.Empty(snapshot.RecentAttempts);
+            await session.AdvanceToNextFactAsync();
+
+            var snapshotBeforeSubmit = await store.LoadSnapshotAsync();
+            Assert.Empty(snapshotBeforeSubmit.RecentAttempts);
+
+            var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            var commitResult = await session.CommitCurrentEvaluationAsync();
+            Assert.True(commitResult.IsSuccess);
+
+            var snapshotAfterSubmit = await store.LoadSnapshotAsync();
+            var persistedAttempt = Assert.Single(snapshotAfterSubmit.RecentAttempts);
+            Assert.Equal(session.CurrentFact.Id, persistedAttempt.FactId);
+            Assert.Equal(1, persistedAttempt.PracticePosition);
+            Assert.Equal(1, persistedAttempt.ContextVersion);
+            Assert.Equal((int)session.CurrentFactExpectedPaceMs, persistedAttempt.ExpectedPaceMs);
+            Assert.Equal(eval.ChangeSet!.Attempt.ExpectedPaceMs, persistedAttempt.ExpectedPaceMs);
+            Assert.Equal(eval.ChangeSet.Attempt.ResolvedRole, persistedAttempt.ResolvedRole);
+            Assert.Equal(eval.ChangeSet.Attempt.OperationBandBefore, persistedAttempt.OperationBandBefore);
         }
         finally
         {
@@ -442,6 +468,16 @@ public sealed class AttemptContextEnrichmentTests
                 File.Delete(dbPath);
             }
         }
+    }
+
+    private static void ClearPresentationContextForTest(TrainingSession session)
+    {
+        var field = typeof(TrainingSession).GetField("_currentPresentationContext", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field == null)
+        {
+            throw new InvalidOperationException("Field _currentPresentationContext not found on TrainingSession.");
+        }
+        field.SetValue(session, null);
     }
 
     [Fact]
