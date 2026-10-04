@@ -558,7 +558,7 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         await session.InitializeAsync();
 
         Assert.Equal(15000, session.CurrentFactDeadlineMs);
-        Assert.True(session.HasEnforcedDeadline);
+        Assert.False(session.HasEnforcedDeadline);
 
         var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
 
@@ -583,7 +583,7 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         await session.InitializeAsync();
 
         Assert.Equal(15000, session.CurrentFactDeadlineMs);
-        Assert.True(session.HasEnforcedDeadline);
+        Assert.False(session.HasEnforcedDeadline);
 
         var wrongAnswer = session.CurrentFact.CorrectResult + 5;
         var evaluation = session.SubmitAnswer(wrongAnswer);

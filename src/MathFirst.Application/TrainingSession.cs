@@ -550,11 +550,6 @@ public sealed class TrainingSession
             throw new InvalidOperationException("Training session is not initialized.");
         }
 
-        if (!HasEnforcedDeadline)
-        {
-            throw new InvalidOperationException("Cannot record timeout when session has no enforced deadline.");
-        }
-
         if (InteractionState != SessionInteractionState.AwaitingAnswer)
         {
             if (LastEvaluation is not null)

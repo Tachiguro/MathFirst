@@ -262,8 +262,7 @@
 
                         <PracticeCountdownTimer Session="Session"
                                                 IsVisible="false"
-                                                AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])'
-                                                OnTimeout="HandleTimeoutAsync" />
+                                                AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])' />
                     </div>
 
                     <div class="practice-layout">
@@ -817,31 +816,6 @@
         }
     }
 
-    private async Task HandleTimeoutAsync()
-    {
-        if (!Session.HasEnforcedDeadline || _isSubmitting || !IsAnswerEntryVisible)
-        {
-            return;
-        }
-
-        _isSubmitting = true;
-        try
-        {
-            _validationError = null;
-            Session.RecordTimeout();
-            _cyberDefenseState.RecordIncorrectAnswer();
-            _shouldFocusPrimaryOverlay = true;
-
-            HapticService.PerformCue(HapticFeedbackCue.Timeout);
-
-            await Session.CommitCurrentEvaluationAsync();
-        }
-        finally
-        {
-            _isSubmitting = false;
-            await InvokeAsync(StateHasChanged);
-        }
-    }
 
     private async Task AdvanceAsync()
     {

@@ -556,11 +556,11 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
         Assert.True(session.IsTimingActive);
         Assert.Equal(0, session.GetCurrentActiveElapsedMs());
 
-        // Full deadline available after resume
+        // Under P1 Slice 2, normal practice has no enforced deadline; clock passage does not time out
         clock.CurrentTimestamp += session.CurrentFactDeadlineMs - 1;
         Assert.False(session.IsCurrentItemTimedOut());
         clock.CurrentTimestamp += 1;
-        Assert.True(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsCurrentItemTimedOut());
     }
 
     [Fact]
