@@ -342,11 +342,12 @@ public sealed class NoImmediateFactRepetitionTests : IDisposable
     }
 
     // -----------------------------------------------------------------------------------------
-    // Test H: NoImmediateRepeat_BroadWeaknessSuppressesDiscoveryAndNoAlternative_FailsClosed
-    // Broad Weakness suppresses Discovery, only non-New candidate is immediate predecessor -> fail closed.
+    // -----------------------------------------------------------------------------------------
+    // Test H: NoImmediateRepeat_BroadWeaknessWithUnmaterializedCurriculum_UsesTerminalNewFallback
+    // Invariant FactId(t + 1) != FactId(t) is strictly preserved, and terminal New fallback provides liveness.
     // -----------------------------------------------------------------------------------------
     [Fact]
-    public void NoImmediateRepeat_BroadWeaknessSuppressesDiscoveryAndNoAlternative_FailsClosed()
+    public void NoImmediateRepeat_BroadWeaknessWithUnmaterializedCurriculum_UsesTerminalNewFallback()
     {
         var curriculum = new ArithmeticCurriculum();
         var selector = new AdaptivePracticeSelector();
@@ -374,9 +375,14 @@ public sealed class NoImmediateFactRepetitionTests : IDisposable
             enabledOperations: [ArithmeticOperation.Addition],
             hasBroadWeakness: true);
 
-        // Must fail closed with InvalidOperationException rather than returning duplicate factA
-        var ex = Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(context));
-        Assert.Contains("Addition", ex.Message);
+        // Invariant FactId(t + 1) != FactId(t) is strictly preserved, and terminal New fallback provides liveness
+        var result = selector.SelectTargetFact(context);
+        Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.False(result.IsMaterialized);
+        Assert.True(result.IsNewIntroduction);
+        Assert.NotEqual(factA.Id, result.Fact.Id);
     }
 
     // -----------------------------------------------------------------------------------------
@@ -395,9 +401,19 @@ public sealed class NoImmediateFactRepetitionTests : IDisposable
         // Position 2 scheduled operation is Addition (or whichever is scheduled at pos 2 for [Addition, Subtraction])
         var scheduledOp = AdaptivePracticeSelector.GetScheduledOperation(2, enabledOps);
 
-        var scheduledFact = curriculum.GetCurriculum(scheduledOp).Bands[0].Frontier[0];
         var otherOp = scheduledOp == ArithmeticOperation.Addition ? ArithmeticOperation.Subtraction : ArithmeticOperation.Addition;
         var otherFact = curriculum.GetCurriculum(otherOp).Bands[0].Frontier[0];
+
+        // Give scheduledOp a 1-fact custom curriculum with scheduledFact already materialized, so newPool is empty
+        var scheduledFact = new ArithmeticFact(scheduledOp, 0, 0);
+        var schedCurriculum = new OperationCurriculum(
+            scheduledOp,
+            [new CurriculumBand(scheduledOp, 0, new CurriculumBandId("SCHED-D01"), CurriculumBandKind.Dense, [scheduledFact])]);
+
+        var curricula = CreateCurricula(curriculum);
+        var curriculaWithCustom = Enum.GetValues<ArithmeticOperation>().ToDictionary(
+            op => op,
+            op => op == scheduledOp ? schedCurriculum : curricula[op]);
 
         var stateSched = ItemLearningState.CreateNew(scheduledFact);
         var cardSched = new FsrsCardState(scheduledFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
@@ -405,7 +421,7 @@ public sealed class NoImmediateFactRepetitionTests : IDisposable
         var stateOther = ItemLearningState.CreateNew(otherFact);
         var cardOther = new FsrsCardState(otherFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 1, 1, FsrsRating.Good);
 
-        // Materialize scheduledFact (only one) and otherFact
+        // Materialize scheduledFact (only one for scheduledOp) and otherFact
         var materialized = new MaterializedState(
             [scheduledFact, otherFact],
             new Dictionary<string, ItemLearningState>(StringComparer.Ordinal)
@@ -419,13 +435,12 @@ public sealed class NoImmediateFactRepetitionTests : IDisposable
                 [otherFact.Id] = cardOther
             });
 
-        // Scheduled op is starved: only scheduledFact exists, and scheduledFact is immediate predecessor.
-        // hasBroadWeakness = true blocks Discovery.
+        // Scheduled op is starved: only scheduledFact exists, scheduledFact is immediate predecessor, and newPool is empty.
         var context = new PracticeSelectionContext(
             prospectivePracticePosition: 2,
             currentSessionOrder: 2,
             CreateProgressions(),
-            CreateCurricula(curriculum),
+            curriculaWithCustom,
             new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
             recentAcceptedFactsOldestToNewest: [scheduledFact],
             scheduledOperationAttemptOrdinal: 2,
@@ -435,6 +450,39 @@ public sealed class NoImmediateFactRepetitionTests : IDisposable
         // Must fail closed with InvalidOperationException for scheduledOp; must NOT steal otherOp!
         var ex = Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(context));
         Assert.Contains(scheduledOp.ToString(), ex.Message);
+    }
+
+    [Fact]
+    public void NoImmediateRepeat_TerminalNewFallback_NeverSelectsImmediatePredecessor()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var selector = new AdaptivePracticeSelector();
+        var immediateFact = curriculum.Addition.Bands[0].Frontier[0]; // add:0+0
+
+        var stateImm = ItemLearningState.CreateNew(immediateFact);
+        var cardImm = new FsrsCardState(immediateFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+
+        var materialized = new MaterializedState(
+            [immediateFact],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [immediateFact.Id] = stateImm },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [immediateFact.Id] = cardImm });
+
+        var context = new PracticeSelectionContext(
+            prospectivePracticePosition: 2,
+            currentSessionOrder: 2,
+            CreateProgressions(),
+            CreateCurricula(curriculum),
+            new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
+            recentAcceptedFactsOldestToNewest: [immediateFact],
+            scheduledOperationAttemptOrdinal: 2,
+            enabledOperations: [ArithmeticOperation.Addition],
+            hasBroadWeakness: true);
+
+        var result = selector.SelectTargetFact(context);
+
+        // Even under terminal New fallback, immediate predecessor is NEVER selected
+        Assert.NotEqual(immediateFact.Id, result.Fact.Id);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
     }
 
     // -----------------------------------------------------------------------------------------

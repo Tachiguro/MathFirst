@@ -750,7 +750,7 @@ public sealed class IndependentSelectorTests
     [InlineData(2, PracticeSelectionRole.Due)]
     [InlineData(4, PracticeSelectionRole.Maintenance)]
     [InlineData(5, PracticeSelectionRole.Frontier)]
-    public void StructuredBands_DoNotUseCoverageFirst_NonNewRolesFailClosedWhenNoMaterializedFacts(
+    public void StructuredBands_WhenMaterializedReviewPoolsEmpty_UsesTerminalNewFallback(
         long attemptOrdinal,
         PracticeSelectionRole requestedRole)
     {
@@ -765,8 +765,15 @@ public sealed class IndependentSelectorTests
             hasBroadWeakness: true);
 
         Assert.Equal(requestedRole, AdaptivePracticeSelector.GetRequestedRole(attemptOrdinal));
-        var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
-        Assert.Contains("Addition", ex.Message);
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+
+        Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
+        Assert.Equal(requestedRole, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.False(result.IsMaterialized);
+        Assert.True(result.IsNewIntroduction);
+        Assert.NotNull(result.Fact);
+        Assert.Equal(ArithmeticOperation.Addition, result.Fact.Operation);
     }
 
     [Fact]

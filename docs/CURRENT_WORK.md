@@ -9,39 +9,69 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: None. No active repository implementation is currently authorized; awaiting explicit dispatch.
-- **Current Lifecycle**: None (operational and documentation baseline is synchronized following Pre-Step55 refinement program reconciliation).
-- **Status of Active Work**: No feature, implementation, or documentation package is currently in flight.
+- **Active Task**: `P0-POST-FULL-VALIDATION-DOCUMENTATION-SYNC` (P0 Post-Full-Validation Documentation Sync).
+- **Current Lifecycle**: `DOCUMENT_ONLY` (reconciling repository documentation following successful completion of `FULL_VALIDATION` for the P0 selector terminal-liveness candidate; candidate is locally fully validated and awaiting `COMMIT_ONLY`).
+- **Status of Active Work**:
+  - **P0 Status**: P0 investigation, exact root-cause reproduction (`NARROWLY_PROVEN`), TDD RED confirmation (`TDD_RED_CONFIRMED`), production fix (`AdaptivePracticeSelector.GetFallbackChain`, `P0_SELECTOR_FIX_GREEN_CONFIRMED`), diagnostic cleanup (`P0_DIAGNOSTIC_CLEANUP_COMPLETE`), and final full validation (`P0_FULL_VALIDATION_PASS`) are complete locally on branch `diag/p0-zero-answer-runtime-trace`. The candidate is fully validated locally and ready for `COMMIT_ONLY`.
+  - **Repository State**: The P0 candidate is uncommitted, unpushed, and unmerged locally (zero committed delta relative to `origin/main`). No PR exists.
+  - **P0 Root Cause & Diagnosis**: The apparent core-flow freeze on physical hardware after entering `0` on `0 + 0` was not caused by the numeric answer 0 or the fact `add:0+0` itself (zero was not rejected, auto-submission completed, and 0 itself did not cause the freeze). The true failure was selector terminal-liveness starvation:
+    - In fresh four-operation practice, Task 1 (`mul:0*0`, submitted 0, Correct, 4042 ms, non-fluent, FSRS Hard) was followed by Task 2 (`sub:0-0`, submitted 1, Incorrect, 7928 ms, FSRS Again) and Task 3 (`div:0/1`, Timeout, 15070 ms, FSRS Again).
+    - Subtraction and Division both contained unresolved remediation work, triggering broad weakness (`HasBroadWeakness = true`).
+    - Task 4 was Addition (`add:0+0`, submitted 0, Correct, 3314 ms, fluent, FSRS Good).
+    - Following Task 4, at PracticePosition 4 / StoreRevision 5, the deterministic operation scheduler legitimately scheduled Addition again for prospective position 5 across a permutation bag boundary.
+    - Addition had 1 prior accepted attempt, making prospective Addition accepted-attempt ordinal 2 (`Requested Due`).
+    - The only materialized Addition fact was `add:0+0`, which was the immediate predecessor and was therefore hard-excluded by the universal no-immediate-fact-repetition invariant ($\text{FactId}(t+1) \ne \text{FactId}(t)$).
+    - Broad weakness suppressed the opportunistic New-promotion path.
+    - Non-New fallback chains (`Requested Due`, `Requested Maintenance`, `Requested Frontier`) did not include New.
+    - The selector exhausted all valid materialized candidates and threw `InvalidOperationException`, terminating practice selection despite eligible unmaterialized Addition facts existing in the curriculum.
+  - **Next Lifecycle**: Following this post-validation documentation sync (`DOCUMENT_ONLY`), the next lifecycle is **`COMMIT_ONLY`** to stage and commit the validated P0 candidate files. The package remains uncommitted locally, unpushed, and unmerged.
+  - **Downstream Scope**: P1 (Normal Practice Without Deadline Failure) is downstream work and is **NOT** authorized by completing P0.
+  - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54; deferred pending pre-Step55 refinement program; no production AAB, no versionCode 4, no release signing, no Google Play upload).
   - **Completed Testing Steps (Steps 51–54)**:
     - **Step 51 (Final V1 Gap Audit)**: `STEP_51_READY_FOR_STEP_52` (read-only audit of `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f`, zero Step-52 blockers found).
     - **Step 52 (Tester APK Packaging & Offline Validation)**: `STEP_52_TESTER_APK_PASS` (built from `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f`, package `com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`, development/debug signed, repository remained clean).
     - **Step 53 (Physical Installation on S26 Ultra)**: `STEP_53_INSTALL_PASS` (Samsung SM-S948B / m3q, Android 16 / API 36, package `com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, production package unmodified).
     - **Step 54 (Manual Physical-Device Validation)**: `STEP_54_MANUAL_VALIDATION_PASS` (physical device Samsung Galaxy S26 Ultra; manual validation covered launch, practice, correctness, pause/resume, Cyber Defense combat presentation, multi-question continuity, background/resume, Settings, Privacy, telemetry export/share, localization; zero manual findings reported; source repository unchanged).
-  - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54; deferred pending pre-Step55 refinement program; no production AAB, no versionCode 4, no release signing, no Google Play upload).
   - **Established Refinement Plan**: Canonical pre-production program documented in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md).
-- **Next Planned Work Item**: **P0 — Zero-Answer / `0 + 0` Core-Flow Freeze** under `PLAN_ONLY` / systematic debugging mode, to be executed in a separately authorized task upon explicit user dispatch. P0 implementation authorization is **NOT GRANTED** by this documentation task.
 
 ### 1.1 Pre-Step55 Refinement Program Sequence
 
 The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md)) governs downstream work:
-1. **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`P0 Blocker` — Next planned item under `PLAN_ONLY`)
-2. **P1**: Normal Practice Without Deadline Failure (remove timeout failure, preserve response latency & pace modeling)
-3. **P1b**: Active Thinking Time / Interruption Safety (pause on interruptions, neutralize contaminated latency)
-4. **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only)
-5. **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas)
-6. **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass)
-7. **P5**: Cyber Defense Visual Consistency (dark technical surfaces, restrained neon/cyber accents)
-8. **P6**: Tester Diagnostics / Telemetry Release Boundary (hard compile/profile boundary isolating Tester diagnostic controls from Distributable UI)
-9. **P8**: Test-Coverage Audit & Targeted Hardening (factual baseline, critical invariant coverage)
+1. **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`P0 Blocker` — implemented / locally fully validated (`P0_FULL_VALIDATION_PASS`) / awaiting `COMMIT_ONLY` and repository integration)
+2. **P1**: Normal Practice Without Deadline Failure (remove timeout failure, preserve response latency & pace modeling — *Downstream / Not Started / Not Authorized*)
+3. **P1b**: Active Thinking Time / Interruption Safety (pause on interruptions, neutralize contaminated latency — *Downstream*)
+4. **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only — *Downstream*)
+5. **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas — *Downstream*)
+6. **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass — *Downstream*)
+7. **P5**: Cyber Defense Visual Consistency (dark technical surfaces, restrained neon/cyber accents — *Downstream*)
+8. **P6**: Tester Diagnostics / Telemetry Release Boundary (hard compile/profile boundary isolating Tester diagnostic controls from Distributable UI — *Downstream*)
+9. **P8**: Test-Coverage Audit & Targeted Hardening (factual baseline, critical invariant coverage — *Downstream*)
 10. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*)
 
 ### 1.2 Current Verified Quality State
 
+#### Historical Merged Baseline (`main@cb15d1c` / PR #56 `MF-TELEM-001`)
 - **Complete-Package Review**: `REVIEW_PASS` (`MF-TELEM-001` completed with zero Blocker, zero Major, zero Minor findings).
 - **Merge Commit**: `bbdf62652927efa26475a9f2d83778de6465f5e1` (PR #56).
 - **Post-Merge Verification**: `POST_MERGE_SYNC_COMPLETE` on canonical checkout `C:\Dev\MathFirst`; post-merge Core tests: `1,906 passed, 0 failed, 0 skipped`; Android and Windows builds: `0 warnings, 0 errors`.
 - **Benchmark & Determinism**: Exact 482 strong-learner benchmark (`ADD-D10 -> ADD-P1-ANCHOR` at global accepted attempt 482; 121 Addition attempts), real-SQLite restart equivalence, and cold-restart next-selection determinism locked.
 - **Persistence Contract**: Schema V7 live.
+
+#### Current Local P0 Validation Evidence (Uncommitted Candidate on `diag/p0-zero-answer-runtime-trace`)
+- **Root Cause Verified**: `NARROWLY_PROVEN` selector terminal-liveness starvation at StoreRevision 5 (practice position 4 -> 5). Not caused by the numeric answer 0 or the fact `add:0+0` itself.
+- **TDD RED Confirmed**: `TDD_RED_CONFIRMED` on exact revision-5 reproduction across 13 failing characterization and regression cases prior to fix.
+- **Production Fix Green**: `P0_SELECTOR_FIX_GREEN_CONFIRMED` after implementing generic terminal New fallback in `AdaptivePracticeSelector.GetFallbackChain`.
+- **Exact Live & Restart Verification**: Exact live revision-5 fix GREEN; exact cold-restart revision-5 fix GREEN.
+- **Exact Characterization**: 4 / 4 passed (`EarlyStateSchedulerFailureCharacterizationTests`).
+- **Permanent Regression Fixtures**: 144 / 144 passed across 5 permanent regression test fixtures (`DeterministicSelectorTerminalLivenessTests`, `IndependentSelectorTests`, `NoImmediateFactRepetitionTests`, `TieredRemediationAndBroadWeaknessTests`, `EarlyStateSchedulerFailureCharacterizationTests`).
+- **Broader Selector / Scheduler Regressions**: 187 / 187 passed across broader selector and scheduler regression suites.
+- **Diagnostic Cleanup**: `P0_DIAGNOSTIC_CLEANUP_COMPLETE`. All temporary physical-device runtime tracing and temporary diagnostic test methods removed (exactly 9 temporary diagnostic tests removed; pre-cleanup 1,926 count is historical only); runtime files restored exactly to pre-diagnostic HEAD state.
+- **Full Permanent Core Suite**: 1,917 / 1,917 passed (0 failed, 0 skipped).
+- **Windows Release Build**: `net10.0-windows10.0.19041.0` Release build SUCCESS (0 warnings, 0 errors).
+- **Android Release Compilation**: `net10.0-android36.0` Release compile-only (Target `Compile`) SUCCESS (0 warnings, 0 errors).
+- **Packaging Boundary**: Zero APK/AAB packaging performed; zero signing; zero deployment; zero ADB/device/emulator actions; no repository artifacts introduced.
+- **Final Full Validation Acceptance**: `P0_FULL_VALIDATION_PASS` (30 / 30 acceptance criteria passed).
+- **Local Integration Readiness**: The candidate is fully validated locally and ready for `COMMIT_ONLY`. The package remains uncommitted locally, unpushed, and unmerged; no PR exists.
 
 ---
 
@@ -65,10 +95,12 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
   - Roadmap Step 55 production packaging is **NOT AUTHORIZED**.
 
 ### Authorized Downstream Project Sequence:
-1. Documentation reconciliation for the Pre-Step55 V1 Refinement Program is completed and recorded in repository documentation.
-2. The next planned work item is **P0 — Zero-Answer / `0 + 0` Core-Flow Freeze** (`PLAN_ONLY` mode, requiring explicit future dispatch; implementation not authorized).
-3. Downstream P-item sequence ($\text{P0} \to \text{P1} \to \text{P1b} \to \text{P2} \to \text{P3} \to \text{P4} \to \text{P5} \to \text{P6} \to \text{P8}$) must be completed and merged before Step 55 may be proposed.
-4. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
+1. Post-full-validation documentation sync is completed (`DOCUMENT_ONLY`).
+2. Next lifecycle is **`COMMIT_ONLY`** for the validated P0 candidate (staging and committing the 8 candidate files).
+3. Subsequent lifecycles for repository integration: `PUSH_ONLY`, `PR_ONLY`, `REVIEW_PR`, `MERGE_DECISION`, and explicit user `MERGE` authorization.
+4. Downstream P-item sequence ($\text{P0} \to \text{P1} \to \text{P1b} \to \text{P2} \to \text{P3} \to \text{P4} \to \text{P5} \to \text{P6} \to \text{P8}$) must be completed and merged before Step 55 may be proposed.
+5. P1 is downstream and is **NOT** authorized by completing P0.
+6. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
-> Step 55 is **NOT AUTHORIZED**. The next task is P0 planning under `PLAN_ONLY`. No implementation, build, package, signing, ADB, or release action is authorized without explicit user dispatch.
+> Step 55 is **NOT AUTHORIZED**. Build 4 does not exist yet (not packaged, not signed, not tested). No production packaging, release signing, ADB, or release action is authorized without explicit user dispatch.

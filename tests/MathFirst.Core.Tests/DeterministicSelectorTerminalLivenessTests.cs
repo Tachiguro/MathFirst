@@ -85,16 +85,28 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
         Assert.False(newResult.IsMaterialized);
         Assert.True(newResult.IsNewIntroduction);
 
-        // 2. Non-New role with empty pools on structured band and broad weakness -> fails closed, never materializes
+        // 2. Non-New role with empty materialized pools on structured band -> falls back to terminal New if newPool available
         var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
         var dueContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 2), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
-        Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(dueContext));
+        var dueRes = selector.SelectTargetFact(dueContext);
+        Assert.Equal(PracticeSelectionRole.Due, dueRes.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, dueRes.ResolvedRole);
+        Assert.False(dueRes.IsMaterialized);
+        Assert.True(dueRes.IsNewIntroduction);
 
         var maintenanceContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 4), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
-        Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(maintenanceContext));
+        var maintRes = selector.SelectTargetFact(maintenanceContext);
+        Assert.Equal(PracticeSelectionRole.Maintenance, maintRes.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, maintRes.ResolvedRole);
+        Assert.False(maintRes.IsMaterialized);
+        Assert.True(maintRes.IsNewIntroduction);
 
         var frontierContext = CreateContext(GetOpPosition(ArithmeticOperation.Addition, 5), curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
-        Assert.Throws<InvalidOperationException>(() => selector.SelectTargetFact(frontierContext));
+        var frontRes = selector.SelectTargetFact(frontierContext);
+        Assert.Equal(PracticeSelectionRole.Frontier, frontRes.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, frontRes.ResolvedRole);
+        Assert.False(frontRes.IsMaterialized);
+        Assert.True(frontRes.IsNewIntroduction);
 
         // 3. Requested New fallback (e.g. all new materialized, falls back to Frontier/Due/EarlyReview) -> never isNewIntroduction
         var owned = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(0);
@@ -130,10 +142,13 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var context = CreateContext(pos13, curriculum, materialized, operationProgressions: progressions, curricula: curricula, hasBroadWeakness: true);
 
-        // Must throw because no eligible semantic pool exists; must NOT fall back to AnyMaterialized!
-        var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
-        Assert.Contains("Addition", ex.Message);
-        Assert.Contains(pos13.ToString(), ex.Message);
+        // Fact0 is not in any eligible semantic pool, but Fact1 is in newPool.
+        // Terminal New fallback selects Fact1; Fact0 is NEVER selected via AnyMaterialized.
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+        Assert.Equal(fact1.Id, result.Fact.Id);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.False(result.IsMaterialized);
+        Assert.True(result.IsNewIntroduction);
     }
 
     // D. Remediation boundary
@@ -909,13 +924,190 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
     public void ZeroCandidateState_FailsFastClosedDeterministically()
     {
         var curriculum = new ArithmeticCurriculum();
-        var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
+        var custom = CreateRepeatedFactCurriculum(ArithmeticOperation.Addition, fact);
+        var curricula = CreateCurricula(curriculum, (ArithmeticOperation.Addition, custom));
+        var progressions = CreateProgressions((ArithmeticOperation.Addition, 1));
         var pos5 = GetOpPosition(ArithmeticOperation.Addition, 2);
-        var context = CreateContext(pos5, curriculum, EmptyMaterialized(), operationProgressions: structuredProgressions, hasBroadWeakness: true);
+
+        // Single fact is already materialized and is the immediate predecessor; newPool is empty; review pools have no candidate
+        var itemState = ItemLearningState.CreateNew(fact);
+        var fsrsState = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+        var materialized = new MaterializedState(
+            [fact],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState });
+
+        var context = CreateContext(
+            pos5,
+            curriculum,
+            materialized,
+            recentFacts: [fact],
+            operationProgressions: progressions,
+            curricula: curricula,
+            hasBroadWeakness: true);
 
         var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
         Assert.Contains("Addition", ex.Message);
         Assert.Contains(pos5.ToString(), ex.Message);
+    }
+
+    [Fact]
+    public void TerminalNewFallback_ControlledOverIntroduction_PrefersValidReviewCandidateWhenAvailable()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var fact0 = curriculum.Addition.Bands[0].Frontier[0]; // add:0+0 (immediate predecessor)
+        var fact1 = curriculum.Addition.Bands[0].Frontier[1]; // add:0+1 (materialized frontier candidate)
+
+        var s0 = ItemLearningState.CreateNew(fact0);
+        var s1 = ItemLearningState.CreateNew(fact1);
+        var c0 = new FsrsCardState(fact0.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 4, FsrsRating.Good);
+        var c1 = new FsrsCardState(fact1.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+
+        var materialized = new MaterializedState(
+            [fact0, fact1],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact0.Id] = s0, [fact1.Id] = s1 },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact0.Id] = c0, [fact1.Id] = c1 });
+
+        // Turn requested Due at pos 5, ordinal 2. Immediate predecessor is fact0.
+        // hasBroadWeakness is true. Unmaterialized facts exist in newPool.
+        var context = CreateContext(
+            5,
+            curriculum,
+            materialized,
+            recentFacts: [fact0],
+            scheduledOperationAttemptOrdinal: 2,
+            hasBroadWeakness: true);
+
+        var result = new AdaptivePracticeSelector().SelectTargetFact(context);
+
+        // Controlled over-introduction: Because fact1 is a valid materialized Frontier candidate,
+        // it MUST be selected instead of falling back to New!
+        Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.Frontier, result.ResolvedRole);
+        Assert.Equal(fact1.Id, result.Fact.Id);
+        Assert.True(result.IsMaterialized);
+        Assert.False(result.IsNewIntroduction);
+    }
+
+    [Fact]
+    public void TerminalNewFallback_RespectsGuidedNumberSpaceGate()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var selector = new AdaptivePracticeSelector();
+
+        // Guided mode: 4 operations enabled. Addition at Band 0 (ceiling = 2).
+        // Multiplication turn with ordinal 2 (requested Due) where all review candidates are exhausted.
+        var mul00 = new ArithmeticFact(ArithmeticOperation.Multiplication, 0, 0); // result 0 <= 2
+        var sMul = ItemLearningState.CreateNew(mul00);
+        var cMul = new FsrsCardState(mul00.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+
+        var materialized = new MaterializedState(
+            [mul00],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [mul00.Id] = sMul },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [mul00.Id] = cMul });
+
+        var gate = GuidedNumberSpaceGate.ForGuided(
+            curriculum.Addition,
+            unlockedAdditionBandIndex: 0,
+            multiplicationBandIndex: 0,
+            divisionBandIndex: 0);
+
+        // At addition Band 0, addition facts have operands {0, 1}, max result = 2.
+        Assert.Equal(2, gate.AdditionCeiling);
+
+        var posMul = GetOpPosition(ArithmeticOperation.Multiplication, 2);
+        var context = new PracticeSelectionContext(
+            prospectivePracticePosition: posMul,
+            currentSessionOrder: 0,
+            CreateProgressions(),
+            CreateCurricula(curriculum),
+            new PracticeCandidateIndex(materialized.Facts, materialized.ItemStates, materialized.FsrsStates),
+            recentAcceptedFactsOldestToNewest: [mul00],
+            scheduledOperationAttemptOrdinal: 2,
+            guidedNumberSpaceGate: gate,
+            hasBroadWeakness: true);
+
+        var result = selector.SelectTargetFact(context);
+
+        Assert.Equal(ArithmeticOperation.Multiplication, result.ScheduledOperation);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.True(gate.Allows(result.Fact));
+        Assert.True(result.Fact.CorrectResult <= 2);
+        Assert.NotEqual(mul00.Id, result.Fact.Id);
+    }
+
+    [Fact]
+    public void TerminalNewFallback_DeterministicSelectionAcrossIdenticalContexts()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var selector = new AdaptivePracticeSelector();
+
+        var add00 = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
+        var s0 = ItemLearningState.CreateNew(add00);
+        var c0 = new FsrsCardState(add00.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+
+        var materialized = new MaterializedState(
+            [add00],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [add00.Id] = s0 },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [add00.Id] = c0 });
+
+        var context1 = CreateContext(
+            5,
+            curriculum,
+            materialized,
+            recentFacts: [add00],
+            scheduledOperationAttemptOrdinal: 2,
+            hasBroadWeakness: true);
+
+        var context2 = CreateContext(
+            5,
+            curriculum,
+            materialized,
+            recentFacts: [add00],
+            scheduledOperationAttemptOrdinal: 2,
+            hasBroadWeakness: true);
+
+        var res1 = selector.SelectTargetFact(context1);
+        var res2 = selector.SelectTargetFact(context2);
+
+        Assert.Equal(res1.Fact.Id, res2.Fact.Id);
+        Assert.Equal(res1.RequestedRole, res2.RequestedRole);
+        Assert.Equal(res1.ResolvedRole, res2.ResolvedRole);
+        Assert.Equal(res1.CooldownRelaxation, res2.CooldownRelaxation);
+    }
+
+    [Fact]
+    public void TerminalNewFallback_WhenCurriculumAndNewPoolExhausted_FailsFastClosed()
+    {
+        var curriculum = new ArithmeticCurriculum();
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
+        var custom = CreateRepeatedFactCurriculum(ArithmeticOperation.Addition, fact);
+        var curricula = CreateCurricula(curriculum, (ArithmeticOperation.Addition, custom));
+        var progressions = CreateProgressions((ArithmeticOperation.Addition, 1));
+        var pos = GetOpPosition(ArithmeticOperation.Addition, 2);
+
+        var itemState = ItemLearningState.CreateNew(fact);
+        var fsrsState = new FsrsCardState(fact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 500, 1, FsrsRating.Good);
+        var materialized = new MaterializedState(
+            [fact],
+            new Dictionary<string, ItemLearningState>(StringComparer.Ordinal) { [fact.Id] = itemState },
+            new Dictionary<string, FsrsCardState>(StringComparer.Ordinal) { [fact.Id] = fsrsState });
+
+        // Immediate predecessor is fact, and no other curriculum facts exist (newPool empty)
+        var context = CreateContext(
+            pos,
+            curriculum,
+            materialized,
+            recentFacts: [fact],
+            operationProgressions: progressions,
+            curricula: curricula,
+            hasBroadWeakness: false);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => new AdaptivePracticeSelector().SelectTargetFact(context));
+        Assert.Contains("Addition", ex.Message);
+        Assert.Contains(pos.ToString(), ex.Message);
     }
 
     // X. SQLite / in-memory conformance

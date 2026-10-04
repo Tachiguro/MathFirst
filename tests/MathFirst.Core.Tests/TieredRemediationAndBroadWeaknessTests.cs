@@ -559,6 +559,139 @@ public sealed class TieredRemediationAndBroadWeaknessTests : IDisposable
         Assert.False(session.HasBroadWeakness);
     }
 
+    // 12. BroadWeakness_OtherOperationsError_ScheduledOperationFallsBackToNewWhenReviewExhausted
+    [Fact]
+    public void BroadWeakness_OtherOperationsError_ScheduledOperationFallsBackToNewWhenReviewExhausted()
+    {
+        var selector = new AdaptivePracticeSelector();
+        var curriculum = new ArithmeticCurriculum();
+
+        // Materialize Subtraction and Division error facts causing broad weakness
+        var subFact = new ArithmeticFact(ArithmeticOperation.Subtraction, 0, 0);
+        var divFact = new ArithmeticFact(ArithmeticOperation.Division, 0, 1);
+        var addFact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0); // only Addition materialized fact
+
+        var subState = ItemLearningState.CreateNew(subFact); subState.NeedsRemediation = true;
+        var divState = ItemLearningState.CreateNew(divFact); divState.NeedsRemediation = true;
+        var addState = ItemLearningState.CreateNew(addFact); addState.NeedsRemediation = false;
+
+        var subCard = new FsrsCardState(subFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 2, FsrsRating.Again);
+        var divCard = new FsrsCardState(divFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 3, FsrsRating.Again);
+        var addCard = new FsrsCardState(addFact.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 4, FsrsRating.Good);
+
+        var evidence = new PracticeSelectionEvidence(
+            ArithmeticOperation.Addition,
+            prospectivePracticePosition: 5,
+            currentBandCandidates: [new PracticeSelectionCandidate(addFact, addState, addCard)],
+            dueCandidates: [],
+            maintenanceCandidates: [],
+            remediationCandidates: [],
+            earlyReviewCandidates: []);
+
+        var candidateIndex = new PracticeCandidateIndex(evidence);
+
+        // Turn requested Due at pos 5, ordinal 2. Immediate predecessor is addFact.
+        // hasBroadWeakness is true due to subFact and divFact.
+        var expectedOperations = Enum.GetValues<ArithmeticOperation>();
+        var progressions = expectedOperations.ToDictionary(
+            op => op,
+            op => new OperationProgression(op, 0, 0));
+        var curricula = expectedOperations.ToDictionary(
+            op => op,
+            op => curriculum.GetCurriculum(op));
+
+        var ctx = new PracticeSelectionContext(
+            prospectivePracticePosition: 5,
+            currentSessionOrder: 0,
+            progressions,
+            curricula,
+            candidateIndex,
+            recentAcceptedFactsOldestToNewest: [subFact, divFact, addFact],
+            scheduledOperationAttemptOrdinal: 2,
+            enabledOperations: [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
+            hasBroadWeakness: true);
+
+        var result = selector.SelectTargetFact(ctx);
+
+        // Broad weakness caused by other operations does not starve Addition:
+        // When Addition review pool is exhausted (only addFact, which is immediate predecessor),
+        // terminal New fallback selects an unmaterialized Addition fact.
+        Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
+        Assert.Equal(PracticeSelectionRole.Due, result.RequestedRole);
+        Assert.Equal(PracticeSelectionRole.New, result.ResolvedRole);
+        Assert.False(result.IsMaterialized);
+        Assert.True(result.IsNewIntroduction);
+        Assert.NotEqual(addFact.Id, result.Fact.Id);
+    }
+
+    // 13. BroadWeakness_ScheduledOperationRemediationCandidateExists_OverridesNewFallback
+    [Fact]
+    public void BroadWeakness_ScheduledOperationRemediationCandidateExists_OverridesNewFallback()
+    {
+        var selector = new AdaptivePracticeSelector();
+        var curriculum = new ArithmeticCurriculum();
+        ArithmeticOperation[] enabledOperations =
+        [
+            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
+            ArithmeticOperation.Multiplication,
+            ArithmeticOperation.Division
+        ];
+
+        Assert.Equal(
+            ArithmeticOperation.Addition,
+            DeterministicOperationScheduler.GetScheduledOperation(5, enabledOperations));
+
+        var addRemed = new ArithmeticFact(ArithmeticOperation.Addition, 0, 0);
+        var subRemed = new ArithmeticFact(ArithmeticOperation.Subtraction, 0, 0);
+
+        var addState = ItemLearningState.CreateNew(addRemed); addState.NeedsRemediation = true;
+        var subState = ItemLearningState.CreateNew(subRemed); subState.NeedsRemediation = true;
+
+        // addRemed last review at 1. Pos 5 >= 1 + 4 => eligible for remediation
+        var addCard = new FsrsCardState(addRemed.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 1, FsrsRating.Again);
+        var subCard = new FsrsCardState(subRemed.Id, Guid.NewGuid(), 1, null, 1.0, 1.0, 100, 2, FsrsRating.Again);
+
+        var evidence = new PracticeSelectionEvidence(
+            ArithmeticOperation.Addition,
+            prospectivePracticePosition: 5,
+            currentBandCandidates: [],
+            dueCandidates: [],
+            maintenanceCandidates: [],
+            remediationCandidates: [new PracticeSelectionCandidate(addRemed, addState, addCard, IsRepeated: false)],
+            earlyReviewCandidates: []);
+
+        var candidateIndex = new PracticeCandidateIndex(evidence);
+
+        var expectedOperations = Enum.GetValues<ArithmeticOperation>();
+        var progressions = expectedOperations.ToDictionary(
+            op => op,
+            op => new OperationProgression(op, 0, 0));
+        var curricula = expectedOperations.ToDictionary(
+            op => op,
+            op => curriculum.GetCurriculum(op));
+
+        var ctx = new PracticeSelectionContext(
+            prospectivePracticePosition: 5,
+            currentSessionOrder: 0,
+            progressions,
+            curricula,
+            candidateIndex,
+            recentAcceptedFactsOldestToNewest: [subRemed],
+            scheduledOperationAttemptOrdinal: 2,
+            enabledOperations: enabledOperations,
+            hasBroadWeakness: true);
+
+        var result = selector.SelectTargetFact(ctx);
+
+        // Valid remediation candidate for scheduled operation wins over New fallback!
+        Assert.Equal(ArithmeticOperation.Addition, result.ScheduledOperation);
+        Assert.Equal(PracticeSelectionRole.Remediation, result.ResolvedRole);
+        Assert.Equal(addRemed.Id, result.Fact.Id);
+        Assert.True(result.IsMaterialized);
+        Assert.False(result.IsNewIntroduction);
+    }
+
     private sealed class TestPreferenceStore : IPreferenceStore
     {
         private readonly Dictionary<ArithmeticOperation, bool> _operationPreferences = [];
