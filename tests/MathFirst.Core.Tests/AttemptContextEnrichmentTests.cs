@@ -307,8 +307,7 @@ public sealed class AttemptContextEnrichmentTests
             Assert.NotNull(eval.ChangeSet);
             var attempt = eval.ChangeSet.Attempt;
             Assert.Equal(1, attempt.ContextVersion);
-            Assert.NotNull(attempt.PresentedDeadlineMs);
-            Assert.True(attempt.PresentedDeadlineMs > 0);
+            Assert.Null(attempt.PresentedDeadlineMs);
             Assert.True(attempt.ExpectedPaceMs > 0);
             Assert.NotNull(attempt.ResolvedRole);
             Assert.Equal("New", attempt.ResolvedRole);
@@ -339,8 +338,7 @@ public sealed class AttemptContextEnrichmentTests
             Assert.NotNull(eval.ChangeSet);
             var attempt = eval.ChangeSet.Attempt;
             Assert.Equal(1, attempt.ContextVersion);
-            Assert.NotNull(attempt.PresentedDeadlineMs);
-            Assert.True(attempt.PresentedDeadlineMs > 0);
+            Assert.Null(attempt.PresentedDeadlineMs);
             Assert.True(attempt.ExpectedPaceMs > 0);
             Assert.NotNull(attempt.ResolvedRole);
             Assert.True(attempt.OperationBandBefore >= 0);
@@ -372,8 +370,7 @@ public sealed class AttemptContextEnrichmentTests
             Assert.Equal(1, attempt.ContextVersion);
             Assert.Null(attempt.SubmittedAnswer);
             Assert.Equal(AttemptOutcome.Timeout, attempt.Outcome);
-            Assert.NotNull(attempt.PresentedDeadlineMs);
-            Assert.True(attempt.PresentedDeadlineMs > 0);
+            Assert.Null(attempt.PresentedDeadlineMs);
             Assert.True(attempt.ExpectedPaceMs > 0);
             Assert.NotNull(attempt.ResolvedRole);
             Assert.True(attempt.OperationBandBefore >= 0);

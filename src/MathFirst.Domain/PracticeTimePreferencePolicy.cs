@@ -15,8 +15,7 @@ public static class PracticeTimePreferencePolicy
 
     public static PracticeTimeSetting Normalize(PracticeTimeSetting setting) => Normalize((int)setting);
 
-    public static bool HasEnforcedDeadline(PracticeTimeSetting setting) =>
-        setting != PracticeTimeSetting.NoTimePressure;
+    public static bool HasEnforcedDeadline(PracticeTimeSetting setting) => false;
 
     public static bool IsNoTimePressure(PracticeTimeSetting setting) =>
         setting == PracticeTimeSetting.NoTimePressure;

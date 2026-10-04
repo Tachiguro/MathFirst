@@ -549,10 +549,62 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         Assert.Equal(FsrsRating.Hard, session.FsrsStates[session.CurrentFact.Id].LastRating);
     }
 
+    [Fact]
+    public async Task SubmissionLogic_LateCorrectAnswer_PreservesCorrectnessLatencyAndNonFluentHardRating()
+    {
+        var clock = new FakeClock { ElapsedMs = 28000 };
+        using var store = new SnapshotStore(FreshSnapshot());
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        Assert.Equal(15000, session.CurrentFactDeadlineMs);
+        Assert.False(session.HasEnforcedDeadline);
+
+        var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+
+        Assert.Equal(AttemptOutcome.Correct, evaluation.Outcome);
+        Assert.True(evaluation.IsCorrect);
+        Assert.Equal(session.CurrentFact.CorrectResult, evaluation.SubmittedAnswer);
+        Assert.Equal(28000, evaluation.LatencyMs);
+        Assert.Equal(28000, session.LastResponseLatencyMs);
+        Assert.False(evaluation.ChangeSet!.Attempt.IsFluent);
+
+        var commit = await session.CommitCurrentEvaluationAsync();
+        Assert.True(commit.IsSuccess);
+        Assert.Equal(FsrsRating.Hard, session.FsrsStates[session.CurrentFact.Id].LastRating);
+    }
+
+    [Fact]
+    public async Task SubmissionLogic_LateWrongAnswer_PreservesIncorrectOutcomeSubmittedAnswerAndLatency()
+    {
+        var clock = new FakeClock { ElapsedMs = 28000 };
+        using var store = new SnapshotStore(FreshSnapshot());
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        Assert.Equal(15000, session.CurrentFactDeadlineMs);
+        Assert.False(session.HasEnforcedDeadline);
+
+        var wrongAnswer = session.CurrentFact.CorrectResult + 5;
+        var evaluation = session.SubmitAnswer(wrongAnswer);
+
+        Assert.Equal(AttemptOutcome.Incorrect, evaluation.Outcome);
+        Assert.False(evaluation.IsCorrect);
+        Assert.Equal(wrongAnswer, evaluation.SubmittedAnswer);
+        Assert.Equal(28000, evaluation.LatencyMs);
+        Assert.Equal(28000, session.LastResponseLatencyMs);
+
+        var commit = await session.CommitCurrentEvaluationAsync();
+        Assert.True(commit.IsSuccess);
+        Assert.Equal(FsrsRating.Again, session.FsrsStates[session.CurrentFact.Id].LastRating);
+        Assert.True(session.ItemStates[session.CurrentFact.Id].NeedsRemediation);
+    }
+
     [Theory]
     [InlineData(14999, AttemptOutcome.Correct)]
-    [InlineData(15000, AttemptOutcome.Timeout)]
-    [InlineData(15001, AttemptOutcome.Timeout)]
+    [InlineData(15000, AttemptOutcome.Correct)]
+    [InlineData(15001, AttemptOutcome.Correct)]
+    [InlineData(28000, AttemptOutcome.Correct)]
     public async Task SubmissionLogic_AuthoritativelyGradesNoveltyDeadlineBoundary(
         long elapsedMs,
         AttemptOutcome expectedOutcome)
@@ -567,23 +619,50 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
 
         Assert.Equal(expectedOutcome, evaluation.Outcome);
         Assert.Equal(expectedOutcome == AttemptOutcome.Correct, evaluation.IsCorrect);
+        Assert.Equal(session.CurrentFact.CorrectResult, evaluation.SubmittedAnswer);
+        Assert.Equal(elapsedMs, evaluation.LatencyMs);
     }
 
     [Fact]
-    public async Task LateSubmitAndUiTimeoutRace_PersistsOneAcceptedTimeoutOnly()
+    public async Task LateSubmitWinsRace_PersistsOneAcceptedCorrectAttemptOnly()
     {
-        var path = Path.Combine(_directory, "timeout-race.db");
+        var path = Path.Combine(_directory, "timeout-race-submit-wins.db");
         var clock = new FakeClock { ElapsedMs = 15000 };
         using var store = new SqliteLearnerStore(path);
         var session = new TrainingSession(store, clock);
         await session.InitializeAsync();
 
         var submitted = session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.Equal(AttemptOutcome.Timeout, submitted.Outcome);
+        Assert.Equal(AttemptOutcome.Correct, submitted.Outcome);
+        Assert.True(submitted.IsCorrect);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
 
         var uiTimeout = session.RecordTimeout();
         Assert.Same(submitted, uiTimeout);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        var snapshot = await store.LoadSnapshotAsync();
+        var attempt = Assert.Single(snapshot.RecentAttempts);
+        Assert.Equal(AttemptOutcome.Correct, attempt.Outcome);
+        Assert.Equal(1, snapshot.Progression.PracticePosition);
+    }
+
+    [Fact]
+    public async Task ExplicitTimeoutWinsRace_PersistsOneAcceptedTimeoutOnly()
+    {
+        var path = Path.Combine(_directory, "timeout-race-timeout-wins.db");
+        var clock = new FakeClock { ElapsedMs = 15000 };
+        using var store = new SqliteLearnerStore(path);
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var uiTimeout = session.RecordTimeout();
+        Assert.Equal(AttemptOutcome.Timeout, uiTimeout.Outcome);
+        Assert.False(uiTimeout.IsCorrect);
+        Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
+
+        var submitted = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.Same(uiTimeout, submitted);
         Assert.True((await session.CommitCurrentEvaluationAsync()).IsSuccess);
 
         var snapshot = await store.LoadSnapshotAsync();

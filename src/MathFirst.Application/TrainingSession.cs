@@ -536,12 +536,6 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = elapsedMs;
         _isTimingActive = false;
 
-        if (HasEnforcedDeadline && elapsedMs >= CurrentFactDeadlineMs)
-        {
-            InteractionState = SessionInteractionState.TimeoutFeedback;
-            return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs, null);
-        }
-
         var isCorrect = submittedAnswer == CurrentFact.CorrectResult;
         var outcome = isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect;
         InteractionState = isCorrect ? SessionInteractionState.CorrectFeedback : SessionInteractionState.IncorrectFeedback;
@@ -554,11 +548,6 @@ public sealed class TrainingSession
         if (!IsInitialized || CurrentFact is null)
         {
             throw new InvalidOperationException("Training session is not initialized.");
-        }
-
-        if (!HasEnforcedDeadline)
-        {
-            throw new InvalidOperationException("Cannot record timeout when session has no enforced deadline.");
         }
 
         if (InteractionState != SessionInteractionState.AwaitingAnswer)

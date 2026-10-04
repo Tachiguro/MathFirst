@@ -93,13 +93,13 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         fakeClock.Elapsed = TimeSpan.FromSeconds(14.999);
         Assert.False(session.IsCurrentItemTimedOut());
 
-        // Exactly at the deadline: timed out
+        // Under P1 Slice 2: normal practice has no enforced deadline; clock passage does not time out
         fakeClock.Elapsed = TimeSpan.FromSeconds(15.0);
-        Assert.True(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsCurrentItemTimedOut());
 
-        // 35.0s: timed out
+        // 35.0s: not timed out
         fakeClock.Elapsed = TimeSpan.FromSeconds(35.0);
-        Assert.True(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsCurrentItemTimedOut());
     }
 
     [Fact]
@@ -157,15 +157,15 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
     [Theory]
     [InlineData(0, 14999, false)]
-    [InlineData(0, 15000, true)]
+    [InlineData(0, 15000, false)]
     [InlineData(1, 14999, false)]
-    [InlineData(1, 15000, true)]
+    [InlineData(1, 15000, false)]
     [InlineData(2, 14999, false)]
-    [InlineData(2, 15000, true)]
+    [InlineData(2, 15000, false)]
     [InlineData(3, 14999, false)]
-    [InlineData(3, 15000, true)]
+    [InlineData(3, 15000, false)]
     [InlineData(99, 14999, false)]
-    [InlineData(99, 15000, true)]
+    [InlineData(99, 15000, false)]
     public async Task Timer_ExactTimeoutBoundaries_EvaluatedAccurately(int streak, long elapsedMs, bool expectedTimedOut)
     {
         var fakeClock = new FakeClock();
@@ -708,7 +708,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         session.ResumeItemTiming();
         clock.AdvanceMs(15000);
 
-        Assert.True(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsCurrentItemTimedOut());
     }
 
     [Fact]
@@ -739,7 +739,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
         Assert.False(session.IsCurrentItemTimedOut());
 
         clock.AdvanceMs(1);
-        Assert.True(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsCurrentItemTimedOut());
     }
 
     [Fact]
@@ -770,7 +770,7 @@ public sealed class TimedTrainingOutcomeTests : IDisposable
 
         // Advance 200ms more (active total = 15.1s)
         clock.AdvanceMs(200);
-        Assert.True(session.IsCurrentItemTimedOut());
+        Assert.False(session.IsCurrentItemTimedOut());
 
         var eval = session.RecordTimeout();
         Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);

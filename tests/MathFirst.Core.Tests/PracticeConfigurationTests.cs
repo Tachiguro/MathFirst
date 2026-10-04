@@ -529,11 +529,11 @@ public sealed class PracticeConfigurationTests
     }
 
     [Theory]
-    [InlineData(PracticeTimeSetting.Standard, true, false)]
+    [InlineData(PracticeTimeSetting.Standard, false, false)]
     [InlineData(PracticeTimeSetting.NoTimePressure, false, true)]
-    [InlineData(PracticeTimeSetting.Seconds30, true, false)]
-    [InlineData(PracticeTimeSetting.Seconds45, true, false)]
-    [InlineData(PracticeTimeSetting.Seconds60, true, false)]
+    [InlineData(PracticeTimeSetting.Seconds30, false, false)]
+    [InlineData(PracticeTimeSetting.Seconds45, false, false)]
+    [InlineData(PracticeTimeSetting.Seconds60, false, false)]
     public void PracticeTimePreferencePolicy_SemanticFlags(
         PracticeTimeSetting setting,
         bool expectedHasEnforcedDeadline,

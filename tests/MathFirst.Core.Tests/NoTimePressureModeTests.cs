@@ -180,11 +180,11 @@ public sealed class NoTimePressureModeTests
     }
 
     [Theory]
-    [InlineData(PracticeTimeSetting.Standard, true, false)]
+    [InlineData(PracticeTimeSetting.Standard, false, false)]
     [InlineData(PracticeTimeSetting.NoTimePressure, false, true)]
-    [InlineData(PracticeTimeSetting.Seconds30, true, false)]
-    [InlineData(PracticeTimeSetting.Seconds45, true, false)]
-    [InlineData(PracticeTimeSetting.Seconds60, true, false)]
+    [InlineData(PracticeTimeSetting.Seconds30, false, false)]
+    [InlineData(PracticeTimeSetting.Seconds45, false, false)]
+    [InlineData(PracticeTimeSetting.Seconds60, false, false)]
     public void Policy_SemanticProperties(
         PracticeTimeSetting setting,
         bool expectedHasEnforcedDeadline,
@@ -307,7 +307,7 @@ public sealed class NoTimePressureModeTests
     }
 
     [Fact]
-    public async Task Timing_NoTimePressure_RecordTimeoutThrowsInvalidOperationException()
+    public async Task Timing_NoTimePressure_ExplicitTimeoutRemainsAvailableForCompatibility()
     {
         var clock = new FakeClock();
         var store = new InMemoryStore();
@@ -319,8 +319,14 @@ public sealed class NoTimePressureModeTests
 
         clock.AdvanceSeconds(45.0);
 
-        Assert.Throws<InvalidOperationException>(() => session.RecordTimeout());
-        Assert.Throws<InvalidOperationException>(() => session.SubmitTimeout());
+        var timeoutEval = session.RecordTimeout();
+        Assert.Equal(AttemptOutcome.Timeout, timeoutEval.Outcome);
+        Assert.False(timeoutEval.IsCorrect);
+        Assert.Null(timeoutEval.SubmittedAnswer);
+        Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
+
+        var repeatEval = session.SubmitTimeout();
+        Assert.Same(timeoutEval, repeatEval);
     }
 
     [Fact]
@@ -420,8 +426,8 @@ public sealed class NoTimePressureModeTests
         prefStore.SetPracticeTimeSetting(PracticeTimeSetting.Standard);
         Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: true));
 
-        // Standard mode is now active with enforced deadline
-        Assert.True(session.HasEnforcedDeadline);
+        // Standard mode is now active (under P1 Slice 2, normal practice has no enforced deadline)
+        Assert.False(session.HasEnforcedDeadline);
         Assert.False(session.IsNoTimePressure);
         Assert.Equal(PracticeTimeSetting.Standard, session.CurrentPracticeTimeSetting);
         Assert.InRange(session.CurrentFactDeadlineMs, AdaptivePacePolicy.MinimumDeadlineMs, AdaptivePacePolicy.MaximumDeadlineMs);
@@ -526,18 +532,29 @@ public sealed class NoTimePressureModeTests
         var session = new TrainingSession(store, clock: clock, preferenceStore: prefStore);
         await session.InitializeAsync(startTiming: true);
 
-        Assert.True(session.HasEnforcedDeadline);
+        // Under P1 Slice 2, normal practice has no enforced deadline across all settings
+        Assert.False(session.HasEnforcedDeadline);
         Assert.False(session.IsNoTimePressure);
 
-        // Advance just past the deadline
+        // Advance just past the former deadline floor / adaptive deadline
         clock.AdvanceMs(session.CurrentFactDeadlineMs + 100);
 
-        Assert.True(session.IsCurrentItemTimedOut());
+        // Clock passage alone does not time out normal practice
+        Assert.False(session.IsCurrentItemTimedOut());
 
-        // Answer submission after deadline becomes timeout
+        // Under P1 Slice 1: submitted answer after deadline is graded mathematically
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
-        Assert.False(eval.IsCorrect);
+        Assert.Equal(AttemptOutcome.Correct, eval.Outcome);
+        Assert.True(eval.IsCorrect);
+        Assert.Equal(SessionInteractionState.CorrectFeedback, session.InteractionState);
+
+        // Explicit timeout function continues to produce Timeout when invoked
+        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: true));
+        clock.AdvanceMs(session.CurrentFactDeadlineMs + 100);
+        Assert.False(session.IsCurrentItemTimedOut());
+        var timeoutEval = session.RecordTimeout();
+        Assert.Equal(AttemptOutcome.Timeout, timeoutEval.Outcome);
+        Assert.False(timeoutEval.IsCorrect);
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
     }
 }

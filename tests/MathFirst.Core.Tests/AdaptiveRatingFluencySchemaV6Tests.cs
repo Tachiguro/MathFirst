@@ -88,12 +88,16 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     }
 
     [Theory]
-    [InlineData(1000, false)]
-    [InlineData(15000, true)]
-    [InlineData(15001, true)]
-    public async Task IncorrectAndSemanticTimeout_DominateLatencyAndCorrectArithmetic(
+    [InlineData(1000, false, FsrsRating.Again, false, false)]
+    [InlineData(15000, false, FsrsRating.Again, false, false)]
+    [InlineData(15000, true, FsrsRating.Hard, false, true)]
+    [InlineData(15001, true, FsrsRating.Hard, false, true)]
+    public async Task SubmissionOutcomeAndRating_RespectMathematicalCorrectnessAtAllLatencies(
         long elapsedMs,
-        bool submitCorrectAnswer)
+        bool submitCorrectAnswer,
+        FsrsRating expectedRating,
+        bool expectedFluent,
+        bool expectedCorrect)
     {
         var clock = new FakeClock { ElapsedMs = elapsedMs };
         using var store = new SnapshotStore(FreshSnapshot());
@@ -105,6 +109,22 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
             : checked(session.CurrentFact.CorrectResult + 1);
         var evaluation = session.SubmitAnswer(answer);
 
+        Assert.Equal(expectedRating, evaluation.ChangeSet.UpdatedFsrsState!.LastRating);
+        Assert.Equal(expectedFluent, evaluation.ChangeSet.Attempt.IsFluent);
+        Assert.Equal(expectedCorrect, evaluation.IsCorrect);
+    }
+
+    [Fact]
+    public async Task ExplicitTimeout_DominatesLatencyAndProducesAgainRating()
+    {
+        var clock = new FakeClock { ElapsedMs = 15000 };
+        using var store = new SnapshotStore(FreshSnapshot());
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var evaluation = session.RecordTimeout();
+
+        Assert.Equal(AttemptOutcome.Timeout, evaluation.Outcome);
         Assert.Equal(FsrsRating.Again, evaluation.ChangeSet.UpdatedFsrsState!.LastRating);
         Assert.False(evaluation.ChangeSet.Attempt.IsFluent);
         Assert.False(evaluation.IsCorrect);
