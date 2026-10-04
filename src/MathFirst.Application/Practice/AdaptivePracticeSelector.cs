@@ -280,21 +280,24 @@ public sealed class AdaptivePracticeSelector
                 PracticeSelectionRole.Due,
                 PracticeSelectionRole.Frontier,
                 PracticeSelectionRole.Maintenance,
-                PracticeSelectionRole.EarlyReview
+                PracticeSelectionRole.EarlyReview,
+                PracticeSelectionRole.New
             ],
             PracticeSelectionRole.Maintenance =>
             [
                 PracticeSelectionRole.Maintenance,
                 PracticeSelectionRole.Frontier,
                 PracticeSelectionRole.Due,
-                PracticeSelectionRole.EarlyReview
+                PracticeSelectionRole.EarlyReview,
+                PracticeSelectionRole.New
             ],
             PracticeSelectionRole.Frontier =>
             [
                 PracticeSelectionRole.Frontier,
                 PracticeSelectionRole.Due,
                 PracticeSelectionRole.Maintenance,
-                PracticeSelectionRole.EarlyReview
+                PracticeSelectionRole.EarlyReview,
+                PracticeSelectionRole.New
             ],
             _ => throw new ArgumentOutOfRangeException(nameof(requestedRole), requestedRole, "Unknown requested role.")
         };
