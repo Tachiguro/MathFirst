@@ -341,7 +341,7 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
     }
 
     [Fact]
-    public async Task G_SemanticTimeout_SubmittedAtOrAfterDeadline_CountsAsErrorTowardsTeaching()
+    public async Task G_ExplicitTimeout_CountsAsErrorTowardsTeaching_WhileLateCorrectAnswerDoesNot()
     {
         using var store = new SqliteLearnerStore(GetTempDbPath());
         var clock = new FakeClock();
@@ -352,13 +352,24 @@ public sealed class RepeatedErrorTeachingInterventionTests : IDisposable
         // Set clock elapsed to exactly deadline
         clock.Elapsed = TimeSpan.FromMilliseconds(session.CurrentFactDeadlineMs);
 
-        // Submit mathematically correct answer but at deadline => semantic timeout
+        // Submit mathematically correct answer at deadline => Correct, does not count as error
         var eval = session.SubmitAnswer(fact.CorrectResult);
-        Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
+        Assert.Equal(AttemptOutcome.Correct, eval.Outcome);
 
         var persist = await session.CommitCurrentEvaluationAsync();
         Assert.True(persist.IsSuccess);
-        Assert.Equal(1, session.GetConsecutiveErrorCount(fact.Id));
+        Assert.Equal(0, session.GetConsecutiveErrorCount(fact.Id));
+
+        // Advance and verify that explicit timeout does count as error
+        session.AdvanceAfterCorrectAnswer();
+        var timeoutFact = session.CurrentFact;
+        clock.Elapsed = TimeSpan.FromMilliseconds(session.CurrentFactDeadlineMs);
+        var timeoutEval = session.RecordTimeout();
+        Assert.Equal(AttemptOutcome.Timeout, timeoutEval.Outcome);
+
+        var persistTimeout = await session.CommitCurrentEvaluationAsync();
+        Assert.True(persistTimeout.IsSuccess);
+        Assert.Equal(1, session.GetConsecutiveErrorCount(timeoutFact.Id));
     }
 
     [Fact]

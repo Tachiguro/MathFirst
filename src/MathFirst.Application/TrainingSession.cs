@@ -536,12 +536,6 @@ public sealed class TrainingSession
         _accumulatedActiveElapsedMs = elapsedMs;
         _isTimingActive = false;
 
-        if (HasEnforcedDeadline && elapsedMs >= CurrentFactDeadlineMs)
-        {
-            InteractionState = SessionInteractionState.TimeoutFeedback;
-            return EvaluateAndRecord(AttemptOutcome.Timeout, null, elapsedMs, null);
-        }
-
         var isCorrect = submittedAnswer == CurrentFact.CorrectResult;
         var outcome = isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect;
         InteractionState = isCorrect ? SessionInteractionState.CorrectFeedback : SessionInteractionState.IncorrectFeedback;

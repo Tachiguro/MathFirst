@@ -534,10 +534,19 @@ public sealed class NoTimePressureModeTests
 
         Assert.True(session.IsCurrentItemTimedOut());
 
-        // Answer submission after deadline becomes timeout
+        // Under P1 Slice 1: submitted answer after deadline is graded mathematically
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
-        Assert.Equal(AttemptOutcome.Timeout, eval.Outcome);
-        Assert.False(eval.IsCorrect);
+        Assert.Equal(AttemptOutcome.Correct, eval.Outcome);
+        Assert.True(eval.IsCorrect);
+        Assert.Equal(SessionInteractionState.CorrectFeedback, session.InteractionState);
+
+        // Explicit timeout function continues to produce Timeout when invoked
+        Assert.True(session.AdvanceAfterCorrectAnswer(startTiming: true));
+        clock.AdvanceMs(session.CurrentFactDeadlineMs + 100);
+        Assert.True(session.IsCurrentItemTimedOut());
+        var timeoutEval = session.RecordTimeout();
+        Assert.Equal(AttemptOutcome.Timeout, timeoutEval.Outcome);
+        Assert.False(timeoutEval.IsCorrect);
         Assert.Equal(SessionInteractionState.TimeoutFeedback, session.InteractionState);
     }
 }
