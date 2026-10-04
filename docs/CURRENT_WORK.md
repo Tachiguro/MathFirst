@@ -9,20 +9,26 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: `P1-DOCUMENTATION-RECONCILIATION` (P1 Post-Review Documentation Reconciliation).
+- **Active Task**: `P1-PR61-DOCUMENTATION-RECONCILIATION` (P1 PR #61 Integration Documentation Reconciliation).
 - **Active Package**: `P1`: Normal Practice Without Deadline Failure.
-- **Branch / Handoff State**: Local task branch `feat/p1-no-deadline-failure` based on `main` (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
-- **Implementation Checkpoints**:
+- **Active Integration Vehicle**: Pull Request [#61](https://github.com/Tachiguro/MathFirst/pull/61) (`feat(practice): remove deadline failure from normal practice`).
+- **Branch / Upstream State**: Task branch `feat/p1-no-deadline-failure` based on `main` (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
+- **Implementation & Integration Milestones**:
   - Slice 1: `e58ea6b6f210b367afce48720a87cda4272b4e83` (`feat(practice): grade late normal-practice submissions mathematically`)
   - Slice 2: `aa3ae267f2615671ea1a9a320ccf8c403505ea97` (`feat(practice): disable automatic normal-practice deadlines`)
-- **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live status and current lifecycle step must be discovered dynamically from:
+  - Initial Documentation Reconciliation: `e1ad6914650560e5a586531d213f5becad51580b` (`docs: reconcile P1 completion state`)
+  - Full Validation: `P1_FULL_VALIDATION_PASSED` executed at `e1ad6914650560e5a586531d213f5becad51580b`
+  - Push: `P1_PUSH_COMPLETE` (branch `feat/p1-no-deadline-failure` pushed to `origin`)
+  - Pull Request: `P1_PR_COMPLETE` (opened PR #61 targeting `main`)
+- **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
   - `git fetch origin`
   - `gh repo view Tachiguro/MathFirst`
+  - `gh pr view 61`
   - `gh pr list --state open`
 - **Status of Active Work**:
-  - **P1 Implementation Status**: Complete across two local checkpoints.
+  - **P1 Implementation Status**: Complete across Slice 1 and Slice 2 implementation checkpoints.
   - **P1 Package Review Verdict**: `P1_REVIEW_APPROVED_WITH_DOCS` (zero CRITICAL, zero IMPORTANT findings; implementation package-complete; 1,936 Core tests independently verified passing).
   - **Durable P1 Behavioral Contract**:
     1. Normal practice no longer fails academically solely because wall-clock time elapsed.
@@ -40,15 +46,24 @@ This document provides operational context for current repository work.
     13. P1b interruption-aware timing, P4 Settings simplification, and Boss/combat timers are not implemented in P1.
     14. Existing Practice Time Settings controls remain as accepted transitional UX debt pending P4.
   - **Verification Evidence on Task Branch**:
-    - Focused P1 suites: 305 passed, 0 failed, 0 skipped (`NormalPracticeNoDeadlinePolicyTests`, `AdaptivePaceRuntimeTests`, `NoTimePressureModeTests`, `TimedTrainingOutcomeTests`, `AttemptContextEnrichmentTests`, `PracticeVisibilityAndTimerLifecycleTests`, `CyberDefenseUiContractTests`, `EarlyStateSchedulerFailureCharacterizationTests`, `DeterministicSelectorTerminalLivenessTests`).
-    - Full Core test suite: 1,936 passed, 0 failed, 0 skipped.
-    - Release builds: to be executed during the subsequent `FULL_VALIDATION` lifecycle step.
+    - Implementation / Package Review Evidence: 1,936 Core tests passed, 0 failed, 0 skipped.
+    - Full Validation Evidence (executed at candidate commit `e1ad6914650560e5a586531d213f5becad51580b`):
+      - Complete Core test suite: 1,936 passed, 0 failed, 0 skipped.
+      - Focused P1 test suite: 244 passed, 0 failed, 0 skipped.
+      - P0 selector regression suite: 144 passed, 0 failed, 0 skipped.
+      - Persistence & telemetry focused suite: 43 passed, 0 failed, 0 skipped.
+      - Windows Release build: 0 warnings, 0 errors.
+      - Android Release compilation: `net10.0-android36.0` Release compile-only (Target `Compile`) SUCCESS (0 warnings, 0 errors).
+      - Whitespace & formatting check (`git diff --check`): clean.
+      - Tracked working tree: clean after validation.
+      - Step 55 & Packaging Boundary: Zero APK/AAB packaging performed; zero signing; zero deployment; zero ADB/device/emulator actions; no repository artifacts introduced.
+      - Note: Subsequent documentation-only integration reconciliation does not alter production/test behavior; production builds were not re-executed for documentation-only edits.
   - **Integration & Procedural State**:
-    - Local branch `feat/p1-no-deadline-failure` is 2 commits ahead of `main` (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`), 0 behind.
-    - Working tree was clean at checkpoint state.
-    - Branch is **NOT PUSHED** to remote. No remote PR exists yet.
-    - Next lifecycle step after documentation reconciliation is `FULL_VALIDATION`.
-    - Push and PR creation remain unauthorized until `FULL_VALIDATION` succeeds.
+    - P1 is in repository integration via PR #61 on branch `feat/p1-no-deadline-failure`.
+    - Live PR review, mergeability, CI/check, and merge state must be discovered dynamically from GitHub.
+    - Subsequent lifecycle steps: push reconciled documentation (`PUSH_ONLY`), PR review / integration decision, and user merge decision.
+    - Merging PR #61 requires explicit affirmative user authorization; auto-merge is not authorized.
+    - Merge is NOT authorized by this `DOCUMENT_ONLY` task.
   - **Prior Work (P0)**: P0 (Zero-Answer / `0 + 0` Core-Flow Freeze, selector terminal-liveness starvation) is complete, fully validated, and merged into `main` via PR #60 at commit `4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`.
   - **Downstream Scope**: P1b (Active Thinking Time / Interruption Safety) and P4 (Settings Simplification) are downstream work and are **NOT** authorized by completing P1.
   - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54; deferred pending pre-Step55 refinement program; no production AAB, no versionCode 4, no release signing, no Google Play upload).
@@ -63,7 +78,7 @@ This document provides operational context for current repository work.
 
 The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md)) governs downstream work:
 1. **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`P0 Blocker` — implemented, fully validated, and merged into `main` via PR #60 at `4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`)
-2. **P1**: Normal Practice Without Deadline Failure (`Active Package` — implemented across 2 checkpoints `e58ea6b6` and `aa3ae267`, review passed `P1_REVIEW_APPROVED_WITH_DOCS`, 1,936 Core tests passing, documentation reconciled, awaiting `FULL_VALIDATION`)
+2. **P1**: Normal Practice Without Deadline Failure (`Active Package` — implemented across checkpoints `e58ea6b6` and `aa3ae267`, review passed `P1_REVIEW_APPROVED_WITH_DOCS`, fully validated `P1_FULL_VALIDATION_PASSED` at `e1ad6914`, repository integration tracked via PR #61)
 3. **P1b**: Active Thinking Time / Interruption Safety (pause on interruptions, neutralize contaminated latency — *Downstream*)
 4. **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only — *Downstream*)
 5. **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas — *Downstream*)
@@ -80,25 +95,28 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 - **Post-Merge Verification**: Resolved selector terminal-liveness starvation at StoreRevision 5 via generic terminal New fallback in `AdaptivePracticeSelector.GetFallbackChain`; 1,917 Core tests passing, clean Windows Release build, clean Android Release compilation (Target `Compile`).
 - **Historical Merged Baselines**: PR #56 `MF-TELEM-001` (Schema V7, 1,906 Core tests), PR #55 `MF-UX-008` (Static combat layout, 1,786 Core tests), PR #54 `MF-LEARN-006` (Adaptive learning policy, 482 benchmark, 1,772 Core tests).
 
-#### Verified P1 Quality Evidence (`feat/p1-no-deadline-failure`)
-- **Package Review Verdict**: `P1_REVIEW_APPROVED_WITH_DOCS` (zero CRITICAL, zero IMPORTANT findings, implementation complete).
+#### Verified P1 Quality Evidence (`feat/p1-no-deadline-failure` / PR #61)
+- **Package Review Verdict**: `P1_REVIEW_APPROVED_WITH_DOCS` (zero CRITICAL, zero IMPORTANT findings, implementation complete; 1,936 Core tests independently verified passing).
 - **Implementation Checkpoints**:
   - Slice 1 (`e58ea6b6f210b367afce48720a87cda4272b4e83`): `feat(practice): grade late normal-practice submissions mathematically`.
   - Slice 2 (`aa3ae267f2615671ea1a9a320ccf8c403505ea97`): `feat(practice): disable automatic normal-practice deadlines`.
-- **Focused Test Suites (305 passed, 0 failed, 0 skipped)**:
-  - `NormalPracticeNoDeadlinePolicyTests`: 13 passed
-  - `AdaptivePaceRuntimeTests`: 71 passed
-  - `NoTimePressureModeTests`: 34 passed
-  - `TimedTrainingOutcomeTests`: 46 passed
-  - `AttemptContextEnrichmentTests`: 29 passed
-  - `PracticeVisibilityAndTimerLifecycleTests`: 15 passed
-  - `CyberDefenseUiContractTests`: 36 passed
-  - `EarlyStateSchedulerFailureCharacterizationTests`: 4 passed
-  - `DeterministicSelectorTerminalLivenessTests`: 57 passed
-- **Full Core Suite**: 1,936 passed, 0 failed, 0 skipped.
+- **Full Validation Acceptance at Candidate HEAD `e1ad6914650560e5a586531d213f5becad51580b` (`P1_FULL_VALIDATION_PASSED`)**:
+  - Complete Core test suite: 1,936 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - Focused P1 suite: 244 passed, 0 failed, 0 skipped (`NormalPracticeNoDeadlinePolicyTests`, `AdaptivePaceRuntimeTests`, `NoTimePressureModeTests`, `TimedTrainingOutcomeTests`, `AttemptContextEnrichmentTests`, `PracticeVisibilityAndTimerLifecycleTests`, `CyberDefenseUiContractTests`).
+  - P0 selector regression suite: 144 passed, 0 failed, 0 skipped (`DeterministicSelectorTerminalLivenessTests`, `IndependentSelectorTests`, `NoImmediateFactRepetitionTests`, `TieredRemediationAndBroadWeaknessTests`, `EarlyStateSchedulerFailureCharacterizationTests`).
+  - Persistence & telemetry focused suite: 43 passed, 0 failed, 0 skipped (`SqliteEnabledSubsetPersistenceTests`, `RuntimePersistenceRegressionTests`, `PersistenceRecoveryAndLifecycleTests`, `SubmissionIntegrityAndPublishBoundaryTests`).
+  - Windows Release build: 0 warnings, 0 errors.
+  - Android Release compilation: `net10.0-android36.0` Release compile-only (Target `Compile`) SUCCESS (0 warnings, 0 errors).
+  - Whitespace & formatting check (`git diff --check`): clean.
+  - Tracked working tree: clean after validation.
+  - Step 55 & Packaging Boundary: Zero APK/AAB packaging performed; zero signing; zero deployment; zero ADB/device/emulator actions; no repository artifacts introduced.
+  - Note: Subsequent documentation-only integration reconciliation does not alter production/test behavior.
 - **Transitional Scope Note**: Settings UI retains practice time controls as accepted transitional UX debt pending P4.
-- **Branch / Push / PR State**: Local task branch `feat/p1-no-deadline-failure` is 2 commits ahead of `main`, 0 behind; working tree clean; branch is not pushed; no open PR exists yet.
-- **Next Lifecycle Step**: `FULL_VALIDATION`.
+- **Repository Integration Status**:
+  - Technical implementation, package review, and full validation are complete.
+  - Integration vehicle is PR #61 (https://github.com/Tachiguro/MathFirst/pull/61) on branch `feat/p1-no-deadline-failure`.
+  - Live review status, CI/checks, mergeability, and merge state are discovered dynamically from GitHub.
+  - Next lifecycle step: PR review / integration decision.
 
 ---
 
@@ -125,9 +143,9 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 
 ### Authorized Downstream Project Sequence:
 1. P0 is integrated and merged into `main` via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
-2. P1 implementation and package review are complete on `feat/p1-no-deadline-failure` (`P1_REVIEW_APPROVED_WITH_DOCS`). Following documentation reconciliation, the next lifecycle step is `FULL_VALIDATION`.
-3. P1 branch push (`PUSH_ONLY`) and PR creation (`PR_ONLY`) proceed only after `FULL_VALIDATION` passes and upon explicit authorization.
-4. Merging P1 requires PR review approval (`PR_REVIEW_PASS`), `MERGE_DECISION`, and explicit affirmative user authorization.
+2. P1 implementation, package review, and full validation are complete (`P1_FULL_VALIDATION_PASSED` at `e1ad6914650560e5a586531d213f5becad51580b`). Repository integration proceeds through PR #61 on branch `feat/p1-no-deadline-failure`.
+3. Live PR integration lifecycle phase (review, merge decision, merge) must be discovered dynamically from Git and GitHub state.
+4. Merging PR #61 requires PR review approval (`PR_REVIEW_PASS`), `MERGE_DECISION`, and explicit affirmative user authorization. Auto-merge is not authorized.
 5. Downstream P-item sequence ($\text{P1b} \to \text{P2} \to \text{P3} \to \text{P4} \to \text{P5} \to \text{P6} \to \text{P8}$) must be completed and merged before Step 55 may be proposed.
 6. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
