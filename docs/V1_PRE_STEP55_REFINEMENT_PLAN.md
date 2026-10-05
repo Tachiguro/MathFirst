@@ -153,7 +153,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P1b — Active Thinking Time / Interruption Safety
 - **Priority**: High (Timing Integrity).
-- **Status**: **IMPLEMENTED & REVIEWED** (Complete on branch `feat/p1b-active-thinking-time` across 4 checkpoint commits, implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`; 2,010 Core tests passing).
+- **Status**: **DELIVERED & MERGED** (PR #62, commit `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`; 2,010 Core tests passing).
 - **Product Decision**: Measured response latency must reflect actual arithmetic cognitive effort, not unrelated wall-clock interruptions.
 - **Interruption Exclusions & Segmented Timing**:
   - `ResponseLatencyMs` represents accumulated active interaction time. Inactive interruption duration is excluded.
@@ -184,6 +184,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P2 — Remove Onboarding / Direct-to-Practice Start
 - **Priority**: Medium-High (Friction Elimination).
+- **Status**: **IMPLEMENTED & REVIEWED** (Complete on branch `feat/p2-direct-to-practice` across 5 checkpoint commits, HEAD `84070a6951bc1853e0b9209204a915865e00cb62`; reviewed `P2_REVIEW_APPROVED` with 184 targeted tests passed, 0 failed; candidate unmerged / unpushed, `FULL_VALIDATION` pending).
 - **Product Decision**: Eliminate the 5-step onboarding wizard. Fresh installs and post-reset sessions launch directly into active practice with zero preamble.
 - **Default Application Configuration**:
   - **Language**: System / device language.
@@ -299,9 +300,10 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
 - **Delivered & Merged Refinements**:
   - `P0 — Zero-Answer / 0 + 0 Core-Flow Freeze`: Delivered & Merged (PR #60).
   - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
+  - `P1b — Active Thinking Time / Interruption Safety`: Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
 - **Completed Refinement on Branch**:
-  - `P1b — Active Thinking Time / Interruption Safety`: Implemented across 4 checkpoint commits on `feat/p1b-active-thinking-time` (implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`); passed independent review and 2,010 Core tests; currently in `DOCUMENT_ONLY` lifecycle.
-- **Next Work Item**: `P1b` Candidate Push / PR Lifecycle (followed by `P2 — Direct-to-Practice Start / Remove Onboarding`).
+  - `P2 — Direct-to-Practice Start / Remove Onboarding`: Implemented across 5 checkpoint commits on `feat/p2-direct-to-practice` (HEAD `84070a6951bc1853e0b9209204a915865e00cb62`); passed independent review (`P2_REVIEW_APPROVED`, 184 targeted tests passed, 0 failed); documentation reconciliation prepared on task branch (candidate unmerged, `FULL_VALIDATION` pending).
+- **Next Work Item**: `P2` Candidate Review / Validation / PR Lifecycle (followed by `P3 — Cumulative Operation Unlock Progression`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.

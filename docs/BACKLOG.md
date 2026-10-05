@@ -343,7 +343,7 @@ When items are accepted into the backlog, they are recorded with:
   2. **Boss Layout-Box Isolation**: Eliminates boss layout-box expansion (`clamp(110px..160px)`), reserving the identical structural artwork slot (`clamp(90px, 16vh, 140px)`) across normal and boss encounters (`visual scale != layout scale`).
   3. **Boss Visual Model & Aggressiveness**: Boss visual magnification is achieved via compositor transforms (`transform: scale(1.42)` / `boss-hover` / `boss-recoil`), intense dropshadow/glow, and restrained aggressive animations safely degraded under `prefers-reduced-motion`.
   4. **Bounded Battle Stage**: Fixed battle stage height (`height: clamp(110px, 18vh, 155px); overflow: hidden;`) contains and clips visual overflow without expanding layout or causing document scroll.
-  5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) and Onboarding (`.onboarding-host`) naturally scrollable (`overflow-y: auto;`). Safe-area insets remain fully respected.
+  5. **Scoped Scroll Boundary**: Gameplay scroll suppression and defensive overscroll containment (`overflow: hidden; overscroll-behavior: none;` with bounded definite height chain; `touch-action: manipulation` preserved for responsive tap interaction semantics without double-tap delay) are strictly scoped to active gameplay (`.training-host.active-gameplay`), leaving Settings (`.settings-page`) naturally scrollable (`overflow-y: auto;`) (historical `.onboarding-host` removed in P2). Safe-area insets remain fully respected.
   6. **Review, Physical Acceptance, and Delivery Evidence**: Completed across 5 checkpoint commits on task branch `fix/mf-ux-008-static-combat-layout` (head `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`). Technical review passed (`REVIEW_PASS`); physical Android user acceptance passed (`USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`); merged to `main` via PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`); post-merge validation passed with 1,786 Core tests (0 failed, 0 skipped) and 0 compiler warnings/errors. Remaining exact opponent size/placement tuning is explicitly deferred as nonblocking visual polish. Schema V6 and learning telemetry preserved without mutation.
 
 ### MF-TELEM-001: Tester Telemetry Export and Share
@@ -359,7 +359,7 @@ When items are accepted into the backlog, they are recorded with:
   2. **Pseudonymous Installation Identity**: Generates persistent random UUID stored in application preferences for cross-session export correlation without identifying user or device.
   3. **Canonical JSON Telemetry Export**: Implements `telemetry_export_schema_v1` serializing complete attempt history in deterministic ordering with 15 privacy-sanitized fields.
   4. **Platform-Native Sharing**: Dispatches export file via MAUI `Share.Default.RequestAsync` and sandboxed Android `FileProvider` (`telemetry-share` cache path only).
-  5. **Full Local Reset Coordination**: Clears telemetry share cache and regenerates the installation UUID upon Full Local Reset.
+  5. **Full Local Reset Coordination**: Clears telemetry share cache and clears the persistent installation ID upon Full Local Reset.
   6. **Settings Integration & Localization**: Settings export and full reset UI cards with complete EN/DE/RU localization.
   7. **Strict Non-Interference**: Non-interference regression tests confirm zero alteration to FSRS-6, progression rules, pace calibration readiness, the 482 strong-learner benchmark, or Cyber Defense Critical Hits. Verified with 1,906 Core tests passing.
 
@@ -369,10 +369,10 @@ When items are accepted into the backlog, they are recorded with:
 
 The accepted pre-production refinement program is defined canonically in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md). Workstream identifiers (P0–P8) represent planning/workstream sequences and do not invent formal `MF-*` package IDs until individual `PLAN_ONLY` lifecycles:
 
-- **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (**COMPLETED & MERGED** via PR #60 at `10c01c05fa9b50b5278c775d78a87ca9a7ef2060`)
+- **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (**COMPLETED & MERGED** via PR #60 at `4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`)
 - **P1**: Normal Practice Without Deadline Failure (**COMPLETED & MERGED** via PR #61 at `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`)
-- **P1b**: Active Thinking Time / Interruption Safety (**COMPLETED ON BRANCH** `feat/p1b-active-thinking-time` across 4 checkpoint commits, implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`; Schema V8, Telemetry V2, Dual Window)
-- **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only)
+- **P1b**: Active Thinking Time / Interruption Safety (**COMPLETED & MERGED** via PR #62 at `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`; Schema V8, Telemetry V2, Dual Window)
+- **P2**: Direct-to-Practice Start / Remove Onboarding (**IMPLEMENTED & REVIEWED** on task branch `feat/p2-direct-to-practice`, unmerged; direct launch, system defaults, Addition-only default, onboarding removed)
 - **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas)
 - **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass)
 - **P5**: Cyber Defense Visual Consistency (dark technical surfaces, restrained neon/cyber accents)

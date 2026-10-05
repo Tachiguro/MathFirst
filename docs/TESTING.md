@@ -758,3 +758,39 @@ MF-UX-007 localization, semantic structure, responsive styling, and accessibilit
 - The 1,605 passing tests represent verified implementation on task branch `codex/mf-ux-007-progress-presentation-cleanup` during `REVIEW_ONLY` (`REVIEW_APPROVED`).
 - Automated tests prove semantic source, DOM roles, CSS selectors, and localization strings. They do not prove final candidate `FULL_VALIDATION`, Android Release build for the docs-final candidate, ReleaseTool verification, physical rendering on Samsung Galaxy S26 Ultra, or live screen-reader pronunciation.
 - Testing on physical hardware (`Samsung Galaxy S26 Ultra`) remains scheduled for downstream tester APK validation phases.
+
+---
+
+## 24. P2 Direct-to-Practice Startup and Onboarding Removal Contracts & Reviewed Test Evidence
+
+The P2 implementation eliminates the multi-step onboarding wizard and router gate, launching fresh learners directly into active Addition practice while preserving the Initial Ready Gate and progress overview strictly for returning learners with completed practice history. This behavior is covered by automated contract and regression suites in `MathFirst.Core.Tests` and `MathFirst.App`:
+
+1. **Direct-to-Practice Startup Contracts (`DirectToPracticeStartupTests`)**:
+   - **Fresh Learner Direct Startup**: Asserts fresh learners (without completed practice history) bypass all onboarding and Initial Ready Gate steps, landing directly in active Practice on `/`.
+   - **Addition-Only Initial Preference**: Asserts initial operation preferences default strictly to `[OperationType.Addition]`.
+   - **Timing Activation on Surface Interaction**: Asserts active interaction timing begins only after the practice surface mounts and activates.
+   - **Returning Learner Gate Preservation**: Asserts returning learners with accepted practice history encounter the Initial Ready Gate and progress overview before practice resumes.
+
+2. **Absence Guards & Production Hygiene**:
+   - **`OnboardingHost` Absence**: Asserts complete removal of `OnboardingHost.razor` from the component tree.
+   - **Localization Resource Absence**: Asserts removal of all historical `Onboarding_*` string resources across English, German, and Russian dictionaries (`Resources.resx`, `Resources.de.resx`, `Resources.ru.resx`).
+   - **CSS Absence**: Asserts complete removal of `.onboarding-host` and related onboarding styles from application stylesheets.
+   - **Preference Store API Absence**: Asserts removal of `GetOnboardingCompleted` and `SetOnboardingCompleted` from `IPreferenceStore`, removal of `OnboardingKey` and obsolete preference accessors from `MauiPreferenceStore`, and removal of corresponding members from test doubles.
+   - **Router Gate Absence**: Asserts `Routes.razor` contains zero onboarding redirect gates or preference checks.
+
+3. **Reset Lifecycle Contracts (`ResetWorkflowTests`, `DirectToPracticeStartupTests`)**:
+   - **Reset Learning Progress**: Clears learner attempt history, item states, FSRS states, and progression while preserving UI preferences; no onboarding state exists.
+   - **Reset UI Preferences (Restore Default Settings)**: Restores UI and practice preferences to defaults (Addition only, Standard time, Numpad keypad, System theme, System language, haptics enabled), preserves learner progress/history, and navigates to `/` without onboarding.
+   - **Full Local Reset**: Clears all learner progress, restores all preferences to defaults (including Addition only), purges telemetry share cache, clears the persistent installation ID (a later consumer lazily creates a fresh ID through the normal provider lifecycle), and navigates to `/` into direct Addition practice without onboarding.
+
+### Reviewed Test Suite Evidence (P2 Task Branch Baseline)
+
+- **Independent Review Verdict**: `P2_REVIEW_APPROVED` (0 Blocker, 0 Major, 2 non-blocking Minor findings).
+- **Targeted Review Suite Execution**: 184 passed, 0 failed, 0 skipped.
+- **Slice-Level Evidence**:
+  - Slice 1 (Addition-only default): 59 passed, 40 targeted regressions passed
+  - Slice 2 (Direct Practice startup & returning gate): 7 passed, 28 lifecycle passed, 85 timer/flow passed
+  - Slice 3 (Router gate & reset flow): 38 passed, 28 startup regressions passed, MathFirst.App Windows build (0 warnings / 0 errors)
+  - Slice 4 (Asset & localization cleanup): 120 passed, 116 passed, 13 passed, MathFirst.App Windows build (0 warnings / 0 errors)
+  - Slice 5 (Preference API removal & absence guards): 1 contract passed, Core test build (0 warnings / 0 errors), 97 preference regressions passed, 54 startup/recovery regressions passed, MathFirst.App Windows build (0 warnings / 0 errors)
+- **Validation State**: `FULL_VALIDATION` remains **PENDING**; candidate unmerged / unpushed on `feat/p2-direct-to-practice`. Historical 2,010 Core tests belong to the prior P1b merge baseline on `main`.
