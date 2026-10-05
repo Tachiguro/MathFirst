@@ -457,10 +457,10 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
     [Fact]
     public async Task MfLearn006_FinalPersistenceContract_RemainsSchemaV6()
     {
-        // 1. Authoritative Default Schema Version is strictly 7
-        Assert.Equal(7, LearnerProgression.DefaultSchemaVersion);
+        // 1. Authoritative Default Schema Version is strictly 8
+        Assert.Equal(8, LearnerProgression.DefaultSchemaVersion);
 
-        // 2. Fresh SQLite DB has schema_version = '7'
+        // 2. Fresh SQLite DB has schema_version = '8'
         var dbPath = GetDatabasePath("schema_v6_conformance");
         using (var store = new SqliteLearnerStore(dbPath))
         {
@@ -474,7 +474,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         {
             versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
             var version = await versionCmd.ExecuteScalarAsync();
-            Assert.Equal("7", version);
+            Assert.Equal("8", version);
         }
 
         // 3. Exactly the 6 expected Schema V6 tables exist
@@ -522,7 +522,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             "submitted_answer", "correct_answer", "is_correct", "is_fluent", "outcome",
             "response_latency_ms", "timestamp", "practice_position",
             "attempt_context_version", "presented_deadline_ms", "expected_pace_ms",
-            "resolved_role", "operation_band_before"
+            "resolved_role", "operation_band_before", "is_interrupted"
         }, attemptColumns);
         Assert.DoesNotContain("is_critical_hit", attemptColumns, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("combat_hp", attemptColumns, StringComparer.OrdinalIgnoreCase);

@@ -551,12 +551,12 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
         await using var conn = new SqliteConnection($"Data Source={dbPath}");
         await conn.OpenAsync();
 
-        // 1. Schema version is exactly 7
+        // 1. Schema version is exactly 8
         using (var versionCmd = conn.CreateCommand())
         {
             versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
             var version = await versionCmd.ExecuteScalarAsync();
-            Assert.Equal("7", version);
+            Assert.Equal("8", version);
         }
 
         // 2. Expected tables only: schema_info, learner_progression, operation_progression, item_learning_state, attempt_history, fsrs_card_state
@@ -603,7 +603,8 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
             "presented_deadline_ms",
             "expected_pace_ms",
             "resolved_role",
-            "operation_band_before"
+            "operation_band_before",
+            "is_interrupted"
         };
 
         using (var colCmd = conn.CreateCommand())

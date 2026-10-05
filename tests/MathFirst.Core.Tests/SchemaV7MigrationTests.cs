@@ -26,15 +26,15 @@ public sealed class SchemaV7MigrationTests : IDisposable
     }
 
     [Fact]
-    public async Task FreshDatabase_InitializesAtSchemaV7_WithExactFiveContextColumns()
+    public async Task FreshDatabase_InitializesAtSchemaV8_WithAllColumns()
     {
         var path = Path.Combine(_directory, "fresh_v7.db");
         using (var store = new SqliteLearnerStore(path))
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(7, snapshot.SchemaVersion);
-            Assert.Equal(7, LearnerProgression.DefaultSchemaVersion);
+            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(8, LearnerProgression.DefaultSchemaVersion);
         }
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -44,11 +44,11 @@ public sealed class SchemaV7MigrationTests : IDisposable
         {
             cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
             var version = await cmd.ExecuteScalarAsync();
-            Assert.Equal("7", version);
+            Assert.Equal("8", version);
         }
 
         var columns = await GetTableColumnsAsync(connection, "attempt_history");
-        Assert.Equal(18, columns.Count);
+        Assert.Equal(19, columns.Count);
 
         var expectedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -69,7 +69,8 @@ public sealed class SchemaV7MigrationTests : IDisposable
             "presented_deadline_ms",
             "expected_pace_ms",
             "resolved_role",
-            "operation_band_before"
+            "operation_band_before",
+            "is_interrupted"
         };
 
         var actualColumnNames = columns.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -122,7 +123,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(7, snapshot.SchemaVersion);
+            Assert.Equal(8, snapshot.SchemaVersion);
         }
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -131,11 +132,11 @@ public sealed class SchemaV7MigrationTests : IDisposable
         using (var cmd = connection.CreateCommand())
         {
             cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-            Assert.Equal("7", await cmd.ExecuteScalarAsync());
+            Assert.Equal("8", await cmd.ExecuteScalarAsync());
         }
 
         var columns = await GetTableColumnsAsync(connection, "attempt_history");
-        Assert.Equal(18, columns.Count);
+        Assert.Equal(19, columns.Count);
 
         var expectedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -156,7 +157,8 @@ public sealed class SchemaV7MigrationTests : IDisposable
             "presented_deadline_ms",
             "expected_pace_ms",
             "resolved_role",
-            "operation_band_before"
+            "operation_band_before",
+            "is_interrupted"
         };
 
         var actualColumnNames = columns.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -243,12 +245,12 @@ public sealed class SchemaV7MigrationTests : IDisposable
             await store1.CloseAsync();
         }
 
-        // Second initialization on completed V7 store must be completely safe and idempotent
+        // Second initialization on completed store must be completely safe and idempotent
         using (var store2 = new SqliteLearnerStore(path))
         {
             await store2.InitializeAsync();
             var snapshot = await store2.LoadSnapshotAsync();
-            Assert.Equal(7, snapshot.SchemaVersion);
+            Assert.Equal(8, snapshot.SchemaVersion);
             await store2.CloseAsync();
         }
 
@@ -256,7 +258,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         await connection.OpenAsync();
 
         var columns = await GetTableColumnsAsync(connection, "attempt_history");
-        Assert.Equal(18, columns.Count);
+        Assert.Equal(19, columns.Count);
     }
 
     [Fact]
@@ -291,12 +293,12 @@ public sealed class SchemaV7MigrationTests : IDisposable
             Assert.Equal("6", await cmd.ExecuteScalarAsync());
         }
 
-        // Store initialization should recover by adding only the missing 3 columns and bumping version to 7
+        // Store initialization should recover by adding only the missing columns and bumping version to 8
         using (var store = new SqliteLearnerStore(path))
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(7, snapshot.SchemaVersion);
+            Assert.Equal(8, snapshot.SchemaVersion);
         }
 
         await using (var connection = new SqliteConnection($"Data Source={path}"))
@@ -304,10 +306,10 @@ public sealed class SchemaV7MigrationTests : IDisposable
             await connection.OpenAsync();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-            Assert.Equal("7", await cmd.ExecuteScalarAsync());
+            Assert.Equal("8", await cmd.ExecuteScalarAsync());
 
             var columns = await GetTableColumnsAsync(connection, "attempt_history");
-            Assert.Equal(18, columns.Count);
+            Assert.Equal(19, columns.Count);
 
             cmd.CommandText = @"
                 SELECT
