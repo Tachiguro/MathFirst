@@ -34,6 +34,7 @@ public sealed record AttemptRecord
     public int? ExpectedPaceMs { get; }
     public string? ResolvedRole { get; }
     public int? OperationBandBefore { get; }
+    public bool IsInterrupted { get; }
 
     public AttemptRecord(
         string submissionId,
@@ -53,7 +54,8 @@ public sealed record AttemptRecord
         int? presentedDeadlineMs = null,
         int? expectedPaceMs = null,
         string? resolvedRole = null,
-        int? operationBandBefore = null)
+        int? operationBandBefore = null,
+        bool isInterrupted = false)
     {
         SubmissionId = submissionId;
         FactId = factId;
@@ -139,5 +141,6 @@ public sealed record AttemptRecord
         ExpectedPaceMs = expectedPaceMs;
         ResolvedRole = resolvedRole;
         OperationBandBefore = operationBandBefore;
+        IsInterrupted = isInterrupted;
     }
 }

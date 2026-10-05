@@ -19,6 +19,7 @@ public sealed class TrainingSession
     private long _accumulatedActiveElapsedMs;
     private long _activeSegmentStartTimestamp;
     private bool _isTimingActive;
+    private bool _isCurrentAttemptInterrupted;
     private bool _isAppForeground = true;
     private bool _isPracticeSurfaceActive = true;
     private PracticeGateState _practiceGateState = PracticeGateState.Running;
@@ -117,6 +118,7 @@ public sealed class TrainingSession
     public PersistenceResult? LastPersistenceResult { get; private set; }
     public SessionInteractionState InteractionState { get; private set; } = SessionInteractionState.AwaitingAnswer;
     public bool IsTimingActive => _isTimingActive;
+    public bool IsCurrentAttemptInterrupted => _isCurrentAttemptInterrupted;
     public bool IsAppForeground => _isAppForeground;
     public bool IsPracticeSurfaceActive => _isPracticeSurfaceActive;
     public PracticeGateState PracticeGate => _practiceGateState;
@@ -470,6 +472,11 @@ public sealed class TrainingSession
                 0,
                 _clock.GetElapsedTime(_activeSegmentStartTimestamp).TotalMilliseconds);
             _accumulatedActiveElapsedMs += segmentElapsedMs;
+
+            if (InteractionState == SessionInteractionState.AwaitingAnswer)
+            {
+                _isCurrentAttemptInterrupted = true;
+            }
         }
         else
         {
@@ -757,7 +764,8 @@ public sealed class TrainingSession
             presentedDeadlineMs: _currentPresentationContext?.PresentedDeadlineMs,
             expectedPaceMs: _currentPresentationContext?.ExpectedPaceMs,
             resolvedRole: _currentPresentationContext?.ResolvedRole,
-            operationBandBefore: _currentPresentationContext?.OperationBandBefore);
+            operationBandBefore: _currentPresentationContext?.OperationBandBefore,
+            isInterrupted: _isCurrentAttemptInterrupted);
 
         var changeSet = new SubmissionChangeSet(
             submissionId,
@@ -1064,6 +1072,7 @@ public sealed class TrainingSession
 
         SessionOrderCounter++;
         _factInstanceRevision++;
+        _isCurrentAttemptInterrupted = false;
         CurrentAnswerInput = string.Empty;
         CurrentPracticeTimeSetting = GetCurrentPracticeTimeSetting();
         var scheduledOperationOrdinal = checked(_operationAcceptedAttemptCounts[scheduledOperation] + 1);
