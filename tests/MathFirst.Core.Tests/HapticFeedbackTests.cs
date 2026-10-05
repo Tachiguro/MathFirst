@@ -236,36 +236,8 @@ public sealed class HapticFeedbackTests
     }
 
     // ============================================================
-    // 4. Onboarding & Settings Lifecycle Contract Tests
+    // 4. Settings Lifecycle Contract Tests
     // ============================================================
-
-    [Fact]
-    public void Onboarding_DraftHapticState_PreservedAcrossStepsAndPersistedOnCompletion()
-    {
-        var store = new InMemoryPreferenceStore();
-        var driver = new RecordingHapticDriver();
-        var hapticService = new HapticFeedbackService(store, driver);
-
-        // Initial default in store is true
-        Assert.True(store.GetHapticFeedbackEnabled());
-
-        // Step 2 initializes draft from store
-        var selectedHaptic = store.GetHapticFeedbackEnabled();
-        Assert.True(selectedHaptic);
-
-        // Learner toggles to false
-        selectedHaptic = false;
-
-        // Learner steps back to Step 1, then forward to Step 2: draft remains false
-        Assert.False(selectedHaptic);
-
-        // Complete onboarding: draft is committed to store
-        store.SetHapticFeedbackEnabled(selectedHaptic);
-        store.SetOnboardingCompleted(true);
-
-        Assert.False(store.GetHapticFeedbackEnabled());
-        Assert.True(store.GetOnboardingCompleted());
-    }
 
     [Fact]
     public void Settings_Toggle_EmitsPreviewCueOnlyWhenEnabling()

@@ -32,7 +32,7 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
     }
 
     [Fact]
-    public void OnboardingSelection_DefaultsToAllFourAndPersistsAnyNonEmptySubsetForSettings()
+    public void PracticeOperationSelection_DefaultsToAllFourAndPersistsAnyNonEmptySubsetForSettings()
     {
         var preferences = new InMemoryPreferenceStore();
         var fresh = new PracticeOperationSelectionDraft(preferences.GetEnabledOperations());
@@ -59,7 +59,7 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
     }
 
     [Fact]
-    public void OnboardingSelection_ReconstructionPreservesExistingValidSelection()
+    public void PracticeOperationSelection_ReconstructionPreservesExistingValidSelection()
     {
         var preferences = new InMemoryPreferenceStore();
         preferences.SetOperationEnabled(ArithmeticOperation.Addition, false);
@@ -72,19 +72,6 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
         Assert.Equal(
             [ArithmeticOperation.Subtraction, ArithmeticOperation.Division],
             reconstructed.EnabledOperations);
-    }
-
-    [Fact]
-    public void Onboarding_OffersNonEmptyOperationSelectionBackedBySharedPreferences()
-    {
-        var onboarding = File.ReadAllText(GetRepositoryPath(
-            "src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
-
-        Assert.Contains("Onboarding_OperationsTitle", onboarding, StringComparison.Ordinal);
-        Assert.Contains("PracticeOperationSelectionDraft", onboarding, StringComparison.Ordinal);
-        Assert.Contains("PreferenceStore.GetEnabledOperations()", onboarding, StringComparison.Ordinal);
-        Assert.Contains("_operationSelection.Save(PreferenceStore)", onboarding, StringComparison.Ordinal);
-        Assert.DoesNotContain("onboarding.operation", onboarding, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -128,10 +115,7 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
             "Training_OperationProgressGroupAriaLabel",
             "Training_CheckInCompleted",
             "Training_CheckInProgressMade",
-            "Training_CheckInProgressChange",
-            "Onboarding_OperationsTitle",
-            "Onboarding_OperationsDescription",
-            "Onboarding_OperationsMinimum"
+            "Training_CheckInProgressChange"
         };
 
         foreach (var language in new[] { "en", "de", "ru" })
@@ -148,16 +132,11 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
     [Fact]
     public void OperationChoicesAndHud_HaveAccessibleStateAndNarrowTwoColumnContracts()
     {
-        var onboarding = File.ReadAllText(GetRepositoryPath(
-            "src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
         var home = File.ReadAllText(GetRepositoryPath(
             "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var styles = File.ReadAllText(GetRepositoryPath(
             "src", "MathFirst.App", "wwwroot", "app.css"));
 
-        Assert.Contains("aria-pressed=\"@isSelected\"", onboarding, StringComparison.Ordinal);
-        Assert.Contains("operation-choice-state", onboarding, StringComparison.Ordinal);
-        Assert.Contains("onboarding-operation-grid", styles, StringComparison.Ordinal);
         Assert.DoesNotContain("style=\"grid-template-columns: repeat(@Math.Max", home, StringComparison.Ordinal);
         Assert.Contains("data-operation-count=\"@OperationProgress.Count\"", home, StringComparison.Ordinal);
         Assert.Contains("Training_OperationProgressGroupAriaLabel", home, StringComparison.Ordinal);

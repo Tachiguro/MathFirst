@@ -265,8 +265,10 @@ public sealed class ResetWorkflowTests : IDisposable
         foreach (var language in new[] { "en", "de", "ru" })
         {
             localizer.ApplyLanguagePreference(language);
-            Assert.DoesNotContain(language == "en" ? "first" : language == "de" ? "erste" : "Первый",
-                localizer["Onboarding_StepReady_Desc"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("onboarding", localizer["Reset_UiPreferences_Desc"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("onboarding", localizer["Reset_UiPreferences_Confirm"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("онбординг", localizer["Reset_UiPreferences_Desc"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("онбординг", localizer["Reset_UiPreferences_Confirm"], StringComparison.OrdinalIgnoreCase);
         }
     }
 

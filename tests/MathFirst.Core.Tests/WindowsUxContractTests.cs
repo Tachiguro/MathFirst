@@ -38,22 +38,24 @@ public sealed class WindowsUxContractTests
     }
 
     [Fact]
-    public void Onboarding_ContainsWelcomeAppearanceThreeStepTutorialAndGetStarted()
+    public void OnboardingComponent_IsRemovedFromApplication()
     {
-        var onboarding = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
+        var onboardingPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor");
+        Assert.False(File.Exists(onboardingPath), "OnboardingHost.razor must be deleted from MathFirst.App.");
+    }
 
-        Assert.Contains("Onboarding_WelcomeTitle", onboarding, StringComparison.Ordinal);
-        Assert.Contains("Settings_Appearance", onboarding, StringComparison.Ordinal);
-        Assert.Contains("Onboarding_KeypadTitle", onboarding, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(onboarding, "class=\"keypad-choice-card ").Count);
-        Assert.Contains("Session.PauseItemTiming()", onboarding, StringComparison.Ordinal);
-        Assert.Contains("PreferenceStore.SetNumericKeypadLayout(_selectedKeypadLayout)", onboarding, StringComparison.Ordinal);
-        Assert.Contains("Onboarding_TutorialTitle", onboarding, StringComparison.Ordinal);
-        Assert.Contains("Common_Start", onboarding, StringComparison.Ordinal);
-        Assert.Equal(3, Regex.Matches(onboarding, "class=\"workflow-step-badge\"").Count);
-        Assert.Matches(">1</span>", onboarding);
-        Assert.Matches(">2</span>", onboarding);
-        Assert.Matches(">3</span>", onboarding);
+    [Fact]
+    public void OnboardingLocalization_IsRemovedFromLocalizationService()
+    {
+        var localizationFile = File.ReadAllText(GetRepositoryPath("src", "MathFirst.Application", "LocalizationService.cs"));
+        Assert.DoesNotContain("[\"Onboarding_", localizationFile, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OnboardingCss_IsRemovedFromAppCss()
+    {
+        var cssFile = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
+        Assert.DoesNotContain(".onboarding-", cssFile, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -137,24 +139,6 @@ public sealed class WindowsUxContractTests
         Assert.True(phoneIndex >= 0, "Phone layout choice must exist in Settings keypad choice grid.");
         Assert.True(numpadIndex < phoneIndex, "Settings must present Numpad layout before Phone layout.");
         Assert.Matches("private\\s+NumericKeypadLayout\\s+_selectedKeypadLayout\\s*=\\s*NumericKeypadLayout\\.Numpad;", settings);
-    }
-
-    [Fact]
-    public void Onboarding_PresentsNumpadBeforePhoneInKeypadChoiceGrid()
-    {
-        var onboarding = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
-
-        var gridMatch = Regex.Match(onboarding, "<div class=\"keypad-choice-grid\">(?<grid>.*?)</div>", RegexOptions.Singleline);
-        Assert.True(gridMatch.Success, "Keypad choice grid markup was not found in OnboardingHost.razor.");
-
-        var grid = gridMatch.Groups["grid"].Value;
-        var numpadIndex = grid.IndexOf("NumericKeypadLayout.Numpad", StringComparison.Ordinal);
-        var phoneIndex = grid.IndexOf("NumericKeypadLayout.Phone", StringComparison.Ordinal);
-
-        Assert.True(numpadIndex >= 0, "Numpad layout choice must exist in Onboarding keypad choice grid.");
-        Assert.True(phoneIndex >= 0, "Phone layout choice must exist in Onboarding keypad choice grid.");
-        Assert.True(numpadIndex < phoneIndex, "Onboarding must present Numpad layout before Phone layout.");
-        Assert.Matches("private\\s+NumericKeypadLayout\\s+_selectedKeypadLayout\\s*=\\s*NumericKeypadLayout\\.Numpad;", onboarding);
     }
 
     [Fact]

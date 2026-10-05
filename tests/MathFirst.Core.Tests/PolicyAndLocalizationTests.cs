@@ -66,9 +66,7 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Time expired.", service["Training_TimeExpired"]);
         Assert.Equal("Your answer: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Correct answer: 6", service["Training_CorrectAnswer", 6]);
-        Assert.Equal("Welcome to MathFirst", service["Onboarding_WelcomeTitle"]);
         Assert.Equal("Operation Bands", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Choose your number keypad", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Phone keypad", service["Keypad_Phone"]);
         Assert.Equal("PC numpad", service["Keypad_Numpad"]);
         Assert.Equal("Backspace", service["Keypad_Backspace"]);
@@ -88,9 +86,7 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Zeit abgelaufen.", service["Training_TimeExpired"]);
         Assert.Equal("Deine Antwort: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Richtige Antwort: 6", service["Training_CorrectAnswer", 6]);
-        Assert.Equal("Willkommen bei MathFirst", service["Onboarding_WelcomeTitle"]);
         Assert.Equal("Operationsbänder", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Zahlentastatur auswählen", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Telefon-Tastatur", service["Keypad_Phone"]);
         Assert.Equal("PC-Ziffernblock", service["Keypad_Numpad"]);
         Assert.Equal("Rücktaste", service["Keypad_Backspace"]);
@@ -110,9 +106,7 @@ public sealed class PolicyAndLocalizationTests
         Assert.Equal("Время вышло.", service["Training_TimeExpired"]);
         Assert.Equal("Твой ответ: 5", service["Training_YourAnswer", 5]);
         Assert.Equal("Правильный ответ: 6", service["Training_CorrectAnswer", 6]);
-        Assert.Equal("Добро пожаловать в MathFirst", service["Onboarding_WelcomeTitle"]);
         Assert.Equal("Прогресс по операциям", service["Diagnostics_Group_Learning"]);
-        Assert.Equal("Выберите цифровую клавиатуру", service["Onboarding_KeypadTitle"]);
         Assert.Equal("Телефонная клавиатура", service["Keypad_Phone"]);
         Assert.Equal("Цифровой блок ПК", service["Keypad_Numpad"]);
         Assert.Equal("Удалить символ", service["Keypad_Backspace"]);
@@ -226,36 +220,41 @@ public sealed class PolicyAndLocalizationTests
         service.ApplyLanguagePreference(language);
 
         Assert.Equal(expected, service["Common_Start"]);
-        Assert.NotEqual("Onboarding_TutorialTitle", service["Onboarding_TutorialTitle"]);
-        Assert.NotEqual("Onboarding_TutorialStep1Title", service["Onboarding_TutorialStep1Title"]);
-        Assert.NotEqual("Onboarding_TutorialStep2Title", service["Onboarding_TutorialStep2Title"]);
-        Assert.NotEqual("Onboarding_TutorialStep3Title", service["Onboarding_TutorialStep3Title"]);
     }
 
     [Theory]
-    [InlineData("en", "independently")]
-    [InlineData("de", "unabhängig")]
-    [InlineData("ru", "независимо")]
-    public void LocalizationService_TutorialExplainsIndependentOperationPractice(
+    [InlineData("en", "Restores language and appearance to System, the number keypad to PC numpad, and practice options to defaults. Learning progress is preserved.", "Restore default settings? Your learning progress will remain intact.", "Resets learner data, language, appearance, and number keypad to a fresh installation state.", "Clears learning state and attempt history. Language and appearance settings remain unchanged.")]
+    [InlineData("de", "Stellt Sprache und Erscheinungsbild auf System sowie die Zahlentastatur auf PC-Ziffernblock und die Übungseinstellungen auf Standardwerte zurück. Der Lernfortschritt bleibt erhalten.", "Standardeinstellungen wiederherstellen? Dein Lernfortschritt bleibt erhalten.", "Setzt Lerndaten, Sprache, Erscheinungsbild und Zahlentastatur auf den Zustand einer Neuinstallation zurück.", "Löscht Lernstand und Versuchshistorie. Sprache und Erscheinungsbild bleiben erhalten.")]
+    [InlineData("ru", "Возвращает язык и оформление к системным значениям, выбирает цифровой блок ПК и стандартные параметры тренировки. Прогресс обучения сохраняется.", "Восстановить настройки по умолчанию? Прогресс обучения сохранится.", "Сбрасывает данные обучения, язык, оформление и цифровую клавиатуру до состояния новой установки.", "Очищает состояние обучения и историю попыток. Язык и оформление сохраняются.")]
+    public void LocalizationService_ResetCopy_DoesNotPromiseOrReferenceOnboarding(
         string language,
-        string expectedIndependentPracticePhrase)
+        string expectedResetUiDesc,
+        string expectedResetUiConfirm,
+        string expectedResetFullDesc,
+        string expectedResetLearningDesc)
     {
         var service = new LocalizationService();
         service.ApplyLanguagePreference(language);
 
-        Assert.Contains(expectedIndependentPracticePhrase, service["Onboarding_TutorialStep3Text"], StringComparison.OrdinalIgnoreCase);
-    }
+        var resetUiDesc = service["Reset_UiPreferences_Desc"];
+        var resetUiConfirm = service["Reset_UiPreferences_Confirm"];
+        var resetFullDesc = service["Reset_FullLocal_Desc"];
+        var resetLearningDesc = service["Reset_LearningProgress_Desc"];
 
-    [Theory]
-    [InlineData("en", "Your arithmetic practice is ready. The answer timer starts only when you select Get Started.")]
-    [InlineData("de", "Dein Rechentraining ist bereit. Der Antworttimer startet erst mit „Los geht's“.")]
-    [InlineData("ru", "Тренировка по арифметике готова. Таймер ответа запустится только после нажатия «Начать».")]
-    public void LocalizationService_OnboardingReadyDescription_IsHistoryNeutral(string language, string expected)
-    {
-        var service = new LocalizationService();
-        service.ApplyLanguagePreference(language);
+        Assert.DoesNotContain("onboarding", resetUiDesc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onboarding", resetUiConfirm, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onboarding", resetFullDesc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onboarding", resetLearningDesc, StringComparison.OrdinalIgnoreCase);
 
-        Assert.Equal(expected, service["Onboarding_StepReady_Desc"]);
+        Assert.DoesNotContain("онбординг", resetUiDesc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("онбординг", resetUiConfirm, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("онбординг", resetFullDesc, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("онбординг", resetLearningDesc, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Equal(expectedResetUiDesc, resetUiDesc);
+        Assert.Equal(expectedResetUiConfirm, resetUiConfirm);
+        Assert.Equal(expectedResetFullDesc, resetFullDesc);
+        Assert.Equal(expectedResetLearningDesc, resetLearningDesc);
     }
 
     [Fact]
