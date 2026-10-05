@@ -59,6 +59,20 @@ public sealed class WindowsUxContractTests
     }
 
     [Fact]
+    public void PreferenceStoreContract_ContainsNoOnboardingState()
+    {
+        var interfaceSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.Application", "IPreferenceStore.cs"));
+        var implementationSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "MauiPreferenceStore.cs"));
+
+        Assert.DoesNotContain("GetOnboardingCompleted", interfaceSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetOnboardingCompleted", interfaceSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetOnboardingCompleted", implementationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetOnboardingCompleted", implementationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnboardingKey", implementationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("mathfirst.onboarding_completed", implementationSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Practice_UsesControlledDecimalInputAndOnScreenKeypad()
     {
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));

@@ -6,7 +6,6 @@ using Microsoft.Maui.Storage;
 
 public sealed class MauiPreferenceStore : IPreferenceStore
 {
-    private const string OnboardingKey = "mathfirst.onboarding_completed";
     private const string ThemeKey = "mathfirst.theme_preference";
     private const string LanguageKey = "mathfirst.language_preference";
     private const string NumericKeypadLayoutKey = "mathfirst.numeric_keypad_layout";
@@ -26,10 +25,6 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         ArithmeticOperation.Division => DivisionEnabledKey,
         _ => throw new ArgumentOutOfRangeException(nameof(operation))
     };
-
-    public bool GetOnboardingCompleted() => Preferences.Default.Get(OnboardingKey, false);
-
-    public void SetOnboardingCompleted(bool completed) => Preferences.Default.Set(OnboardingKey, completed);
 
     public ThemePreference GetThemePreference()
     {
@@ -109,7 +104,6 @@ public sealed class MauiPreferenceStore : IPreferenceStore
 
     public void ResetAllPreferences()
     {
-        Preferences.Default.Remove(OnboardingKey);
         Preferences.Default.Remove(ThemeKey);
         Preferences.Default.Remove(LanguageKey);
         Preferences.Default.Remove(NumericKeypadLayoutKey);

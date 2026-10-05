@@ -24,14 +24,11 @@ public sealed class HapticFeedbackTests
 
     private sealed class InMemoryPreferenceStore : IPreferenceStore
     {
-        public bool OnboardingCompleted { get; set; }
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
 
-        public bool GetOnboardingCompleted() => OnboardingCompleted;
-        public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
         public ThemePreference GetThemePreference() => Theme;
@@ -75,7 +72,6 @@ public sealed class HapticFeedbackTests
 
         public void ResetAllPreferences()
         {
-            OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;

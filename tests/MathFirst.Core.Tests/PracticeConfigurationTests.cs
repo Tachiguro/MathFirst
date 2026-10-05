@@ -14,14 +14,11 @@ public sealed class PracticeConfigurationTests
     {
         private readonly Dictionary<string, bool> _boolPrefs = new(StringComparer.Ordinal);
         private int _practiceTimeSetting = 0;
-        public bool OnboardingCompleted { get; set; }
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
 
-        public bool GetOnboardingCompleted() => OnboardingCompleted;
-        public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
         public ThemePreference GetThemePreference() => Theme;
@@ -64,7 +61,6 @@ public sealed class PracticeConfigurationTests
 
         public void ResetAllPreferences()
         {
-            OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
@@ -313,8 +309,6 @@ public sealed class PracticeConfigurationTests
     private sealed class ThrowingPreferenceStore : IPreferenceStore
     {
         public bool ThrowOnWrite { get; set; } = true;
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;
         public void SetThemePreference(ThemePreference preference) { }
         public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;

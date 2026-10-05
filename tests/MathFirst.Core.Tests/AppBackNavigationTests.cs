@@ -247,15 +247,12 @@ public sealed class AppBackNavigationTests : IDisposable
     private sealed class InMemoryPreferenceStore : IPreferenceStore
     {
         private readonly Dictionary<ArithmeticOperation, bool> _operations = [];
-        private bool _onboardingCompleted;
         private string _language = LanguagePreferencePolicy.SystemPreferenceCode;
         private ThemePreference _theme = ThemePreference.System;
         private NumericKeypadLayout _keypad = NumericKeypadLayout.Numpad;
         private PracticeTimeSetting _practiceTime = PracticeTimeSetting.Standard;
         private bool _hapticEnabled = true;
 
-        public bool GetOnboardingCompleted() => _onboardingCompleted;
-        public void SetOnboardingCompleted(bool completed) => _onboardingCompleted = completed;
         public ThemePreference GetThemePreference() => _theme;
         public void SetThemePreference(ThemePreference preference) => _theme = preference;
         public NumericKeypadLayout GetNumericKeypadLayout() => _keypad;
@@ -275,7 +272,6 @@ public sealed class AppBackNavigationTests : IDisposable
         public void ResetAllPreferences()
         {
             _operations.Clear();
-            _onboardingCompleted = false;
             _language = LanguagePreferencePolicy.SystemPreferenceCode;
             _theme = ThemePreference.System;
             _keypad = NumericKeypadLayout.Numpad;

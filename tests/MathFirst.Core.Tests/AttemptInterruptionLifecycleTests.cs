@@ -90,8 +90,6 @@ public sealed class AttemptInterruptionLifecycleTests
 
     private sealed class SingleOperationPreferenceStore(ArithmeticOperation operation) : IPreferenceStore
     {
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public string GetLanguagePreference() => "system";
         public void SetLanguagePreference(string preference) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;

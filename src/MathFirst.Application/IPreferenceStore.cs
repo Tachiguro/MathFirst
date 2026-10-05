@@ -4,9 +4,6 @@ using MathFirst.Domain;
 
 public interface IPreferenceStore
 {
-    bool GetOnboardingCompleted();
-    void SetOnboardingCompleted(bool completed);
-
     ThemePreference GetThemePreference();
     void SetThemePreference(ThemePreference preference);
 
