@@ -7,13 +7,16 @@ public sealed record BandAttemptEvidence
     public bool IsCorrect { get; }
     public bool IsFluent { get; }
     public long ResponseLatencyMs { get; }
+    public bool IsInterrupted { get; }
+    public bool IsTimingEligible => !IsInterrupted;
 
     public BandAttemptEvidence(
         long practicePosition,
         string factId,
         bool isCorrect,
         bool isFluent,
-        long responseLatencyMs)
+        long responseLatencyMs,
+        bool isInterrupted = false)
     {
         if (practicePosition <= 0)
         {
@@ -41,5 +44,6 @@ public sealed record BandAttemptEvidence
         }
         IsFluent = isFluent;
         ResponseLatencyMs = responseLatencyMs;
+        IsInterrupted = isInterrupted;
     }
 }

@@ -35,6 +35,7 @@ public sealed record AttemptRecord
     public string? ResolvedRole { get; }
     public int? OperationBandBefore { get; }
     public bool IsInterrupted { get; }
+    public bool IsTimingEligible => !IsInterrupted;
 
     public AttemptRecord(
         string submissionId,

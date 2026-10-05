@@ -1673,6 +1673,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 WHERE practice_position IS NOT NULL
                   AND practice_position > 0
                   AND outcome = @correct
+                  AND is_interrupted = 0
                 LIMIT @threshold
             );";
         command.Parameters.AddWithValue("@correct", AttemptOutcome.Correct.ToString());
@@ -1692,6 +1693,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
         foreach (var operation in Enum.GetValues<ArithmeticOperation>())
         {
             await ReadAttemptsAsync("operation = @operation", "@operation", operation.ToString(), 40, list, cancellationToken).ConfigureAwait(false);
+            await ReadAttemptsAsync("operation = @operation AND is_interrupted = 0", "@operation", operation.ToString(), 40, list, cancellationToken).ConfigureAwait(false);
         }
         await ReadAttemptsAsync("1 = 1", null, null, 3, list, cancellationToken).ConfigureAwait(false);
         if (list.Count == 0)

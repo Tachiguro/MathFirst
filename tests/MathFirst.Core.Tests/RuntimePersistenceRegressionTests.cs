@@ -460,6 +460,63 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         public TimeSpan GetElapsedTime(long startTimestamp) => TimeSpan.FromMilliseconds(900);
     }
 
+    private sealed class AdvancingTestClock : IClock
+    {
+        private long _timestamp = 1_000_000;
+        public long GetTimestamp() => _timestamp;
+        public TimeSpan GetElapsedTime(long startTimestamp) => TimeSpan.FromMilliseconds(Math.Max(0, _timestamp - startTimestamp));
+        public void AdvanceMs(long ms) => _timestamp += ms;
+    }
+
+    [Fact]
+    public async Task OlderEligiblePaceSamples_RemainAvailable_WhenRecentAttemptsAreInterrupted_AcrossRestart()
+    {
+        var testDb = GetDatabasePath();
+        var prefStore = new TestPreferenceStore();
+        prefStore.SetEnabledOperations([ArithmeticOperation.Addition]);
+
+        using (var store = new SqliteLearnerStore(testDb))
+        {
+            await store.InitializeAsync();
+            var clock = new AdvancingTestClock();
+            var session = new TrainingSession(store, clock, preferenceStore: prefStore);
+            await session.InitializeAsync(startTiming: true);
+
+            // 10 clean attempts (1000ms each)
+            for (int i = 0; i < 10; i++)
+            {
+                clock.AdvanceMs(1000);
+                session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                await session.CommitCurrentEvaluationAsync();
+                session.AdvanceAfterCorrectAnswer();
+            }
+
+            // 40 interrupted attempts (5000ms each)
+            for (int i = 0; i < 40; i++)
+            {
+                session.PausePractice();
+                session.StartOrResumePractice();
+                clock.AdvanceMs(5000);
+                session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                await session.CommitCurrentEvaluationAsync();
+                session.AdvanceAfterCorrectAnswer();
+            }
+        }
+
+        // Restart app with a fresh store and session instance
+        using (var store = new SqliteLearnerStore(testDb))
+        {
+            await store.InitializeAsync();
+            var clock = new AdvancingTestClock();
+            var session = new TrainingSession(store, clock, preferenceStore: prefStore);
+            await session.InitializeAsync(startTiming: true);
+
+            // Verify older eligible attempts are rehydrated and used for adaptive pace calculation
+            Assert.True(session.CurrentFactExpectedPaceMs < 3000, $"Expected adapted pace < 3000, got {session.CurrentFactExpectedPaceMs}");
+            Assert.Equal(1848, session.CurrentFactExpectedPaceMs);
+        }
+    }
+
     private sealed class TestPreferenceStore : IPreferenceStore
     {
         private readonly Dictionary<ArithmeticOperation, bool> _operationPreferences = [];

@@ -62,9 +62,19 @@ public sealed class BandAdvancementEvaluator
             return Stay(currentProgression);
         }
 
-        var latestWindow = qualifyingAttempts[^requirements.WindowSize..];
-        if (latestWindow.Count(attempt => attempt.IsCorrect) < requirements.RequiredCorrectAttempts
-            || latestWindow.Count(attempt => attempt.IsFluent) < requirements.RequiredFluentAttempts)
+        var qualifyingEligibleAttempts = qualifyingAttempts
+            .Where(attempt => attempt.IsTimingEligible)
+            .ToArray();
+        if (qualifyingEligibleAttempts.Length < requirements.WindowSize)
+        {
+            return Stay(currentProgression);
+        }
+
+        var latestMathematicalWindow = qualifyingAttempts[^requirements.WindowSize..];
+        var latestFluencyWindow = qualifyingEligibleAttempts[^requirements.WindowSize..];
+
+        if (latestMathematicalWindow.Count(attempt => attempt.IsCorrect) < requirements.RequiredCorrectAttempts
+            || latestFluencyWindow.Count(attempt => attempt.IsFluent) < requirements.RequiredFluentAttempts)
         {
             return Stay(currentProgression);
         }
@@ -74,13 +84,13 @@ public sealed class BandAdvancementEvaluator
         var ownedFactIds = ownedFrontier
             .Select(fact => fact.Id)
             .ToHashSet(StringComparer.Ordinal);
-        if (latestWindow.Count(attempt => ownedFactIds.Contains(attempt.FactId)) < requirements.RequiredFrontierAttempts)
+        if (latestMathematicalWindow.Count(attempt => ownedFactIds.Contains(attempt.FactId)) < requirements.RequiredFrontierAttempts)
         {
             return Stay(currentProgression);
         }
 
         var requiredDistinctCount = Math.Min(requirements.MaximumRequiredDistinctFrontierFacts, ownedFactIds.Count);
-        var distinctFrontierCount = latestWindow
+        var distinctFrontierCount = latestMathematicalWindow
             .Select(attempt => attempt.FactId)
             .Where(ownedFactIds.Contains)
             .Distinct(StringComparer.Ordinal)
@@ -104,7 +114,7 @@ public sealed class BandAdvancementEvaluator
         var advanced = new OperationProgression(
             currentProgression.Operation,
             currentProgression.BandIndex + 1,
-            latestWindow[^1].PracticePosition);
+            latestMathematicalWindow[^1].PracticePosition);
         return new BandAdvancementDecision(true, advanced);
     }
 

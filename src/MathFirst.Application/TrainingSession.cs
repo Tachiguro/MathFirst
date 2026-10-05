@@ -617,8 +617,11 @@ public sealed class TrainingSession
         var itemState = CloneItemState(currentItemState);
 
         itemState.TotalAttempts++;
-        itemState.LastLatencyMs = elapsedMs;
-        itemState.RollingLatencyMs = (itemState.RollingLatencyMs == 0) ? elapsedMs : (itemState.RollingLatencyMs + elapsedMs) / 2;
+        if (!_isCurrentAttemptInterrupted)
+        {
+            itemState.LastLatencyMs = elapsedMs;
+            itemState.RollingLatencyMs = (itemState.RollingLatencyMs == 0) ? elapsedMs : (itemState.RollingLatencyMs + elapsedMs) / 2;
+        }
         itemState.LastPracticedOrder = SessionOrderCounter;
         itemState.LastPracticedAt = DateTimeOffset.UtcNow;
 
@@ -626,13 +629,18 @@ public sealed class TrainingSession
         {
             itemState.CorrectAttempts++;
             itemState.ConsecutiveCorrectStreak++;
-            if (isFluent)
+            if (!_isCurrentAttemptInterrupted)
             {
-                itemState.FluentStreak++;
-            }
-            else
-            {
-                itemState.FluentStreak = 0;
+                if (isFluent)
+                {
+                    itemState.FluentStreak++;
+                }
+                else
+                {
+                    itemState.FluentStreak = 0;
+                }
+
+                itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, isFluent);
             }
 
             if (itemState.NeedsRemediation)
@@ -647,9 +655,8 @@ public sealed class TrainingSession
             itemState.FluentStreak = 0;
             itemState.NeedsRemediation = true;
             itemState.RemediationDueOrder = SessionOrderCounter + LearningPolicy.RemediationInterveningCount;
+            itemState.IsProvisionallyMastered = false;
         }
-
-        itemState.IsProvisionallyMastered = LearningPolicy.EvaluateItemMastery(itemState, isFluent);
 
         // Evaluate only the scheduled operation from bounded positioned evidence.
         var operationProgressions = candidateProgression.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -660,7 +667,7 @@ public sealed class TrainingSession
             throw new InvalidOperationException("The current target curriculum band is unavailable.");
         }
 
-        var candidateAttempt = new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, isFluent, elapsedMs);
+        var candidateAttempt = new BandAttemptEvidence(practicePosition, CurrentFact.Id, isCorrect, isFluent, elapsedMs, _isCurrentAttemptInterrupted);
 
         BandAdvancementEvidence advancementEvidence;
         if (currentBand.Kind == CurriculumBandKind.Dense)
@@ -681,7 +688,8 @@ public sealed class TrainingSession
                         existing.FactId,
                         existing.IsCorrect,
                         existing.IsFluent,
-                        existing.ResponseLatencyMs));
+                        existing.ResponseLatencyMs,
+                        existing.IsInterrupted));
                 }
             }
 
@@ -712,7 +720,8 @@ public sealed class TrainingSession
                     existing.FactId,
                     existing.IsCorrect,
                     existing.IsFluent,
-                    existing.ResponseLatencyMs))
+                    existing.ResponseLatencyMs,
+                    existing.IsInterrupted))
                 .Append(candidateAttempt);
 
             var ownership = new AcquisitionOwnershipResolver(operationCurriculum);
@@ -820,14 +829,18 @@ public sealed class TrainingSession
                 if (LastEvaluation.Outcome == AttemptOutcome.Correct)
                 {
                     CurrentCorrectStreak++;
-                    _sessionCorrectLatencies.Add(LastEvaluation.LatencyMs);
+                    if (!LastEvaluation.ChangeSet.Attempt.IsInterrupted)
+                    {
+                        _sessionCorrectLatencies.Add(LastEvaluation.LatencyMs);
+                    }
                 }
                 else
                 {
                     CurrentCorrectStreak = 0;
                 }
                 if (LastEvaluation.ChangeSet.Attempt.PracticePosition is > 0
-                    && LastEvaluation.ChangeSet.Attempt.Outcome == AttemptOutcome.Correct)
+                    && LastEvaluation.ChangeSet.Attempt.Outcome == AttemptOutcome.Correct
+                    && LastEvaluation.ChangeSet.Attempt.IsTimingEligible)
                 {
                     if (PositionedCorrectAttemptCount < AdaptivePacePolicy.PaceCalibrationCorrectAttemptThreshold)
                     {
@@ -841,9 +854,12 @@ public sealed class TrainingSession
                 _sessionCheckInAttempts.Add(LastEvaluation.ChangeSet.Attempt);
                 if (_sessionCheckInAttempts.Count == 20)
                 {
+                    var eligibleCorrectAttempts = _sessionCheckInAttempts
+                        .Where(a => a.Outcome == AttemptOutcome.Correct && !a.IsInterrupted)
+                        .ToList();
                     var correctAttempts = _sessionCheckInAttempts.Where(a => a.Outcome == AttemptOutcome.Correct).ToList();
-                    long? medianLatency = correctAttempts.Count > 0
-                        ? AdaptivePacePolicy.Median(correctAttempts.Select(a => a.ResponseLatencyMs))
+                    long? medianLatency = eligibleCorrectAttempts.Count > 0
+                        ? AdaptivePacePolicy.Median(eligibleCorrectAttempts.Select(a => a.ResponseLatencyMs))
                         : null;
                     PendingCheckIn = new PracticeCheckInSummary(
                         correctAttempts.Count,
@@ -1477,7 +1493,8 @@ public sealed class TrainingSession
             .ToArray();
         var requiredForAdvancement = positioned
             .GroupBy(attempt => attempt.Operation)
-            .SelectMany(group => group.OrderByDescending(attempt => attempt.PracticePosition).Take(40));
+            .SelectMany(group => group.OrderByDescending(attempt => attempt.PracticePosition).Take(40)
+                .Concat(group.Where(attempt => attempt.IsTimingEligible).OrderByDescending(attempt => attempt.PracticePosition).Take(40)));
         var requiredForCooldown = positioned.TakeLast(LearningPolicy.ExactFactCooldownDistance);
 
         return requiredForAdvancement

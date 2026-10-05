@@ -38,7 +38,7 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
 
     private static async Task SeedAttemptHistoryAsync(
         string dbPath,
-        IEnumerable<(string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition)> attempts)
+        IEnumerable<(string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition, bool IsInterrupted)> attempts)
     {
         await using var conn = new SqliteConnection($"Data Source={dbPath}");
         await conn.OpenAsync();
@@ -53,11 +53,11 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
                 INSERT INTO attempt_history (
                     submission_id, fact_id, operation, left_operand, right_operand,
                     submitted_answer, correct_answer, is_correct, is_fluent, outcome,
-                    response_latency_ms, timestamp, practice_position
+                    response_latency_ms, timestamp, practice_position, is_interrupted
                 ) VALUES (
                     @submission_id, @fact_id, @operation, @left_operand, @right_operand,
                     @submitted_answer, @correct_answer, @is_correct, @is_fluent, @outcome,
-                    @response_latency_ms, @timestamp, @practice_position
+                    @response_latency_ms, @timestamp, @practice_position, @is_interrupted
                 );";
             cmd.Parameters.AddWithValue("@submission_id", att.SubmissionId);
             cmd.Parameters.AddWithValue("@fact_id", att.FactId);
@@ -72,6 +72,7 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
             cmd.Parameters.AddWithValue("@response_latency_ms", att.LatencyMs);
             cmd.Parameters.AddWithValue("@timestamp", DateTimeOffset.UtcNow.ToString("O"));
             cmd.Parameters.AddWithValue("@practice_position", (object?)att.PracticePosition ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@is_interrupted", att.IsInterrupted ? 1 : 0);
             await cmd.ExecuteNonQueryAsync();
 
             if (att.PracticePosition.HasValue && att.PracticePosition.Value > maxPosition)
@@ -92,21 +93,21 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
         await transaction.CommitAsync();
     }
 
-    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition)
-        CreatePositionedCorrect(int position, long latencyMs = 1200) =>
-        ($"sub-{position}", "add:0+1", ArithmeticOperation.Addition, 0, 1, 1, 1, true, latencyMs <= 2500, AttemptOutcome.Correct, latencyMs, position);
+    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition, bool IsInterrupted)
+        CreatePositionedCorrect(int position, long latencyMs = 1200, bool isInterrupted = false) =>
+        ($"sub-{position}", "add:0+1", ArithmeticOperation.Addition, 0, 1, 1, 1, true, latencyMs <= 2500, AttemptOutcome.Correct, latencyMs, position, isInterrupted);
 
-    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition)
-        CreatePositionedIncorrect(int position, long latencyMs = 3000) =>
-        ($"sub-inc-{position}", "add:0+1", ArithmeticOperation.Addition, 0, 1, 99, 1, false, false, AttemptOutcome.Incorrect, latencyMs, position);
+    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition, bool IsInterrupted)
+        CreatePositionedIncorrect(int position, long latencyMs = 3000, bool isInterrupted = false) =>
+        ($"sub-inc-{position}", "add:0+1", ArithmeticOperation.Addition, 0, 1, 99, 1, false, false, AttemptOutcome.Incorrect, latencyMs, position, isInterrupted);
 
-    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition)
-        CreatePositionedTimeout(int position, long latencyMs = 30000) =>
-        ($"sub-to-{position}", "add:0+1", ArithmeticOperation.Addition, 0, 1, null, 1, false, false, AttemptOutcome.Timeout, latencyMs, position);
+    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition, bool IsInterrupted)
+        CreatePositionedTimeout(int position, long latencyMs = 30000, bool isInterrupted = false) =>
+        ($"sub-to-{position}", "add:0+1", ArithmeticOperation.Addition, 0, 1, null, 1, false, false, AttemptOutcome.Timeout, latencyMs, position, isInterrupted);
 
-    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition)
-        CreateLegacyUnpositionedCorrect(string id, long latencyMs = 1200) =>
-        ($"sub-legacy-{id}", "add:0+1", ArithmeticOperation.Addition, 0, 1, 1, 1, true, true, AttemptOutcome.Correct, latencyMs, null);
+    private static (string SubmissionId, string FactId, ArithmeticOperation Operation, int Left, int Right, int? Submitted, int Correct, bool IsCorrect, bool IsFluent, AttemptOutcome Outcome, long LatencyMs, long? PracticePosition, bool IsInterrupted)
+        CreateLegacyUnpositionedCorrect(string id, long latencyMs = 1200, bool isInterrupted = false) =>
+        ($"sub-legacy-{id}", "add:0+1", ArithmeticOperation.Addition, 0, 1, 1, 1, true, true, AttemptOutcome.Correct, latencyMs, null, isInterrupted);
 
     private sealed class GatedFailingStore : ILearnerStore
     {
@@ -639,6 +640,86 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
         await session.ResetLearningProgressAsync();
 
         Assert.Equal(0, session.PositionedCorrectAttemptCount);
+        Assert.False(session.IsPaceCalibrationReady);
+    }
+
+    [Fact]
+    public async Task InterruptedCorrect_DoesNotAdvancePaceCalibrationCount()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var attempts = Enumerable.Range(1, 10).Select(i => CreatePositionedCorrect(i));
+        await SeedAttemptHistoryAsync(dbPath, attempts);
+
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: true);
+
+        Assert.Equal(10, session.PositionedCorrectAttemptCount);
+        Assert.False(session.IsPaceCalibrationReady);
+
+        // Pause to trigger interruption on current fact
+        session.PausePractice();
+        session.StartOrResumePractice();
+
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True(eval.IsCorrect);
+        Assert.True(session.IsCurrentAttemptInterrupted);
+
+        var commit = await session.CommitCurrentEvaluationAsync();
+        Assert.True(commit.IsSuccess);
+
+        // PositionedCorrectAttemptCount must NOT have incremented!
+        Assert.Equal(10, session.PositionedCorrectAttemptCount);
+        Assert.False(session.IsPaceCalibrationReady);
+    }
+
+    [Fact]
+    public async Task UninterruptedCorrect_DoesAdvancePaceCalibrationCount()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var attempts = Enumerable.Range(1, 10).Select(i => CreatePositionedCorrect(i));
+        await SeedAttemptHistoryAsync(dbPath, attempts);
+
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: true);
+
+        Assert.Equal(10, session.PositionedCorrectAttemptCount);
+
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True(eval.IsCorrect);
+        Assert.False(session.IsCurrentAttemptInterrupted);
+
+        var commit = await session.CommitCurrentEvaluationAsync();
+        Assert.True(commit.IsSuccess);
+
+        // PositionedCorrectAttemptCount MUST increment
+        Assert.Equal(11, session.PositionedCorrectAttemptCount);
+    }
+
+    [Fact]
+    public async Task CalibrationEligibility_SurvivesRestart()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // Seed 24 attempts: 19 uninterrupted correct, 5 interrupted correct
+        var attempts = Enumerable.Range(1, 19)
+            .Select(i => CreatePositionedCorrect(i, isInterrupted: false))
+            .Concat(Enumerable.Range(20, 5).Select(i => CreatePositionedCorrect(i, isInterrupted: true)));
+        await SeedAttemptHistoryAsync(dbPath, attempts);
+
+        var snapshot = await store.LoadRuntimeSnapshotAsync();
+        Assert.Equal(19, snapshot.PositionedCorrectAttemptCount);
+
+        var session = new TrainingSession(store);
+        await session.InitializeAsync(startTiming: false);
+        Assert.Equal(19, session.PositionedCorrectAttemptCount);
         Assert.False(session.IsPaceCalibrationReady);
     }
 }
