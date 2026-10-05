@@ -129,22 +129,14 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P0 — Zero-Answer / `0 + 0` Core-Flow Freeze
 - **Priority**: P0 / Immediate Release Blocker.
-- **Observed Physical Behavior**: In fresh or reset learner state, when the application presents `0 + 0` and the user enters `0`, the current Tester build on physical hardware can freeze or fail to advance to the next fact.
-- **Architectural Fact**: `AnswerAutoSubmissionPolicy` is designed to accept parsed integer 0 when the expected answer is 0. The investigation must not assume the input parser is the sole root cause.
-- **Investigation Chain**:
-  $$\text{Input Entry} \longrightarrow \text{Auto-Submit Trigger} \longrightarrow \text{Submission Evaluation} \longrightarrow \text{Persistence Commit} \longrightarrow \text{Cyber Defense Feedback} \longrightarrow \text{Next-Fact Transition} \longrightarrow \text{UI State Release}$$
-- **Required Deliverables**:
-  1. Systematic reproduction from fresh/reset state in a dedicated `PLAN_ONLY` / systematic debugging lifecycle.
-  2. Narrow root-cause identification before authoring code modifications.
-  3. Focused regression tests specifically covering $0 + 0 = 0$ auto-submission and state release.
-  4. Integration tests verifying the entire submit $\to$ commit $\to$ next fact pipeline reliably clears `submitting`/`awaiting` UI state.
-  5. Physical-device verification on Samsung Galaxy S26 Ultra (when APK packaging/install is explicitly authorized).
-- **Gate**: P0 must be fully resolved, reviewed, and merged before P1 implementation begins.
+- **Status**: **DELIVERED & MERGED** (PR #60, commit `10c01c05fa9b50b5278c775d78a87ca9a7ef2060`).
+- **Resolution Summary**: Resolved physical-device input freeze when entering 0 for `0 + 0` from fresh/reset state; reinforced state release across the full submit $\to$ commit $\to$ next fact pipeline with regression coverage.
 
 ---
 
 ### P1 — Normal Practice Without Deadline Failure
 - **Priority**: High (Core Learning Contract).
+- **Status**: **DELIVERED & MERGED** (PR #61, commit `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`).
 - **Product Decision**: Normal MathFirst practice must **never** terminate a question or record an arithmetic failure solely because wall-clock time elapsed. A learner who takes extended time and computes the correct answer has produced a mathematically **Correct** answer.
 - **Preserved Semantics**:
   - Response latency ($\text{ResponseLatencyMs}$) continues to be accurately measured for active interaction.
@@ -161,16 +153,32 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P1b — Active Thinking Time / Interruption Safety
 - **Priority**: High (Timing Integrity).
+- **Status**: **IMPLEMENTED & REVIEWED** (Complete on branch `feat/p1b-active-thinking-time` across 4 checkpoint commits, HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`; 2,010 Core tests passing).
 - **Product Decision**: Measured response latency must reflect actual arithmetic cognitive effort, not unrelated wall-clock interruptions.
-- **Interruption Exclusions**: The following events must pause active timing and must not inflate arithmetic response latency:
-  - Opening Settings or in-app overlays.
-  - Future Shop or cosmetic screens.
-  - App backgrounding, OS interruptions, or phone calls.
-  - Navigation away from active practice.
-  - Long combat animations or presentation modals.
-- **Tainted Sample Policy**:
-  - If a timing sample is contaminated by an interruption, preserve the mathematical correctness outcome (`Correct`/`Incorrect`), but exclude or neutralize the contaminated latency sample from adaptive pace and fluency calculations rather than penalizing the learner with artificial slowness.
-  - No naive global heuristic (e.g. "all answers over $N$ seconds are wrong"). Slow learners legitimately require thinking time.
+- **Interruption Exclusions & Segmented Timing**:
+  - `ResponseLatencyMs` represents accumulated active interaction time. Inactive interruption duration is excluded.
+  - Manual pause, app backgrounding, and practice-surface deactivation/navigation pause active timing. Active timing resumes seamlessly upon return.
+  - An uninterrupted learner who thinks slowly remains genuinely slow. There is no naive wall-clock cutoff.
+- **Interruption Fact (`AttemptRecord.IsInterrupted`)**:
+  - Empirical boolean fact persisted in SQLite Schema V8 (`is_interrupted INTEGER NOT NULL DEFAULT 0 CHECK (is_interrupted IN (0, 1))`).
+  - Recorded as `true` when at least one genuine lifecycle interruption occurred after active timing began and before submission.
+  - Resets cleanly for the next fact.
+- **Mathematical Outcome & Timing Evidence Eligibility**:
+  - Interrupted Correct remains Correct. Interrupted Incorrect remains Incorrect. Interruption never creates Timeout.
+  - Timing evidence eligibility is derived: `TimingEvidenceEligible = !IsInterrupted` (not separately persisted or exported).
+  - `IsFluent` remains active-latency classification against $P_{\text{fact}}$ fluency threshold; `IsFluent == true && IsInterrupted == true` is valid.
+- **Item Learning State & Adaptive Pace**:
+  - Interrupted Correct updates mathematical counts (`TotalAttempts`, `CorrectAttempts`, `ConsecutiveCorrectStreak`, clears remediation) while preserving timing/fluency state neutral (`FluentStreak`, `IsProvisionallyMastered`, `LastLatencyMs`, `RollingLatencyMs`).
+  - Interrupted Incorrect applies mathematical error updates (`TotalAttempts`, `IncorrectAttempts`, resets streaks, revokes provisional mastery, triggers remediation), but contaminated latency is excluded from `LastLatencyMs` and `RollingLatencyMs`.
+  - Interrupted Correct attempts are excluded from latency shrinkage at learner, operation, band, and fact levels.
+- **Pace Calibration & Structured Band Dual Window**:
+  - Calibration threshold remains 24 (`PaceCalibrationCorrectAttemptThreshold == 24`); only timing-eligible positioned Correct attempts count toward calibration. Runtime property remains `PositionedCorrectAttemptCount`.
+  - Structured band advancement adopts the **Dual Window** policy:
+    - **Window A (latest 40 qualifying mathematical attempts)**: requires 38 Correct, 20 frontier, 16 distinct frontier.
+    - **Window B (latest 40 timing-eligible qualifying attempts)**: requires full 40 eligible attempts with $\ge 34$ fluent.
+- **Persistence & Telemetry Schema**:
+  - Schema V8: `is_interrupted` in `attempt_history`.
+  - Telemetry Export Schema V2: `schema_version = 2`, 16 properties (including boolean `is_interrupted`).
 
 ---
 
@@ -288,9 +296,12 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
 
 ## 7. Current Work State After Plan Reconciliation
 
-- **Active Implementation**: NONE.
-- **Next Planned Work Item**: `P0 — Zero-Answer / 0 + 0 Core-Flow Freeze`.
-- **P0 Implementation Authorization**: NOT GRANTED (Requires dedicated `PLAN_ONLY` task dispatch).
-- **Roadmap Step 55 Status**: NOT AUTHORIZED.
+- **Delivered & Merged Refinements**:
+  - `P0 — Zero-Answer / 0 + 0 Core-Flow Freeze`: Delivered & Merged (PR #60).
+  - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
+- **Completed Refinement on Branch**:
+  - `P1b — Active Thinking Time / Interruption Safety`: Implemented across 4 checkpoint commits on `feat/p1b-active-thinking-time` (HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`); passed independent review and 2,010 Core tests; currently in `DOCUMENT_ONLY` lifecycle.
+- **Next Work Item**: `P1b` Candidate Push / PR Lifecycle (followed by `P2 — Direct-to-Practice Start / Remove Onboarding`).
+- **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.

@@ -100,3 +100,43 @@ The root cache directory, internal app data files, database files (`mathfirst.db
 
 ### Negative / Trade-Offs
 - Temporary share files occupy a small amount of disk cache until reclaimed by the operating system or cleared by Full Local Reset.
+
+---
+
+## Amendment: Schema V8 Persistence & Telemetry Schema V2 (2026-10-05 / P1b)
+
+### Status
+Accepted / Amended
+
+### Context
+With the implementation of **P1b (Active Thinking Time / Interruption Safety)**, the learning engine requires durable persistence of empirical interruption facts (`AttemptRecord.IsInterrupted`) to distinguish continuous arithmetic cognitive effort from interrupted attempts without fabricating timeouts or contaminating adaptive pace and fluency models.
+
+### Decision Amendments
+
+1. **Schema V8 Persistence (`attempt_history.is_interrupted`)**:
+   - SQLite learner database is upgraded to **Schema V8**.
+   - Adds `is_interrupted INTEGER NOT NULL DEFAULT 0 CHECK (is_interrupted IN (0, 1))` to the `attempt_history` table.
+   - Migration from V7 to V8 cleanly applies `ALTER TABLE attempt_history ADD COLUMN is_interrupted INTEGER NOT NULL DEFAULT 0 CHECK (is_interrupted IN (0, 1));` with schema version updated to 8.
+   - Fresh databases initialize directly at Schema V8.
+   - Historical rows default to `0` (`false`).
+
+2. **Telemetry Export Schema V2 (`telemetry_export_schema_v2`)**:
+   - The top-level export format increments to `schema_version = 2`.
+   - The `attempts` array serialization is enriched from 15 to **16 properties**:
+     1. `fact_id` (string)
+     2. `operation` (string)
+     3. `left_operand` (integer)
+     4. `right_operand` (integer)
+     5. `submitted_answer` (integer/string)
+     6. `outcome` (string)
+     7. `is_fluent` (boolean)
+     8. `response_latency_ms` (integer)
+     9. `timestamp` (ISO-8601 string)
+     10. `practice_position` (integer or null)
+     11. `context_version` (integer or null)
+     12. `presented_deadline_ms` (integer or null)
+     13. `expected_pace_ms` (integer or null)
+     14. `resolved_role` (string or null)
+     15. `operation_band_before` (integer or null)
+     16. `is_interrupted` (boolean, defaults to `false` for legacy/uninterrupted rows)
+   - `is_timing_eligible` is derived at runtime (`!IsInterrupted`), is **not** separately persisted in SQLite, and is **not** exported in telemetry.

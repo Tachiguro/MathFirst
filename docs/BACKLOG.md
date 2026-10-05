@@ -369,9 +369,9 @@ When items are accepted into the backlog, they are recorded with:
 
 The accepted pre-production refinement program is defined canonically in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md). Workstream identifiers (P0–P8) represent planning/workstream sequences and do not invent formal `MF-*` package IDs until individual `PLAN_ONLY` lifecycles:
 
-- **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`P0 Blocker` — Next planned item under `PLAN_ONLY`)
-- **P1**: Normal Practice Without Deadline Failure (product decision: remove automatic timeout question termination; preserve response latency & pace modeling; supersedes legacy timing modes)
-- **P1b**: Active Thinking Time / Interruption Safety (pause timing on UI navigation/backgrounding/interruption; exclude contaminated latency from pace/fluency modeling)
+- **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (**COMPLETED & MERGED** via PR #60 at `10c01c05fa9b50b5278c775d78a87ca9a7ef2060`)
+- **P1**: Normal Practice Without Deadline Failure (**COMPLETED & MERGED** via PR #61 at `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`)
+- **P1b**: Active Thinking Time / Interruption Safety (**COMPLETED ON BRANCH** `feat/p1b-active-thinking-time` across 4 checkpoint commits, HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`; Schema V8, Telemetry V2, Dual Window)
 - **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only)
 - **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas)
 - **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass)
