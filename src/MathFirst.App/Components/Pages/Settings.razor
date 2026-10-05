@@ -675,7 +675,6 @@
     private void ExecuteResetUiPreferences()
     {
         Session.PauseItemTiming();
-        PreferenceStore.SetOnboardingCompleted(false);
         PreferenceStore.SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode);
         PreferenceStore.SetThemePreference(ThemePreference.System);
         PreferenceStore.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);

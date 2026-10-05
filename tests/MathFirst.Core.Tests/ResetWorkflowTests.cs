@@ -241,18 +241,20 @@ public sealed class ResetWorkflowTests : IDisposable
         await session.CommitCurrentEvaluationAsync();
 
         // Reset UI Preferences
-        prefs.SetOnboardingCompleted(false);
         prefs.SetLanguagePreference("system");
         prefs.SetThemePreference(ThemePreference.System);
         prefs.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
+        prefs.SetHapticFeedbackEnabled(true);
+        prefs.ResetPracticePreferences();
 
         Assert.Equal(learnerGeneration, session.LearnerStateGenerationRevision);
 
         // Verify UI prefs reset
-        Assert.False(prefs.GetOnboardingCompleted());
+        Assert.True(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
+        Assert.True(prefs.GetHapticFeedbackEnabled());
 
         // Verify DB still holds committed progress
         var snapshot = await store.LoadSnapshotAsync();

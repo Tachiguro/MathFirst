@@ -178,13 +178,16 @@ public sealed class WindowsUxContractTests
     }
 
     [Fact]
-    public void Routes_ReevaluatesOnboardingRequirementAfterSettingsNavigation()
+    public void Routes_AlwaysRendersRouterWithoutOnboardingStartupGate()
     {
         var routes = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Routes.razor"));
 
-        Assert.Contains("Navigation.LocationChanged += OnLocationChanged", routes, StringComparison.Ordinal);
-        Assert.Contains("Navigation.LocationChanged -= OnLocationChanged", routes, StringComparison.Ordinal);
-        Assert.Contains("PreferenceStore.GetOnboardingCompleted()", routes, StringComparison.Ordinal);
+        Assert.Contains("<Router", routes, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetOnboardingCompleted", routes, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnboardingHost", routes, StringComparison.Ordinal);
+        Assert.DoesNotContain("HandleOnboardingCompleted", routes, StringComparison.Ordinal);
+        Assert.Contains("class=\"app-theme-root\"", routes, StringComparison.Ordinal);
+        Assert.Contains("ThemeService.ThemeChanged", routes, StringComparison.Ordinal);
     }
 
     [Fact]
