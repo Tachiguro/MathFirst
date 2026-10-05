@@ -69,7 +69,7 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
         Assert.NotNull(shareService.LastPreparedContent);
         using var doc = JsonDocument.Parse(shareService.LastPreparedContent);
         var root = doc.RootElement;
-        Assert.Equal(1, root.GetProperty("schema_version").GetInt32());
+        Assert.Equal(2, root.GetProperty("schema_version").GetInt32());
         Assert.Equal("test-install-id-123", root.GetProperty("installation_id").GetString());
         Assert.Equal("1.0.0", root.GetProperty("app_version").GetString());
         Assert.Equal("Release", root.GetProperty("build_classification").GetString());
