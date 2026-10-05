@@ -68,7 +68,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         Preferences.Default.Set(HapticFeedbackEnabledKey, enabled);
 
     public bool GetOperationEnabled(ArithmeticOperation operation) =>
-        Preferences.Default.Get(GetOperationKey(operation), true);
+        Preferences.Default.Get(GetOperationKey(operation), operation == ArithmeticOperation.Addition);
 
     public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) =>
         Preferences.Default.Set(GetOperationKey(operation), enabled);

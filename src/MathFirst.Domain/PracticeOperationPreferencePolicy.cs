@@ -10,18 +10,23 @@ public static class PracticeOperationPreferencePolicy
         ArithmeticOperation.Division
     ];
 
+    public static readonly IReadOnlyList<ArithmeticOperation> DefaultOperations =
+    [
+        ArithmeticOperation.Addition
+    ];
+
     public static IReadOnlyList<ArithmeticOperation> NormalizeEnabledOperations(
         IEnumerable<ArithmeticOperation>? enabledOperations)
     {
         if (enabledOperations is null)
         {
-            return AllOperations;
+            return DefaultOperations;
         }
 
         var set = enabledOperations.ToHashSet();
         var canonical = AllOperations.Where(op => set.Contains(op)).ToArray();
 
-        return canonical.Length > 0 ? canonical : AllOperations;
+        return canonical.Length > 0 ? canonical : DefaultOperations;
     }
 
     public static bool CanToggleOperationOff(

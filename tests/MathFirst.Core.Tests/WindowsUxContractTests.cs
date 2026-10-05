@@ -170,6 +170,14 @@ public sealed class WindowsUxContractTests
     }
 
     [Fact]
+    public void MauiPreferences_OperationPreferencesDefaultToAdditionOnly()
+    {
+        var preferences = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "MauiPreferenceStore.cs"));
+
+        Assert.Contains("Preferences.Default.Get(GetOperationKey(operation), operation == ArithmeticOperation.Addition)", preferences, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Routes_ReevaluatesOnboardingRequirementAfterSettingsNavigation()
     {
         var routes = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Routes.razor"));
