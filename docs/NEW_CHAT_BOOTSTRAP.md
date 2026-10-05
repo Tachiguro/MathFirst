@@ -142,7 +142,7 @@ Worktrees: Exactly one normal worktree by default
 - **Pre-Step55 V1 Refinement Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) covering P0 through P8:
   - P0 (Zero-Answer / `0 + 0` Core-Flow Freeze): Delivered & Merged (PR #60).
   - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
-  - P1b (Active Thinking Time / Interruption Safety): Complete across 4 checkpoint commits on task branch `feat/p1b-active-thinking-time` (HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`).
+  - P1b (Active Thinking Time / Interruption Safety): Complete across 4 checkpoint commits on task branch `feat/p1b-active-thinking-time` (implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`).
 - **Delivered Pre-Step55 Packages & Merged PRs**:
   - PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): `P1: normal practice without deadline failure`
   - PR #60 (`10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): `P0: resolve zero-answer core-flow freeze`

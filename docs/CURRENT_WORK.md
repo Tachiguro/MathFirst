@@ -16,12 +16,13 @@ This document provides operational context for current repository work.
   - Slice 1: `77dfd20b19497dfe208bbbfb1353e0a4c5586e9a` (`feat(practice): track interrupted attempts`)
   - Slice 2: `d604c49726034ca7976d5725de59772428a5f92d` (`feat(persistence): persist interrupted attempts`)
   - Slice 3: `a611e8e200e19ac9b61552a21e8b2fc31b63ba43` (`feat(learning): neutralize interrupted timing evidence`)
-  - Slice 4: `702fd9164937daa130b2afe61f54255e0a4cbe02` (`feat(telemetry): export interruption metadata`)
-  - Documentation Synchronization: `DOCUMENT_ONLY` in progress (uncommitted).
-- **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
+  - Slice 4 (Implementation Milestone): `702fd9164937daa130b2afe61f54255e0a4cbe02` (`feat(telemetry): export interruption metadata`)
+  - Documentation Synchronization Milestone: `f598271a404cc7e2e4f32c402362253d4a2ad9f7` (`docs: synchronize P1b project state`)
+- **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
   - `git fetch origin`
+  - `git log origin/main..HEAD`
   - `gh repo view Tachiguro/MathFirst`
   - `gh pr list --state open`
 - **Status of Active Work**:
@@ -59,7 +60,7 @@ This document provides operational context for current repository work.
       - Adaptive Pace, Calibration & Dual-Window Band Advancement: 124 passed.
     - Release builds: Windows and Android release builds were not re-executed during the documentation-only sync lifecycle.
   - **Integration & Procedural State**:
-    - Branch `feat/p1b-active-thinking-time` is local-only (4 commits ahead of `origin/main`, 0 behind, unpushed, no open PR).
+    - Branch `feat/p1b-active-thinking-time` is local-only (unpushed, no open PR; live ahead/behind divergence derived dynamically via `git log origin/main..HEAD`).
     - Next lifecycle step: `REVIEW_ONLY` (independent review of documentation synchronization before commit/push).
   - **Prior Work**:
     - **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze resolved and merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
@@ -71,7 +72,7 @@ This document provides operational context for current repository work.
 The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md)) governs downstream work:
 1. **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`Merged` — PR #60 at `4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`)
 2. **P1**: Normal Practice Without Deadline Failure (`Merged` — PR #61 at `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`)
-3. **P1b**: Active Thinking Time / Interruption Safety (`Implementation Complete` — 4 slices on task branch `feat/p1b-active-thinking-time`, HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`)
+3. **P1b**: Active Thinking Time / Interruption Safety (`Implementation Complete` — 4 slices on task branch `feat/p1b-active-thinking-time`, implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`)
 4. **P2**: Direct-to-Practice Start / Remove Onboarding (direct launch, system defaults, Addition only — *Downstream*)
 5. **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas — *Downstream*)
 6. **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass — *Downstream*)
@@ -125,7 +126,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 ### Authorized Downstream Project Sequence:
 1. P0 is integrated and merged into `main` via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
 2. P1 is integrated and merged into `main` via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`).
-3. P1b implementation is complete across four slices on branch `feat/p1b-active-thinking-time` (HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`, 2,010 Core tests passing). Documentation sync and review precede commit/push.
+3. P1b implementation is complete across four slices on branch `feat/p1b-active-thinking-time` (implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`, 2,010 Core tests passing). Documentation sync and review precede commit/push.
 4. Downstream P-item sequence ($\text{P2} \to \text{P3} \to \text{P4} \to \text{P5} \to \text{P6} \to \text{P8}$) must be completed and merged before Step 55 may be proposed.
 5. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 

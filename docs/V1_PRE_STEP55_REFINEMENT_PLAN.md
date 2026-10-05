@@ -153,7 +153,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P1b — Active Thinking Time / Interruption Safety
 - **Priority**: High (Timing Integrity).
-- **Status**: **IMPLEMENTED & REVIEWED** (Complete on branch `feat/p1b-active-thinking-time` across 4 checkpoint commits, HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`; 2,010 Core tests passing).
+- **Status**: **IMPLEMENTED & REVIEWED** (Complete on branch `feat/p1b-active-thinking-time` across 4 checkpoint commits, implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`; 2,010 Core tests passing).
 - **Product Decision**: Measured response latency must reflect actual arithmetic cognitive effort, not unrelated wall-clock interruptions.
 - **Interruption Exclusions & Segmented Timing**:
   - `ResponseLatencyMs` represents accumulated active interaction time. Inactive interruption duration is excluded.
@@ -300,7 +300,7 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P0 — Zero-Answer / 0 + 0 Core-Flow Freeze`: Delivered & Merged (PR #60).
   - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
 - **Completed Refinement on Branch**:
-  - `P1b — Active Thinking Time / Interruption Safety`: Implemented across 4 checkpoint commits on `feat/p1b-active-thinking-time` (HEAD `702fd9164937daa130b2afe61f54255e0a4cbe02`); passed independent review and 2,010 Core tests; currently in `DOCUMENT_ONLY` lifecycle.
+  - `P1b — Active Thinking Time / Interruption Safety`: Implemented across 4 checkpoint commits on `feat/p1b-active-thinking-time` (implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`); passed independent review and 2,010 Core tests; currently in `DOCUMENT_ONLY` lifecycle.
 - **Next Work Item**: `P1b` Candidate Push / PR Lifecycle (followed by `P2 — Direct-to-Practice Start / Remove Onboarding`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
