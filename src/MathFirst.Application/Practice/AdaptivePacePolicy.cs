@@ -53,7 +53,7 @@ public static class AdaptivePacePolicy
             .Where(attempt => attempt.PracticePosition is > 0)
             .OrderByDescending(attempt => attempt.PracticePosition)
             .ToArray();
-        var correct = positioned.Where(attempt => attempt.Outcome == AttemptOutcome.Correct).ToArray();
+        var correct = positioned.Where(attempt => attempt.Outcome == AttemptOutcome.Correct && attempt.IsTimingEligible).ToArray();
 
         var learnerPace = Shrink(
             StaticPriorMs,

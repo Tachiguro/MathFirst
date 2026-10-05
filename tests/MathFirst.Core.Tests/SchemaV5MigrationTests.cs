@@ -31,7 +31,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         await store.InitializeAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(7, snapshot.SchemaVersion);
+        Assert.Equal(8, snapshot.SchemaVersion);
         Assert.Null(snapshot.LatestAcceptedPracticeAt);
         await store.CloseAsync();
 
@@ -62,7 +62,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         await store.InitializeAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(7, snapshot.SchemaVersion);
+        Assert.Equal(8, snapshot.SchemaVersion);
         Assert.Equal(17, snapshot.Progression.PracticePosition);
         Assert.Equal(
             new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.Zero),
@@ -158,7 +158,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         await store.InitializeAsync();
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(7, snapshot.SchemaVersion);
+        Assert.Equal(8, snapshot.SchemaVersion);
         Assert.Equal(5, snapshot.Revision);
         await store.CloseAsync();
 
@@ -173,7 +173,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
             Assert.Equal("5", Assert.IsType<string>(await command.ExecuteScalarAsync()));
 
             command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-            Assert.Equal("7", Assert.IsType<string>(await command.ExecuteScalarAsync()));
+            Assert.Equal("8", Assert.IsType<string>(await command.ExecuteScalarAsync()));
         }
     }
 
@@ -186,7 +186,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         await store.InitializeAsync();
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(7, snapshot.SchemaVersion);
+        Assert.Equal(8, snapshot.SchemaVersion);
         await store.CloseAsync();
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -205,7 +205,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         using var store = new SqliteLearnerStore(path);
         await store.InitializeAsync();
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(7, snapshot.SchemaVersion);
+        Assert.Equal(8, snapshot.SchemaVersion);
         await store.CloseAsync();
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -229,7 +229,7 @@ public sealed class SchemaV5MigrationTests : IDisposable
         {
             await store2.InitializeAsync();
             var snapshot = await store2.LoadSnapshotAsync();
-            Assert.Equal(7, snapshot.SchemaVersion);
+            Assert.Equal(8, snapshot.SchemaVersion);
             await store2.CloseAsync();
         }
 

@@ -778,12 +778,12 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         {
             await conn.OpenAsync();
 
-            // 1. schema_version is 7
+            // 1. schema_version is 8
             using (var versionCmd = conn.CreateCommand())
             {
                 versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
                 var version = await versionCmd.ExecuteScalarAsync();
-                Assert.Equal("7", version);
+                Assert.Equal("8", version);
             }
 
             // 2. Expected tables only
@@ -810,7 +810,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
                 Assert.Equal(expectedTables, actualTables);
             }
 
-            // 3. Columns on attempt_history remain exactly V7
+            // 3. Columns on attempt_history remain exactly V8
             var expectedAttemptColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "submission_id",
@@ -830,7 +830,8 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
                 "presented_deadline_ms",
                 "expected_pace_ms",
                 "resolved_role",
-                "operation_band_before"
+                "operation_band_before",
+                "is_interrupted"
             };
 
             using (var colCmd = conn.CreateCommand())
@@ -846,5 +847,59 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
                 Assert.Equal(expectedAttemptColumns, actualColumns);
             }
         }
+    }
+
+    [Fact]
+    public async Task Conformance_ReadBoundedRecentAttempts_IncludesLatest40TotalAndLatest40EligibleAttemptsPerOperation()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
+        var baseTime = new DateTimeOffset(2026, 9, 9, 10, 0, 0, TimeSpan.Zero);
+
+        for (int i = 1; i <= 50; i++)
+        {
+            var subId = $"sub_{i:D4}";
+            var isInterrupted = i > 10; // First 10 are eligible (false), next 40 are interrupted (true)
+            var attempt = new AttemptRecord(
+                subId,
+                fact.Id,
+                fact.Operation,
+                0,
+                1,
+                1,
+                1,
+                true,
+                true,
+                1200,
+                baseTime.AddSeconds(i),
+                practicePosition: i,
+                isInterrupted: isInterrupted);
+
+            var itemState = ItemLearningState.CreateNew(fact);
+            itemState.TotalAttempts = i;
+            itemState.CorrectAttempts = i;
+
+            var progression = LearnerProgression.CreateFresh();
+            progression.PracticePosition = i;
+
+            var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: i, attempt, itemState, progression);
+            var result = await store.CommitSubmissionAsync(changeSet);
+            Assert.True(result.IsSuccess);
+        }
+
+        var snapshot = await store.LoadSnapshotAsync();
+        // Positions 1..10 are the 10 available eligible attempts. Positions 11..50 are the latest 40 total attempts.
+        // Therefore, RecentAttempts must contain all 50 attempts (positions 1 through 50).
+        Assert.Equal(50, snapshot.RecentAttempts.Count);
+        Assert.Contains(snapshot.RecentAttempts, a => a.PracticePosition == 1);
+        Assert.Contains(snapshot.RecentAttempts, a => a.PracticePosition == 50);
+
+        var runtimeSnapshot = await store.LoadRuntimeSnapshotAsync();
+        Assert.Equal(50, runtimeSnapshot.RecentAttempts.Count);
+        Assert.Contains(runtimeSnapshot.RecentAttempts, a => a.PracticePosition == 1);
+        Assert.Contains(runtimeSnapshot.RecentAttempts, a => a.PracticePosition == 50);
     }
 }

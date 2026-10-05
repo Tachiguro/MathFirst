@@ -40,7 +40,7 @@ public sealed class TelemetryJsonSerializer : ITelemetryJsonSerializer
 
         writer.WriteStartObject();
 
-        writer.WriteNumber("schema_version", 1);
+        writer.WriteNumber("schema_version", 2);
         writer.WriteString("exported_at", FormatTimestamp(exportedAt));
         writer.WriteString("app_version", appVersion);
         writer.WriteString("build_classification", buildClassification);
@@ -127,6 +127,8 @@ public sealed class TelemetryJsonSerializer : ITelemetryJsonSerializer
             {
                 writer.WriteNull("operation_band_before");
             }
+
+            writer.WriteBoolean("is_interrupted", attempt.IsInterrupted);
 
             writer.WriteEndObject();
         }

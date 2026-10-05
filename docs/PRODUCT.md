@@ -3,7 +3,7 @@
 This document defines the authoritative, implementation-independent product contract for **MathFirst**. It captures confirmed product requirements, the learning model, progression rules, platform expectations, and Minimum Viable Product (MVP) boundaries.
 
 > [!IMPORTANT]
-> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, independent per-operation role ordinals, Guided number-space gating, adaptive learning policy, and tester telemetry export architecture in Sections 4–8 and 10 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md) (`MF-LEARN-004`), [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) (`MF-LEARN-006`), and [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md) (`MF-TELEM-001`), extended with practice configuration in `MF-SET-001`, adaptive practice balance in `MF-LEARN-005`, and static combat layout in `MF-UX-008`. The current native applications implement learner Schema V7 persistence (with presentation context and pseudonymous installation UUID), complete-history JSON telemetry export and native sharing, Evidence-Adaptive Discovery, Guided Gate G3 soft decoupling, durable pace calibration readiness at $\ge 24$ positioned Correct attempts, the exact 482 strong-learner benchmark, absolute no-immediate-fact-repetition, tiered remediation, hierarchical adaptive pace, configurable practice-time floors, answer-length acclimation deadlines, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, requested-role review authority during Dense acquisition, protected New foundational acquisition, same-operation candidate diversity, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
+> The independent-operation progression, hybrid curriculum, adaptive learning model, curriculum fact eligibility invariant, independent per-operation role ordinals, Guided number-space gating, adaptive learning policy, tester telemetry export architecture, active thinking time / interruption safety, and Dual-Window structured progression in Sections 4–8 and 10 are the accepted product contract from [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md) (`MF-LEARN-003`), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md), [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md) (`MF-STAB-003`), [ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md) (`MF-LEARN-004`), [ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) (`MF-LEARN-006`), and [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md) (`MF-TELEM-001`), extended with practice configuration in `MF-SET-001`, adaptive practice balance in `MF-LEARN-005`, static combat layout in `MF-UX-008`, P0 zero-answer fix, P1 normal practice without deadline failure, and P1b Active Thinking Time / Interruption Safety. The current native applications implement learner Schema V8 persistence (with presentation context, `is_interrupted`, and pseudonymous installation UUID), complete-history JSON telemetry export `telemetry_export_schema_v2` (16 properties) and native sharing, Dual-Window structured band progression (Window A: 40 math attempts; Window B: 40 timing-eligible attempts), Evidence-Adaptive Discovery, Guided Gate G3 soft decoupling, durable pace calibration readiness at $\ge 24$ timing-eligible positioned Correct attempts, the exact 482 strong-learner benchmark, absolute no-immediate-fact-repetition, tiered remediation, hierarchical adaptive pace, normal practice without deadline failure, active interaction latency measurement, adaptive FSRS ratings and fluency, configurable enabled-subset operation scheduling, independent per-operation role ordinals, zero-mutation Settings/current-fact reconciliation, requested-role review authority during Dense acquisition, protected New foundational acquisition, same-operation candidate diversity, correctness-driven Dense progression ($C \cdot 10 \ge N \cdot 9$), Numpad default layout, role-specific selector fallback chains with Early Review liveness, session-local teaching interventions, and periodic check-ins. Web runtime implementation remains deferred.
 
 
 ---
@@ -145,13 +145,23 @@ For all Dense bands (including `MUL-D01`), advancement occurs immediately upon m
 - Weak-fact continuity: Advancing with $\le 10\%$ weak facts in larger bands ($N \ge 10$) preserves those facts in `ItemLearningState`, FSRS card state, and remediation queues;
 - A complete, `Int32`-safe successor band must exist.
 
-#### 2. Structured Band Advancement (Rolling Window)
-For Structured bands, standard rolling-window requirements apply:
-- At least 40 accepted attempts for that operation after its current band began;
-- In its latest 40 qualifying attempts: at least 38 correct, at least 34 fluent (`IsFluent == true`), at least 20 from the current acquisition frontier, and at least $\min(16, \text{owned-frontier-size})$ distinct current-frontier facts;
-- At least 16 distinct owned-frontier introductions during the current band.
-
-`IsFluent` consumes durable `AttemptRecord.IsFluent`, which is evaluated adaptively against expected fact pace $P_{\text{fact}}$ at presentation time (or historical $\le 2500\text{ ms}$ backfill for legacy V5 rows). Incorrect and Timeout are non-fluent; correct responses slower than the adaptive fluency threshold are correct but non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window in Structured bands, while weak facts across all bands remain active through remediation and FSRS.
+#### 2. Structured Band Advancement (Dual-Window Progression)
+For Structured bands, the canonical **Dual Window** policy applies:
+- Canonical numerical requirements:
+  - Total window size: 40 attempts
+  - Required correct attempts: 38
+  - Required fluent attempts: 34
+  - Required frontier attempts: 20
+  - Maximum required distinct frontier facts: 16 (or $\min(16, \text{owned-frontier-size})$)
+- **Window A (Mathematical Window)**:
+  - Evaluates the latest 40 qualifying mathematical attempts in the current band instance ($PracticePosition > \text{BandStartedPracticePosition}$).
+  - Interrupted attempts remain in Window A.
+  - Used for: sufficient mathematical window ($N \ge 40$), Correct count ($\ge 38$), frontier count ($\ge 20$), distinct frontier coverage ($\ge 16$), and representative sample coverage.
+- **Window B (Fluency Window)**:
+  - Evaluates the latest 40 **timing-eligible** qualifying attempts in the same band instance (`TimingEvidenceEligible == true`, i.e., `!IsInterrupted`).
+  - Requires a full 40 timing-eligible attempts before advancement.
+  - At least 34 of those 40 timing-eligible attempts must be fluent (`IsFluent == true`).
+- `IsFluent` consumes durable `AttemptRecord.IsFluent`, evaluated adaptively against expected fact pace $P_{\text{fact}}$ at presentation time. Interrupted attempts may have `IsFluent == true` based on active interaction time, but are excluded from Window B timing eligibility. Incorrect and Timeout are non-fluent. There is no automatic band regression. Isolated mistakes age out of the rolling window in Structured bands, while weak facts across all bands remain active through remediation and FSRS.
 
 ### Native Strong-Learner Benchmark ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
 
@@ -283,78 +293,72 @@ Exact-fact review preserves `FSRS.Core` 1.0.7, 95% desired retention, 21 default
 True arithmetic fluency requires evaluating both correctness and speed against adaptive timing boundaries:
 
 1. **Correctness**: Whether the submitted numeric answer is mathematically correct.
-2. **Response Latency**: The elapsed monotonic active answering time between item readiness (`ITEM_READY`) and answer submission. Manual Pause, Settings, and same-process background/suspend time are excluded.
-3. **Hierarchical Adaptive Pace Runtime**:
-   Expected response latency ($P_{\text{fact}}$) is computed dynamically from positioned, accepted, mathematically correct attempt evidence ($PracticePosition > 0$). Latency samples are clamped to $[600\text{ ms}, 12000\text{ ms}]$.
+2. **Active Interaction Latency**:
+   - `ResponseLatencyMs` represents the accumulated **active interaction time** between item readiness (`ITEM_READY`) and answer submission.
+   - Active timing is segmented across lifecycle interruptions: manual Pause, Settings navigation, app backgrounding, and practice-surface deactivation pause active timing. Inactive duration is excluded from measured response latency.
+   - An uninterrupted learner who thinks slowly remains genuinely slow. There is no naive global wall-clock cutoff.
+3. **Interruption Fact & Timing Evidence Eligibility (P1b)**:
+   - `AttemptRecord.IsInterrupted` is a durable empirical boolean fact persisted in SQLite Schema V8 (`attempt_history.is_interrupted`).
+   - Recorded as `true` when at least one genuine lifecycle interruption occurred after active timing began and before submission. Resets cleanly for each new fact.
+   - Interrupted Correct remains `Correct`; interrupted Incorrect remains `Incorrect`. Interruption never creates a `Timeout` outcome.
+   - `TimingEvidenceEligible` is derived at runtime as `!IsInterrupted` (not separately persisted or exported).
+   - `IsFluent` represents active interaction latency classification against the adaptive fluency threshold; `IsFluent == true && IsInterrupted == true` is valid.
+4. **Item Learning State Mutations**:
+   - **Interrupted Correct**: Updates mathematical state normally (`TotalAttempts` increments, `CorrectAttempts` increments, `ConsecutiveCorrectStreak` increments, active remediation is cleared); timing/fluency state is preserved neutral (`FluentStreak`, `IsProvisionallyMastered`, `LastLatencyMs`, and `RollingLatencyMs` remain unchanged).
+   - **Interrupted Incorrect**: Applies standard mathematical error updates (`TotalAttempts` increments, `IncorrectAttempts` increments, `ConsecutiveCorrectStreak` resets, `FluentStreak` resets, provisional mastery is revoked, remediation becomes due); contaminated latency is excluded from `LastLatencyMs` and `RollingLatencyMs`.
+5. **Hierarchical Adaptive Pace Runtime**:
+   Expected response latency ($P_{\text{fact}}$) is computed dynamically from timing-eligible, positioned, accepted, mathematically correct attempt evidence ($PracticePosition > 0 \land \text{TimingEvidenceEligible} == \text{true}$). Latency samples are clamped to $[600\text{ ms}, 12000\text{ ms}]$.
 
-   The estimator shrinks empirically across four hierarchical layers:
+   Interrupted Correct attempts are excluded from latency shrinkage across all four hierarchical layers:
    - **Static Prior Baseline ($P_0$)**: $4500\text{ ms}$
-   - **Learner Pace ($P_{\text{learner}}$)**: $\text{Shrink}(P_0, 12, \text{latest 30 learner Correct latencies})$
-   - **Operation Pace ($P_{\text{operation}}$)**: $\text{Shrink}(P_{\text{learner}}, 8, \text{latest 20 operation Correct latencies})$
-   - **Band Pace ($P_{\text{band}}$)**: $\text{Shrink}(P_{\text{operation}}, 6, \text{latest 15 band-frontier Correct latencies})$
-   - **Exact Fact Pace ($P_{\text{fact}}$)**: $\text{Shrink}(P_{\text{band}}, 4, \text{latest 5 exact-fact Correct latencies})$
+   - **Learner Pace ($P_{\text{learner}}$)**: $\text{Shrink}(P_0, 12, \text{latest 30 timing-eligible learner Correct latencies})$
+   - **Operation Pace ($P_{\text{operation}}$)**: $\text{Shrink}(P_{\text{learner}}, 8, \text{latest 20 timing-eligible operation Correct latencies})$
+   - **Band Pace ($P_{\text{band}}$)**: $\text{Shrink}(P_{\text{operation}}, 6, \text{latest 15 timing-eligible band-frontier Correct latencies})$
+   - **Exact Fact Pace ($P_{\text{fact}}$)**: $\text{Shrink}(P_{\text{band}}, 4, \text{latest 5 timing-eligible exact-fact Correct latencies})$
 
    $$\text{Shrink}(P_{\text{parent}}, W, \text{samples}) = \begin{cases} P_{\text{parent}} & \text{if samples is empty} \\ \left\lfloor \frac{W \cdot P_{\text{parent}} + |\text{samples}| \cdot \text{Median}(\text{samples}) + \frac{W + |\text{samples}|}{2}}{W + |\text{samples}|} \right\rfloor & \text{otherwise} \end{cases}$$
 
-   Empty samples return the parent pace estimate. Legacy unpositioned attempts ($PracticePosition = \text{NULL}$) and `ItemLearningState.RollingLatencyMs` do not drive adaptive pace.
-
-4. **Single Visible Adaptive Deadline, Acclimation Floors & Countdown**:
-   - Every presented arithmetic fact receives an adaptive answer deadline calculated and fixed before timing begins:
-     - **Durable Fact Proof**: A fact is proven when durable `ItemLearningState.CorrectAttempts > 0`. Only successfully persisted Correct attempts produce proof; Incorrect and Timeout attempts do not prove a fact.
-     - **Exact-Fact Instability Allowance**: evaluated over the latest 5 positioned attempts for that FactId (+1000 ms per Incorrect, +1500 ms per Timeout, capped at 3000 ms):
-       $$\text{Allowance} = \min(3000, 1000 \cdot N_{\text{incorrect}} + 1500 \cdot N_{\text{timeout}})$$
-     - **Multi-Digit Entry Allowance**: $+1000\text{ ms} \cdot \max(0, \text{DigitCount} - 1)$, derived from the canonical correct result ($0$ is 1 digit).
-     - **Adaptive Deadline Formula**:
-       $$\text{AdaptiveDeadlineMs} = \text{clamp}\left(\left\lceil \frac{2 \cdot P_{\text{fact}} + \text{Allowance} + \text{EntryAllowance}}{100} \right\rceil \cdot 100, 3000, 30000\right)$$
-     - **Digit-Aware Novelty Floors for Unproven Facts**:
-       - 1 answer digit: minimum $15000\text{ ms}$
-       - 2 answer digits: minimum $20000\text{ ms}$
-       - 3 answer digits: minimum $25000\text{ ms}$
-       - 4 or more answer digits: minimum $30000\text{ ms}$
-     - **Effective Deadline & Practice Time Floors**:
-       - Proven facts: $\text{BaseDeadlineMs} = \text{AdaptiveDeadlineMs}$
-       - Unproven facts: $\text{BaseDeadlineMs} = \min(30000, \max(\text{AdaptiveDeadlineMs}, \text{NoveltyFloorMs}))$
-       - **Configurable Practice-Time Floor**: Settings provide Standard adaptive timing (floor = 0) or explicit minimum floors: 30s ($30000\text{ ms}$), 45s ($45000\text{ ms}$), 60s ($60000\text{ ms}$). The effective deadline is $\max(\text{BaseDeadlineMs}, \text{PracticeTimeFloorMs})$.
-     - **Strict Non-Interference**: Novelty deadline extension and practice-time floors expand response opportunity only. They do not alter measured response latency, adaptive fluency thresholds, `IsFluent`, or FSRS ratings.
-   - A single visible countdown bar displays live remaining time with millisecond precision (`XX.XXX s`) inside the progress bar, depleting from right to left with a smooth green-to-red color transition.
-   - Timer text uses bold white tabular numerals with a restrained local dark shadow/contour. It has no translucent backing pill and no heavy `-webkit-text-stroke`. Countdown and progress behavior are unchanged. In No Time Pressure mode, the Timer remains visible as an elapsed count-up on a neutral track.
-   - Practice timing is active only while the application is foreground/interactable, the Practice surface is visible, the Practice gate is `Running`, and the session is awaiting an answer. Settings, onboarding, Ready/Pause/Resume gates, and feedback states keep the active item paused without consuming deadline or creating timeout attempts. Returning from Settings resumes the same question with the same remaining time. Same-process background/suspend preserves remaining time behind the background resume gate. A true cold process restart starts only the in-flight question timer fresh; stored Practice Time and learner progress remain intact.
-   - **Semantic Timeout Rule**: If elapsed active time reaches or exceeds the effective deadline, the attempt is recorded as `AttemptOutcome.Timeout`. A correct numeric entry submitted at or after the deadline remains a Timeout.
-
-5. **Adaptive FSRS Rating & Fluency Classification**:
+   Interrupted Incorrect and historical Timeout attempts continue to contribute their existing outcome/instability evidence to fact instability allowances (+1000 ms per Incorrect, +1500 ms per Timeout, capped at 3000 ms).
+6. **Normal Practice Without Deadline Failure (P1)**:
+   - Normal MathFirst practice never terminates a question or forces an arithmetic failure due to elapsed wall-clock time.
+   - A learner who takes extended active time and computes the correct answer receives a mathematically `Correct` outcome.
+   - Configurable practice-time limits and forced deadline timeouts are removed from normal practice.
+   - Historical / explicit `Timeout` outcomes from legacy sessions remain supported for backward compatibility and test verification.
+7. **Adaptive FSRS Rating & Fluency Classification**:
    - Thresholds derive from expected pace $P_{\text{fact}}$:
      $$\text{EasyThresholdMs} = \text{clamp}\left(\left\lfloor \frac{85 \cdot P_{\text{fact}} + 50}{100} \right\rfloor, 600, 2000\right)$$
      $$\text{FluencyThresholdMs} = \text{clamp}\left(\left\lfloor \frac{125 \cdot P_{\text{fact}} + 50}{100} \right\rfloor, 1500, 4000\right)$$
    - **Classification Rules**:
      - `Incorrect` $\implies$ Rating `Again`, `IsFluent = false`
-     - `Timeout` $\implies$ Rating `Again`, `IsFluent = false`
+     - `Timeout` (historical/explicit) $\implies$ Rating `Again`, `IsFluent = false`
      - `Correct` $\le \text{EasyThresholdMs} \implies$ Rating `Easy`, `IsFluent = true`
      - `Correct` in $(\text{EasyThresholdMs}, \text{FluencyThresholdMs}] \implies$ Rating `Good`, `IsFluent = true`
      - `Correct` $> \text{FluencyThresholdMs} \implies$ Rating `Hard`, `IsFluent = false`
-   - `IsFluent` is persisted on `AttemptRecord.IsFluent` and `attempt_history.is_fluent` in Schema V6. Historical rolling-window progression evaluates this persisted boolean directly.
+   - `IsFluent` is persisted on `AttemptRecord.IsFluent` and `attempt_history.is_fluent` in Schema V8.
+   - FSRS-6 rating and scheduling mechanics operate identically for uninterrupted and interrupted attempts based on active latency classification.
 
 ### Behavioral Requirement
 - The system distinguishes between:
   - **Automated Recall**: Fast, accurate responses at or below the adaptive fluency threshold (`IsFluent = true`).
   - **Conscious Calculation**: Correct responses requiring extended time beyond the adaptive fluency threshold (`IsFluent = false`).
   - **Incorrect Answer**: Submitted wrong numeric integer (`Outcome = Incorrect`, `IsFluent = false`).
-  - **Timeout**: Elapsed adaptive deadline window without valid submission (`Outcome = Timeout`, `IsFluent = false`).
+  - **Historical Timeout**: Expired deadline without valid submission in legacy/explicit modes (`Outcome = Timeout`, `IsFluent = false`).
 - Slowly calculated correct answers remain active in practice until retrieval is fluid.
 
 ### Pace Calibration Readiness ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
 
 Pace calibration is declared **READY** once a learner accumulates:
-$$\text{Count}\left( \text{attempt} \in \text{attempt\_history} \mid \text{PracticePosition} > 0 \land \text{Outcome} == \text{AttemptOutcome.Correct} \right) \ge 24$$
+$$\text{Count}\left( \text{attempt} \in \text{attempt\_history} \mid \text{PracticePosition} > 0 \land \text{Outcome} == \text{AttemptOutcome.Correct} \land \text{TimingEvidenceEligible} == \text{true} \right) \ge 24$$
 
-- **Empirical Stability Rationale**: Empirical shrinkage simulation proves that at $n=24$, subsequent `EasyThresholdMs` movement toward full convergence ($n=30$) drops below 10% (4.6% for intermediate learners, 9.0% for strong learners), whereas earlier checkpoints ($n=12, n=20$) exhibit high volatility.
-- **Fixed Criterion**: Derived directly from durable positioned Correct evidence without complex heuristics.
-- **Returning Learners**: Returning learners with $\ge 24$ durable positioned Correct attempts are immediately recognized as calibrated upon cold launch.
+- **Threshold**: Remains exactly 24 timing-eligible positioned Correct attempts (`PaceCalibrationCorrectAttemptThreshold == 24`).
+- **Runtime Property**: Evaluated via `PositionedCorrectAttemptCount`, which represents timing-eligible positioned Correct attempts.
+- **Returning Learners**: Returning learners with $\ge 24$ durable timing-eligible positioned Correct attempts are immediately recognized as calibrated upon cold launch.
 
 ### Downstream Gamification & Critical Hit Contract ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
 
 Combat and gamification mechanics (such as Cyber Defense) are strictly **downstream presentation consumers** of learning telemetry:
-- **Uncalibrated ($n < 24$ positioned Correct attempts)**: Every mathematically `Correct` answer deals **1 HP normal damage**. No speed bonuses or Critical Hits are awarded.
-- **Calibrated ($n \ge 24$ positioned Correct attempts)**: A `Correct` answer submitted with $\text{ResponseLatencyMs} \le \text{CurrentFactEasyThresholdMs}$ scores a **Critical Hit** dealing **2 HP damage**. A `Correct` answer with $\text{ResponseLatencyMs} > \text{CurrentFactEasyThresholdMs}$ deals **1 HP normal damage**.
+- **Uncalibrated ($n < 24$ timing-eligible positioned Correct attempts)**: Every mathematically `Correct` answer deals **1 HP normal damage**. No speed bonuses or Critical Hits are awarded.
+- **Calibrated ($n \ge 24$ timing-eligible positioned Correct attempts)**: A `Correct` answer submitted with $\text{ResponseLatencyMs} \le \text{CurrentFactEasyThresholdMs}$ scores a **Critical Hit** dealing **2 HP damage**. A `Correct` answer with $\text{ResponseLatencyMs} > \text{CurrentFactEasyThresholdMs}$ deals **1 HP normal damage**.
 - **Correct-But-Slow**: Correct answers submitted past the easy threshold remain mathematically correct and are celebrated with standard 1 HP damage.
 - **Absolute Non-Mutation Boundary**: Critical Hit outcomes, combat damage, enemy HP, combos, or defeats **must never** alter `AttemptOutcome`, response latency, FSRS ratings (`Again`, `Hard`, `Good`, `Easy`), card stability, `ItemLearningState`, `OperationProgression`, `PracticePosition`, or band advancement.
 
@@ -469,8 +473,6 @@ During active gameplay in gamified modes (such as Cyber Defense), the interactiv
 - **Layout-Isolated Boss Presentation**: Boss enemies must appear visually commanding, larger, and more threatening than standard enemies, but their visual scale must remain completely decoupled from layout geometry (`visual scale != layout scale`). Boss presentation uses compositor-driven CSS transforms (`transform: scale(...)`) on isolated artwork layers within fixed-dimension bounding boxes. Boss presence must never expand the surrounding DOM containers, stage wrappers, or combat layout boxes.
 - **Scoped Scroll Boundary**: The active gameplay surface (`.training-host.active-gameplay`) strictly suppresses horizontal and vertical scrolling via bounded layout geometry, definite height chain, `overflow: hidden;`, and defensive `overscroll-behavior: none;` (`touch-action: manipulation` is preserved for responsive tap interactions without double-tap delay, while scroll prevention is achieved through layout bounding). The active battle view must fit within the fixed viewport without scrolling on mobile and desktop devices. This scroll containment is strictly scoped: Settings (`.settings-page`), Onboarding (`.onboarding-host`), Privacy, and long modal dialogs must retain natural scrolling (`overflow-y: auto`).
 - **Deferred Future Topics**:
-  - *Adaptive Timing and Early Calibration Redesign (`DESIGN_REQUIRED`)*: Exploring adaptive, individual-calibrated countdowns or pacing models for diverse learner profiles (accommodating beginners with generous ~15–30s initial window and fast learners across ~18–24 early calibration attempts) while preserving the core mastery model.
-  - *Tester Telemetry Export and Share (`MF-TELEM-001`)*: Privacy-preserving manual export of local learner telemetry and diagnostic session data from Settings via native platform share sheet ([ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md)). Implemented and merged in PR #56 under Schema V7.
   - *Light-Theme Cyber Defense Visual Reconciliation (`DEFERRED`)*: Visual harmonization of combat scenes when operating under light appearance mode.
 
 ---
@@ -487,11 +489,12 @@ During active gameplay in gamified modes (such as Cyber Defense), the interactiv
 
 ### Local Persistence
 - Learning state, item histories, and progression milestones must persist reliably in local device storage.
-- The current learner persistence format is **Schema V7** (established by [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md) in `MF-TELEM-001`). It enriches SQLite `attempt_history` with five nullable presentation-context columns (`attempt_context_version`, `presented_deadline_ms`, `expected_pace_ms`, `resolved_role`, `operation_band_before`) captured atomically at presentation time with attempt evaluation, while losslessly preserving all historical attempts with NULL context.
-- Historical migrations (V4 $\to$ V5 for independent progression, V5 $\to$ V6 for persisted fluency, V6 $\to$ V7 for presentation context) execute transactionally, preserving all PracticePosition, store revision, item learning states, FSRS card states, and operation progression rows without reset.
+- The current learner persistence format is **Schema V8** (established by [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md) Amendment for P1b). It enriches SQLite `attempt_history` with `is_interrupted INTEGER NOT NULL DEFAULT 0 CHECK (is_interrupted IN (0, 1))` alongside the five presentation-context columns (`attempt_context_version`, `presented_deadline_ms`, `expected_pace_ms`, `resolved_role`, `operation_band_before`) captured atomically at presentation time with attempt evaluation, while losslessly preserving all historical attempts.
+- Historical migrations (V4 $\to$ V5 for independent progression, V5 $\to$ V6 for persisted fluency, V6 $\to$ V7 for presentation context, V7 $\to$ V8 for interruption safety) execute transactionally, preserving all PracticePosition, store revision, item learning states, FSRS card states, and operation progression rows without reset.
 - Local persistence must survive application restarts, browser refreshes, and device reboots.
-- The shared Application layer owns persistence contracts, telemetry export interfaces, and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V7 store and is registered by the native app through dependency injection.
-- Enabled-operation preferences, Practice Time preferences, and the pseudonymous installation UUID are stored in application preferences separately from learner SQLite progress. Only completed attempt latency and outcome are durable; an in-flight question's elapsed time, remaining deadline, and pause/active segment timestamps are not restored after a cold process restart.
+- The shared Application layer owns persistence contracts, telemetry export interfaces, and learning logic but no concrete SQLite implementation or `Microsoft.Data.Sqlite` package. The `MathFirst.Infrastructure.Sqlite` adapter owns the concrete Schema V8 store and is registered by the native app through dependency injection.
+- Telemetry export serializes complete attempt history to canonical JSON adhering to `telemetry_export_schema_v2` with 16 properties (including boolean `is_interrupted`).
+- Enabled-operation preferences, Practice Time preferences, and the pseudonymous installation UUID are stored in application preferences separately from learner SQLite progress. Only completed attempt latency, outcome, and interruption fact are durable; an in-flight question's elapsed time, remaining deadline, and pause/active segment timestamps are not restored after a cold process restart.
 
 ### Android Runtime and App-Data Location
 - The native MAUI application targets Android and Windows (`net10.0-android` and `net10.0-windows10.0.19041.0`); Web, iOS, and Mac Catalyst are not activated by the Android V1 runtime package.
@@ -580,15 +583,15 @@ The following register contains both resolved and unresolved product decisions. 
 | **Scheduler Mathematics** | FSRS-6 exact-fact scheduling with Practice Position virtual time, 95% desired retention, existing 21 parameters, and disabled fuzzing. | `RESOLVED` |
 | **Fact Catalog Strategy** | Hybrid dense/structured curriculum, deterministic procedural generation, unique acquisition ownership, stable identities, lazy materialization, and curriculum-bounded practice fact eligibility ($\text{owner}_O(F) \le B$) with dormant future-fact preservation ([ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), [ADR-0007](decisions/ADR-0007-curriculum-fact-eligibility-invariant-and-startup-resilience.md)). | `RESOLVED` |
 | **Telemetry, Analytics, and Crash Diagnostics** | Whether and how telemetry, analytics, and crash diagnostics should operate. | `UNRESOLVED` |
-| **Exact Fluency Thresholds & Rating Mapping** | Adaptive expected pace $P_{\text{fact}}$ with Easy $\le 0.85 \cdot P_{\text{fact}}$ (clamp 600..2000 ms), Fluency $\le 1.25 \cdot P_{\text{fact}}$ (clamp 1500..4000 ms), Hard $> \text{FluencyThreshold}$, and persisted `IsFluent` in Schema V6 ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
-| **Adaptive Answer Deadline & Pace Model** | Hierarchical shrinkage pace estimation ($P_0=4500$, $P_{\text{learner}}$, $P_{\text{operation}}$, $P_{\text{band}}$, $P_{\text{fact}}$), instability allowance, entry allowance, digit-aware novelty floors (15s/20s/25s/30s) for unproven facts, clamped 3000..30000 ms ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md)). | `RESOLVED` |
+| **Exact Fluency Thresholds & Rating Mapping** | Adaptive expected pace $P_{\text{fact}}$ with Easy $\le 0.85 \cdot P_{\text{fact}}$ (clamp 600..2000 ms), Fluency $\le 1.25 \cdot P_{\text{fact}}$ (clamp 1500..4000 ms), Hard $> \text{FluencyThreshold}$, and persisted `is_fluent` in Schema V8 ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md), [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md)). | `RESOLVED` |
+| **Adaptive Answer Deadline & Pace Model** | Hierarchical shrinkage pace estimation ($P_0=4500$, $P_{\text{learner}}$, $P_{\text{operation}}$, $P_{\text{band}}$, $P_{\text{fact}}$), instability allowance, entry allowance, digit-aware novelty floors (15s/20s/25s/30s) for unproven facts, clamped 3000..30000 ms; normal practice operates without deadline failure ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md), `P1`). | `RESOLVED` |
 | **Coverage-First Dense Acquisition & Rapid Progression** | Complete frontier coverage and $C \cdot 10 \ge N \cdot 9$ correctness rule with Coverage-First New selection and recoverable errors; retired Fast Acquisition and MUL-D01 exception ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md)). | `RESOLVED` |
 | **Repeated-Error Learning Interventions** | Non-scored teaching overlay for second consecutive session error on exact FactId, displaying canonical equation and result without learning mutations ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
-| **Exact Range Expansion Increments** | Dense bands advance via complete frontier coverage and $C \cdot 10 \ge N \cdot 9$; Structured bands advance via 40-attempt rolling window gate ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md)). | `RESOLVED` |
+| **Exact Range Expansion Increments** | Dense bands advance via complete frontier coverage and $C \cdot 10 \ge N \cdot 9$; Structured bands advance via the Dual-Window progression gate (Window A: 40 qualifying mathematical attempts; Window B: 40 timing-eligible attempts with $\ge 34$ fluent) ([ADR-0005](decisions/ADR-0005-acclimation-timing-and-rapid-dense-progression.md), `P1b`). | `RESOLVED` |
 | **Commutative Cross-Seeding** | Whether and how mastery of `3 + 4` influences initial recall expectations for `4 + 3`. | `UNRESOLVED` |
 | **Multi-Operation Range Sequencing** | Deterministic Addition/Subtraction/Multiplication/Division scheduling interleave with fully independent per-operation band advancement and no global checkpoint. | `RESOLVED` |
 | **Manual Operation Control** | Users can independently enable/disable Addition, Subtraction, Multiplication, and Division in Settings (at least one enabled; deterministic bounded operation scheduling; independent per-operation role ordinals; progress preserved across toggles; zero-mutation Settings reconciliation) (`MF-SET-001`, `MF-STAB-002`, [ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md)). | `RESOLVED` |
-| **Practice Time Configuration** | Standard adaptive timing, configurable response deadline floors (30s, 45s, 60s), and No Time Pressure mode (unlimited response time with active latency measurement) without altering raw latency measurement, fluency thresholds, or FSRS ratings (`MF-SET-001`, `MF-UX-005`). | `RESOLVED` |
+| **Practice Time Configuration** | Normal practice no longer enforces deadlines across any setting (`HasEnforcedDeadline = false`); existing Practice Time choices (Standard, 30s, 45s, 60s, No Time Pressure) remain visible as accepted transitional UX debt pending P4 (Settings Simplification) (`MF-SET-001`, `MF-UX-005`, `P1`, `P1b`). | `RESOLVED` |
 | **Session Length & Bounding** | Periodic session check-in cadence every 20 accepted attempts with correctness/median-speed summary and Keep Going vs. Take a Break flow ([ADR-0004](decisions/ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md)). | `RESOLVED` |
 | **Answer Submission Trigger** | Deterministic smart auto-submit for complete canonical integer answers, with Enter as a valid explicit force-submit path and no permanent Submit action. | `RESOLVED` |
 | **Progress Visualization Details** | Specific dashboard widgets, charts, and mastery visual indicators. | `UNRESOLVED` |
@@ -598,8 +601,8 @@ The following register contains both resolved and unresolved product decisions. 
 | **Cloud Account & Sync Architecture** | Optional cloud synchronization design and account backend protocols. | `UNRESOLVED` |
 | **Export/Import Specification** | Exact schema, file format, and migration rules for manual data transfer. | `UNRESOLVED` |
 | **Active Combat Positional Stability** | Positional stability invariant (fixed keypad coordinates, layout-isolated boss presentation via compositor transforms, scoped gameplay scroll suppression) (`MF-UX-008`). | `RESOLVED` |
-| **Adaptive Timing Calibration** | Adaptive, learner-calibrated countdowns and pacing models (accommodating young beginners and fast adults). | `DESIGN_REQUIRED` |
-| **Tester Telemetry Export** | Privacy-preserving manual export of complete attempt telemetry for testing via native system share dialog with sandboxed FileProvider security (`MF-TELEM-001`, [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md)). | `RESOLVED` |
+| **Adaptive Timing Calibration** | Pace calibration readiness declared at $\ge 24$ timing-eligible positioned Correct attempts; normal practice operates without deadline failure; active interaction timing is segmented across interruptions ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md), `P1`, `P1b`). | `RESOLVED` |
+| **Tester Telemetry Export** | Privacy-preserving manual export of complete attempt telemetry for testing via native system share dialog with sandboxed FileProvider security (`MF-TELEM-001`, `P1b`, [ADR-0011](decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md), `telemetry_export_schema_v2`). | `RESOLVED` |
 | **Light-Theme Combat Background** | Visual background styling and contrast harmonization for Cyber Defense in light theme. | `DEFERRED` |
 
 ---

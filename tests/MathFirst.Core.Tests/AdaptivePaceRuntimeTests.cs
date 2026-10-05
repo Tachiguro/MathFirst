@@ -550,6 +550,111 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void InterruptedCorrect_ExcludedFromLearnerPace()
+    {
+        var fact = SelectedFact();
+        var cleanAttempts = Enumerable.Range(1, 10)
+            .Select(i => Attempt(i, new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2), AttemptOutcome.Correct, 2000, isInterrupted: false))
+            .ToArray();
+
+        var baselineResult = Calculate(cleanAttempts, fact, [fact.Id]);
+
+        var mixedAttempts = cleanAttempts
+            .Concat(Enumerable.Range(11, 10).Select(i => Attempt(i, new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2), AttemptOutcome.Correct, 12000, isInterrupted: true)))
+            .ToArray();
+
+        var resultWithInterrupted = Calculate(mixedAttempts, fact, [fact.Id]);
+
+        Assert.Equal(baselineResult.LearnerPaceMs, resultWithInterrupted.LearnerPaceMs);
+    }
+
+    [Fact]
+    public void InterruptedCorrect_ExcludedFromOperationPace()
+    {
+        var fact = SelectedFact();
+        var cleanAttempts = Enumerable.Range(1, 10)
+            .Select(i => Attempt(i, new ArithmeticFact(ArithmeticOperation.Addition, 3, 3), AttemptOutcome.Correct, 2000, isInterrupted: false))
+            .ToArray();
+
+        var baselineResult = Calculate(cleanAttempts, fact, [fact.Id]);
+
+        var mixedAttempts = cleanAttempts
+            .Concat(Enumerable.Range(11, 10).Select(i => Attempt(i, new ArithmeticFact(ArithmeticOperation.Addition, 4, 4), AttemptOutcome.Correct, 12000, isInterrupted: true)))
+            .ToArray();
+
+        var resultWithInterrupted = Calculate(mixedAttempts, fact, [fact.Id]);
+
+        Assert.Equal(baselineResult.OperationPaceMs, resultWithInterrupted.OperationPaceMs);
+    }
+
+    [Fact]
+    public void InterruptedCorrect_ExcludedFromBandPace()
+    {
+        var fact = SelectedFact();
+        var bandFact = new ArithmeticFact(ArithmeticOperation.Addition, 1, 2);
+        var cleanAttempts = Enumerable.Range(1, 10)
+            .Select(i => Attempt(i, bandFact, AttemptOutcome.Correct, 2000, isInterrupted: false))
+            .ToArray();
+
+        var baselineResult = Calculate(cleanAttempts, fact, [fact.Id, bandFact.Id]);
+
+        var mixedAttempts = cleanAttempts
+            .Concat(Enumerable.Range(11, 10).Select(i => Attempt(i, bandFact, AttemptOutcome.Correct, 12000, isInterrupted: true)))
+            .ToArray();
+
+        var resultWithInterrupted = Calculate(mixedAttempts, fact, [fact.Id, bandFact.Id]);
+
+        Assert.Equal(baselineResult.BandPaceMs, resultWithInterrupted.BandPaceMs);
+    }
+
+    [Fact]
+    public void InterruptedCorrect_ExcludedFromFactPace()
+    {
+        var fact = SelectedFact();
+        var cleanAttempts = Enumerable.Range(1, 5)
+            .Select(i => Attempt(i, fact, AttemptOutcome.Correct, 2000, isInterrupted: false))
+            .ToArray();
+
+        var baselineResult = Calculate(cleanAttempts, fact, [fact.Id]);
+
+        var mixedAttempts = cleanAttempts
+            .Concat(Enumerable.Range(6, 5).Select(i => Attempt(i, fact, AttemptOutcome.Correct, 12000, isInterrupted: true)))
+            .ToArray();
+
+        var resultWithInterrupted = Calculate(mixedAttempts, fact, [fact.Id]);
+
+        Assert.Equal(baselineResult.FactPaceMs, resultWithInterrupted.FactPaceMs);
+    }
+
+    [Fact]
+    public void InterruptedIncorrect_StillContributesNormalInstabilityEvidence()
+    {
+        var fact = SelectedFact();
+        var cleanAttempts = new[]
+        {
+            Attempt(1, fact, AttemptOutcome.Correct, 2000, isInterrupted: false)
+        };
+        var baseline = Calculate(cleanAttempts, fact, [fact.Id]);
+        Assert.Equal(0, baseline.InstabilityAllowanceMs);
+
+        var withInterruptedIncorrect = new[]
+        {
+            Attempt(1, fact, AttemptOutcome.Correct, 2000, isInterrupted: false),
+            Attempt(2, fact, AttemptOutcome.Incorrect, 15000, isInterrupted: true)
+        };
+        var resultIncorrect = Calculate(withInterruptedIncorrect, fact, [fact.Id]);
+        Assert.Equal(1000, resultIncorrect.InstabilityAllowanceMs);
+
+        var withInterruptedCorrect = new[]
+        {
+            Attempt(1, fact, AttemptOutcome.Correct, 2000, isInterrupted: false),
+            Attempt(2, fact, AttemptOutcome.Correct, 15000, isInterrupted: true)
+        };
+        var resultCorrect = Calculate(withInterruptedCorrect, fact, [fact.Id]);
+        Assert.Equal(0, resultCorrect.InstabilityAllowanceMs);
+    }
+
+    [Fact]
     public async Task SubmissionLogic_LateCorrectAnswer_PreservesCorrectnessLatencyAndNonFluentHardRating()
     {
         var clock = new FakeClock { ElapsedMs = 28000 };
@@ -759,7 +864,8 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
         long? practicePosition,
         ArithmeticFact fact,
         AttemptOutcome outcome,
-        long latencyMs) =>
+        long latencyMs,
+        bool isInterrupted = false) =>
         new(
             $"attempt-{practicePosition?.ToString() ?? "legacy"}-{fact.Id}-{outcome}",
             fact.Id,
@@ -773,7 +879,8 @@ public sealed class AdaptivePaceRuntimeTests : IDisposable
             latencyMs,
             DateTimeOffset.UnixEpoch.AddSeconds(practicePosition ?? 0),
             outcome,
-            practicePosition);
+            practicePosition,
+            isInterrupted: isInterrupted);
 
     private static LearnerSnapshot FreshSnapshot(
         IReadOnlyDictionary<string, ItemLearningState>? itemStates = null) =>

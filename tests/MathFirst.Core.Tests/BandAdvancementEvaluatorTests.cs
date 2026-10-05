@@ -368,6 +368,82 @@ public sealed class BandAdvancementEvaluatorTests
         Assert.Equal(900, decision.ResultingProgression.BandStartedPracticePosition);
     }
 
+    [Fact]
+    public void StructuredBand_InterruptedCorrect_CountsInMathematicalWindow()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 45, correctCount: 45, fluentCount: 45, interruptedCount: 5);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.True(decision.Advances);
+    }
+
+    [Fact]
+    public void StructuredBand_InterruptedIncorrect_CountsInMathematicalWindow()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 38, fluentCount: 38, interruptedCount: 2);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.False(decision.Advances);
+    }
+
+    [Fact]
+    public void StructuredBand_RequiresFullTimingEligibleWindow()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 40, fluentCount: 40, interruptedCount: 5);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.False(decision.Advances);
+        Assert.Same(testCase.Progression, decision.ResultingProgression);
+    }
+
+    [Fact]
+    public void StructuredBand_Advances_With40EligibleWindowMeetingFluencyRequirement()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 45, correctCount: 45, fluentCount: 39, interruptedCount: 5);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.True(decision.Advances);
+        Assert.Equal(11, decision.ResultingProgression.BandIndex);
+    }
+
+    [Fact]
+    public void StructuredBand_UninterruptedSlowAttempt_CountsAsNonFluentEligibleEvidence()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 40, fluentCount: 33, interruptedCount: 0);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.False(decision.Advances);
+    }
+
+    [Fact]
+    public void StructuredBand_UninterruptedIncorrect_CountsAsNonFluentEligibleEvidence()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 38, fluentCount: 34, interruptedCount: 0);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.True(decision.Advances);
+    }
+
+    [Fact]
+    public void StructuredBand_UsesOlderEligibleAttemptsBeyondLatest40Total()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 50, correctCount: 50, fluentCount: 50, interruptedCount: 10);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.True(decision.Advances);
+        Assert.Equal(11, decision.ResultingProgression.BandIndex);
+        Assert.Equal(150, decision.ResultingProgression.BandStartedPracticePosition);
+    }
+
+    [Fact]
+    public void StructuredBand_CorrectnessStillUsesLatest40Total_NotLatest40Eligible()
+    {
+        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 45, correctCount: 42, fluentCount: 42, interruptedCount: 3);
+
+        var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
+        Assert.False(decision.Advances);
+    }
+
     private static AdvancementCase CreateCase(
         ArithmeticOperation operation,
         int bandIndex,
@@ -378,7 +454,8 @@ public sealed class BandAdvancementEvaluatorTests
         int frontierAttemptCount = 40,
         int? distinctFrontierCount = null,
         bool completeCoverage = true,
-        bool completeIntroductions = true)
+        bool completeIntroductions = true,
+        int interruptedCount = 0)
     {
         if (fluentCount > correctCount)
         {
@@ -401,13 +478,15 @@ public sealed class BandAdvancementEvaluatorTests
                     ? usedFrontier[index % usedFrontier.Length].Id
                     : nonFrontierId;
                 var isCorrect = index < correctCount;
+                var isInterrupted = index >= (attemptCount - interruptedCount);
                 var latency = isCorrect && index < fluentCount ? 2500 : 2501;
                 return new BandAttemptEvidence(
                     bandStart + index + 1,
                     factId,
                     isCorrect,
                     isCorrect && index < fluentCount,
-                    latency);
+                    latency,
+                    isInterrupted: isInterrupted);
             })
             .ToArray();
 
@@ -445,7 +524,8 @@ public sealed class BandAdvancementEvaluatorTests
             attempt.FactId,
             attempt.IsCorrect,
             attempt.IsFluent,
-            attempt.ResponseLatencyMs));
+            attempt.ResponseLatencyMs,
+            attempt.IsInterrupted));
 
     private static CurriculumBand GetBand(OperationCurriculum curriculum, int bandIndex)
     {

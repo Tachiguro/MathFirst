@@ -132,16 +132,22 @@ Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
-### Historical Reference Delivery Baseline (Snapshot as of 2026-10-01)
+### Historical Reference Delivery Baseline (Snapshot as of 2026-10-05)
 - **Historical Testing Verification (Roadmap Steps 51–54)**:
   - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
   - Step 52: Fresh Tester APK packaged and validated offline (`STEP_52_TESTER_APK_PASS`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`).
   - Step 53: Installed on physical Samsung Galaxy S26 Ultra (`STEP_53_INSTALL_PASS`).
   - Step 54: Manual physical-device tester validation completed (`STEP_54_MANUAL_VALIDATION_PASS`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54).
-- **Pre-Step55 V1 Refinement Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) covering P0 through P8, with P0 (Zero-Answer / `0 + 0` Core-Flow Freeze) as next planned item under `PLAN_ONLY`.
-- **Historical Documentation Reconciliation Reference**: PR #57 (`975fb134636f33fba4a54b399aedae80edf95235`): `docs: reconcile post-mf-telem-001 project state`
-- **Delivered Implementation Package Reference (MF-TELEM-001)**: PR #56 (`bbdf62652927efa26475a9f2d83778de6465f5e1`): `MF-TELEM-001: Tester Telemetry Export and Share`
+- **Pre-Step55 V1 Refinement Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) covering P0 through P8:
+  - P0 (Zero-Answer / `0 + 0` Core-Flow Freeze): Delivered & Merged (PR #60).
+  - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
+  - P1b (Active Thinking Time / Interruption Safety): Complete across 4 checkpoint commits on task branch `feat/p1b-active-thinking-time` (implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`).
+- **Delivered Pre-Step55 Packages & Merged PRs**:
+  - PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): `P1: normal practice without deadline failure`
+  - PR #60 (`10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): `P0: resolve zero-answer core-flow freeze`
+  - PR #57 (`975fb134636f33fba4a54b399aedae80edf95235`): `docs: reconcile post-mf-telem-001 project state`
+  - PR #56 (`bbdf62652927efa26475a9f2d83778de6465f5e1`): `MF-TELEM-001: Tester Telemetry Export and Share`
 - **Preceding Historical Reference PRs**:
   - PR #55 (`76116d11b8563b0407188ba53ccefd998eda958d`): `MF-UX-008: stabilize Cyber Defense combat layout and opponent presentation`
   - PR #54 (`bc7471b098e2f79262ff6e71302820bd281a14d5`): `MF-LEARN-006: adaptive learning policy, 482 benchmark, and durable calibration`
@@ -149,9 +155,10 @@ Worktrees: Exactly one normal worktree by default
   - PR #52 (`f6a842b71df39b2d6facafae41874c86d6f3f611`): `docs: harden agent prompt governance`
   - PR #51 (`01472b05ef83f586144414a3cb3a0c7abbc45189`): `docs: record adaptive learning policy design`
   - PR #50 (`fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`): `feat: add Cyber Defense training MVP`
-- Schema: V7 (delivered via PR #56)
+- Schema: V8 (delivered via P1b; adds `is_interrupted` to `attempt_history`)
+- Telemetry: `telemetry_export_schema_v2` (16 properties including boolean `is_interrupted`)
 - Build 2 status: `REJECTED` (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`).
-- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, MF-LEARN-006, MF-UX-008, and MF-TELEM-001, and no longer represents current repository source.
+- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, MF-LEARN-006, MF-UX-008, MF-TELEM-001, P0, P1, and P1b, and no longer represents current repository source.
 - Future candidate status: Any future production candidate requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Session Discovery & Candidate Resolution Protocol
@@ -160,21 +167,16 @@ When initializing a new session:
 2. **Verify live repository synchronization**: Fetch `origin` (`git fetch origin`), inspect live `origin/main` (`git rev-parse origin/main`), and verify that local `main` is synchronized with `origin/main` (`git status`, `git log origin/main..HEAD`, `git log HEAD..origin/main`). Never require equality to a documentation-embedded SHA; live synchronization is determined by Git tracking state.
 3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing. Step 55 remains unauthorized.
 4. **Resolve active work from live state**: Check for open PRs (`gh pr list --state open`), divergent local task branches with unmerged work, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch has unmerged work, and working tree on `main` is clean, there is no in-flight work.
-5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P0 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
+5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P2 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **P1 Normal Practice Without Deadline Failure** (PR #61, merge `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): Removed automatic timeout failure from normal practice while preserving active interaction latency measurement, adaptive pace estimation, and FSRS rating semantics.
+- **P0 Zero-Answer / `0 + 0` Core-Flow Freeze** (PR #60, merge `10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): Resolved physical hardware freeze when entering 0 for `0 + 0` from fresh/reset state; reinforced state release across submit $\to$ commit $\to$ next fact pipeline.
 - **Post-MF-TELEM-001 Documentation Reconciliation** (PR #57, merge `975fb134636f33fba4a54b399aedae80edf95235`): Reconciled repository baseline documentation following the merge of PR #56.
 - **MF-TELEM-001 Tester Telemetry Export and Share** (PR #56, merge `bbdf62652927efa26475a9f2d83778de6465f5e1`): Delivered Schema V7 persistence with five nullable presentation-context columns, pseudonymous random installation UUID, canonical JSON export contract (`telemetry_export_schema_v1`), sandboxed native platform sharing (`telemetry-share`), Full Local Reset cleanup, localized Settings export and reset UI, and non-interference regression coverage (`REVIEW_PASS`, 1,906 Core tests passed, 0 warnings/errors Windows & Android builds).
 - **MF-UX-008 Static Combat Layout and Boss Presentation** (PR #55, merge `76116d11b8563b0407188ba53ccefd998eda958d`, feature HEAD `43949fdc7513714d9e4cbb755d0c5c8da5ba4a8b`): Delivered static combat layout positional stability (keypad and arithmetic typography stationary across combat transitions), layout-isolated boss presentation (`clamp(90px, 16vh, 140px)`), visual layering (`z-index: 4` + scrim protection), progressive opponent scaling (0.65 to 1.50), tier-preserving feedback scale composition (`SCALE_PRESERVED_ACROSS_ALL_STATES`), and scoped active-gameplay scroll suppression (`.training-host.active-gameplay`) (`REVIEW_PASS`, `USER_PHYSICAL_DEVICE_ACCEPTANCE_PASS`, 1,786 Core tests passed, Schema V6 preserved).
 - **MF-LEARN-006 Adaptive Learning Policy, 482 Benchmark, and Durable Calibration** (PR #54, merge `bc7471b098e2f79262ff6e71302820bd281a14d5`, candidate `576836db96d4d16e3be2d701c66c5adea3ecd1fb`): Delivered Option-B Evidence-Adaptive Discovery, absolute no-immediate-fact-repetition invariant ($\text{FactId}(t+1) \ne \text{FactId}(t)$), tiered remediation (4 / 2 cooldown spacing; broad weakness threshold 2), Guided Gate G3 soft decoupling at `BandIndex >= 3`, durable pace calibration at $\ge 24$ positioned Correct attempts, calibrated downstream Cyber Defense Critical Hits, exact 482 strong-learner benchmark, restart determinism, and exact-candidate `FULL_VALIDATION_PASS` (1,772 Core tests passed in Debug/Release, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, Schema V6 preserved without migration).
-- **Post-PR #51/#52 Documentation Reconciliation** (PR #53, merge `50aed4714937777f98058cc64afb75a75d749709`): Reconciled baseline documentation following PR #51 and PR #52.
-- **Agent Prompt Governance Hardening** (PR #52, merge `f6a842b71df39b2d6facafae41874c86d6f3f611`): Hardened repository governance with strict fail-closed project/task identity verification, single-canonical-checkout enforcement, forbidden Git operations, strict staging rules, and multi-mode operation boundaries across `AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, and `docs/NEW_CHAT_BOOTSTRAP.md`.
-- **Adaptive Learning Policy Design** (PR #51, merge `01472b05ef83f586144414a3cb3a0c7abbc45189`): Formalized evidence-adaptive discovery, absolute no-immediate-fact-repetition invariant, tiered weakness remediation, guided gate soft decoupling, and pace calibration benchmark in canonical specification `docs/superpowers/specs/2026-09-26-adaptive-learning-policy-design.md` and ADR-0010.
-- **Cyber Defense Training MVP** (PR #50, merge `fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`): Delivered Cyber Defense mini-game training mode MVP.
-- **Progression Coherence Audit** (PR #49, merge `a1a02716b0e0b0acb020c21f9d4c13045bf803c5`): Added deterministic regression coverage for curriculum progression coherence.
-- **MF-DOC-008 Post-MF-UX-007 Merge State Reconciliation** (PR #48, merge `1a6b306a0346f4899247f9ea3dc05107c1afa03d`): Reconciled repository baseline documentation following PR #47 merge.
-- **MF-UX-007 Progress Presentation Cleanup** (PR #47, merge `d37fbe3347679220bf847b06c83f7f9366738d03`, candidate `5f489bae56cfd3bb9ea0b895baaf6778382ef867`): Delivered concise learner-facing Stage terminology across English, German, and Russian, structured Ready Gate overview for returning learners with completed practice history, active practice HUD accessibility and tooltip descriptions (`Training_OperationProgressGroupAriaLabel`), responsive layout preservation across viewports, surface elevation design tokens, and exact-candidate `FULL_VALIDATION_PASS` (1,605 Core tests passed, 0 warnings/errors Windows & Android Release builds, 0 NuGet vulnerabilities, tree identity `6761a9eb217bcea11f0f5bc7e14cc594100efd95`, Schema V6 preserved without migration).
-- **Predecessors**: Slices and packages prior to PR #47 are documented in [docs/PROJECT_STATE.md](PROJECT_STATE.md).
+- **Predecessors**: Slices and packages prior to PR #54 are documented in [docs/PROJECT_STATE.md](PROJECT_STATE.md).
 
 ### Downstream Roadmap Stages
 - **Pre-Step55 V1 Refinement Program**: The active planned path follows workstreams P0 through P8 documented in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md).
