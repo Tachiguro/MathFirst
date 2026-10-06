@@ -42,4 +42,19 @@ public static class CyberDefenseRadarTimingPolicy
             NegativeDelayMs: -clampedElapsed,
             IsExhausted: isExhausted);
     }
+
+    /// <summary>
+    /// Calculates the authoritative derived Critical Hit timing threshold based on the
+    /// learner's calibrated Easy threshold scaled by the number of digits in the correct answer.
+    /// </summary>
+    public static long CalculateCriticalHitThresholdMs(long easyThresholdMs, int correctResult)
+    {
+        if (easyThresholdMs < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(easyThresholdMs), "Threshold must be non-negative.");
+        }
+
+        var digitCount = AdaptivePacePolicy.GetDigitCount(correctResult);
+        return checked(easyThresholdMs * digitCount);
+    }
 }

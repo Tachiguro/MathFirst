@@ -415,6 +415,81 @@ public sealed class CyberDefenseCalibrationGateTests
         Assert.Equal(session2.Progression.PracticePosition, session1.Progression.PracticePosition);
     }
 
+    [Theory]
+    [InlineData(0, 1500)]
+    [InlineData(9, 1500)]
+    [InlineData(10, 3000)]
+    [InlineData(99, 3000)]
+    [InlineData(100, 4500)]
+    [InlineData(999, 4500)]
+    [InlineData(1000, 6000)]
+    public void CyberDefenseRadarTimingPolicy_CalculateCriticalHitThresholdMs_ExactBoundaryMultiplication(int correctResult, long expectedThresholdMs)
+    {
+        const long baseEasyThresholdMs = 1500;
+        var threshold = CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(baseEasyThresholdMs, correctResult);
+        Assert.Equal(expectedThresholdMs, threshold);
+    }
+
+    [Fact]
+    public void CyberDefenseRadarTimingPolicy_CalculateCriticalHitThresholdMs_RejectsNegativeInputs()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(-1, 42));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(1500, -1));
+    }
+
+    [Fact]
+    public async Task CyberDefense_DigitScaledCriticalHitThreshold_DerivedWithoutMutatingLearningThresholds()
+    {
+        var (session, _, _) = await CreateSessionAsync(positionedCorrectAttemptCount: 24);
+        var fact = session.CurrentFact;
+        var digitCount = AdaptivePacePolicy.GetDigitCount(fact.CorrectResult);
+
+        var easyThreshold = session.CurrentFactEasyThresholdMs;
+        var fluencyThreshold = session.CurrentFactFluencyThresholdMs;
+        var expectedPace = session.CurrentFactExpectedPaceMs;
+        var criticalThreshold = session.CurrentFactCriticalHitThresholdMs;
+
+        // Critical Hit threshold is exact digit-scaled multiple
+        Assert.Equal(checked(easyThreshold * digitCount), criticalThreshold);
+
+        // Underlying learning thresholds remain completely unchanged and bounded
+        Assert.Equal(easyThreshold, session.CurrentFactEasyThresholdMs);
+        Assert.InRange(session.CurrentFactEasyThresholdMs, AdaptivePacePolicy.MinimumEasyThresholdMs, AdaptivePacePolicy.MaximumEasyThresholdMs);
+        Assert.Equal(fluencyThreshold, session.CurrentFactFluencyThresholdMs);
+        Assert.InRange(session.CurrentFactFluencyThresholdMs, AdaptivePacePolicy.MinimumFluencyThresholdMs, AdaptivePacePolicy.MaximumFluencyThresholdMs);
+        Assert.Equal(expectedPace, session.CurrentFactExpectedPaceMs);
+    }
+
+    [Fact]
+    public void CyberDefense_CriticalHitSeparation_PreservesLearningClassificationSemantics()
+    {
+        // Example: Base easy threshold = 1500ms, fluency threshold = 2200ms.
+        // Fact with 3-digit answer (e.g. 100) has CriticalHitThresholdMs = 4500ms.
+        // A response at 3000ms is within the 4500ms Critical Hit window, but for learning evaluation
+        // it must classify strictly under unchanged learning thresholds (3000ms > 2200ms -> Hard, non-fluent).
+        const long easyThresholdMs = 1500;
+        const long fluencyThresholdMs = 2200;
+        const int threeDigitResult = 100;
+        var criticalHitThresholdMs = CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(easyThresholdMs, threeDigitResult);
+        Assert.Equal(4500, criticalHitThresholdMs);
+
+        const long responseLatencyMs = 3000;
+        Assert.True(responseLatencyMs <= criticalHitThresholdMs, "Latency is within the expanded 3-digit Critical Hit window.");
+
+        var classification = AdaptiveAttemptClassifier.Classify(
+            AttemptOutcome.Correct,
+            responseLatencyMs,
+            easyThresholdMs,
+            fluencyThresholdMs);
+
+        // Learning classification is NOT made Easy/Fluent by the expanded Critical Hit window
+        Assert.False(classification.IsFluent);
+        Assert.Equal(FsrsRating.Hard, classification.Rating);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();
