@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Implemented and reviewed P2b (Gameplay and Startup Refinements) across three checkpoint slices on task branch `feat/p2b-gameplay-startup-refinements` (candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`, review verdict `P2B_REVIEW_APPROVED`, 2,027 Core tests passing, formal `FULL_VALIDATION` pending):
+  - **Digit-Scaled Critical Hit Timing**: Cyber Defense Critical Hit window scales with answer length: $\text{CriticalHitThresholdMs} = \text{CurrentFactEasyThresholdMs} \times \text{DigitCount}(\text{CorrectResult})$ ($0, 9 \to 1\times$; $10, 99 \to 2\times$; $100, 999 \to 3\times$; $1000 \to 4\times$).
+  - **Shared Radar and Damage Authority**: Both the radar countdown arc and combat damage scoring consume `Session.CurrentFactCriticalHitThresholdMs`.
+  - **Fresh Startup Ready Gate Orientation**: Placed fresh practice startup behind `InitialReadyGate` with no progress overview and no active timing before explicit Start, aligning pre-attempt orientation with returning learners while active timing begins from zero.
+  - **Strict Learning Non-Interference**: Preserved learning telemetry, FSRS card state, and adaptive pace shrinkage without mutation.
+- Completed and merged P2 (Direct-to-Practice Start / Remove Onboarding) through Pull Request #63 at `1b485091755294221b6f242e174d99c168fc8e9d` (validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`, `P2_VALIDATION_FIX_REVIEW_APPROVED`, `P2_FULL_VALIDATION_PASSED`, 2,014 Core tests passing):
+  - **Direct Practice Launch**: Fresh installs and reset sessions start directly in Practice on `/` with Addition enabled by default, Numpad layout, System theme/language, and haptics enabled.
+  - **Returning Learner Gate Preservation**: Preserved Initial Ready Gate and concise progress overview for learners with completed practice history.
+  - **Onboarding Cleanup**: Completely removed obsolete `OnboardingHost.razor`, router gates, CSS styles, localization keys, and preference store APIs.
+  - **Domain Fallback Separation**: Restored generic domain fallback normalization to `AllOperations` while retaining application-level Addition-only default on fresh installations.
+- Completed and merged P1b (Active Thinking Time / Interruption Safety) through Pull Request #62 at `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912` (review `REVIEW_APPROVED`, full validation `FULL_VALIDATION_PASS`, 2,010 Core tests passing):
+  - **Segmented Active Timing**: Excluded manual pause, app backgrounding, and navigation interruption duration from measured response latency.
+  - **Durable Interruption Tracking (Schema V8)**: Persisted `is_interrupted` in SQLite `attempt_history` table.
+  - **Timing Evidence Eligibility**: Derived `TimingEvidenceEligible = !IsInterrupted`, neutralizing timing updates for interrupted Correct and excluding contaminated latency from pace shrinkage.
+  - **Dual-Window Structured Band Progression**: Implemented Window A (40 qualifying mathematical attempts, $\ge 38$ Correct) and Window B (40 timing-eligible attempts, $\ge 34$ fluent).
+  - **Telemetry Export Schema V2**: Updated export format to serialize 16 properties including boolean `is_interrupted`.
+- Completed and merged P1 (Normal Practice Without Deadline Failure) through Pull Request #61 at `4e3ca4943c5809cbe470a4b0ac4f192b24b66795` (review `P1_REVIEW_APPROVED_WITH_DOCS`, full validation `P1_FULL_VALIDATION_PASSED`, 1,936 Core tests passing):
+  - **No Deadline Failure**: Removed automatic timeout failure and question termination from normal practice (`HasEnforcedDeadline = false`).
+  - **Authentic Latency Measurement**: Graded late answers by mathematical correctness while preserving response latency measurement, adaptive pace estimation, and FSRS rating semantics.
+- Completed and merged P0 (Zero-Answer / `0 + 0` Core-Flow Freeze) through Pull Request #60 at `4df7a5f4c8230700b427f0c1d9ebdabfcd98d823` (review `P0_REVIEW_APPROVED`, full validation `P0_FULL_VALIDATION_PASS`, 1,917 Core tests passing):
+  - **Terminal Liveness Resolution**: Added generic terminal `PracticeSelectionRole.New` fallback for `Requested Due`, `Requested Maintenance`, and `Requested Frontier` in `AdaptivePracticeSelector.GetFallbackChain`, resolving selector starvation under broad weakness and immediate-predecessor exclusion.
 - Completed and merged MF-TELEM-001 (Tester Telemetry Export and Share) through Pull Request #56 at `bbdf62652927efa26475a9f2d83778de6465f5e1` (review `REVIEW_PASS`, 1,906 Core tests passed, 0 compiler warnings/errors on Android and Windows builds):
   - **Schema V7 Persistence Enrichment**: Enriched SQLite `attempt_history` table with five nullable presentation-context columns (`attempt_context_version`, `presented_deadline_ms`, `expected_pace_ms`, `resolved_role`, `operation_band_before`) captured atomically at presentation time with attempt evaluation, while losslessly preserving historical attempts with NULL context ([ADR-0011](docs/decisions/ADR-0011-tester-telemetry-persistence-export-and-share.md)).
   - **Pseudonymous Persistent Installation ID**: Added random persistent UUID provider in application preferences (`IInstallationIdProvider`, `PreferencesInstallationIdProvider`) enabling cross-session export correlation without identifying user or hardware.
