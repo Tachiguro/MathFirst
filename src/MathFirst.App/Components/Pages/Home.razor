@@ -459,7 +459,10 @@
             try
             {
                 await Session.InitializeAsync(startTiming: false);
-                Session.ShowInitialReadyGate();
+                if (Session.HasCompletedPracticeHistory)
+                {
+                    Session.ShowInitialReadyGate();
+                }
                 Session.SetPracticeSurfaceActive(true);
                 SyncStateWithSession();
             }
@@ -698,7 +701,10 @@
         try
         {
             await Session.InitializeAsync(startTiming: false);
-            Session.ShowInitialReadyGate();
+            if (Session.HasCompletedPracticeHistory)
+            {
+                Session.ShowInitialReadyGate();
+            }
             Session.SetPracticeSurfaceActive(true);
             SyncStateWithSession();
         }

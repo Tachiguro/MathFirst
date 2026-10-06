@@ -34,14 +34,11 @@ public sealed class ResetWorkflowTests : IDisposable
 
     private sealed class InMemoryPreferenceStore : IPreferenceStore
     {
-        public bool OnboardingCompleted { get; set; }
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
 
-        public bool GetOnboardingCompleted() => OnboardingCompleted;
-        public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
         public ThemePreference GetThemePreference() => Theme;
@@ -85,7 +82,6 @@ public sealed class ResetWorkflowTests : IDisposable
 
         public void ResetAllPreferences()
         {
-            OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
@@ -95,13 +91,12 @@ public sealed class ResetWorkflowTests : IDisposable
     }
 
     [Fact]
-    public async Task ResetWorkflow_ResetLearningProgress_PreservesPreferencesAndOnboarding()
+    public async Task ResetWorkflow_ResetLearningProgress_PreservesPreferences()
     {
         var dbPath = Path.Combine(_testDbDir, "reset_learning.db");
         using var store = new SqliteLearnerStore(dbPath);
         var prefs = new InMemoryPreferenceStore
         {
-            OnboardingCompleted = true,
             Language = "de",
             Theme = ThemePreference.Dark,
             KeypadLayout = NumericKeypadLayout.Numpad
@@ -129,8 +124,7 @@ public sealed class ResetWorkflowTests : IDisposable
             new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
         Assert.Equal(PracticeCopyTrigger.InitialReady, copyContext.Trigger);
 
-        // Verify UI preferences and onboarding were PRESERVED
-        Assert.True(prefs.GetOnboardingCompleted());
+        // Verify UI preferences were PRESERVED
         Assert.Equal("de", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.Dark, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
@@ -226,7 +220,6 @@ public sealed class ResetWorkflowTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         var prefs = new InMemoryPreferenceStore
         {
-            OnboardingCompleted = true,
             Language = "de",
             Theme = ThemePreference.Dark,
             KeypadLayout = NumericKeypadLayout.Numpad
@@ -241,18 +234,19 @@ public sealed class ResetWorkflowTests : IDisposable
         await session.CommitCurrentEvaluationAsync();
 
         // Reset UI Preferences
-        prefs.SetOnboardingCompleted(false);
         prefs.SetLanguagePreference("system");
         prefs.SetThemePreference(ThemePreference.System);
         prefs.SetNumericKeypadLayout(NumericKeypadLayout.Numpad);
+        prefs.SetHapticFeedbackEnabled(true);
+        prefs.ResetPracticePreferences();
 
         Assert.Equal(learnerGeneration, session.LearnerStateGenerationRevision);
 
         // Verify UI prefs reset
-        Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
+        Assert.True(prefs.GetHapticFeedbackEnabled());
 
         // Verify DB still holds committed progress
         var snapshot = await store.LoadSnapshotAsync();
@@ -263,8 +257,10 @@ public sealed class ResetWorkflowTests : IDisposable
         foreach (var language in new[] { "en", "de", "ru" })
         {
             localizer.ApplyLanguagePreference(language);
-            Assert.DoesNotContain(language == "en" ? "first" : language == "de" ? "erste" : "Первый",
-                localizer["Onboarding_StepReady_Desc"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("onboarding", localizer["Reset_UiPreferences_Desc"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("onboarding", localizer["Reset_UiPreferences_Confirm"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("онбординг", localizer["Reset_UiPreferences_Desc"], StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("онбординг", localizer["Reset_UiPreferences_Confirm"], StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -275,7 +271,6 @@ public sealed class ResetWorkflowTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         var prefs = new InMemoryPreferenceStore
         {
-            OnboardingCompleted = true,
             Language = "ru",
             Theme = ThemePreference.Dark,
             KeypadLayout = NumericKeypadLayout.Numpad
@@ -305,7 +300,6 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal(PracticeCopyTrigger.InitialReady, copyContext.Trigger);
 
         // Verify Prefs reset
-        Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
@@ -346,7 +340,6 @@ public sealed class ResetWorkflowTests : IDisposable
     {
         var prefs = new InMemoryPreferenceStore
         {
-            OnboardingCompleted = true,
             Language = "de",
             Theme = ThemePreference.Dark
         };
@@ -358,7 +351,6 @@ public sealed class ResetWorkflowTests : IDisposable
 
         prefs.ResetAllPreferences();
 
-        Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
 
@@ -376,7 +368,6 @@ public sealed class ResetWorkflowTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         var prefs = new InMemoryPreferenceStore
         {
-            OnboardingCompleted = true,
             Language = "de",
             Theme = ThemePreference.Dark
         };
@@ -400,7 +391,6 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Empty(session.ItemStates);
         Assert.Null(session.LatestAcceptedPracticeAt);
 
-        Assert.False(prefs.GetOnboardingCompleted());
         Assert.Equal("system", prefs.GetLanguagePreference());
 
         Assert.Equal(1, idStore.ClearCallCount);

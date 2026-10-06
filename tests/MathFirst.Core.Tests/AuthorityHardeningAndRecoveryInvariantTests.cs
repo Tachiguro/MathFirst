@@ -695,8 +695,6 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
             }
         }
 
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;
         public void SetThemePreference(ThemePreference preference) { }
         public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;

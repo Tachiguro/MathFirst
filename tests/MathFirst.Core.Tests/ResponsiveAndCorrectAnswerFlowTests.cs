@@ -495,7 +495,6 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
     {
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var styles = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css"));
-        var onboarding = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
         var settings = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor"));
 
         Assert.Contains("class=\"practice-header-actions\"", home, StringComparison.Ordinal);
@@ -519,7 +518,6 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         Assert.Contains("grid-template-columns: minmax(0, 42fr) minmax(16rem, 58fr);", styles, StringComparison.Ordinal);
         Assert.Contains(".practice-overlay", styles, StringComparison.Ordinal);
         Assert.DoesNotContain("settings-correct-answer-title", settings, StringComparison.Ordinal);
-        Assert.Contains("InitializeAsync(startTiming: true)", onboarding, StringComparison.Ordinal);
     }
 
     [Fact]

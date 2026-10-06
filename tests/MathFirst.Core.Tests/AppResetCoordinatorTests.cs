@@ -283,8 +283,6 @@ public sealed class AppResetCoordinatorTests : IDisposable
         public int ResetAllPreferencesCallCount { get; private set; }
         public int ResetPracticePreferencesCallCount { get; private set; }
 
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;
         public void SetThemePreference(ThemePreference preference) { }
         public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;

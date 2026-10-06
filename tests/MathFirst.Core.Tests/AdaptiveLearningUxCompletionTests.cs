@@ -673,47 +673,7 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
     }
 
     [Fact]
-    public void P_OnboardingSemantics_CommunicatesAllFiveLearnerConceptsWithoutBannedJargon()
-    {
-        var service = new LocalizationService();
-
-        foreach (var lang in new[] { "en", "de", "ru" })
-        {
-            service.ApplyLanguagePreference(lang);
-            var tutorialText = service["Onboarding_TutorialStep1Text"] + " " +
-                               service["Onboarding_TutorialStep2Text"] + " " +
-                               service["Onboarding_TutorialStep3Text"];
-
-            // No banned internal jargon
-            Assert.DoesNotContain("FSRS", tutorialText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("retention", tutorialText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("PracticePosition", tutorialText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("band", tutorialText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("frontier", tutorialText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("remediation", tutorialText, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("scheduler", tutorialText, StringComparison.OrdinalIgnoreCase);
-        }
-
-        // EN explicit concept checks
-        service.ApplyLanguagePreference("en");
-        var enAll = service["Onboarding_TutorialStep1Text"] + " " +
-                    service["Onboarding_TutorialStep2Text"] + " " +
-                    service["Onboarding_TutorialStep3Text"];
-
-        // 1. correctness matters most
-        Assert.Contains("Correctness matters most", enAll, StringComparison.OrdinalIgnoreCase);
-        // 2. answering correctly and quickly helps progress faster
-        Assert.Contains("progress faster", enAll, StringComparison.OrdinalIgnoreCase);
-        // 3. secure facts appear less often
-        Assert.Contains("Secure facts appear less often", enAll, StringComparison.OrdinalIgnoreCase);
-        // 4. mistakes and weaker facts return for more practice
-        Assert.Contains("return for more practice", enAll, StringComparison.OrdinalIgnoreCase);
-        // 5. available answer time adapts as learner practices
-        Assert.Contains("answer time adapts", enAll, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Q_Localization_CheckInAndOnboardingKeys_HaveParityAcrossAllLanguages()
+    public void Q_Localization_CheckInKeys_HaveParityAcrossAllLanguages()
     {
         var service = new LocalizationService();
         var keys = new[]
@@ -722,13 +682,7 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
             "Training_CheckInCorrect",
             "Training_CheckInSpeed",
             "Training_KeepGoing",
-            "Training_TakeBreak",
-            "Onboarding_TutorialStep1Title",
-            "Onboarding_TutorialStep1Text",
-            "Onboarding_TutorialStep2Title",
-            "Onboarding_TutorialStep2Text",
-            "Onboarding_TutorialStep3Title",
-            "Onboarding_TutorialStep3Text"
+            "Training_TakeBreak"
         };
 
         foreach (var lang in new[] { "en", "de", "ru" })
@@ -779,8 +733,6 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
 
     private sealed class SingleOperationPreferenceStore(ArithmeticOperation operation) : IPreferenceStore
     {
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public string GetLanguagePreference() => "system";
         public void SetLanguagePreference(string preference) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;

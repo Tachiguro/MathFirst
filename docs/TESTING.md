@@ -758,3 +758,72 @@ MF-UX-007 localization, semantic structure, responsive styling, and accessibilit
 - The 1,605 passing tests represent verified implementation on task branch `codex/mf-ux-007-progress-presentation-cleanup` during `REVIEW_ONLY` (`REVIEW_APPROVED`).
 - Automated tests prove semantic source, DOM roles, CSS selectors, and localization strings. They do not prove final candidate `FULL_VALIDATION`, Android Release build for the docs-final candidate, ReleaseTool verification, physical rendering on Samsung Galaxy S26 Ultra, or live screen-reader pronunciation.
 - Testing on physical hardware (`Samsung Galaxy S26 Ultra`) remains scheduled for downstream tester APK validation phases.
+
+---
+
+## 24. P2 Direct-to-Practice Startup and Onboarding Removal Contracts & Reviewed Test Evidence
+
+The P2 implementation eliminates the multi-step onboarding wizard and router gate, launching fresh learners directly into active Addition practice while preserving the Initial Ready Gate and progress overview strictly for returning learners with completed practice history. This behavior is covered by automated contract and regression suites in `MathFirst.Core.Tests` and `MathFirst.App`:
+
+1. **Direct-to-Practice Startup Contracts (`DirectToPracticeStartupTests`)**:
+   - **Fresh Learner Direct Startup**: Asserts fresh learners (without completed practice history) bypass all onboarding and Initial Ready Gate steps, landing directly in active Practice on `/`.
+   - **Addition-Only Initial Preference**: Asserts initial operation preferences default strictly to `[OperationType.Addition]`.
+   - **Timing Activation on Surface Interaction**: Asserts active interaction timing begins only after the practice surface mounts and activates.
+   - **Returning Learner Gate Preservation**: Asserts returning learners with accepted practice history encounter the Initial Ready Gate and progress overview before practice resumes.
+
+2. **Absence Guards & Production Hygiene**:
+   - **`OnboardingHost` Absence**: Asserts complete removal of `OnboardingHost.razor` from the component tree.
+   - **Localization Resource Absence**: Asserts removal of all historical `Onboarding_*` string resources across English, German, and Russian dictionaries (`Resources.resx`, `Resources.de.resx`, `Resources.ru.resx`).
+   - **CSS Absence**: Asserts complete removal of `.onboarding-host` and related onboarding styles from application stylesheets.
+   - **Preference Store API Absence**: Asserts removal of `GetOnboardingCompleted` and `SetOnboardingCompleted` from `IPreferenceStore`, removal of `OnboardingKey` and obsolete preference accessors from `MauiPreferenceStore`, and removal of corresponding members from test doubles.
+   - **Router Gate Absence**: Asserts `Routes.razor` contains zero onboarding redirect gates or preference checks.
+
+3. **Reset Lifecycle Contracts (`ResetWorkflowTests`, `DirectToPracticeStartupTests`)**:
+   - **Reset Learning Progress**: Clears learner attempt history, item states, FSRS states, and progression while preserving UI preferences; no onboarding state exists.
+   - **Reset UI Preferences (Restore Default Settings)**: Restores UI and practice preferences to defaults (Addition only, Standard time, Numpad keypad, System theme, System language, haptics enabled), preserves learner progress/history, and navigates to `/` without onboarding.
+   - **Full Local Reset**: Clears all learner progress, restores all preferences to defaults (including Addition only), purges telemetry share cache, clears the persistent installation ID (a later consumer lazily creates a fresh ID through the normal provider lifecycle), and navigates to `/` into direct Addition practice without onboarding.
+
+4. **Operation Preference and Domain Fallback Boundary Contracts (`PracticeConfigurationTests`, `PracticeOperationPreferencePolicy`)**:
+   - **Application Preference Default**: Fresh installations and preference resets default strictly to Addition only (`[OperationType.Addition]`). This policy is enforced at the application/preference store boundary via `MauiPreferenceStore` missing-key semantics.
+   - **Generic Domain Fallback**: `PracticeOperationPreferencePolicy.NormalizeEnabledOperations(null)` and `NormalizeEnabledOperations(empty)` normalize to `AllOperations` (`[Addition, Subtraction, Multiplication, Division]`). The generic domain fallback represents domain-level safety for unconfigured callers and must not be coupled to application-level fresh-user defaults.
+   - **Explicit Subsets**: Explicit non-empty subsets (e.g. `[Addition, Subtraction]`) remain preserved without modification.
+
+### Evidence Layers & Validation History (P2 Task Branch)
+
+#### A. Original P2 Implementation & Review Evidence
+- **Slice-Level Evidence**:
+  - Slice 1 (Addition-only default): 59 passed, 40 targeted regressions passed
+  - Slice 2 (Direct Practice startup & returning gate): 7 passed, 28 lifecycle passed, 85 timer/flow passed
+  - Slice 3 (Router gate & reset flow): 38 passed, 28 startup regressions passed, MathFirst.App Windows build (0 warnings / 0 errors)
+  - Slice 4 (Asset & localization cleanup): 120 passed, 116 passed, 13 passed, MathFirst.App Windows build (0 warnings / 0 errors)
+  - Slice 5 (Preference API removal & absence guards): 1 contract passed, Core test build (0 warnings / 0 errors), 97 preference regressions passed, 54 startup/recovery regressions passed, MathFirst.App Windows build (0 warnings / 0 errors)
+- **Original Review Verdict**: `P2_REVIEW_APPROVED` (184 targeted tests passed, 0 failed, 0 skipped; 0 Blocker, 0 Major, 2 non-blocking Minor findings).
+
+#### B. Failed Formal FULL_VALIDATION (Candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74`)
+- **Target Candidate**: `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` (documentation synchronization checkpoint).
+- **Debug Full Core Suite**: 1,975 tests completed before abort; 1,941 passed; 34 failed; 0 skipped; exit code 1. The 5-minute blame-hang inactivity detector aborted the testhost during `DeterministicSelectorTerminalLivenessTests.SelectorTotalityProperty_ValidReachableLearnerStatesAlwaysReturnDeterministicFact` (its test-side scheduling search could not encounter non-Addition operations because the generic domain fallback had been narrowed to Addition-only, preventing loop termination). The 34 failures were distributed across multiple regression families. `LongRunIndependentProgressionTests` contributed five of those failures, including synthetic progression-evidence cases where the broken unparameterized operation schedule produced duplicate practice positions correctly rejected by validation; those LongRun failures were separate from the testhost hang.
+- **Release Full Core Suite**: NOT EXECUTED (aborted early due to Debug full suite failure).
+- **Windows Release Build**: Succeeded with 0 warnings and 0 errors (`net10.0-windows10.0.19041.0`).
+- **Android Release Build**: Succeeded with 0 warnings and 0 errors (`net10.0-android36.0`).
+- **NuGet Vulnerability Audit**: Succeeded with 0 vulnerable packages.
+- **Focused P2 Release Confirmation**: 76 passed, 0 failed.
+- **Overall Formal Verdict**: `FULL_VALIDATION_FAILED`. Partial build and audit successes do not override full test suite validation failure.
+
+#### C. Validation-Fix Targeted Evidence (Candidate `085b929f058eb1ba4477f2bdc1412a09c218d648`)
+- **Target Candidate**: `085b929f058eb1ba4477f2bdc1412a09c218d648` (`fix(practice): separate app defaults from domain fallback`).
+- **Review Verdict**: `P2_VALIDATION_FIX_REVIEW_APPROVED`.
+- **TDD RED Phase**: `PracticeConfigurationTests` reproduced three domain-boundary failures (missing/empty selection normalized to Addition-only instead of `AllOperations`; corrupt all-false recovery produced one operation instead of four; unparameterized scheduling defaulted away from canonical four-operation scheduling).
+- **TDD GREEN Phase**:
+  - `PracticeConfigurationTests`: 46 passed, 0 failed.
+  - Previously failing regression families after correction:
+    - `IndependentSelectorTests`: 52 passed, 0 failed
+    - `GuidedNumberSpaceSelectionTests`: 10 passed, 0 failed
+    - `DenseProgressionTests`: 27 passed, 0 failed
+    - `FactEligibilityRegressionTests`: 23 passed, 0 failed
+    - `LongRunIndependentProgressionTests`: 7 passed, 0 failed (duplicate-position failures resolved)
+    - `DeterministicSelectorTerminalLivenessTests`: 57 passed, 0 failed (no hang)
+    - `FinalIntegrationCoverageTests`: 2 passed, 0 failed
+    - `BoundedSelectionIntegrationTests` + `SubmissionIntegrityAndPublishBoundaryTests` + `StaleSelectionEvidenceRemediationTests`: 33 passed, 0 failed
+  - Focused P2 contract regression set: 77 passed, 0 failed.
+- **Evidence Boundary Principles**: Targeted implementation evidence only. Overlapping test runs are not summed into fabricated test totals. This evidence does NOT constitute `FULL_VALIDATION`.
+- **Validation State**: Corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648` is review-approved, unmerged, and unpushed on `feat/p2-direct-to-practice`; formal `FULL_VALIDATION` remains **PENDING** from scratch. Historical 2,010 Core test counts belong to the prior P1b merge baseline on `main`.

@@ -815,11 +815,9 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("overflow: hidden;", css, StringComparison.Ordinal);
         Assert.Contains("overscroll-behavior: none;", css, StringComparison.Ordinal);
 
-        // Settings and onboarding maintain their required scrollability
+        // Settings maintains its required scrollability
         Assert.Contains(".settings-page", css, StringComparison.Ordinal);
         Assert.Matches(@"\.settings-page\s*\{[^}]*overflow-y:\s*auto", css);
-        Assert.Contains(".onboarding-host", css, StringComparison.Ordinal);
-        Assert.Matches(@"\.onboarding-host\s*\{[^}]*overflow-y:\s*auto", css);
 
         // No blanket body overflow: hidden !important or global overscroll containment that breaks non-gameplay pages
         Assert.DoesNotContain("body { overflow: hidden !important; }", css, StringComparison.Ordinal);

@@ -182,6 +182,25 @@ public sealed class SettingsTelemetryUiContractTests
     }
 
     [Fact]
+    public void Settings_ResetUiPreferences_RestoresDefaultsWithoutMutatingOnboardingState()
+    {
+        var settingsSource = ReadSourceWithoutComments("src", "MathFirst.App", "Components", "Pages", "Settings.razor");
+        var match = Regex.Match(settingsSource, @"ExecuteResetUiPreferences\s*\([^\)]*\)\s*\{(?<body>[\s\S]*?)\}");
+        Assert.True(match.Success, "ExecuteResetUiPreferences method must be found.");
+        var body = match.Groups["body"].Value;
+
+        Assert.DoesNotContain("SetOnboardingCompleted", body, StringComparison.Ordinal);
+        Assert.Contains("ResetPracticePreferences()", body, StringComparison.Ordinal);
+        Assert.Contains("SetLanguagePreference(LanguagePreferencePolicy.SystemPreferenceCode)", body, StringComparison.Ordinal);
+        Assert.Contains("SetThemePreference(ThemePreference.System)", body, StringComparison.Ordinal);
+        Assert.Contains("SetNumericKeypadLayout(NumericKeypadLayout.Numpad)", body, StringComparison.Ordinal);
+        Assert.Contains("SetHapticFeedbackEnabled(true)", body, StringComparison.Ordinal);
+        Assert.Contains("ThemeService.ResetPreference()", body, StringComparison.Ordinal);
+        Assert.Contains("ApplyLanguagePreference(\"system\")", body, StringComparison.Ordinal);
+        Assert.Contains("Navigation.NavigateTo(\"/\", replace: true)", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DependencyInjection_AppBuildInfoInterface_ResolvesSameSingletonInstance()
     {
         var mauiSource = ReadSourceWithoutComments("src", "MathFirst.App", "MauiProgram.cs");

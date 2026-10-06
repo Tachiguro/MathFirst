@@ -14,14 +14,11 @@ public sealed class PracticeConfigurationTests
     {
         private readonly Dictionary<string, bool> _boolPrefs = new(StringComparer.Ordinal);
         private int _practiceTimeSetting = 0;
-        public bool OnboardingCompleted { get; set; }
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
 
-        public bool GetOnboardingCompleted() => OnboardingCompleted;
-        public void SetOnboardingCompleted(bool completed) => OnboardingCompleted = completed;
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
         public ThemePreference GetThemePreference() => Theme;
@@ -32,7 +29,7 @@ public sealed class PracticeConfigurationTests
         public void SetHapticFeedbackEnabled(bool enabled) => HapticFeedbackEnabled = enabled;
 
         public bool GetOperationEnabled(ArithmeticOperation operation) =>
-            _boolPrefs.GetValueOrDefault($"op_{operation}", true);
+            _boolPrefs.GetValueOrDefault($"op_{operation}", operation == ArithmeticOperation.Addition);
 
         public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) =>
             _boolPrefs[$"op_{operation}"] = enabled;
@@ -64,7 +61,6 @@ public sealed class PracticeConfigurationTests
 
         public void ResetAllPreferences()
         {
-            OnboardingCompleted = false;
             Language = "system";
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
@@ -132,22 +128,29 @@ public sealed class PracticeConfigurationTests
     // ============================================================
 
     [Fact]
-    public void OperationPolicy_DefaultsToAllFourOperationsEnabled()
+    public void OperationPolicy_MissingOrEmptySelection_DefaultsToAllFourOperations()
     {
-        var defaults = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(null);
+        var nullResult = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(null);
         Assert.Equal(
             [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
-            defaults);
+            nullResult);
+
+        var emptyResult = PracticeOperationPreferencePolicy.NormalizeEnabledOperations([]);
+        Assert.Equal(
+            [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
+            emptyResult);
     }
 
     [Fact]
-    public void OperationPolicy_EmptyOrCorruptedList_RecoversToAllFourOperations()
+    public void OperationPolicy_PreservesExplicitNonEmptySubset()
     {
-        var empty = PracticeOperationPreferencePolicy.NormalizeEnabledOperations([]);
-        Assert.Equal(4, empty.Count);
-        Assert.Equal(
-            [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
-            empty);
+        var subset1 = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(
+            [ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication]);
+        Assert.Equal([ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication], subset1);
+
+        var subset2 = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(
+            [ArithmeticOperation.Division]);
+        Assert.Equal([ArithmeticOperation.Division], subset2);
     }
 
     [Fact]
@@ -162,24 +165,36 @@ public sealed class PracticeConfigurationTests
     }
 
     [Fact]
+    public void OperationPreferenceStore_FreshStore_DefaultsToAdditionOnly()
+    {
+        var store = new InMemoryPreferenceStore();
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Division));
+
+        Assert.Equal([ArithmeticOperation.Addition], store.GetEnabledOperations());
+    }
+
+    [Fact]
     public void OperationPreferenceStore_RoundTripsIndependently()
     {
         var store = new InMemoryPreferenceStore();
         Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
-        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
-        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
-        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Division));
-
-        store.SetOperationEnabled(ArithmeticOperation.Subtraction, false);
-        store.SetOperationEnabled(ArithmeticOperation.Division, false);
-
-        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
         Assert.False(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
-        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
         Assert.False(store.GetOperationEnabled(ArithmeticOperation.Division));
 
+        store.SetOperationEnabled(ArithmeticOperation.Subtraction, true);
+        store.SetOperationEnabled(ArithmeticOperation.Division, true);
+
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Division));
+
         Assert.Equal(
-            [ArithmeticOperation.Addition, ArithmeticOperation.Multiplication],
+            [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Division],
             store.GetEnabledOperations());
     }
 
@@ -187,6 +202,10 @@ public sealed class PracticeConfigurationTests
     public void OperationPersistence_DisableThreeOperations_PersistsAdditionOnlySuccessfully()
     {
         var store = new InMemoryPreferenceStore();
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            store.SetOperationEnabled(op, true);
+        }
 
         // 1. Begin with all four enabled
         Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
@@ -263,6 +282,10 @@ public sealed class PracticeConfigurationTests
     public void SettingsOrchestration_ToggleFlow_SyncsPreferenceStoreAndUiState()
     {
         var store = new InMemoryPreferenceStore();
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            store.SetOperationEnabled(op, true);
+        }
         var uiEnabled = new HashSet<ArithmeticOperation>(store.GetEnabledOperations());
         Assert.Equal(4, uiEnabled.Count);
 
@@ -302,8 +325,6 @@ public sealed class PracticeConfigurationTests
     private sealed class ThrowingPreferenceStore : IPreferenceStore
     {
         public bool ThrowOnWrite { get; set; } = true;
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;
         public void SetThemePreference(ThemePreference preference) { }
         public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;
@@ -345,18 +366,31 @@ public sealed class PracticeConfigurationTests
     // ============================================================
 
     [Fact]
-    public void Scheduling_AllFourEnabled_MatchesExactCurrentSchedule()
+    public void Scheduling_AllFourEnabled_BoundedBagSchedule()
     {
         var allFour = PracticeOperationPreferencePolicy.AllOperations;
 
-        var expectedOps = new[]
+        for (var bag = 0L; bag < 10; bag++)
         {
-            ArithmeticOperation.Addition,
-            ArithmeticOperation.Subtraction,
-            ArithmeticOperation.Multiplication,
-            ArithmeticOperation.Division,
-            ArithmeticOperation.Addition
-        };
+            var bagOps = new[]
+            {
+                AdaptivePracticeSelector.GetScheduledOperation((bag * 4) + 1, allFour),
+                AdaptivePracticeSelector.GetScheduledOperation((bag * 4) + 2, allFour),
+                AdaptivePracticeSelector.GetScheduledOperation((bag * 4) + 3, allFour),
+                AdaptivePracticeSelector.GetScheduledOperation((bag * 4) + 4, allFour)
+            };
+
+            foreach (var op in allFour)
+            {
+                Assert.Contains(op, bagOps);
+            }
+        }
+    }
+
+    [Fact]
+    public void Scheduling_DefaultOperations_MatchesAllFourOperationsSchedule()
+    {
+        var allFour = PracticeOperationPreferencePolicy.AllOperations;
 
         for (var p = 1L; p <= 40; p++)
         {
@@ -613,17 +647,17 @@ public sealed class PracticeConfigurationTests
     }
 
     [Fact]
-    public void RestoreDefaultSettings_RestoresAllFourOperationsAndStandardPracticeTime()
+    public void RestoreDefaultSettings_RestoresAdditionOnlyAndStandardPracticeTime()
     {
         var prefStore = new InMemoryPreferenceStore();
-        prefStore.SetOperationEnabled(ArithmeticOperation.Subtraction, false);
+        prefStore.SetOperationEnabled(ArithmeticOperation.Subtraction, true);
         prefStore.SetPracticeTimeSetting(PracticeTimeSetting.Seconds60);
 
         // Reset practice preferences (part of restore defaults)
         prefStore.ResetPracticePreferences();
 
         Assert.Equal(
-            [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
+            [ArithmeticOperation.Addition],
             prefStore.GetEnabledOperations());
         Assert.Equal(PracticeTimeSetting.Standard, prefStore.GetPracticeTimeSetting());
     }

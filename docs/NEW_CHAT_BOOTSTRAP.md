@@ -132,7 +132,7 @@ Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
-### Historical Reference Delivery Baseline (Snapshot as of 2026-10-05)
+### Historical Reference Delivery Baseline (Snapshot as of 2026-10-06)
 - **Historical Testing Verification (Roadmap Steps 51–54)**:
   - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
   - Step 52: Fresh Tester APK packaged and validated offline (`STEP_52_TESTER_APK_PASS`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`).
@@ -142,8 +142,10 @@ Worktrees: Exactly one normal worktree by default
 - **Pre-Step55 V1 Refinement Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) covering P0 through P8:
   - P0 (Zero-Answer / `0 + 0` Core-Flow Freeze): Delivered & Merged (PR #60).
   - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
-  - P1b (Active Thinking Time / Interruption Safety): Complete across 4 checkpoint commits on task branch `feat/p1b-active-thinking-time` (implementation checkpoint `702fd9164937daa130b2afe61f54255e0a4cbe02`).
+  - P1b (Active Thinking Time / Interruption Safety): Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
+  - P2 (Direct-to-Practice Start / Remove Onboarding): Implemented across 5 feature checkpoints, 1 docs checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`, `FULL_VALIDATION_FAILED`), and 1 validation-fix checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`) on task branch `feat/p2-direct-to-practice` (7 commits ahead of `main`), reviewed (`P2_VALIDATION_FIX_REVIEW_APPROVED`), candidate unmerged / unpushed, no open PR, `FULL_VALIDATION` pending from scratch.
 - **Delivered Pre-Step55 Packages & Merged PRs**:
+  - PR #62 (`a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): `P1b: active thinking time and interruption-safe learning evidence`
   - PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): `P1: normal practice without deadline failure`
   - PR #60 (`10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): `P0: resolve zero-answer core-flow freeze`
   - PR #57 (`975fb134636f33fba4a54b399aedae80edf95235`): `docs: reconcile post-mf-telem-001 project state`
@@ -158,7 +160,7 @@ Worktrees: Exactly one normal worktree by default
 - Schema: V8 (delivered via P1b; adds `is_interrupted` to `attempt_history`)
 - Telemetry: `telemetry_export_schema_v2` (16 properties including boolean `is_interrupted`)
 - Build 2 status: `REJECTED` (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`).
-- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, MF-LEARN-006, MF-UX-008, MF-TELEM-001, P0, P1, and P1b, and no longer represents current repository source.
+- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, MF-LEARN-006, MF-UX-008, MF-TELEM-001, P0, P1, P1b, and P2, and no longer represents current repository source.
 - Future candidate status: Any future production candidate requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Session Discovery & Candidate Resolution Protocol
@@ -167,9 +169,10 @@ When initializing a new session:
 2. **Verify live repository synchronization**: Fetch `origin` (`git fetch origin`), inspect live `origin/main` (`git rev-parse origin/main`), and verify that local `main` is synchronized with `origin/main` (`git status`, `git log origin/main..HEAD`, `git log HEAD..origin/main`). Never require equality to a documentation-embedded SHA; live synchronization is determined by Git tracking state.
 3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing. Step 55 remains unauthorized.
 4. **Resolve active work from live state**: Check for open PRs (`gh pr list --state open`), divergent local task branches with unmerged work, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch has unmerged work, and working tree on `main` is clean, there is no in-flight work.
-5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P2 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
+5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P3 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **P1b Active Thinking Time / Interruption Safety** (PR #62, merge `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): Delivered SQLite Schema V8 (`is_interrupted` column), Telemetry Schema V2 (16 properties), Dual-Window Structured Band progression (Window A: 40 math attempts; Window B: 40 timing-eligible attempts), timing-evidence eligibility (`TimingEvidenceEligible = !IsInterrupted`), pace calibration gating, and active interaction latency tracking across interruptions (2,010 Core tests passing).
 - **P1 Normal Practice Without Deadline Failure** (PR #61, merge `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): Removed automatic timeout failure from normal practice while preserving active interaction latency measurement, adaptive pace estimation, and FSRS rating semantics.
 - **P0 Zero-Answer / `0 + 0` Core-Flow Freeze** (PR #60, merge `10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): Resolved physical hardware freeze when entering 0 for `0 + 0` from fresh/reset state; reinforced state release across submit $\to$ commit $\to$ next fact pipeline.
 - **Post-MF-TELEM-001 Documentation Reconciliation** (PR #57, merge `975fb134636f33fba4a54b399aedae80edf95235`): Reconciled repository baseline documentation following the merge of PR #56.

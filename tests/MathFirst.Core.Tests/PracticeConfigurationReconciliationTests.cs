@@ -616,8 +616,6 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
     {
         private readonly Dictionary<ArithmeticOperation, bool> _operationPreferences = [];
 
-        public bool GetOnboardingCompleted() => true;
-        public void SetOnboardingCompleted(bool completed) { }
         public ThemePreference GetThemePreference() => ThemePreference.System;
         public void SetThemePreference(ThemePreference preference) { }
         public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;

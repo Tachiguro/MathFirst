@@ -45,13 +45,10 @@ public sealed class AndroidInputContractTests
     {
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var settings = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor"));
-        var onboarding = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Onboarding", "OnboardingHost.razor"));
 
-        // Both layout options must appear in settings and onboarding UI
+        // Both layout options must appear in settings UI
         Assert.Contains("NumericKeypadLayout.Phone", settings, StringComparison.Ordinal);
         Assert.Contains("NumericKeypadLayout.Numpad", settings, StringComparison.Ordinal);
-        Assert.Contains("NumericKeypadLayout.Phone", onboarding, StringComparison.Ordinal);
-        Assert.Contains("NumericKeypadLayout.Numpad", onboarding, StringComparison.Ordinal);
 
         // Home uses the stored keypad preference
         Assert.Contains("_keypadLayout", home, StringComparison.Ordinal);
