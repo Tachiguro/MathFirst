@@ -256,7 +256,7 @@
                 {
                     <div class="training-top-region">
                         <CyberDefenseHud State="_cyberDefenseState"
-                                         CriticalWindowMs="Session.CurrentFactEasyThresholdMs"
+                                         CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                          ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
                                          TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
 
@@ -776,7 +776,7 @@
                 {
                     var isCritical =
                         Session.IsPaceCalibrationReady
-                        && eval.LatencyMs <= Session.CurrentFactEasyThresholdMs;
+                        && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
                     if (isCritical)
                     {
                         _cyberDefenseState.RecordCriticalHit();
