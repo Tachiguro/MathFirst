@@ -143,7 +143,7 @@ Worktrees: Exactly one normal worktree by default
   - P0 (Zero-Answer / `0 + 0` Core-Flow Freeze): Delivered & Merged (PR #60).
   - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
   - P1b (Active Thinking Time / Interruption Safety): Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
-  - P2 (Direct-to-Practice Start / Remove Onboarding): Implemented across 5 checkpoint commits on task branch `feat/p2-direct-to-practice` (HEAD `84070a6951bc1853e0b9209204a915865e00cb62`), reviewed (`P2_REVIEW_APPROVED`), candidate unmerged / unpushed, `FULL_VALIDATION` pending.
+  - P2 (Direct-to-Practice Start / Remove Onboarding): Implemented across 5 feature checkpoints, 1 docs checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`, `FULL_VALIDATION_FAILED`), and 1 validation-fix checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`) on task branch `feat/p2-direct-to-practice` (7 commits ahead of `main`), reviewed (`P2_VALIDATION_FIX_REVIEW_APPROVED`), candidate unmerged / unpushed, no open PR, `FULL_VALIDATION` pending from scratch.
 - **Delivered Pre-Step55 Packages & Merged PRs**:
   - PR #62 (`a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): `P1b: active thinking time and interruption-safe learning evidence`
   - PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): `P1: normal practice without deadline failure`

@@ -17,7 +17,9 @@ This document provides operational context for current repository work.
   - Slice 2: `083fc2c3e5d42bd38f2acc9ef0cdb7a50ce288b8` (`feat(practice): start fresh learners directly in practice`)
   - Slice 3: `b91f91614d3e8e59341ee6211b46b36f5530d298` (`feat(app): remove onboarding startup gate`)
   - Slice 4: `d44c9bf3acf2a724e349100c1c605bc29d02c25d` (`refactor(app): remove obsolete onboarding assets`)
-  - Slice 5 (Implementation Milestone): `84070a6951bc1853e0b9209204a915865e00cb62` (`refactor(preferences): remove obsolete onboarding state`)
+  - Slice 5: `84070a6951bc1853e0b9209204a915865e00cb62` (`refactor(preferences): remove obsolete onboarding state`)
+  - Docs Sync Checkpoint: `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` (`docs: synchronize P2 direct-to-practice state`) [Candidate failed FULL_VALIDATION: `FULL_VALIDATION_FAILED`]
+  - Validation-Fix Checkpoint: `085b929f058eb1ba4477f2bdc1412a09c218d648` (`fix(practice): separate app defaults from domain fallback`) [Candidate review approved: `P2_VALIDATION_FIX_REVIEW_APPROVED`]
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
@@ -26,8 +28,13 @@ This document provides operational context for current repository work.
   - `gh repo view Tachiguro/MathFirst`
   - `gh pr list --state open`
 - **Status of Active Work**:
-  - **P2 Implementation Status**: Complete across all five implementation checkpoints (`P2_IMPLEMENTATION: COMPLETE`).
-  - **Independent Review Status**: Approved (`P2_REVIEW_APPROVED` with 0 Blocker, 0 Major findings, 2 non-blocking Minor findings).
+  - **P2 Implementation & Validation-Fix Status**: Implementation complete across five original feature checkpoints, one documentation checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`), and one validation-fix checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`).
+  - **Validation & Review History**:
+    - Original candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` passed initial review (`P2_REVIEW_APPROVED`) but **FAILED** formal `FULL_VALIDATION` (`FULL_VALIDATION_FAILED`: Debug Core suite aborted after 1,941 passed / 34 failed / 0 skipped when the 5-minute blame-hang detector fired; full Release suite not executed; Windows/Android Release builds and NuGet vulnerability audit passed with 0 warnings/errors/vulnerabilities, but did not override validation failure).
+    - Root cause: Over-broad default / abstraction regression in Slice 1 incorrectly conflated the application preference default (fresh install / reset defaults to Addition-only via `MauiPreferenceStore` missing-key semantics) with generic domain fallback (which must normalize null or empty selections to `AllOperations`).
+    - Corrective checkpoint `085b929f058eb1ba4477f2bdc1412a09c218d648` restored the abstraction boundary (`PracticeOperationPreferencePolicy.NormalizeEnabledOperations(null)` and `(empty)` $\to$ `AllOperations`), leaving `MauiPreferenceStore` unchanged and preserving fresh Addition-only behavior.
+    - Corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648` passed independent review (`P2_VALIDATION_FIX_REVIEW_APPROVED`).
+    - `FULL_VALIDATION` is pending from scratch on the corrected candidate.
   - **Durable P2 Behavioral Contract**:
     1. **Fresh / No-History Learner**:
        $$\text{Router} \longrightarrow \text{Home} \longrightarrow \text{no onboarding} \longrightarrow \text{no Initial Ready Gate} \longrightarrow \text{direct active Practice} \longrightarrow \text{Addition only default}$$
@@ -53,11 +60,13 @@ This document provides operational context for current repository work.
     - Slice 3: focused/reset suite: 38 passed; startup regression suite: 28 passed; MathFirst.App Windows build: 0 warnings / 0 errors.
     - Slice 4: targeted groups: 120 passed, 116 passed, 13 passed; MathFirst.App Windows build: 0 warnings / 0 errors.
     - Slice 5: focused contract: 1 passed; Core test project build: 0 warnings / 0 errors; targeted preference/reset regressions: 97 passed; targeted startup/recovery/timing regressions: 54 passed; MathFirst.App Windows build: 0 warnings / 0 errors.
-    - Independent `REVIEW_ONLY` evidence: 184 targeted tests passed, 0 failed.
-    - Note on evidence boundaries: Overlapping test runs are not summed into a combined total. FULL_VALIDATION has NOT yet been performed for P2.
+    - Original candidate review evidence: 184 targeted tests passed, 0 failed.
+    - Failed candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` FULL_VALIDATION evidence: Debug Core suite 1,975 completed before abort (1,941 passed, 34 failed, 0 skipped, 5-minute hang detector fired, exit code 1); Release full Core suite not executed; Windows Release build 0 warnings / 0 errors; Android Release build 0 warnings / 0 errors; NuGet vulnerability audit 0 vulnerable packages; focused P2 Release confirmation 76 passed, 0 failed. Overall verdict: `FULL_VALIDATION_FAILED`.
+    - Validation-fix targeted evidence (`085b929f058eb1ba4477f2bdc1412a09c218d648`): RED confirmed 3 boundary failures; GREEN confirmed `PracticeConfigurationTests` 46 passed; regression suites passed: `IndependentSelectorTests` (52), `GuidedNumberSpaceSelectionTests` (10), `DenseProgressionTests` (27), `FactEligibilityRegressionTests` (23), `LongRunIndependentProgressionTests` (7, duplicate-position failures resolved), `DeterministicSelectorTerminalLivenessTests` (57, no hang), `FinalIntegrationCoverageTests` (2), `BoundedSelectionIntegrationTests` + `SubmissionIntegrityAndPublishBoundaryTests` + `StaleSelectionEvidenceRemediationTests` (33); focused P2 contract regression set (77 passed). Overlapping runs are not summed into fabricated totals. This targeted evidence is NOT full validation.
+    - Note on evidence boundaries: FULL_VALIDATION has NOT yet been performed on the corrected candidate (`085b929f058eb1ba4477f2bdc1412a09c218d648`).
   - **Integration & Procedural State**:
-    - Branch `feat/p2-direct-to-practice` is local-only (unpushed, no open PR; live ahead/behind divergence derived dynamically via `git log origin/main..HEAD`).
-    - Next lifecycle step: `REVIEW_ONLY` (independent review of documentation synchronization before commit/push).
+    - Branch `feat/p2-direct-to-practice` is local-only (7 commits ahead of `main`, unpushed, no open PR; live ahead/behind divergence derived dynamically via `git log origin/main..HEAD`).
+    - Next lifecycle step: `REVIEW_ONLY` (independent review of documentation synchronization before commit/push and subsequent `FULL_VALIDATION`).
   - **Prior Work**:
     - **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze resolved and merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
     - **P1**: Normal Practice Without Deadline Failure resolved and merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`).
@@ -70,7 +79,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 1. **P0**: Zero-Answer / `0 + 0` Core-Flow Freeze (`Merged` — PR #60 at `4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`)
 2. **P1**: Normal Practice Without Deadline Failure (`Merged` — PR #61 at `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`)
 3. **P1b**: Active Thinking Time / Interruption Safety (`Merged` — PR #62 at `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`)
-4. **P2**: Direct-to-Practice Start / Remove Onboarding (`Implemented & Reviewed` — 5 checkpoints on task branch `feat/p2-direct-to-practice`, implementation checkpoint `84070a6951bc1853e0b9209204a915865e00cb62`; documentation sync in progress; not merged)
+4. **P2**: Direct-to-Practice Start / Remove Onboarding (`Implemented, Corrected & Reviewed` — 7 checkpoints on task branch `feat/p2-direct-to-practice`, corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648`; prior candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` failed FULL_VALIDATION; validation-fix review approved; documentation reconciliation prepared; candidate unmerged / unpushed, FULL_VALIDATION pending from scratch)
 5. **P3**: Cumulative Operation Unlock Progression ($+ \to + - \to + - \times \to + - \times \div$; demonstrated mathematical evidence, 3 simulation personas — *Downstream*)
 6. **P4**: Settings Simplification (streamlined settings, remove practice time selection, prevent unlock bypass — *Downstream*)
 7. **P5**: Cyber Defense Visual Consistency (dark technical surfaces, restrained neon/cyber accents — *Downstream*)
@@ -85,17 +94,21 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 - **Post-Merge Verification**: Schema V8 persistence, telemetry export schema v2, active thinking time / interruption safety, and Dual-Window structured progression integrated cleanly; 2,010 Core tests passing, clean Windows and Android builds.
 
 #### Verified P2 Quality Evidence (`feat/p2-direct-to-practice`)
-- **Implementation Checkpoints**:
+- **Package Commit Chain**:
   - Slice 1 (`ca07624cb89f4764b145ea08b4a28a03b88cc56b`): `feat(practice): default initial operation preference to addition only`.
   - Slice 2 (`083fc2c3e5d42bd38f2acc9ef0cdb7a50ce288b8`): `feat(practice): start fresh learners directly in practice`.
   - Slice 3 (`b91f91614d3e8e59341ee6211b46b36f5530d298`): `feat(app): remove onboarding startup gate`.
   - Slice 4 (`d44c9bf3acf2a724e349100c1c605bc29d02c25d`): `refactor(app): remove obsolete onboarding assets`.
   - Slice 5 (`84070a6951bc1853e0b9209204a915865e00cb62`): `refactor(preferences): remove obsolete onboarding state`.
-- **Targeted Review Evidence**:
-  - 184 targeted test executions passed with 0 failures during independent review.
-  - Windows application build: 0 warnings, 0 errors.
-  - Tracked working tree clean prior to documentation sync.
-  - FULL_VALIDATION has NOT yet been performed for P2.
+  - Docs Checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`): `docs: synchronize P2 direct-to-practice state` (Candidate `FULL_VALIDATION_FAILED`).
+  - Validation-Fix Checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`): `fix(practice): separate app defaults from domain fallback` (Candidate `P2_VALIDATION_FIX_REVIEW_APPROVED`).
+- **Validation History & Evidence**:
+  - Original review on five implementation checkpoints passed (`P2_REVIEW_APPROVED`, 184 targeted tests passed, 0 failed).
+  - Formal FULL_VALIDATION on candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` failed (`FULL_VALIDATION_FAILED`: 1,941 passed / 34 failed / 0 skipped in Debug full Core suite before 5-minute hang abort; Release full Core suite not executed; Windows/Android Release builds passed with 0w/0e; NuGet vulnerability audit passed with 0 vulnerable packages; focused P2 Release confirmation passed with 76/76).
+  - Root cause diagnosed as over-broad default coupling application default with domain fallback in Slice 1.
+  - Validation fix implemented in `085b929f058eb1ba4477f2bdc1412a09c218d648` and approved in review (`P2_VALIDATION_FIX_REVIEW_APPROVED`).
+  - Validation-fix targeted evidence: `PracticeConfigurationTests` 46 passed; regression suites passed (`IndependentSelectorTests` 52, `GuidedNumberSpaceSelectionTests` 10, `DenseProgressionTests` 27, `FactEligibilityRegressionTests` 23, `LongRunIndependentProgressionTests` 7, `DeterministicSelectorTerminalLivenessTests` 57, `FinalIntegrationCoverageTests` 2, `BoundedSelectionIntegrationTests` + `SubmissionIntegrityAndPublishBoundaryTests` + `StaleSelectionEvidenceRemediationTests` 33); focused P2 contract regression set 77 passed; zero hangs, zero duplicate-position errors. Overlapping runs are not summed into fabricated totals.
+  - FULL_VALIDATION is pending from scratch on corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648`.
   - Packaging boundaries strictly preserved: zero APK/AAB packaging, zero signing, zero store actions.
 
 ---
@@ -127,7 +140,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 1. P0 is integrated and merged into `main` via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`).
 2. P1 is integrated and merged into `main` via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`).
 3. P1b is integrated and merged into `main` via PR #62 (`a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
-4. P2 implementation & review are complete across five checkpoints on branch `feat/p2-direct-to-practice` (checkpoint `84070a6951bc1853e0b9209204a915865e00cb62`). Documentation sync and independent review precede full validation, commit, push, and PR.
+4. P2 implementation, documentation checkpoint, and validation-fix are complete across seven commits on branch `feat/p2-direct-to-practice` (corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648`). Prior candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` failed FULL_VALIDATION; validation-fix review is approved; documentation reconciliation and independent review precede full validation rerun, commit, push, and PR.
 5. Downstream P-item sequence ($\text{P3} \to \text{P4} \to \text{P5} \to \text{P6} \to \text{P8}$) must be completed and merged before Step 55 may be proposed.
 6. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 

@@ -184,7 +184,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P2 — Remove Onboarding / Direct-to-Practice Start
 - **Priority**: Medium-High (Friction Elimination).
-- **Status**: **IMPLEMENTED & REVIEWED** (Complete on branch `feat/p2-direct-to-practice` across 5 checkpoint commits, HEAD `84070a6951bc1853e0b9209204a915865e00cb62`; reviewed `P2_REVIEW_APPROVED` with 184 targeted tests passed, 0 failed; candidate unmerged / unpushed, `FULL_VALIDATION` pending).
+- **Status**: **IMPLEMENTED, CORRECTED & REVIEWED** (Complete on branch `feat/p2-direct-to-practice` across 7 commits: 5 feature checkpoints, 1 docs checkpoint `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` which failed FULL_VALIDATION, and 1 validation-fix checkpoint `085b929f058eb1ba4477f2bdc1412a09c218d648` restoring the domain fallback boundary; reviewed `P2_VALIDATION_FIX_REVIEW_APPROVED`; candidate unmerged / unpushed, `FULL_VALIDATION` pending from scratch).
 - **Product Decision**: Eliminate the 5-step onboarding wizard. Fresh installs and post-reset sessions launch directly into active practice with zero preamble.
 - **Default Application Configuration**:
   - **Language**: System / device language.
@@ -302,7 +302,7 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
   - `P1b — Active Thinking Time / Interruption Safety`: Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
 - **Completed Refinement on Branch**:
-  - `P2 — Direct-to-Practice Start / Remove Onboarding`: Implemented across 5 checkpoint commits on `feat/p2-direct-to-practice` (HEAD `84070a6951bc1853e0b9209204a915865e00cb62`); passed independent review (`P2_REVIEW_APPROVED`, 184 targeted tests passed, 0 failed); documentation reconciliation prepared on task branch (candidate unmerged, `FULL_VALIDATION` pending).
+  - `P2 — Direct-to-Practice Start / Remove Onboarding`: Implemented across 5 feature checkpoints, 1 documentation checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`, `FULL_VALIDATION_FAILED`), and 1 validation-fix checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`) on `feat/p2-direct-to-practice`; passed independent validation-fix review (`P2_VALIDATION_FIX_REVIEW_APPROVED`); documentation reconciliation prepared on task branch (candidate unmerged, `FULL_VALIDATION` pending from scratch).
 - **Next Work Item**: `P2` Candidate Review / Validation / PR Lifecycle (followed by `P3 — Cumulative Operation Unlock Progression`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.

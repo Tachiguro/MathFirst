@@ -783,14 +783,47 @@ The P2 implementation eliminates the multi-step onboarding wizard and router gat
    - **Reset UI Preferences (Restore Default Settings)**: Restores UI and practice preferences to defaults (Addition only, Standard time, Numpad keypad, System theme, System language, haptics enabled), preserves learner progress/history, and navigates to `/` without onboarding.
    - **Full Local Reset**: Clears all learner progress, restores all preferences to defaults (including Addition only), purges telemetry share cache, clears the persistent installation ID (a later consumer lazily creates a fresh ID through the normal provider lifecycle), and navigates to `/` into direct Addition practice without onboarding.
 
-### Reviewed Test Suite Evidence (P2 Task Branch Baseline)
+4. **Operation Preference and Domain Fallback Boundary Contracts (`PracticeConfigurationTests`, `PracticeOperationPreferencePolicy`)**:
+   - **Application Preference Default**: Fresh installations and preference resets default strictly to Addition only (`[OperationType.Addition]`). This policy is enforced at the application/preference store boundary via `MauiPreferenceStore` missing-key semantics.
+   - **Generic Domain Fallback**: `PracticeOperationPreferencePolicy.NormalizeEnabledOperations(null)` and `NormalizeEnabledOperations(empty)` normalize to `AllOperations` (`[Addition, Subtraction, Multiplication, Division]`). The generic domain fallback represents domain-level safety for unconfigured callers and must not be coupled to application-level fresh-user defaults.
+   - **Explicit Subsets**: Explicit non-empty subsets (e.g. `[Addition, Subtraction]`) remain preserved without modification.
 
-- **Independent Review Verdict**: `P2_REVIEW_APPROVED` (0 Blocker, 0 Major, 2 non-blocking Minor findings).
-- **Targeted Review Suite Execution**: 184 passed, 0 failed, 0 skipped.
+### Evidence Layers & Validation History (P2 Task Branch)
+
+#### A. Original P2 Implementation & Review Evidence
 - **Slice-Level Evidence**:
   - Slice 1 (Addition-only default): 59 passed, 40 targeted regressions passed
   - Slice 2 (Direct Practice startup & returning gate): 7 passed, 28 lifecycle passed, 85 timer/flow passed
   - Slice 3 (Router gate & reset flow): 38 passed, 28 startup regressions passed, MathFirst.App Windows build (0 warnings / 0 errors)
   - Slice 4 (Asset & localization cleanup): 120 passed, 116 passed, 13 passed, MathFirst.App Windows build (0 warnings / 0 errors)
   - Slice 5 (Preference API removal & absence guards): 1 contract passed, Core test build (0 warnings / 0 errors), 97 preference regressions passed, 54 startup/recovery regressions passed, MathFirst.App Windows build (0 warnings / 0 errors)
-- **Validation State**: `FULL_VALIDATION` remains **PENDING**; candidate unmerged / unpushed on `feat/p2-direct-to-practice`. Historical 2,010 Core tests belong to the prior P1b merge baseline on `main`.
+- **Original Review Verdict**: `P2_REVIEW_APPROVED` (184 targeted tests passed, 0 failed, 0 skipped; 0 Blocker, 0 Major, 2 non-blocking Minor findings).
+
+#### B. Failed Formal FULL_VALIDATION (Candidate `42d8c0884ad3350cad5774ecd5b0098d13ed3e74`)
+- **Target Candidate**: `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` (documentation synchronization checkpoint).
+- **Debug Full Core Suite**: 1,975 tests completed before abort; 1,941 passed; 34 failed; 0 skipped; exit code 1. The 5-minute blame-hang inactivity detector aborted the testhost during `DeterministicSelectorTerminalLivenessTests.SelectorTotalityProperty_ValidReachableLearnerStatesAlwaysReturnDeterministicFact` (its test-side scheduling search could not encounter non-Addition operations because the generic domain fallback had been narrowed to Addition-only, preventing loop termination). The 34 failures were distributed across multiple regression families. `LongRunIndependentProgressionTests` contributed five of those failures, including synthetic progression-evidence cases where the broken unparameterized operation schedule produced duplicate practice positions correctly rejected by validation; those LongRun failures were separate from the testhost hang.
+- **Release Full Core Suite**: NOT EXECUTED (aborted early due to Debug full suite failure).
+- **Windows Release Build**: Succeeded with 0 warnings and 0 errors (`net10.0-windows10.0.19041.0`).
+- **Android Release Build**: Succeeded with 0 warnings and 0 errors (`net10.0-android36.0`).
+- **NuGet Vulnerability Audit**: Succeeded with 0 vulnerable packages.
+- **Focused P2 Release Confirmation**: 76 passed, 0 failed.
+- **Overall Formal Verdict**: `FULL_VALIDATION_FAILED`. Partial build and audit successes do not override full test suite validation failure.
+
+#### C. Validation-Fix Targeted Evidence (Candidate `085b929f058eb1ba4477f2bdc1412a09c218d648`)
+- **Target Candidate**: `085b929f058eb1ba4477f2bdc1412a09c218d648` (`fix(practice): separate app defaults from domain fallback`).
+- **Review Verdict**: `P2_VALIDATION_FIX_REVIEW_APPROVED`.
+- **TDD RED Phase**: `PracticeConfigurationTests` reproduced three domain-boundary failures (missing/empty selection normalized to Addition-only instead of `AllOperations`; corrupt all-false recovery produced one operation instead of four; unparameterized scheduling defaulted away from canonical four-operation scheduling).
+- **TDD GREEN Phase**:
+  - `PracticeConfigurationTests`: 46 passed, 0 failed.
+  - Previously failing regression families after correction:
+    - `IndependentSelectorTests`: 52 passed, 0 failed
+    - `GuidedNumberSpaceSelectionTests`: 10 passed, 0 failed
+    - `DenseProgressionTests`: 27 passed, 0 failed
+    - `FactEligibilityRegressionTests`: 23 passed, 0 failed
+    - `LongRunIndependentProgressionTests`: 7 passed, 0 failed (duplicate-position failures resolved)
+    - `DeterministicSelectorTerminalLivenessTests`: 57 passed, 0 failed (no hang)
+    - `FinalIntegrationCoverageTests`: 2 passed, 0 failed
+    - `BoundedSelectionIntegrationTests` + `SubmissionIntegrityAndPublishBoundaryTests` + `StaleSelectionEvidenceRemediationTests`: 33 passed, 0 failed
+  - Focused P2 contract regression set: 77 passed, 0 failed.
+- **Evidence Boundary Principles**: Targeted implementation evidence only. Overlapping test runs are not summed into fabricated test totals. This evidence does NOT constitute `FULL_VALIDATION`.
+- **Validation State**: Corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648` is review-approved, unmerged, and unpushed on `feat/p2-direct-to-practice`; formal `FULL_VALIDATION` remains **PENDING** from scratch. Historical 2,010 Core test counts belong to the prior P1b merge baseline on `main`.
