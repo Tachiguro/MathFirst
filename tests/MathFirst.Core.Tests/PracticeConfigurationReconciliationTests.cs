@@ -398,7 +398,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
     }
 
     [Fact]
-    public void SettingsOperationChange_AwaitsSingleFlightReconciliationAndOffersRecovery()
+    public void SettingsOperationChange_IsReadOnlyCurriculumStatusPresentation()
     {
         var settingsSource = File.ReadAllText(GetRepositoryPath(
             "src",
@@ -407,14 +407,10 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
             "Pages",
             "Settings.razor"));
 
-        Assert.Contains("@onclick=\"() => ToggleOperationAsync(operation)\"", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("disabled=\"@(isLastActive || _operationChangeInProgress)\"", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("private async Task ToggleOperationAsync", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("await Session.ReconcilePracticeConfigurationAsync(startTiming: false)", settingsSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("_ = Session.EnsureScheduledEvidenceAsync()", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("RetryPracticeConfigurationReconciliationAsync", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("Settings_PracticeConfigurationFailed", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("_practiceConfigurationReconciliationFailed", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToggleOperationAsync", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("RetryPracticeConfigurationReconciliationAsync", settingsSource, StringComparison.Ordinal);
+        Assert.Contains("CurriculumUnlockPolicy.GetUnlockedOperations", settingsSource, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"true\"", settingsSource, StringComparison.Ordinal);
     }
 
     public void Dispose()
