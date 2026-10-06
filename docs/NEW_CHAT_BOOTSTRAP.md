@@ -132,7 +132,7 @@ Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
-### Historical Reference Delivery Baseline (Snapshot as of 2026-10-06)
+### Historical Reference Delivery Baseline (Snapshot as of 2026-10-07)
 - **Historical Testing Verification (Roadmap Steps 51–54)**:
   - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
   - Step 52: Fresh Tester APK packaged and validated offline (`STEP_52_TESTER_APK_PASS`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`).
@@ -144,9 +144,11 @@ Worktrees: Exactly one normal worktree by default
   - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
   - P1b (Active Thinking Time / Interruption Safety): Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
   - P2 (Direct-to-Practice Start / Remove Onboarding): Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
-  - P2b (Gameplay and Startup Refinements): Implemented across 3 checkpoint slices, review approved (`P2B_REVIEW_APPROVED`), candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b` on task branch `feat/p2b-gameplay-startup-refinements`, backed by 2,027 passing Core tests, unpushed, no open PR, formal exact-candidate `FULL_VALIDATION` pending.
-  - P3 (Four-Stage Operation Unlock Progression): Planned / Next, requiring plan correction before implementation.
+  - P2b (Gameplay and Startup Refinements): Delivered & Merged (PR #64 at `f580a7154a4043a5097ffd852b5cf454be2cc397`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`).
+  - P3 (Cumulative Operation Unlock Progression): Implemented across 4 checkpoint slices, review approved (`P3_REVIEW_APPROVED`), candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5` on task branch `feat/p3-cumulative-operation-unlock-progression`, backed by 2,196 passing Core review tests, docs reconciliation current, formal exact-candidate `FULL_VALIDATION` pending.
+  - P4 through P8: Planned downstream.
 - **Delivered Pre-Step55 Packages & Merged PRs**:
+  - PR #64 (`f580a7154a4043a5097ffd852b5cf454be2cc397`): `P2b: gameplay and startup refinements`
   - PR #63 (`1b485091755294221b6f242e174d99c168fc8e9d`): `P2: start fresh learners directly in practice`
   - PR #62 (`a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): `P1b: active thinking time and interruption-safe learning evidence`
   - PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): `P1: normal practice without deadline failure`
@@ -160,10 +162,10 @@ Worktrees: Exactly one normal worktree by default
   - PR #52 (`f6a842b71df39b2d6facafae41874c86d6f3f611`): `docs: harden agent prompt governance`
   - PR #51 (`01472b05ef83f586144414a3cb3a0c7abbc45189`): `docs: record adaptive learning policy design`
   - PR #50 (`fa99f5c162f8cbce3d55ca7a3cac9d1625249a1b`): `feat: add Cyber Defense training MVP`
-- Schema: V8 (delivered via P1b; adds `is_interrupted` to `attempt_history`)
+- Schema: V9 (delivered via P3; adds `curriculum_stage` to `learner_progression`)
 - Telemetry: `telemetry_export_schema_v2` (16 properties including boolean `is_interrupted`)
 - Build 2 status: `REJECTED` (`RELEASE_CANDIDATE_REJECTED_PENDING_REMEDIATION`).
-- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, MF-LEARN-006, MF-UX-008, MF-TELEM-001, P0, P1, P1b, and P2, and no longer represents current repository source.
+- Build 3 status: Historical only. Step 30 technical smoke passed and Step 31 physical-device verification passed, but source predates MF-LEARN-004, MF-LEARN-005, MF-UX-007, MF-LEARN-006, MF-UX-008, MF-TELEM-001, P0, P1, P1b, P2, and P2b, and no longer represents current repository source.
 - Future candidate status: Any future production candidate requires `versionCode >= 4`. Build 4 does **not** exist yet (not packaged, not signed, not tested).
 
 ### Session Discovery & Candidate Resolution Protocol
@@ -172,10 +174,11 @@ When initializing a new session:
 2. **Verify live repository synchronization**: Fetch `origin` (`git fetch origin`), inspect live `origin/main` (`git rev-parse origin/main`), and verify that local `main` is synchronized with `origin/main` (`git status`, `git log origin/main..HEAD`, `git log HEAD..origin/main`). Never require equality to a documentation-embedded SHA; live synchronization is determined by Git tracking state.
 3. **Recognize Historical Build 3 Status and Pending Candidate**: Any subsequent production candidate requires `versionCode >= 4`, repetition of Step 30 and Step 31 verification (agent-executable when authorized), and separate user Google Play Console upload and publishing. Step 55 remains unauthorized.
 4. **Resolve active work from live state**: Check for open PRs (`gh pr list --state open`), divergent local task branches with unmerged work, uncommitted working tree modifications, and `docs/CURRENT_WORK.md`. Active work and lifecycle state are established solely through live evidence. When no PR is open, no task branch has unmerged work, and working tree on `main` is clean, there is no in-flight work.
-5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P3 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
+5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P4 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
-- **P2b Gameplay and Startup Refinements** (candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b` on task branch `feat/p2b-gameplay-startup-refinements`): Implemented digit-scaled Cyber Defense critical hit timing ($T_{\text{crit}} = T_{\text{easy}} \times \text{DigitCount}$), shared radar/damage authority (`Session.CurrentFactCriticalHitThresholdMs`), and fresh startup `InitialReadyGate` orientation without active timing before explicit Start (`P2B_REVIEW_APPROVED`, 2,027 Core tests passing, formal `FULL_VALIDATION` pending).
+- **P3 Cumulative Operation Unlock Progression** (candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5` on task branch `feat/p3-cumulative-operation-unlock-progression`): Implemented four-stage cumulative progression ($+ \to + - \to + - \times \to + - \times \div$), monotonic `CurriculumStage` in Schema V9, tolerant prerequisite D01 frontier unlock predicates, aggregate broad weakness gating, conservative V8 $\to$ V9 migration, semantically Guided `CurriculumManaged` practice, and read-only Settings unlock status (`P3_REVIEW_APPROVED`, 2,196 Core review tests passing, docs reconciliation current, formal `FULL_VALIDATION` pending).
+- **P2b Gameplay and Startup Refinements** (PR #64, merge `f580a7154a4043a5097ffd852b5cf454be2cc397`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`): Implemented digit-scaled Cyber Defense critical hit timing ($T_{\text{crit}} = T_{\text{easy}} \times \text{DigitCount}$), shared radar/damage authority (`Session.CurrentFactCriticalHitThresholdMs`), and fresh startup `InitialReadyGate` orientation without active timing before explicit Start (`FULL_VALIDATION_PASS`, 2,027 Core tests passing).
 - **P2 Direct-to-Practice Start / Remove Onboarding** (PR #63, merge `1b485091755294221b6f242e174d99c168fc8e9d`, candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`): Delivered direct start in active practice for fresh learners, initial preference default to Addition only, returning-learner progress overview, and complete removal of obsolete onboarding components, routes, CSS, and preference APIs (2,014 Core tests passing).
 - **P1b Active Thinking Time / Interruption Safety** (PR #62, merge `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): Delivered SQLite Schema V8 (`is_interrupted` column), Telemetry Schema V2 (16 properties), Dual-Window Structured Band progression (Window A: 40 math attempts; Window B: 40 timing-eligible attempts), timing-evidence eligibility (`TimingEvidenceEligible = !IsInterrupted`), pace calibration gating, and active interaction latency tracking across interruptions (2,010 Core tests passing).
 - **P1 Normal Practice Without Deadline Failure** (PR #61, merge `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): Removed automatic timeout failure from normal practice while preserving active interaction latency measurement, adaptive pace estimation, and FSRS rating semantics.

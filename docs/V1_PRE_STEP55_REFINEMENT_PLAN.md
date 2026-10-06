@@ -202,7 +202,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P2b — Gameplay and Startup Refinements
 - **Priority**: High (Ergonomics & Scoring Fairness).
-- **Status**: **IMPLEMENTED & REVIEW APPROVED** (Implemented across 3 checkpoint slices on task branch `feat/p2b-gameplay-startup-refinements`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`, review verdict `P2B_REVIEW_APPROVED`, backed by 2,027 passing Core tests, unpushed, no open PR, formal exact-candidate `FULL_VALIDATION` pending).
+- **Status**: **DELIVERED & MERGED** (Merged via PR #64 at commit `f580a7154a4043a5097ffd852b5cf454be2cc397`, backed by 2,027 passing Core tests).
 - **Product Decisions**:
   1. **Digit-Scaled Critical Hit Timing**: Cyber Defense Critical Hit window scales with the digit count of the correct answer: $\text{CriticalHitThresholdMs} = \text{CurrentFactEasyThresholdMs} \times \text{DigitCount}(\text{CorrectResult})$ ($0, 9 \to 1\times$; $10, 99 \to 2\times$; $100, 999 \to 3\times$; $1000 \to 4\times$).
   2. **Shared Radar & Damage Authority**: Both the radar arc countdown and damage scoring consume `Session.CurrentFactCriticalHitThresholdMs`.
@@ -213,26 +213,21 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P3 — Cumulative Operation Unlock Progression
 - **Priority**: High (Curriculum Architecture).
-- **Status**: **PLANNED / NEXT** (requires corrected architecture plan before implementation; rejected flawed preference-intersection model).
-- **Product Decision**: Replace the legacy model where all four operations could be manually enabled from the start. MathFirst adopts a disciplined, cumulative arithmetic progression:
+- **Status**: **IMPLEMENTED & REVIEW APPROVED** (Implemented across 4 checkpoint slices on task branch `feat/p3-cumulative-operation-unlock-progression`, candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5`, review verdict `P3_REVIEW_APPROVED`, backed by 2,196 passing Core tests, unpushed, no open PR, documentation reconciliation in progress, formal `FULL_VALIDATION` pending).
+- **Product Decision**: Replace the legacy model where all four operations could be manually enabled from the start. MathFirst adopts a disciplined, cumulative arithmetic progression under `PracticeMode.CurriculumManaged`:
   - **Stage 1**: Addition ($+$)
   - **Stage 2**: Addition & Subtraction ($+$, $-$)
   - **Stage 3**: Addition, Subtraction, & Multiplication ($+$, $-$, $\times$)
   - **Stage 4**: Addition, Subtraction, Multiplication, & Division ($+$, $-$, $\times$, $\div$)
-- **Progression Principles**:
-  - Previously unlocked operations remain active in the learning mix.
-  - Operation unlocking is governed by **demonstrated mathematical evidence**, not age, school grade, arbitrary question counts, or manual onboarding selection.
-  - Learners struggling with Addition/Subtraction remain focused there; strong learners unlock Multiplication and Division rapidly.
-  - Single difficult facts must not permanently deadlock stage progression.
-- **Prerequisite**: Requires a dedicated `PLAN_ONLY` lifecycle to reconcile existing systems:
-  - Independent per-operation progression ([ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md))
-  - Guided Four-Operation Number-Space Gate ([ADR-0009](decisions/ADR-0009-guided-four-operation-number-space-gate.md))
-  - Bounded operation scheduling ([ADR-0008](decisions/ADR-0008-independent-per-operation-role-ordinals-and-practice-configuration-reconciliation.md))
-  - Tiered remediation and evidence-adaptive discovery ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
-- **Mandatory Simulation Validation**: Acceptance planning must validate three deterministic simulated learner personas:
-  - **Persona A (Beginner / Young Child)**: Operates in small number spaces, slower latencies, frequent errors; experiences encouragement, success, and steady game progression without premature advanced operations.
-  - **Persona B (Mixed / Specific Weakness)**: Generally capable but has distinct weak facts; remediation resolves weaknesses without permanent stagnation or infinite repetition of mastered facts.
-  - **Persona C (Strong / Fluent Learner)**: High speed and accuracy; rapidly unlocks subsequent operations without artificial retention in trivial addition.
+- **Progression & Unlock Principles**:
+  - Previously unlocked operations remain active in the learning mix (monotonic `CurriculumStage`).
+  - Stage transitions require full prerequisite D01 frontier introduction (`IntroducedFactIds.ContainsAll(prerequisiteFrontier)`) and $\le 1$ prerequisite `NeedsRemediation` fact (or `BandIndex >= 1`).
+  - Gating incorporates aggregate broad weakness ($\ge 2$ eligible `NeedsRemediation` facts across active operations). Broad weakness blocks only the next stage and never relocks earned stages.
+  - Operation unlocking is governed strictly by demonstrated mathematical evidence, independent of age, school grade, onboarding answers, arbitrary question counts, response latency, pace calibration, Critical Hit scoring, or fluency alone.
+  - Guided Number-Space Gate operates with Addition Ceiling coupling until G3 decoupling at `BandIndex >= 3`.
+  - Settings operation controls render as read-only unlock indicators in `CurriculumManaged` mode; `Custom` mode remains available for unrestricted testing and historical 482 benchmark isolation.
+  - Persistence is backed by Schema V9 with `curriculum_stage` (1..4) in `learner_progression` committed atomically with learner state. Conservative V8 $\to$ V9 migration derives stage from historical D01/BandIndex readiness without preference authority.
+  - Validated across deterministic simulations for Persona A (Beginner), Persona B (Mixed / weak fact), and Persona C (Fluent learner), M1–M7 monotonicity regression suites, scheduler transitions, and dormant history preservation.
 
 ---
 
@@ -317,9 +312,10 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
   - `P1b — Active Thinking Time / Interruption Safety`: Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
   - `P2 — Direct-to-Practice Start / Remove Onboarding`: Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
+  - `P2b — Gameplay and Startup Refinements`: Delivered & Merged (PR #64 at commit `f580a7154a4043a5097ffd852b5cf454be2cc397`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`).
 - **Implemented & Review-Approved Refinements on Task Branch**:
-  - `P2b — Gameplay and Startup Refinements`: Implemented across 3 checkpoint slices on task branch `feat/p2b-gameplay-startup-refinements` (candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`), passed consolidated review (`P2B_REVIEW_APPROVED`), backed by 2,027 passing Core tests (unmerged, unpushed, no open PR, formal `FULL_VALIDATION` pending).
-- **Next Work Item**: `P2b` documentation reconciliation review / `FULL_VALIDATION` lifecycle (followed by `P3 — Cumulative Operation Unlock Progression` architecture planning).
+  - `P3 — Cumulative Operation Unlock Progression`: Implemented across 4 checkpoint slices on task branch `feat/p3-cumulative-operation-unlock-progression` (candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5`), passed consolidated review (`P3_REVIEW_APPROVED`), backed by 2,196 passing Core tests (unmerged, unpushed, no open PR, documentation reconciliation in progress, formal `FULL_VALIDATION` pending).
+- **Next Work Item**: `P3` documentation reconciliation review / `FULL_VALIDATION` lifecycle (followed by `P4 — Settings Simplification`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.
