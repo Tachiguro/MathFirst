@@ -256,7 +256,7 @@
                 {
                     <div class="training-top-region">
                         <CyberDefenseHud State="_cyberDefenseState"
-                                         CriticalWindowMs="Session.CurrentFactEasyThresholdMs"
+                                         CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                          ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
                                          TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
 
@@ -459,10 +459,7 @@
             try
             {
                 await Session.InitializeAsync(startTiming: false);
-                if (Session.HasCompletedPracticeHistory)
-                {
-                    Session.ShowInitialReadyGate();
-                }
+                Session.ShowInitialReadyGate();
                 Session.SetPracticeSurfaceActive(true);
                 SyncStateWithSession();
             }
@@ -701,10 +698,7 @@
         try
         {
             await Session.InitializeAsync(startTiming: false);
-            if (Session.HasCompletedPracticeHistory)
-            {
-                Session.ShowInitialReadyGate();
-            }
+            Session.ShowInitialReadyGate();
             Session.SetPracticeSurfaceActive(true);
             SyncStateWithSession();
         }
@@ -776,7 +770,7 @@
                 {
                     var isCritical =
                         Session.IsPaceCalibrationReady
-                        && eval.LatencyMs <= Session.CurrentFactEasyThresholdMs;
+                        && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
                     if (isCritical)
                     {
                         _cyberDefenseState.RecordCriticalHit();

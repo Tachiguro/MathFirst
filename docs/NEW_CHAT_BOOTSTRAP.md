@@ -143,8 +143,11 @@ Worktrees: Exactly one normal worktree by default
   - P0 (Zero-Answer / `0 + 0` Core-Flow Freeze): Delivered & Merged (PR #60).
   - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
   - P1b (Active Thinking Time / Interruption Safety): Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
-  - P2 (Direct-to-Practice Start / Remove Onboarding): Implemented across 5 feature checkpoints, 1 docs checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`, `FULL_VALIDATION_FAILED`), and 1 validation-fix checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`) on task branch `feat/p2-direct-to-practice` (7 commits ahead of `main`), reviewed (`P2_VALIDATION_FIX_REVIEW_APPROVED`), candidate unmerged / unpushed, no open PR, `FULL_VALIDATION` pending from scratch.
+  - P2 (Direct-to-Practice Start / Remove Onboarding): Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
+  - P2b (Gameplay and Startup Refinements): Implemented across 3 checkpoint slices, review approved (`P2B_REVIEW_APPROVED`), candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b` on task branch `feat/p2b-gameplay-startup-refinements`, backed by 2,027 passing Core tests, unpushed, no open PR, formal exact-candidate `FULL_VALIDATION` pending.
+  - P3 (Four-Stage Operation Unlock Progression): Planned / Next, requiring plan correction before implementation.
 - **Delivered Pre-Step55 Packages & Merged PRs**:
+  - PR #63 (`1b485091755294221b6f242e174d99c168fc8e9d`): `P2: start fresh learners directly in practice`
   - PR #62 (`a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): `P1b: active thinking time and interruption-safe learning evidence`
   - PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): `P1: normal practice without deadline failure`
   - PR #60 (`10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): `P0: resolve zero-answer core-flow freeze`
@@ -172,6 +175,8 @@ When initializing a new session:
 5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P3 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **P2b Gameplay and Startup Refinements** (candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b` on task branch `feat/p2b-gameplay-startup-refinements`): Implemented digit-scaled Cyber Defense critical hit timing ($T_{\text{crit}} = T_{\text{easy}} \times \text{DigitCount}$), shared radar/damage authority (`Session.CurrentFactCriticalHitThresholdMs`), and fresh startup `InitialReadyGate` orientation without active timing before explicit Start (`P2B_REVIEW_APPROVED`, 2,027 Core tests passing, formal `FULL_VALIDATION` pending).
+- **P2 Direct-to-Practice Start / Remove Onboarding** (PR #63, merge `1b485091755294221b6f242e174d99c168fc8e9d`, candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`): Delivered direct start in active practice for fresh learners, initial preference default to Addition only, returning-learner progress overview, and complete removal of obsolete onboarding components, routes, CSS, and preference APIs (2,014 Core tests passing).
 - **P1b Active Thinking Time / Interruption Safety** (PR #62, merge `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`): Delivered SQLite Schema V8 (`is_interrupted` column), Telemetry Schema V2 (16 properties), Dual-Window Structured Band progression (Window A: 40 math attempts; Window B: 40 timing-eligible attempts), timing-evidence eligibility (`TimingEvidenceEligible = !IsInterrupted`), pace calibration gating, and active interaction latency tracking across interruptions (2,010 Core tests passing).
 - **P1 Normal Practice Without Deadline Failure** (PR #61, merge `4e3ca4943c5809cbe470a4b0ac4f192b24b66795`): Removed automatic timeout failure from normal practice while preserving active interaction latency measurement, adaptive pace estimation, and FSRS rating semantics.
 - **P0 Zero-Answer / `0 + 0` Core-Flow Freeze** (PR #60, merge `10c01c05fa9b50b5278c775d78a87ca9a7ef2060`): Resolved physical hardware freeze when entering 0 for `0 + 0` from fresh/reset state; reinforced state release across submit $\to$ commit $\to$ next fact pipeline.

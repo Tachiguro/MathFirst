@@ -107,6 +107,10 @@ public sealed class TrainingSession
     public long ItemReadyTimestamp { get; private set; }
     public long CurrentFactExpectedPaceMs { get; private set; } = AdaptivePacePolicy.StaticPriorMs;
     public long CurrentFactEasyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumEasyThresholdMs;
+    public long CurrentFactCriticalHitThresholdMs =>
+        CurrentFact is not null
+            ? CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(CurrentFactEasyThresholdMs, CurrentFact.CorrectResult)
+            : CurrentFactEasyThresholdMs;
     public long CurrentFactFluencyThresholdMs { get; private set; } = AdaptivePacePolicy.MaximumFluencyThresholdMs;
     public PracticeTimeSetting CurrentPracticeTimeSetting { get; private set; } = PracticeTimeSetting.Standard;
     public bool HasEnforcedDeadline => PracticeTimePreferencePolicy.HasEnforcedDeadline(CurrentPracticeTimeSetting);

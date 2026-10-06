@@ -573,8 +573,9 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("radar-timing-deplete", css, StringComparison.Ordinal);
         Assert.Contains("--crit-window-duration", hud, StringComparison.Ordinal);
 
-        // Home binds learner-relative critical window to CurrentFactEasyThresholdMs
-        Assert.Contains("CriticalWindowMs=\"Session.CurrentFactEasyThresholdMs\"", home, StringComparison.Ordinal);
+        // Home binds learner-relative critical window to CurrentFactCriticalHitThresholdMs
+        Assert.Contains("CriticalWindowMs=\"Session.CurrentFactCriticalHitThresholdMs\"", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("CriticalWindowMs=\"Session.CurrentFactEasyThresholdMs\"", home, StringComparison.Ordinal);
 
         // No timer countdown numbers in radar or HUD
         Assert.DoesNotContain("countdown-number", hud, StringComparison.Ordinal);
@@ -597,7 +598,8 @@ public sealed class CyberDefenseUiContractTests
         var expr = match.Groups["expr"].Value;
 
         Assert.Contains("Session.IsPaceCalibrationReady", expr, StringComparison.Ordinal);
-        Assert.Contains("Session.CurrentFactEasyThresholdMs", expr, StringComparison.Ordinal);
+        Assert.Contains("Session.CurrentFactCriticalHitThresholdMs", expr, StringComparison.Ordinal);
+        Assert.DoesNotContain("Session.CurrentFactEasyThresholdMs", expr, StringComparison.Ordinal);
         Assert.Contains("<=", expr, StringComparison.Ordinal);
     }
 
@@ -692,7 +694,7 @@ public sealed class CyberDefenseUiContractTests
         Assert.Equal(2000, activeElapsedOnResume);
 
         // Radar visual timing state derived from session on resume
-        var threshold = session.CurrentFactEasyThresholdMs;
+        var threshold = session.CurrentFactCriticalHitThresholdMs;
         var resumeTiming = CyberDefenseRadarTimingPolicy.CalculateTimingState(threshold, activeElapsedOnResume);
         var expectedRemainingMs = Math.Max(0, threshold - 2000);
         var expectedFraction = (double)expectedRemainingMs / threshold;

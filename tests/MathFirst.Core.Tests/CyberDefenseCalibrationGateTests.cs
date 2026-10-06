@@ -27,10 +27,10 @@ public sealed class CyberDefenseCalibrationGateTests
         private readonly List<AttemptRecord> _attempts = [];
         private long _revision = 1;
 
-        public CalibratedTestingStore(int initialPositionedCorrectCount = 0)
+        public CalibratedTestingStore(int initialPositionedCorrectCount = 0, LearnerProgression? progression = null)
         {
             _initialPositionedCorrectCount = initialPositionedCorrectCount;
-            _progression = LearnerProgression.CreateFresh();
+            _progression = progression ?? LearnerProgression.CreateFresh();
         }
 
         public string StoragePath => "inmemory://cyber-defense-calibration-gate";
@@ -45,6 +45,7 @@ public sealed class CyberDefenseCalibrationGateTests
                 _attempts,
                 _revision,
                 LearnerProgression.DefaultSchemaVersion,
+                operationProgressions: _progression.OperationProgressions,
                 positionedCorrectAttemptCount: _initialPositionedCorrectCount));
 
         public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
@@ -71,11 +72,13 @@ public sealed class CyberDefenseCalibrationGateTests
     }
 
     private static async Task<(TrainingSession Session, FakeClock Clock, CalibratedTestingStore Store)> CreateSessionAsync(
-        int positionedCorrectAttemptCount = 0)
+        int positionedCorrectAttemptCount = 0,
+        LearnerProgression? progression = null,
+        IPreferenceStore? preferenceStore = null)
     {
         var clock = new FakeClock();
-        var store = new CalibratedTestingStore(positionedCorrectAttemptCount);
-        var session = new TrainingSession(store, clock);
+        var store = new CalibratedTestingStore(positionedCorrectAttemptCount, progression);
+        var session = new TrainingSession(store, clock, preferenceStore: preferenceStore);
         await session.InitializeAsync(startTiming: true);
         session.SetPracticeSurfaceActive(true);
         session.StartOrResumePractice();
@@ -114,10 +117,16 @@ public sealed class CyberDefenseCalibrationGateTests
         {
             var expr = isCriticalMatch.Groups["expr"].Value;
             var gatesOnCalibration = expr.Contains("Session.IsPaceCalibrationReady");
+            var usesCriticalHitThreshold = expr.Contains("Session.CurrentFactCriticalHitThresholdMs");
 
             bool isCritical;
-            if (gatesOnCalibration)
+            if (gatesOnCalibration && usesCriticalHitThreshold)
             {
+                isCritical = session.IsPaceCalibrationReady && eval.LatencyMs <= session.CurrentFactCriticalHitThresholdMs;
+            }
+            else if (gatesOnCalibration)
+            {
+                // Old state before Slice 2: still using raw easy threshold
                 isCritical = session.IsPaceCalibrationReady && eval.LatencyMs <= session.CurrentFactEasyThresholdMs;
             }
             else
@@ -197,29 +206,29 @@ public sealed class CyberDefenseCalibrationGateTests
 
         Assert.True(session.IsPaceCalibrationReady);
         clock.AdvanceMs(750);
-        Assert.True(750 <= session.CurrentFactEasyThresholdMs);
+        Assert.True(750 <= session.CurrentFactCriticalHitThresholdMs);
 
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(eval.IsCorrect);
-        Assert.True(eval.LatencyMs <= session.CurrentFactEasyThresholdMs);
+        Assert.True(eval.LatencyMs <= session.CurrentFactCriticalHitThresholdMs);
 
         ApplyCombatFromHome(session, eval, encounter);
 
-        // Post-calibration: Correct AND ResponseLatencyMs <= CurrentFactEasyThresholdMs = Critical Hit = 2 HP
+        // Post-calibration: Correct AND ResponseLatencyMs <= CurrentFactCriticalHitThresholdMs = Critical Hit = 2 HP
         Assert.Equal(2, encounter.LastDamageDealt);
         Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, encounter.LastFeedback);
         Assert.Equal(initialHp - 2, encounter.EnemyHitPoints);
     }
 
     [Fact]
-    public async Task CyberDefense_Calibrated_ExactEasyThreshold_IsCritical()
+    public async Task CyberDefense_Calibrated_ExactCriticalHitThreshold_IsCritical()
     {
         var (session, clock, _) = await CreateSessionAsync(positionedCorrectAttemptCount: 24);
         var encounter = new CyberDefenseEncounterState();
         var initialHp = encounter.EnemyHitPoints;
 
         Assert.True(session.IsPaceCalibrationReady);
-        var exactThreshold = session.CurrentFactEasyThresholdMs;
+        var exactThreshold = session.CurrentFactCriticalHitThresholdMs;
         clock.AdvanceMs(exactThreshold);
 
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
@@ -242,16 +251,110 @@ public sealed class CyberDefenseCalibrationGateTests
         var initialHp = encounter.EnemyHitPoints;
 
         Assert.True(session.IsPaceCalibrationReady);
-        var slowLatency = session.CurrentFactEasyThresholdMs + 100;
+        var slowLatency = session.CurrentFactCriticalHitThresholdMs + 100;
         clock.AdvanceMs(slowLatency);
 
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(eval.IsCorrect);
-        Assert.True(eval.LatencyMs > session.CurrentFactEasyThresholdMs);
+        Assert.True(eval.LatencyMs > session.CurrentFactCriticalHitThresholdMs);
 
         ApplyCombatFromHome(session, eval, encounter);
 
-        // Post-calibration: Correct AND ResponseLatencyMs > CurrentFactEasyThresholdMs = normal hit = 1 HP
+        // Post-calibration: Correct AND ResponseLatencyMs > CurrentFactCriticalHitThresholdMs = normal hit = 1 HP
+        Assert.Equal(1, encounter.LastDamageDealt);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, encounter.LastFeedback);
+        Assert.Equal(initialHp - 1, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public async Task CyberDefense_Calibrated_MultiDigitFact_LatencyAboveEasyThreshold_WithinCriticalHitThreshold_DealsCriticalDamage()
+    {
+        var progression = LearnerProgression.CreateFresh();
+        progression.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(
+            ArithmeticOperation.Addition,
+            bandIndex: 9,
+            bandStartedPracticePosition: 0);
+
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
+
+        var (session, clock, _) = await CreateSessionAsync(
+            positionedCorrectAttemptCount: 24,
+            progression: progression,
+            preferenceStore: preferences);
+        var encounter = new CyberDefenseEncounterState();
+        var initialHp = encounter.EnemyHitPoints;
+
+        Assert.True(session.IsPaceCalibrationReady);
+        var fact = session.CurrentFact;
+        var digitCount = AdaptivePacePolicy.GetDigitCount(fact.CorrectResult);
+        Assert.True(digitCount >= 2, "Fact must have at least 2 digits in its correct result.");
+
+        var easyThreshold = session.CurrentFactEasyThresholdMs;
+        var criticalThreshold = session.CurrentFactCriticalHitThresholdMs;
+        Assert.Equal(easyThreshold * digitCount, criticalThreshold);
+        Assert.True(criticalThreshold > easyThreshold);
+
+        // Latency is strictly ABOVE base easy threshold, but WITHIN digit-scaled critical hit threshold
+        var latency = easyThreshold + 300;
+        Assert.True(latency > easyThreshold);
+        Assert.True(latency <= criticalThreshold);
+
+        clock.AdvanceMs(latency);
+
+        var eval = session.SubmitAnswer(fact.CorrectResult);
+        Assert.True(eval.IsCorrect);
+        Assert.Equal(latency, eval.LatencyMs);
+
+        ApplyCombatFromHome(session, eval, encounter);
+
+        // Cyber Defense deals Critical Hit = 2 HP
+        Assert.Equal(2, encounter.LastDamageDealt);
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, encounter.LastFeedback);
+        Assert.Equal(initialHp - 2, encounter.EnemyHitPoints);
+
+        // Strict learning boundary verification:
+        // Attempt outcome is Correct, but underlying learning thresholds were NOT expanded to make this Easy
+        Assert.Equal(easyThreshold, session.CurrentFactEasyThresholdMs);
+        Assert.Equal(FsrsRating.Good, eval.ChangeSet.UpdatedFsrsState?.LastRating);
+        Assert.NotEqual(FsrsRating.Easy, eval.ChangeSet.UpdatedFsrsState?.LastRating);
+    }
+
+    [Fact]
+    public async Task CyberDefense_Calibrated_MultiDigitFact_LatencyAboveCriticalHitThreshold_DealsNormalDamage()
+    {
+        var progression = LearnerProgression.CreateFresh();
+        progression.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(
+            ArithmeticOperation.Addition,
+            bandIndex: 9,
+            bandStartedPracticePosition: 0);
+
+        var preferences = new TestPreferenceStore();
+        preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
+
+        var (session, clock, _) = await CreateSessionAsync(
+            positionedCorrectAttemptCount: 24,
+            progression: progression,
+            preferenceStore: preferences);
+        var encounter = new CyberDefenseEncounterState();
+        var initialHp = encounter.EnemyHitPoints;
+
+        Assert.True(session.IsPaceCalibrationReady);
+        var fact = session.CurrentFact;
+        var digitCount = AdaptivePacePolicy.GetDigitCount(fact.CorrectResult);
+        Assert.True(digitCount >= 2);
+
+        var criticalThreshold = session.CurrentFactCriticalHitThresholdMs;
+        var slowLatency = criticalThreshold + 200;
+        clock.AdvanceMs(slowLatency);
+
+        var eval = session.SubmitAnswer(fact.CorrectResult);
+        Assert.True(eval.IsCorrect);
+        Assert.True(eval.LatencyMs > criticalThreshold);
+
+        ApplyCombatFromHome(session, eval, encounter);
+
+        // Exceeding digit-scaled critical hit threshold yields normal hit = 1 HP
         Assert.Equal(1, encounter.LastDamageDealt);
         Assert.Equal(CyberDefenseFeedbackKind.Hit, encounter.LastFeedback);
         Assert.Equal(initialHp - 1, encounter.EnemyHitPoints);
@@ -415,6 +518,81 @@ public sealed class CyberDefenseCalibrationGateTests
         Assert.Equal(session2.Progression.PracticePosition, session1.Progression.PracticePosition);
     }
 
+    [Theory]
+    [InlineData(0, 1500)]
+    [InlineData(9, 1500)]
+    [InlineData(10, 3000)]
+    [InlineData(99, 3000)]
+    [InlineData(100, 4500)]
+    [InlineData(999, 4500)]
+    [InlineData(1000, 6000)]
+    public void CyberDefenseRadarTimingPolicy_CalculateCriticalHitThresholdMs_ExactBoundaryMultiplication(int correctResult, long expectedThresholdMs)
+    {
+        const long baseEasyThresholdMs = 1500;
+        var threshold = CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(baseEasyThresholdMs, correctResult);
+        Assert.Equal(expectedThresholdMs, threshold);
+    }
+
+    [Fact]
+    public void CyberDefenseRadarTimingPolicy_CalculateCriticalHitThresholdMs_RejectsNegativeInputs()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(-1, 42));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(1500, -1));
+    }
+
+    [Fact]
+    public async Task CyberDefense_DigitScaledCriticalHitThreshold_DerivedWithoutMutatingLearningThresholds()
+    {
+        var (session, _, _) = await CreateSessionAsync(positionedCorrectAttemptCount: 24);
+        var fact = session.CurrentFact;
+        var digitCount = AdaptivePacePolicy.GetDigitCount(fact.CorrectResult);
+
+        var easyThreshold = session.CurrentFactEasyThresholdMs;
+        var fluencyThreshold = session.CurrentFactFluencyThresholdMs;
+        var expectedPace = session.CurrentFactExpectedPaceMs;
+        var criticalThreshold = session.CurrentFactCriticalHitThresholdMs;
+
+        // Critical Hit threshold is exact digit-scaled multiple
+        Assert.Equal(checked(easyThreshold * digitCount), criticalThreshold);
+
+        // Underlying learning thresholds remain completely unchanged and bounded
+        Assert.Equal(easyThreshold, session.CurrentFactEasyThresholdMs);
+        Assert.InRange(session.CurrentFactEasyThresholdMs, AdaptivePacePolicy.MinimumEasyThresholdMs, AdaptivePacePolicy.MaximumEasyThresholdMs);
+        Assert.Equal(fluencyThreshold, session.CurrentFactFluencyThresholdMs);
+        Assert.InRange(session.CurrentFactFluencyThresholdMs, AdaptivePacePolicy.MinimumFluencyThresholdMs, AdaptivePacePolicy.MaximumFluencyThresholdMs);
+        Assert.Equal(expectedPace, session.CurrentFactExpectedPaceMs);
+    }
+
+    [Fact]
+    public void CyberDefense_CriticalHitSeparation_PreservesLearningClassificationSemantics()
+    {
+        // Example: Base easy threshold = 1500ms, fluency threshold = 2200ms.
+        // Fact with 3-digit answer (e.g. 100) has CriticalHitThresholdMs = 4500ms.
+        // A response at 3000ms is within the 4500ms Critical Hit window, but for learning evaluation
+        // it must classify strictly under unchanged learning thresholds (3000ms > 2200ms -> Hard, non-fluent).
+        const long easyThresholdMs = 1500;
+        const long fluencyThresholdMs = 2200;
+        const int threeDigitResult = 100;
+        var criticalHitThresholdMs = CyberDefenseRadarTimingPolicy.CalculateCriticalHitThresholdMs(easyThresholdMs, threeDigitResult);
+        Assert.Equal(4500, criticalHitThresholdMs);
+
+        const long responseLatencyMs = 3000;
+        Assert.True(responseLatencyMs <= criticalHitThresholdMs, "Latency is within the expanded 3-digit Critical Hit window.");
+
+        var classification = AdaptiveAttemptClassifier.Classify(
+            AttemptOutcome.Correct,
+            responseLatencyMs,
+            easyThresholdMs,
+            fluencyThresholdMs);
+
+        // Learning classification is NOT made Easy/Fluent by the expanded Critical Hit window
+        Assert.False(classification.IsFluent);
+        Assert.Equal(FsrsRating.Hard, classification.Rating);
+    }
+
     private static string GetRepositoryPath(params string[] segments)
     {
         var root = GetRepositoryRoot();
@@ -424,4 +602,37 @@ public sealed class CyberDefenseCalibrationGateTests
     private static string GetRepositoryRoot(
         [System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
+
+    private sealed class TestPreferenceStore : IPreferenceStore
+    {
+        private readonly Dictionary<ArithmeticOperation, bool> _operationPreferences = [];
+
+        public ThemePreference GetThemePreference() => ThemePreference.System;
+        public void SetThemePreference(ThemePreference preference) { }
+        public NumericKeypadLayout GetNumericKeypadLayout() => NumericKeypadLayout.Numpad;
+        public void SetNumericKeypadLayout(NumericKeypadLayout layout) { }
+        public string GetLanguagePreference() => "system";
+        public void SetLanguagePreference(string languageCode) { }
+        public bool GetHapticFeedbackEnabled() => true;
+        public void SetHapticFeedbackEnabled(bool enabled) { }
+        public bool GetOperationEnabled(ArithmeticOperation operation) =>
+            _operationPreferences.GetValueOrDefault(operation, true);
+        public void SetOperationEnabled(ArithmeticOperation operation, bool enabled) =>
+            _operationPreferences[operation] = enabled;
+        public IReadOnlyList<ArithmeticOperation> GetEnabledOperations() =>
+            PracticeOperationPreferencePolicy.NormalizeEnabledOperations(
+                PracticeOperationPreferencePolicy.AllOperations.Where(GetOperationEnabled));
+        public void SetEnabledOperations(IEnumerable<ArithmeticOperation> operations)
+        {
+            var enabled = operations.ToHashSet();
+            foreach (var operation in PracticeOperationPreferencePolicy.AllOperations)
+            {
+                SetOperationEnabled(operation, enabled.Contains(operation));
+            }
+        }
+        public PracticeTimeSetting GetPracticeTimeSetting() => PracticeTimeSetting.Standard;
+        public void SetPracticeTimeSetting(PracticeTimeSetting setting) { }
+        public void ResetPracticePreferences() => _operationPreferences.Clear();
+        public void ResetAllPreferences() => _operationPreferences.Clear();
+    }
 }

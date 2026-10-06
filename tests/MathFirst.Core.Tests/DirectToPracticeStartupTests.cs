@@ -160,7 +160,7 @@ public sealed class DirectToPracticeStartupTests
     }
 
     [Fact]
-    public void Home_OnInitializedAsync_ConditionsShowInitialReadyGateOnCompletedPracticeHistory()
+    public void Home_OnInitializedAsync_CallsShowInitialReadyGateUnconditionally()
     {
         var home = File.ReadAllText(GetRepositoryPath(
             "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
@@ -171,12 +171,14 @@ public sealed class DirectToPracticeStartupTests
         Assert.True(nextMethodIndex > onInitIndex);
         var body = home.Substring(onInitIndex, nextMethodIndex - onInitIndex);
 
-        Assert.Contains("HasCompletedPracticeHistory", body, StringComparison.Ordinal);
+        Assert.Contains("await Session.InitializeAsync(startTiming: false);", body, StringComparison.Ordinal);
         Assert.Contains("Session.ShowInitialReadyGate();", body, StringComparison.Ordinal);
+        Assert.Contains("Session.SetPracticeSurfaceActive(true);", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (Session.HasCompletedPracticeHistory)", body, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Home_RetryInitializationAsync_ConditionsShowInitialReadyGateOnCompletedPracticeHistory()
+    public void Home_RetryInitializationAsync_CallsShowInitialReadyGateUnconditionally()
     {
         var home = File.ReadAllText(GetRepositoryPath(
             "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
@@ -187,12 +189,14 @@ public sealed class DirectToPracticeStartupTests
         Assert.True(nextMethodIndex > retryIndex);
         var body = home.Substring(retryIndex, nextMethodIndex - retryIndex);
 
-        Assert.Contains("HasCompletedPracticeHistory", body, StringComparison.Ordinal);
+        Assert.Contains("await Session.InitializeAsync(startTiming: false);", body, StringComparison.Ordinal);
         Assert.Contains("Session.ShowInitialReadyGate();", body, StringComparison.Ordinal);
+        Assert.Contains("Session.SetPracticeSurfaceActive(true);", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (Session.HasCompletedPracticeHistory)", body, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Home_ContainsNoUnconditionalShowInitialReadyGate()
+    public void Home_ContainsNoGuardedShowInitialReadyGate()
     {
         var home = File.ReadAllText(GetRepositoryPath(
             "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
@@ -202,7 +206,7 @@ public sealed class DirectToPracticeStartupTests
             normalized,
             @"if\s*\(Session\.HasCompletedPracticeHistory\)\s*\{\s*Session\.ShowInitialReadyGate\(\);\s*\}");
 
-        Assert.Equal(2, guardedMatches.Count);
+        Assert.Empty(guardedMatches);
 
         var allOccurrences = System.Text.RegularExpressions.Regex.Matches(
             normalized,
@@ -212,7 +216,17 @@ public sealed class DirectToPracticeStartupTests
     }
 
     [Fact]
-    public async Task TrainingSession_FreshLearner_StartsDirectlyInRunningGateWithActiveTiming()
+    public void Home_ProgressOverviewRendering_RemainsConditionalOnCompletedPracticeHistory()
+    {
+        var home = File.ReadAllText(GetRepositoryPath(
+            "src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        Assert.Contains("Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory", home, StringComparison.Ordinal);
+        Assert.Contains("ready-progress-overview", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TrainingSession_FreshLearner_EntersInitialReadyGateAndPausesTimingUntilExplicitStart()
     {
         var snapshot = CreateTestSnapshot(hasCompletedHistory: false);
         var store = new TransientEvidenceLearnerStore(snapshot)
@@ -231,11 +245,25 @@ public sealed class DirectToPracticeStartupTests
         Assert.Equal(PracticeGateState.Running, session.PracticeGate);
         Assert.False(session.IsTimingActive);
 
-        // Fresh learner: Home does NOT call ShowInitialReadyGate(), calls SetPracticeSurfaceActive(true) directly
+        // Fresh learner: Home unconditionally calls ShowInitialReadyGate() before SetPracticeSurfaceActive(true)
+        session.ShowInitialReadyGate();
         session.SetPracticeSurfaceActive(true);
+
+        Assert.Equal(PracticeGateState.InitialReadyGate, session.PracticeGate);
+        Assert.False(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
+
+        clock.AdvanceMs(1000);
+        Assert.Equal(0, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
+
+        // Explicit Start action from learner
+        session.StartOrResumePractice();
 
         Assert.Equal(PracticeGateState.Running, session.PracticeGate);
         Assert.True(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
 
         clock.AdvanceMs(300);
@@ -244,6 +272,9 @@ public sealed class DirectToPracticeStartupTests
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.True(eval.IsCorrect);
         Assert.Equal(300, eval.LatencyMs);
+        Assert.NotNull(eval.ChangeSet?.Attempt);
+        Assert.False(eval.ChangeSet.Attempt.IsInterrupted);
+        Assert.True(eval.ChangeSet.Attempt.IsTimingEligible);
     }
 
     [Fact]
@@ -264,15 +295,13 @@ public sealed class DirectToPracticeStartupTests
 
         Assert.True(session.HasCompletedPracticeHistory);
 
-        // Returning learner: Home sees HasCompletedPracticeHistory == true, calls ShowInitialReadyGate()
-        if (session.HasCompletedPracticeHistory)
-        {
-            session.ShowInitialReadyGate();
-        }
+        // Returning learner: Home unconditionally calls ShowInitialReadyGate() before SetPracticeSurfaceActive(true)
+        session.ShowInitialReadyGate();
         session.SetPracticeSurfaceActive(true);
 
         Assert.Equal(PracticeGateState.InitialReadyGate, session.PracticeGate);
         Assert.False(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
 
         clock.AdvanceMs(1000);
         Assert.Equal(0, session.GetCurrentActiveElapsedMs());
@@ -282,13 +311,14 @@ public sealed class DirectToPracticeStartupTests
 
         Assert.Equal(PracticeGateState.Running, session.PracticeGate);
         Assert.True(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
 
         clock.AdvanceMs(450);
         Assert.Equal(450, session.GetCurrentActiveElapsedMs());
     }
 
     [Fact]
-    public async Task StartupRecovery_FreshLearner_AppliesDirectToPracticeOnSuccessfulRetry()
+    public async Task StartupRecovery_FreshLearner_AppliesInitialReadyGateOnSuccessfulRetry()
     {
         var snapshot = CreateTestSnapshot(hasCompletedHistory: false);
         var store = new TransientEvidenceLearnerStore(snapshot)
@@ -310,15 +340,18 @@ public sealed class DirectToPracticeStartupTests
         Assert.True(session.IsInitialized);
         Assert.False(session.HasCompletedPracticeHistory);
 
-        // Fresh decision applied after retry
-        if (session.HasCompletedPracticeHistory)
-        {
-            session.ShowInitialReadyGate();
-        }
+        // Fresh decision applied after retry: unconditional Ready gate
+        session.ShowInitialReadyGate();
         session.SetPracticeSurfaceActive(true);
 
+        Assert.Equal(PracticeGateState.InitialReadyGate, session.PracticeGate);
+        Assert.False(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
+
+        session.StartOrResumePractice();
         Assert.Equal(PracticeGateState.Running, session.PracticeGate);
         Assert.True(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
         Assert.Equal(0, store.ResetProgressCallCount);
     }
 
@@ -345,19 +378,18 @@ public sealed class DirectToPracticeStartupTests
         Assert.True(session.IsInitialized);
         Assert.True(session.HasCompletedPracticeHistory);
 
-        // Returning decision applied after retry
-        if (session.HasCompletedPracticeHistory)
-        {
-            session.ShowInitialReadyGate();
-        }
+        // Returning decision applied after retry: unconditional Ready gate
+        session.ShowInitialReadyGate();
         session.SetPracticeSurfaceActive(true);
 
         Assert.Equal(PracticeGateState.InitialReadyGate, session.PracticeGate);
         Assert.False(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
 
         session.StartOrResumePractice();
         Assert.Equal(PracticeGateState.Running, session.PracticeGate);
         Assert.True(session.IsTimingActive);
+        Assert.False(session.IsCurrentAttemptInterrupted);
         Assert.Equal(0, store.ResetProgressCallCount);
     }
 

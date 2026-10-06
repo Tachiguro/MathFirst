@@ -826,4 +826,59 @@ The P2 implementation eliminates the multi-step onboarding wizard and router gat
     - `BoundedSelectionIntegrationTests` + `SubmissionIntegrityAndPublishBoundaryTests` + `StaleSelectionEvidenceRemediationTests`: 33 passed, 0 failed
   - Focused P2 contract regression set: 77 passed, 0 failed.
 - **Evidence Boundary Principles**: Targeted implementation evidence only. Overlapping test runs are not summed into fabricated test totals. This evidence does NOT constitute `FULL_VALIDATION`.
-- **Validation State**: Corrected candidate `085b929f058eb1ba4477f2bdc1412a09c218d648` is review-approved, unmerged, and unpushed on `feat/p2-direct-to-practice`; formal `FULL_VALIDATION` remains **PENDING** from scratch. Historical 2,010 Core test counts belong to the prior P1b merge baseline on `main`.
+- **Validation & Merge State**: Corrected candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd` passed formal full validation (`P2_FULL_VALIDATION_PASSED`) with 2,014 passing Core tests; merged into `main` via PR #63 at merge commit `1b485091755294221b6f242e174d99c168fc8e9d`.
+
+---
+
+## 25. P2b Gameplay and Startup Refinements Contracts & Reviewed Test Evidence
+
+The bounded P2b package implements digit-scaled Cyber Defense critical hit timing based on answer length, aligns radar countdown arc and damage scoring to a single shared authority, and places fresh practice startup behind `InitialReadyGate` orientation without active timing before explicit Start. This behavior is covered by automated contract and regression suites in `MathFirst.Core.Tests` and `MathFirst.App`:
+
+1. **Digit-Scaled Critical Hit Timing Contracts (`CyberDefenseCalibrationGateTests`, `Session`)**:
+   - **Product Rule**: $\text{CriticalHitThresholdMs} = \text{CurrentFactEasyThresholdMs} \times \text{DigitCount}(\text{CurrentFact.CorrectResult})$.
+   - **Boundary Scaling**: Asserts $1\times$ easy threshold for 1-digit results ($0, 9$), $2\times$ for 2-digit results ($10, 99$), $3\times$ for 3-digit results ($100, 999$), and $4\times$ for 4-digit results ($1000$).
+   - **Pace Calibration Readiness Gate**: Asserts Critical Hits are awarded only after pace calibration readiness ($\ge 24$ timing-eligible positioned Correct attempts). Before calibration, all correct answers deal 1 HP normal damage regardless of response speed.
+   - **Correct-But-Slow Damage**: Asserts correct answers outside the critical hit window deal standard 1 HP normal damage.
+
+2. **Shared Radar Arc and Scoring Authority (`TrainingSession`, `CyberDefenseBattleScene`)**:
+   - **Single Authority**: Asserts both the Cyber Defense radar countdown arc and the combat damage scoring decision consume `Session.CurrentFactCriticalHitThresholdMs`.
+   - **Radar Visual Alignment**: Asserts the radar sweep/countdown visually matches the exact mathematical window allowed for a Critical Hit.
+
+3. **Fresh Startup Ready Gate Orientation Contracts (`DirectToPracticeStartupTests`, `Home.razor`)**:
+   - **Pre-Attempt Orientation (`InitialReadyGate`)**: Asserts both fresh learners and returning learners mount Practice behind `InitialReadyGate`.
+   - **Fresh vs. Returning Presentation**: Asserts fresh learners (without completed practice history) see no progress overview, while returning learners see a concise progress overview of enabled operations.
+   - **Active Timing Suppression Before Start**: Asserts active timing does not run before explicit Start (`IsTimingActive == false`, `ActiveElapsed == 0`, `IsInterrupted == false`).
+   - **Running Practice Transition**: Asserts pressing explicit "Start" / "Resume" transitions to `PracticeGate.Running` and begins active interaction timing from zero.
+   - **No Wizard Restoration**: Asserts zero onboarding wizard components, routes, or questionnaires are reintroduced.
+
+4. **Strict Learning Non-Interference Boundary Contracts (`AdaptiveLearningPolicyFinalRegressionTests`, `TelemetryLearningNonInterferenceTests`)**:
+   - Asserts digit-scaled Critical Hit timing is strictly a presentation and gameplay threshold.
+   - Asserts zero mutation to underlying `CurrentFactEasyThresholdMs`, `CurrentFactFluencyThresholdMs`, `CurrentFactExpectedPaceMs`, `ResponseLatencyMs`, `AttemptOutcome`, `IsFluent`, `IsInterrupted`, `TimingEvidenceEligible`, `AdaptiveAttemptClassifier`, `FsrsRatingMapper`, FSRS card state, adaptive pace shrinkage, band progression, remediation, `PracticePosition`, telemetry export schema v2, or SQLite persistence.
+   - Asserts that a multi-digit answer may exceed the normal learning Easy threshold (rated non-Easy / non-fluent) while earning a Cyber Defense Critical Hit; this separation is intentional and verified.
+
+### Implementation & Review Test Evidence (Candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`)
+
+- **Candidate Commit**: `11181fe0d3e4b7c752e15815432f66b6c862a61b` (Slice 3 HEAD on `feat/p2b-gameplay-startup-refinements`).
+- **Base Commit**: `1b485091755294221b6f242e174d99c168fc8e9d` (`main` after PR #63 merge).
+- **Consolidated Review Verdict**: `P2B_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit, 1 Note regarding test helper naming).
+- **Implementation Core Test Evidence**: **2,027 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Slice-Level Targeted Evidence**:
+  - *Slice 1 (`33d3552fa619d24a759022096695ac069faa0260`)*:
+    - `CyberDefenseCalibrationGateTests` GREEN: 20 passed, 0 failed, 0 skipped.
+    - Targeted Cyber Defense / adaptive regressions: 319 passed, 0 failed, 0 skipped.
+  - *Slice 2 (`cb07353507755712223db58539b48276302410e0`)*:
+    - `CyberDefenseUiContractTests` + `CyberDefenseCalibrationGateTests`: 58 passed, 0 failed, 0 skipped.
+    - CyberDefense filtered group: 79 passed, 0 failed, 0 skipped.
+    - Adaptive rating / calibration / telemetry non-interference group: 49 passed, 0 failed, 0 skipped.
+    - Full Core at Slice 2: 2,026 passed, 0 failed, 0 skipped.
+  - *Slice 3 (`11181fe0d3e4b7c752e15815432f66b6c862a61b`)*:
+    - `DirectToPracticeStartupTests`: 8 passed, 0 failed, 0 skipped.
+    - Adjacent interruption / onboarding / reset / responsive group: 92 passed, 0 failed, 0 skipped.
+    - Full Core: 2,027 passed, 0 failed, 0 skipped.
+  - *Evidence Note*: Focused runs overlap across target filter boundaries and are reported independently without summing.
+
+### Evidence Boundary Principles & Validation State
+
+- **Implementation Evidence Boundary**: The 2,027 passing Core tests represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires complete dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
+- **Physical Device Boundary**: Pre-P2b observations on Samsung SM-S948B (Galaxy S26 Ultra, Android 16) motivated the P2b refinements; candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b` has **NOT** been tested on physical hardware.
+- **Delivery State**: P2b is implemented and review-approved on task branch `feat/p2b-gameplay-startup-refinements`, unmerged, unpushed, with no open Pull Request; formal `FULL_VALIDATION` remains **PENDING**.

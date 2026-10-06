@@ -106,6 +106,9 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 [P2: Direct-to-Practice (Remove Onboarding)]
        │
        ▼
+[P2b: Gameplay & Startup Refinements]
+       │
+       ▼
 [P3: Cumulative Operation Unlock Progression]
        │
        ▼
@@ -184,8 +187,8 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P2 — Remove Onboarding / Direct-to-Practice Start
 - **Priority**: Medium-High (Friction Elimination).
-- **Status**: **IMPLEMENTED, CORRECTED & REVIEWED** (Complete on branch `feat/p2-direct-to-practice` across 7 commits: 5 feature checkpoints, 1 docs checkpoint `42d8c0884ad3350cad5774ecd5b0098d13ed3e74` which failed FULL_VALIDATION, and 1 validation-fix checkpoint `085b929f058eb1ba4477f2bdc1412a09c218d648` restoring the domain fallback boundary; reviewed `P2_VALIDATION_FIX_REVIEW_APPROVED`; candidate unmerged / unpushed, `FULL_VALIDATION` pending from scratch).
-- **Product Decision**: Eliminate the 5-step onboarding wizard. Fresh installs and post-reset sessions launch directly into active practice with zero preamble.
+- **Status**: **DELIVERED & MERGED** (Merged via PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`, full validation `P2_FULL_VALIDATION_PASSED` with 2,014 Core tests passing).
+- **Product Decision**: Eliminate the 5-step onboarding wizard. Fresh installs launch directly into Practice on `/` with Addition enabled by default, Numpad layout, System theme/language, and haptics enabled; returning learners retain the progress overview before Start/Resume.
 - **Default Application Configuration**:
   - **Language**: System / device language.
   - **Appearance**: System theme (Light/Dark auto-detection).
@@ -193,12 +196,24 @@ The refinement program consists of nine dedicated workstreams, executed in stric
   - **Haptic Feedback**: Enabled by default (on supported hardware).
   - **Starting Operation**: `Addition` only (Stage 1).
   - **Practice Timing**: Normal practice without deadline failure.
-- **Ergonomics**: All preferences remain configurable in Settings. Contextual first-use hints appear only where a specific interaction genuinely requires explanation.
+- **Ergonomics**: All preferences remain configurable in Settings. Obsolete onboarding components, routes, CSS, and preference store APIs are completely removed from the repository.
+
+---
+
+### P2b — Gameplay and Startup Refinements
+- **Priority**: High (Ergonomics & Scoring Fairness).
+- **Status**: **IMPLEMENTED & REVIEW APPROVED** (Implemented across 3 checkpoint slices on task branch `feat/p2b-gameplay-startup-refinements`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`, review verdict `P2B_REVIEW_APPROVED`, backed by 2,027 passing Core tests, unpushed, no open PR, formal exact-candidate `FULL_VALIDATION` pending).
+- **Product Decisions**:
+  1. **Digit-Scaled Critical Hit Timing**: Cyber Defense Critical Hit window scales with the digit count of the correct answer: $\text{CriticalHitThresholdMs} = \text{CurrentFactEasyThresholdMs} \times \text{DigitCount}(\text{CorrectResult})$ ($0, 9 \to 1\times$; $10, 99 \to 2\times$; $100, 999 \to 3\times$; $1000 \to 4\times$).
+  2. **Shared Radar & Damage Authority**: Both the radar arc countdown and damage scoring consume `Session.CurrentFactCriticalHitThresholdMs`.
+  3. **Fresh Startup Ready Gate Orientation**: Direct-to-Practice launches fresh learners behind `InitialReadyGate` with no progress overview and no active timing until pressing explicit "Start", establishing pre-attempt orientation parity with returning learners while active timing begins from zero.
+  4. **Strict Learning Non-Interference Boundary**: Digit-scaled Critical Hit timing is strictly a presentation and combat threshold. Zero effect on `ResponseLatencyMs`, `AttemptOutcome`, `IsFluent`, `IsInterrupted`, `TimingEvidenceEligible`, `CurrentFactEasyThresholdMs`, `CurrentFactFluencyThresholdMs`, expected pace $P_{\text{fact}}$, `AdaptiveAttemptClassifier`, `FsrsRatingMapper`, FSRS card state, adaptive pace shrinkage, band progression, remediation, `PracticePosition`, telemetry export, or SQLite persistence.
 
 ---
 
 ### P3 — Cumulative Operation Unlock Progression
 - **Priority**: High (Curriculum Architecture).
+- **Status**: **PLANNED / NEXT** (requires corrected architecture plan before implementation; rejected flawed preference-intersection model).
 - **Product Decision**: Replace the legacy model where all four operations could be manually enabled from the start. MathFirst adopts a disciplined, cumulative arithmetic progression:
   - **Stage 1**: Addition ($+$)
   - **Stage 2**: Addition & Subtraction ($+$, $-$)
@@ -278,7 +293,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 ## 6. Execution Order & Workflow
 
 ### Standard Sequence:
-$$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow \text{P2} \longrightarrow \text{P3} \longrightarrow \text{P4} \longrightarrow \text{P5} \longrightarrow \text{P6} \longrightarrow \text{P8} \longrightarrow [\text{Step 55 Proposed}]$$
+$$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow \text{P2} \longrightarrow \text{P2b} \longrightarrow \text{P3} \longrightarrow \text{P4} \longrightarrow \text{P5} \longrightarrow \text{P6} \longrightarrow \text{P8} \longrightarrow [\text{Step 55 Proposed}]$$
 
 *(P7 remains deferred and is scheduled independently).*
 
@@ -301,9 +316,10 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P0 — Zero-Answer / 0 + 0 Core-Flow Freeze`: Delivered & Merged (PR #60).
   - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
   - `P1b — Active Thinking Time / Interruption Safety`: Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
-- **Completed Refinement on Branch**:
-  - `P2 — Direct-to-Practice Start / Remove Onboarding`: Implemented across 5 feature checkpoints, 1 documentation checkpoint (`42d8c0884ad3350cad5774ecd5b0098d13ed3e74`, `FULL_VALIDATION_FAILED`), and 1 validation-fix checkpoint (`085b929f058eb1ba4477f2bdc1412a09c218d648`) on `feat/p2-direct-to-practice`; passed independent validation-fix review (`P2_VALIDATION_FIX_REVIEW_APPROVED`); documentation reconciliation prepared on task branch (candidate unmerged, `FULL_VALIDATION` pending from scratch).
-- **Next Work Item**: `P2` Candidate Review / Validation / PR Lifecycle (followed by `P3 — Cumulative Operation Unlock Progression`).
+  - `P2 — Direct-to-Practice Start / Remove Onboarding`: Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
+- **Implemented & Review-Approved Refinements on Task Branch**:
+  - `P2b — Gameplay and Startup Refinements`: Implemented across 3 checkpoint slices on task branch `feat/p2b-gameplay-startup-refinements` (candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`), passed consolidated review (`P2B_REVIEW_APPROVED`), backed by 2,027 passing Core tests (unmerged, unpushed, no open PR, formal `FULL_VALIDATION` pending).
+- **Next Work Item**: `P2b` documentation reconciliation review / `FULL_VALIDATION` lifecycle (followed by `P3 — Cumulative Operation Unlock Progression` architecture planning).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.
