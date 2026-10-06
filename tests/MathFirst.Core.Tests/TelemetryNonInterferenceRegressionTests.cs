@@ -502,7 +502,7 @@ public sealed class TelemetryNonInterferenceRegressionTests : IDisposable
         var preferences = new TestPreferenceStore();
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-        var session = new TrainingSession(store, clock, preferenceStore: preferences);
+        var session = new TrainingSession(store, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var trace = new List<BenchmarkTraceEntry>(500);

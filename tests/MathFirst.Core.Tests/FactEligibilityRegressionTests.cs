@@ -1315,8 +1315,8 @@ public sealed class FactEligibilityRegressionTests
 
                 var snapshot = await store.LoadSnapshotAsync();
 
-                // Invariant A & D: Migration succeeded and reached V8.
-                Assert.Equal(8, snapshot.SchemaVersion);
+                // Invariant A & D: Migration succeeded and reached V9.
+                Assert.Equal(9, snapshot.SchemaVersion);
                 Assert.Equal(initialStoreRevision, snapshot.Revision);
                 Assert.Equal(initialPracticePosition, snapshot.Progression.PracticePosition);
 
@@ -1382,7 +1382,7 @@ public sealed class FactEligibilityRegressionTests
                 await reopenedStore.InitializeAsync();
                 var reopenedSnapshot = await reopenedStore.LoadSnapshotAsync();
 
-                Assert.Equal(8, reopenedSnapshot.SchemaVersion);
+                Assert.Equal(9, reopenedSnapshot.SchemaVersion);
                 Assert.Equal(initialStoreRevision, reopenedSnapshot.Revision);
                 Assert.True(reopenedSnapshot.ItemStates.ContainsKey("mul:2*8"));
                 Assert.True(reopenedSnapshot.FsrsStates.TryGetValue("mul:2*8", out var reopenedFsrs));
@@ -1486,7 +1486,7 @@ public sealed class FactEligibilityRegressionTests
                 await reopenedStore.InitializeAsync();
                 var snapshot = await reopenedStore.LoadSnapshotAsync();
 
-                Assert.Equal(8, snapshot.SchemaVersion);
+                Assert.Equal(9, snapshot.SchemaVersion);
                 Assert.Equal(initialStoreRevision, snapshot.Revision);
 
                 var mulProgression = snapshot.OperationProgressions![ArithmeticOperation.Multiplication];
@@ -1576,7 +1576,7 @@ public sealed class FactEligibilityRegressionTests
         try
         {
             using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
+            var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             var curriculum = new ArithmeticCurriculum();
@@ -1671,7 +1671,7 @@ public sealed class FactEligibilityRegressionTests
         try
         {
             using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
+            var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             var curriculum = new ArithmeticCurriculum();

@@ -35,6 +35,7 @@ public sealed record SubmissionChangeSet
     private static LearnerProgression CloneProgression(LearnerProgression source) => new()
     {
         PracticePosition = source.PracticePosition,
+        CurriculumStage = source.CurriculumStage,
         StoreRevision = source.StoreRevision,
         SchemaVersion = source.SchemaVersion,
         UpdatedAt = source.UpdatedAt,

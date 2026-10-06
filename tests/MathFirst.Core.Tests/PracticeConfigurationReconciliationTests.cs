@@ -37,7 +37,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         var databasePath = Path.Combine(_testDbDirectory, "disable-current-operation.db");
         var preferences = new TestPreferenceStore();
         using var store = new SqliteLearnerStore(databasePath);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (var index = 0; index < 4; index++)
@@ -78,7 +78,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         var preferences = new TestPreferenceStore();
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         using var store = new SqliteLearnerStore(databasePath);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var retainedFact = session.CurrentFact;
@@ -109,7 +109,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         using var store = new SqliteLearnerStore(
             Path.Combine(_testDbDirectory, "sequential-configuration.db"));
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         preferences.SetEnabledOperations([ArithmeticOperation.Subtraction]);
@@ -132,7 +132,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         using var store = new FaultInjectingLearnerStore(
             new SqliteLearnerStore(Path.Combine(_testDbDirectory, "failure-retry.db")));
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var originalFact = session.CurrentFact;
@@ -169,7 +169,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
 
         using (var store = new SqliteLearnerStore(databasePath))
         {
-            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             Assert.Equal(ArithmeticOperation.Addition, session.CurrentFact.Operation);
 
@@ -186,7 +186,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         var restartedSession = new TrainingSession(
             reopenedStore,
             new FixedClock(),
-            preferenceStore: preferences);
+            preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await restartedSession.InitializeAsync(startTiming: false);
 
         Assert.Equal([ArithmeticOperation.Subtraction], preferences.GetEnabledOperations());
@@ -205,7 +205,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         using var store = new SqliteLearnerStore(Path.Combine(
             _testDbDirectory,
             $"subset-{string.Join('-', enabledOperations)}.db"));
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
         var originalFact = session.CurrentFact;
         var originalRevision = session.FactInstanceRevision;
@@ -239,7 +239,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         var preferences = new TestPreferenceStore();
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         using var store = new BandOneSnapshotStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var ineligibleFact = session.CurrentFact;
@@ -274,7 +274,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         using var store = new SqliteLearnerStore(Path.Combine(
             _testDbDirectory,
             $"accepted-{outcome}.db"));
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var acceptedFact = session.CurrentFact;
@@ -324,7 +324,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         using var store = new FaultInjectingLearnerStore(
             new SqliteLearnerStore(Path.Combine(_testDbDirectory, "evidence-operation.db")));
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
         store.SelectionEvidenceRequests.Clear();
 
@@ -346,7 +346,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         var clock = new ManualClock();
         using var store = new SqliteLearnerStore(Path.Combine(_testDbDirectory, "timer-retain.db"));
-        var session = new TrainingSession(store, clock, preferenceStore: preferences);
+        var session = new TrainingSession(store, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: true);
         clock.AdvanceMilliseconds(1_200);
         session.PauseItemTiming();
@@ -377,7 +377,7 @@ public sealed class PracticeConfigurationReconciliationTests : IDisposable
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
         var clock = new ManualClock();
         using var store = new SqliteLearnerStore(Path.Combine(_testDbDirectory, "timer-replace.db"));
-        var session = new TrainingSession(store, clock, preferenceStore: preferences);
+        var session = new TrainingSession(store, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: true);
         clock.AdvanceMilliseconds(1_200);
         session.PauseItemTiming();

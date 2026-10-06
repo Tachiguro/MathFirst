@@ -464,7 +464,7 @@ public sealed class PracticeConfigurationTests
         prefStore.SetOperationEnabled(ArithmeticOperation.Subtraction, false);
         prefStore.SetOperationEnabled(ArithmeticOperation.Division, false);
 
-        var session = new TrainingSession(store, preferenceStore: prefStore);
+        var session = new TrainingSession(store, preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync();
 
         // Run 20 submissions
@@ -510,7 +510,7 @@ public sealed class PracticeConfigurationTests
             prefStore.SetOperationEnabled(op, op == singleOp);
         }
 
-        var session = new TrainingSession(store, preferenceStore: prefStore);
+        var session = new TrainingSession(store, preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync();
 
         // Run 15 submissions with only the single operation enabled

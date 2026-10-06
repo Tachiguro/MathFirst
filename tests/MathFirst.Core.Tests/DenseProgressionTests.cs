@@ -466,7 +466,7 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "candidate-overlay-pass.db");
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 2);
@@ -498,7 +498,7 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "all-advance-32.db");
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var divAdvancePos = GetOpPosition(ArithmeticOperation.Division, 2);
@@ -557,7 +557,7 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "overlay-incorrect.db");
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Turn 1 (pos 1): Addition Correct
@@ -610,7 +610,7 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "overlay-timeout.db");
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // 7 turns correct
@@ -638,7 +638,7 @@ public sealed class DenseProgressionTests : IDisposable
         using var innerStore = new SqliteLearnerStore(path);
         var divTriggerPos = GetOpPosition(ArithmeticOperation.Division, 2);
         var failingStore = new FailOnNthCommitStore(innerStore, failOnCommit: (int)divTriggerPos);
-        var session = new TrainingSession(failingStore);
+        var session = new TrainingSession(failingStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (var i = 1L; i < divTriggerPos; i++)
@@ -673,7 +673,7 @@ public sealed class DenseProgressionTests : IDisposable
 
         using (var storeA = new SqliteLearnerStore(continuousPath))
         {
-            var sessionA = new TrainingSession(storeA);
+            var sessionA = new TrainingSession(storeA, practiceMode: PracticeMode.Custom);
             await sessionA.InitializeAsync(startTiming: false);
             for (var p = 1; p <= 30; p++)
             {
@@ -689,7 +689,7 @@ public sealed class DenseProgressionTests : IDisposable
         for (var p = 1; p <= 30; p++)
         {
             using var storeB = new SqliteLearnerStore(reopenedPath);
-            var sessionB = new TrainingSession(storeB);
+            var sessionB = new TrainingSession(storeB, practiceMode: PracticeMode.Custom);
             await sessionB.InitializeAsync(startTiming: false);
             sessionB.SubmitAnswer(sessionB.CurrentFact.CorrectResult);
             Assert.True((await sessionB.CommitCurrentEvaluationAsync()).IsSuccess);
@@ -717,7 +717,7 @@ public sealed class DenseProgressionTests : IDisposable
         // When a band advances (e.g. 9 correct, 1 incorrect), the incorrect fact must remain in remediation and FSRS
         var path = Path.Combine(_directory, "weak-fact-advancement.db");
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Progress Addition until Band 4 (ADD-D05 has 11 facts, can advance with 10 correct and 1 incorrect)
@@ -738,7 +738,7 @@ public sealed class DenseProgressionTests : IDisposable
     {
         var path = Path.Combine(_directory, "simulation-100.db");
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (var position = 1; position <= 100; position++)

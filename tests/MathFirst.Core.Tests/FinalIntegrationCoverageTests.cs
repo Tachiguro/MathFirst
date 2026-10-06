@@ -30,7 +30,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         AdvancementRun continuous;
         using (var store = new SqliteLearnerStore(continuousPath))
         {
-            var session = new TrainingSession(store, new ScriptedClock());
+            var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             continuous = await CommitAdvancementTriggerAsync(session);
         }
@@ -38,7 +38,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         SelectionFingerprint beforeRestartTrigger;
         using (var store = new SqliteLearnerStore(beforeRestartPath))
         {
-            var session = new TrainingSession(store, new ScriptedClock());
+            var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             beforeRestartTrigger = CaptureSelection(session);
             Assert.Equal(continuous.Trigger, beforeRestartTrigger);
@@ -47,7 +47,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         AdvancementRun restartedBefore;
         using (var store = new SqliteLearnerStore(beforeRestartPath))
         {
-            var session = new TrainingSession(store, new ScriptedClock());
+            var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             Assert.Equal(beforeRestartTrigger, CaptureSelection(session));
             restartedBefore = await CommitAdvancementTriggerAsync(session);
@@ -57,7 +57,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         SelectionFingerprint afterRestartTrigger;
         using (var store = new SqliteLearnerStore(afterRestartPath))
         {
-            var session = new TrainingSession(store, new ScriptedClock());
+            var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             afterRestartTrigger = CaptureSelection(session);
             session.SubmitAnswer(session.CurrentFact.CorrectResult);
@@ -69,7 +69,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         AdvancementRun restartedAfter;
         using (var store = new SqliteLearnerStore(afterRestartPath))
         {
-            var session = new TrainingSession(store, new ScriptedClock());
+            var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             restartedAfter = new AdvancementRun(afterRestartTrigger, CaptureState(session), triggerPosition);
         }
@@ -106,7 +106,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
         {
             await migrationStore.InitializeAsync();
             var snapshot = await migrationStore.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(LearnerProgression.DefaultSchemaVersion, snapshot.SchemaVersion);
             Assert.Equal(MigrationPracticePosition, snapshot.Progression.PracticePosition);
             Assert.Equal(MigrationRevision, snapshot.Revision);
             Assert.Equal(fixture.OperationMaximums.Select(pair => new OperationProgression(pair.Key, pair.Value - 1, MigrationPracticePosition)).OrderBy(value => value.Operation),
@@ -130,14 +130,14 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
 
         await AssertLegacyHistoryAsync(path, fixture, expectedPositionedCount: 0);
         Assert.Equal(
-            ["id", "practice_position", "updated_at"],
+            ["id", "practice_position", "curriculum_stage", "updated_at"],
             await ReadColumnNamesAsync(path, "learner_progression"));
 
         const int acceptedV5Count = 160;
         DurableState stateAtRestart;
         using (var store = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(store, new ScriptedClock());
+            var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
             for (var offset = 1; offset <= acceptedV5Count / 2; offset++)
             {
@@ -149,7 +149,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
 
         using (var restartedStore = new SqliteLearnerStore(path))
         {
-            var restartedSession = new TrainingSession(restartedStore, new ScriptedClock());
+            var restartedSession = new TrainingSession(restartedStore, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await restartedSession.InitializeAsync(startTiming: false);
             AssertEquivalentState(stateAtRestart, CaptureState(restartedSession));
 
@@ -166,7 +166,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
 
         using (var finalStore = new SqliteLearnerStore(path))
         {
-            var finalSession = new TrainingSession(finalStore, new ScriptedClock());
+            var finalSession = new TrainingSession(finalStore, new ScriptedClock(), practiceMode: PracticeMode.Custom);
             await finalSession.InitializeAsync(startTiming: false);
             var finalState = CaptureState(finalSession);
             Assert.Equal(MigrationPracticePosition + acceptedV5Count, finalState.PracticePosition);
@@ -202,7 +202,7 @@ public sealed class FinalIntegrationCoverageTests : IDisposable
     private static async Task PrepareAdvancementTriggerAsync(string path)
     {
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new ScriptedClock());
+        var session = new TrainingSession(store, new ScriptedClock(), practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
         var triggerPos = GetOpPosition(ArithmeticOperation.Addition, 4);
         for (var position = 1L; position < triggerPos; position++)

@@ -212,7 +212,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         preferences.SetOperations([ArithmeticOperation.Addition]);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal(0, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition));
@@ -240,7 +240,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         preferences.SetOperations([ArithmeticOperation.Addition]);
 
         var failingStore = new FailingLearnerStore();
-        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var op = session.CurrentFact.Operation;
@@ -302,8 +302,8 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         using var store1 = new SqliteLearnerStore(path);
         using var store2 = new SqliteLearnerStore(path);
 
-        var session1 = new TrainingSession(store1, new FixedClock(), preferenceStore: preferences);
-        var session2 = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences);
+        var session1 = new TrainingSession(store1, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
+        var session2 = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
 
         await session1.InitializeAsync(startTiming: false);
         await session2.InitializeAsync(startTiming: false);
@@ -365,7 +365,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         var preferences = new TestPreferenceStore();
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Complete 4 attempts across operations (1 attempt for each of Addition, Subtraction, Multiplication, Division)
@@ -397,9 +397,9 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
             PracticeOperationPreferencePolicy.AllOperations,
             op => Assert.Equal(1, session.GetOperationAcceptedAttemptCount(op) + 1));
 
-        // Durable snapshot verification: Schema remains V8, position is 0, counts are all 0
+        // Durable snapshot verification: Schema remains V9, position is 0, counts are all 0
         var durableSnapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(8, durableSnapshot.SchemaVersion);
+        Assert.Equal(LearnerProgression.DefaultSchemaVersion, durableSnapshot.SchemaVersion);
         Assert.Equal(0, durableSnapshot.Progression.PracticePosition);
         Assert.NotNull(durableSnapshot.OperationAcceptedAttemptCounts);
         Assert.Equal(4, durableSnapshot.OperationAcceptedAttemptCounts.Count);
@@ -428,7 +428,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         preferences.SetOperations([ArithmeticOperation.Subtraction]);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // 3 Subtraction attempts (ordinals 1, 2, 3)
@@ -449,7 +449,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         session.ClearCurrentAnswerInput();
 
         using var store2 = new SqliteLearnerStore(path);
-        var session2 = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences);
+        var session2 = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session2.InitializeAsync(startTiming: false);
 
         for (var i = 0; i < 5; i++)
@@ -468,7 +468,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         // Re-enable Subtraction only
         preferences.SetOperations([ArithmeticOperation.Subtraction]);
         using var store3 = new SqliteLearnerStore(path);
-        var session3 = new TrainingSession(store3, new FixedClock(), preferenceStore: preferences);
+        var session3 = new TrainingSession(store3, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session3.InitializeAsync(startTiming: false);
 
         // Subtraction resumes with previous count 3; next ordinal is 3 + 1 = 4
@@ -502,7 +502,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         await store.InitializeAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(8, snapshot.SchemaVersion);
+        Assert.Equal(LearnerProgression.DefaultSchemaVersion, snapshot.SchemaVersion);
         Assert.Equal(20, snapshot.Progression.PracticePosition);
         Assert.NotNull(snapshot.OperationAcceptedAttemptCounts);
 
@@ -537,7 +537,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
         preferences.SetOperations([ArithmeticOperation.Addition, ArithmeticOperation.Subtraction]);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Turn 1 (pos 1): Addition (ordinal 1)
@@ -586,7 +586,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
 
         using (var store = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             for (var i = 0; i < 26; i++)
@@ -612,7 +612,7 @@ public sealed class AuthorityHardeningAndRecoveryInvariantTests : IDisposable
 
         using (var restartedStore = new SqliteLearnerStore(path))
         {
-            var restartedSession = new TrainingSession(restartedStore, new FixedClock(), preferenceStore: preferences);
+            var restartedSession = new TrainingSession(restartedStore, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await restartedSession.InitializeAsync(startTiming: false);
 
             Assert.True(restartedSession.IsInitialized);

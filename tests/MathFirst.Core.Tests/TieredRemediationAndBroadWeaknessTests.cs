@@ -469,7 +469,7 @@ public sealed class TieredRemediationAndBroadWeaknessTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new SqliteLearnerStore(dbPath);
-        var session = new TrainingSession(store, new FakeClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FakeClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Cause error on fact 1

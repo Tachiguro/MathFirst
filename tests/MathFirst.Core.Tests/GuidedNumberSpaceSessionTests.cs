@@ -59,7 +59,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // In All-Four mode, prospective position 1 schedules Multiplication
@@ -90,7 +90,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Current fact is 2*2=4 (valid in Custom Mode)
@@ -138,7 +138,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
         // In Custom Mode, prospective position 1 is Multiplication
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal("mul:2*2", session.CurrentFact.Id);
@@ -181,7 +181,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
 
         // Reopen in fresh session
         using var reopenedStore = new SqliteLearnerStore(dbPath);
-        var restartedSession = new TrainingSession(reopenedStore, new FixedClock(), preferenceStore: preferences);
+        var restartedSession = new TrainingSession(reopenedStore, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await restartedSession.InitializeAsync(startTiming: false);
 
         // In All-Four mode, position 1 is Multiplication
@@ -209,7 +209,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Under Custom mode (proper subset MUL+DIV), gate is Unrestricted.
@@ -243,7 +243,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // At Band 0 Addition ceiling = 2, mul:2*2 is blocked, so a low review fact is selected.
@@ -295,7 +295,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Addition, 0);
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 0);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Band 0 MUL facts all have product <= 1 <= 2 (Addition ceiling).
@@ -336,7 +336,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
@@ -379,7 +379,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal("mul:2*2", session.CurrentFact.Id);
@@ -423,7 +423,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal("mul:2*2", session.CurrentFact.Id);
@@ -473,7 +473,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session1 = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session1 = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session1.InitializeAsync(startTiming: false);
 
         // Position 1 fact
@@ -481,7 +481,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         var op1 = fact1.Operation;
 
         // Reopen new session on same store at position 1
-        var session2 = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session2 = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session2.InitializeAsync(startTiming: false);
 
         var fact2 = session2.CurrentFact;
@@ -513,7 +513,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         // Reopen with Subtraction-only (Custom mode)
         preferences.SetEnabledOperations([ArithmeticOperation.Subtraction]);
         using var reopenedStore = new SqliteLearnerStore(dbPath);
-        var session = new TrainingSession(reopenedStore, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(reopenedStore, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Subtraction fact must be selected without starvation
@@ -534,7 +534,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Complete 16 accepted attempts across the 4-operation rotation at Addition Band 0 (ceiling = 2)
@@ -576,7 +576,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var operationCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0);
@@ -624,7 +624,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var operationCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0);
@@ -707,7 +707,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var additionCurriculum = new ArithmeticCurriculum().Addition;
@@ -777,7 +777,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var additionCurriculum = new ArithmeticCurriculum().Addition;
@@ -838,7 +838,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var maxMulProduct = 0;
@@ -892,7 +892,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (var i = 1; i <= 10; i++)
@@ -929,7 +929,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         }
 
         using var sessionStore = new SqliteLearnerStore(dbPath);
-        var session = new TrainingSession(sessionStore, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(sessionStore, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // 12 turns (3 turns per operation in Guided Mode) verifies dormancy while Addition is strictly in Band 0
@@ -988,7 +988,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         var highFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
         await SeedFactStateAsync(dbPath, highFact, duePos: 100, lastReviewPos: 1, isMastered: false, needsRemediation: true);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
@@ -1013,7 +1013,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         var highFact = new ArithmeticFact(ArithmeticOperation.Multiplication, 2, 2);
         await SeedFactStateAsync(dbPath, highFact, duePos: 1, lastReviewPos: 1, isMastered: false, needsRemediation: false);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
@@ -1035,7 +1035,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Multiplication, 1);
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal("mul:2*2", session.CurrentFact.Id);
@@ -1088,7 +1088,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (var i = 1; i <= 19; i++)
@@ -1134,7 +1134,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (var position = 1; position <= 40; position++)
@@ -1199,7 +1199,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
         await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Position 1 in All-Four is Multiplication.
@@ -1249,7 +1249,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 2);
         await MaterializeDivisionLowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Advance to first Division fact
@@ -1307,7 +1307,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await MaterializeMultiplicationBand1LowFactsAsync(dbPath);
         await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Position 1 is Multiplication, cached under coupled gate identity
@@ -1358,7 +1358,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await SetOperationBandIndexAsync(dbPath, ArithmeticOperation.Division, 2);
         await MaterializeDivisionLowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Advance to Division
@@ -1418,7 +1418,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         await MaterializeMultiplicationBand2LowFactsAsync(dbPath);
         await MaterializeDivisionLowFactsAsync(dbPath);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
@@ -1466,7 +1466,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using (var store2 = new SqliteLearnerStore(dbPath))
         {
             await store2.InitializeAsync();
-            var session = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
@@ -1489,7 +1489,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using (var storeBand2Restart = new SqliteLearnerStore(dbPathBand2))
         {
             await storeBand2Restart.InitializeAsync();
-            var session = new TrainingSession(storeBand2Restart, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(storeBand2Restart, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             Assert.Equal(ArithmeticOperation.Multiplication, session.CurrentFact.Operation);
@@ -1519,7 +1519,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using (var store2 = new SqliteLearnerStore(dbPath))
         {
             await store2.InitializeAsync();
-            var session = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store2, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             while (session.CurrentFact.Operation != ArithmeticOperation.Division)
@@ -1548,7 +1548,7 @@ public sealed class GuidedNumberSpaceSessionTests : IDisposable
         using (var storeBand2Restart = new SqliteLearnerStore(dbPathBand2))
         {
             await storeBand2Restart.InitializeAsync();
-            var session = new TrainingSession(storeBand2Restart, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(storeBand2Restart, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             while (session.CurrentFact.Operation != ArithmeticOperation.Division)

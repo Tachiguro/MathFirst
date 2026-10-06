@@ -305,18 +305,22 @@ public sealed class TrainingSession
         await AdvanceToNextFactAsync(startTiming: true, cancellationToken).ConfigureAwait(false);
     }
 
+    public PracticeMode PracticeMode { get; }
+
     public TrainingSession(
         ILearnerStore store,
         IClock? clock = null,
         AdaptivePracticeSelector? selector = null,
         IFsrsScheduler? fsrsScheduler = null,
-        IPreferenceStore? preferenceStore = null)
+        IPreferenceStore? preferenceStore = null,
+        PracticeMode practiceMode = PracticeMode.CurriculumManaged)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _clock = clock ?? MonotonicClock.Instance;
         _selector = selector ?? new AdaptivePracticeSelector();
         _fsrsScheduler = fsrsScheduler ?? new FsrsSchedulerAdapter();
         _preferenceStore = preferenceStore;
+        PracticeMode = practiceMode;
     }
 
     public async Task InitializeAsync(
@@ -758,6 +762,28 @@ public sealed class TrainingSession
         candidateProgression.OperationProgressions = operationProgressions;
         candidateProgression.UpdatedAt = DateTimeOffset.UtcNow;
 
+        var candidateItemStates = new Dictionary<string, ItemLearningState>(ItemStates, StringComparer.Ordinal)
+        {
+            [itemState.FactId] = itemState
+        };
+
+        var currentActiveOperations = CurriculumUnlockPolicy.GetUnlockedOperations(candidateProgression.CurriculumStage);
+        var candidateEffectiveGate = GuidedNumberSpaceGate.ForGuided(_curriculum.GetCurriculum(ArithmeticOperation.Addition), operationProgressions);
+        var candidateHasBroadWeakness = BroadWeaknessPolicy.HasBroadWeakness(
+            candidateItemStates.Values,
+            currentActiveOperations,
+            operationProgressions,
+            _curriculum,
+            candidateEffectiveGate);
+
+        var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
+            candidateProgression.CurriculumStage,
+            candidateItemStates,
+            candidateHasBroadWeakness,
+            operationProgressions);
+
+        candidateProgression.CurriculumStage = nextStage;
+
         var submissionId = Guid.NewGuid().ToString("N");
         var attempt = new AttemptRecord(
             submissionId,
@@ -990,8 +1016,15 @@ public sealed class TrainingSession
         AdvanceToNextFact(startTiming: true);
     }
 
-    private IReadOnlyList<ArithmeticOperation> GetCurrentEnabledOperations() =>
-        _preferenceStore?.GetEnabledOperations() ?? PracticeOperationPreferencePolicy.AllOperations;
+    private IReadOnlyList<ArithmeticOperation> GetCurrentEnabledOperations()
+    {
+        if (PracticeMode == PracticeMode.CurriculumManaged)
+        {
+            return CurriculumUnlockPolicy.GetUnlockedOperations(Progression.CurriculumStage);
+        }
+
+        return PracticeOperationPreferencePolicy.NormalizeEnabledOperations(_preferenceStore?.GetEnabledOperations());
+    }
 
     private PracticeTimeSetting GetCurrentPracticeTimeSetting() =>
         _preferenceStore?.GetPracticeTimeSetting() ?? PracticeTimeSetting.Standard;
@@ -1000,13 +1033,19 @@ public sealed class TrainingSession
         IReadOnlyList<ArithmeticOperation>? enabledOperations = null)
     {
         var operations = enabledOperations ?? GetCurrentEnabledOperations();
+        if (PracticeMode == PracticeMode.CurriculumManaged)
+        {
+            var additionCurriculum = _curriculum.GetCurriculum(ArithmeticOperation.Addition);
+            return GuidedNumberSpaceGate.ForGuided(additionCurriculum, Progression.OperationProgressions);
+        }
+
         if (!GuidedNumberSpaceGate.IsGuidedMode(operations))
         {
             return GuidedNumberSpaceGate.Unrestricted;
         }
 
-        var additionCurriculum = _curriculum.GetCurriculum(ArithmeticOperation.Addition);
-        return GuidedNumberSpaceGate.ForGuided(additionCurriculum, Progression.OperationProgressions);
+        var customAdditionCurriculum = _curriculum.GetCurriculum(ArithmeticOperation.Addition);
+        return GuidedNumberSpaceGate.ForGuided(customAdditionCurriculum, Progression.OperationProgressions);
     }
 
     public bool DeriveHasBroadWeakness()
@@ -1020,53 +1059,12 @@ public sealed class TrainingSession
         IReadOnlyList<ArithmeticOperation> enabledOperations,
         GuidedNumberSpaceGate effectiveGate)
     {
-        var count = 0;
-        Dictionary<ArithmeticOperation, AcquisitionOwnershipResolver>? resolvers = null;
-
-        foreach (var itemState in ItemStates.Values)
-        {
-            if (!itemState.NeedsRemediation)
-            {
-                continue;
-            }
-
-            if (!enabledOperations.Contains(itemState.Operation))
-            {
-                continue;
-            }
-
-            resolvers ??= new Dictionary<ArithmeticOperation, AcquisitionOwnershipResolver>(4);
-            if (!resolvers.TryGetValue(itemState.Operation, out var ownership))
-            {
-                var curriculum = _curriculum.GetCurriculum(itemState.Operation);
-                ownership = new AcquisitionOwnershipResolver(curriculum);
-                resolvers[itemState.Operation] = ownership;
-            }
-
-            if (!Progression.OperationProgressions.TryGetValue(itemState.Operation, out var progression))
-            {
-                continue;
-            }
-
-            if (!ownership.IsEligible(itemState.FactId, progression.BandIndex))
-            {
-                continue;
-            }
-
-            var fact = new ArithmeticFact(itemState.Operation, itemState.LeftOperand, itemState.RightOperand);
-            if (!effectiveGate.Allows(fact))
-            {
-                continue;
-            }
-
-            count++;
-            if (count >= LearningPolicy.BroadWeaknessThreshold)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return BroadWeaknessPolicy.HasBroadWeakness(
+            ItemStates.Values,
+            enabledOperations,
+            Progression.OperationProgressions,
+            _curriculum,
+            effectiveGate);
     }
 
     public void AdvanceToNextFact(bool startTiming = true)
@@ -1483,6 +1481,7 @@ public sealed class TrainingSession
     private static LearnerProgression CloneProgression(LearnerProgression source) => new()
     {
         PracticePosition = source.PracticePosition,
+        CurriculumStage = source.CurriculumStage,
         OperationProgressions = source.OperationProgressions.ToDictionary(pair => pair.Key, pair => pair.Value),
         StoreRevision = source.StoreRevision,
         SchemaVersion = source.SchemaVersion,

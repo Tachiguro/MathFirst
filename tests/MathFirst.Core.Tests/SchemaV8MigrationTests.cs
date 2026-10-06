@@ -34,15 +34,15 @@ public sealed class SchemaV8MigrationTests : IDisposable
     }
 
     [Fact]
-    public async Task FreshDatabase_UsesSchemaV8()
+    public async Task FreshDatabase_UsesSchemaV9()
     {
         var path = Path.Combine(_directory, "fresh_v8.db");
         using (var store = new SqliteLearnerStore(path))
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
-            Assert.Equal(8, LearnerProgression.DefaultSchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
+            Assert.Equal(9, LearnerProgression.DefaultSchemaVersion);
         }
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -51,7 +51,7 @@ public sealed class SchemaV8MigrationTests : IDisposable
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
         var version = await cmd.ExecuteScalarAsync();
-        Assert.Equal("8", version);
+        Assert.Equal("9", version);
     }
 
     [Fact]
@@ -351,7 +351,7 @@ public sealed class SchemaV8MigrationTests : IDisposable
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
         }
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -359,7 +359,7 @@ public sealed class SchemaV8MigrationTests : IDisposable
 
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        Assert.Equal("8", await cmd.ExecuteScalarAsync());
+        Assert.Equal("9", await cmd.ExecuteScalarAsync());
 
         var columns = await GetTableColumnsAsync(connection, "attempt_history");
         Assert.Equal(19, columns.Count);
@@ -539,7 +539,7 @@ public sealed class SchemaV8MigrationTests : IDisposable
         {
             await store2.InitializeAsync();
             var snapshot = await store2.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
             await store2.CloseAsync();
         }
 
@@ -548,7 +548,7 @@ public sealed class SchemaV8MigrationTests : IDisposable
         {
             await store3.InitializeAsync();
             var snapshot = await store3.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
         }
     }
 

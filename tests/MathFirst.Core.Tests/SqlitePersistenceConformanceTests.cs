@@ -778,12 +778,12 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         {
             await conn.OpenAsync();
 
-            // 1. schema_version is 8
+            // 1. schema_version is 9
             using (var versionCmd = conn.CreateCommand())
             {
                 versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
                 var version = await versionCmd.ExecuteScalarAsync();
-                Assert.Equal("8", version);
+                Assert.Equal("9", version);
             }
 
             // 2. Expected tables only

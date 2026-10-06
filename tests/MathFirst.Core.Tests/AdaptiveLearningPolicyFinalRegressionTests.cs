@@ -377,7 +377,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             var preferences = new TestPreferenceStore();
             preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-            var session = new TrainingSession(setupStore, clock, preferenceStore: preferences);
+            var session = new TrainingSession(setupStore, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             for (var pos = 1; pos <= cutPoint; pos++)
@@ -415,7 +415,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         {
             var preferencesA = new TestPreferenceStore();
             preferencesA.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
-            var sessionA = new TrainingSession(storeA, new FixedClock(TimeSpan.FromMilliseconds(800)), preferenceStore: preferencesA);
+            var sessionA = new TrainingSession(storeA, new FixedClock(TimeSpan.FromMilliseconds(800)), preferenceStore: preferencesA, practiceMode: PracticeMode.Custom);
             await sessionA.InitializeAsync(startTiming: false);
 
             factA = sessionA.CurrentFact;
@@ -433,7 +433,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         {
             var preferencesB = new TestPreferenceStore();
             preferencesB.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
-            var sessionB = new TrainingSession(storeB, new FixedClock(TimeSpan.FromMilliseconds(800)), preferenceStore: preferencesB);
+            var sessionB = new TrainingSession(storeB, new FixedClock(TimeSpan.FromMilliseconds(800)), preferenceStore: preferencesB, practiceMode: PracticeMode.Custom);
             await sessionB.InitializeAsync(startTiming: false);
 
             factB = sessionB.CurrentFact;
@@ -457,10 +457,10 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
     [Fact]
     public async Task MfLearn006_FinalPersistenceContract_RemainsSchemaV6()
     {
-        // 1. Authoritative Default Schema Version is strictly 8
-        Assert.Equal(8, LearnerProgression.DefaultSchemaVersion);
+        // 1. Authoritative Default Schema Version is strictly 9
+        Assert.Equal(9, LearnerProgression.DefaultSchemaVersion);
 
-        // 2. Fresh SQLite DB has schema_version = '8'
+        // 2. Fresh SQLite DB has schema_version = '9'
         var dbPath = GetDatabasePath("schema_v6_conformance");
         using (var store = new SqliteLearnerStore(dbPath))
         {
@@ -474,7 +474,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         {
             versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
             var version = await versionCmd.ExecuteScalarAsync();
-            Assert.Equal("8", version);
+            Assert.Equal("9", version);
         }
 
         // 3. Exactly the 6 expected Schema V6 tables exist
@@ -504,7 +504,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         // 4. Assert NO new persistent flags or columns were added across all tables
         // learner_progression
         var learnerColumns = await GetTableColumnsAsync(conn, "learner_progression");
-        Assert.Equal(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "practice_position", "updated_at" }, learnerColumns);
+        Assert.Equal(new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "id", "practice_position", "curriculum_stage", "updated_at" }, learnerColumns);
         Assert.DoesNotContain("has_broad_weakness", learnerColumns, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("is_pace_calibration_ready", learnerColumns, StringComparer.OrdinalIgnoreCase);
         Assert.DoesNotContain("g3_decoupled", learnerColumns, StringComparer.OrdinalIgnoreCase);
@@ -673,7 +673,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         var preferences = new TestPreferenceStore();
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-        var session = new TrainingSession(store, clock, preferenceStore: preferences);
+        var session = new TrainingSession(store, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var trace = new List<BenchmarkTraceEntry>(maxAttempts);
@@ -775,7 +775,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
 
         var currentStore = new SqliteLearnerStore(dbPath);
         await currentStore.InitializeAsync();
-        var currentSession = new TrainingSession(currentStore, clock, preferenceStore: preferences);
+        var currentSession = new TrainingSession(currentStore, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await currentSession.InitializeAsync(startTiming: false);
 
         try
@@ -833,7 +833,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
                     currentStore.Dispose();
 
                     currentStore = new SqliteLearnerStore(dbPath);
-                    currentSession = new TrainingSession(currentStore, clock, preferenceStore: preferences);
+                    currentSession = new TrainingSession(currentStore, clock, preferenceStore: preferences, practiceMode: PracticeMode.Custom);
                     await currentSession.InitializeAsync(startTiming: false);
 
                     Assert.Equal(pos, currentSession.Progression.PracticePosition);

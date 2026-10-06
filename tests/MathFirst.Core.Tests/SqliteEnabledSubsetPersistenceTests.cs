@@ -31,7 +31,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
                 store,
                 new FixedClock(),
                 new AdaptivePracticeSelector(),
-                preferenceStore: preferences);
+                preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 40);
@@ -60,7 +60,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
             var session = new TrainingSession(
                 store,
                 new FixedClock(),
-                preferenceStore: preferences);
+                preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 26);
@@ -80,7 +80,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         var restartedSession = new TrainingSession(
             reopenedStore,
             new FixedClock(),
-            preferenceStore: preferences);
+            preferenceStore: preferences, practiceMode: PracticeMode.Custom);
 
         // This MUST succeed without throwing InvalidOperationException
         await restartedSession.InitializeAsync(startTiming: false);
@@ -100,7 +100,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
         using (var store = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             await CompleteAcceptedAttemptsAsync(session, preferences, 40, advanceAfterFinal: false);
@@ -134,7 +134,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         var preferences = new TestPreferenceStore();
         SetOnly(preferences, enabledOperation);
         using var store = new SqliteLearnerStore(GetDatabasePath());
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 12);
@@ -151,7 +151,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         var preferences = new TestPreferenceStore();
         SetEnabled(preferences, ArithmeticOperation.Addition, ArithmeticOperation.Multiplication);
         using var store = new SqliteLearnerStore(GetDatabasePath());
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 20);
@@ -179,7 +179,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
             ArithmeticOperation.Subtraction,
             ArithmeticOperation.Division);
         using var store = new SqliteLearnerStore(GetDatabasePath());
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var operations = await CompleteAcceptedAttemptsAsync(session, preferences, 24);
@@ -194,7 +194,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
     {
         var preferences = new TestPreferenceStore();
         using var store = new SqliteLearnerStore(GetDatabasePath());
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         await CompleteAcceptedAttemptsAsync(session, preferences, 40, advanceAfterFinal: false);
@@ -231,7 +231,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
         using (var store = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             await CompleteAcceptedAttemptsAsync(session, preferences, 100);
@@ -245,7 +245,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
         using (var reopened = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(reopened, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(reopened, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             Assert.Equal(100, session.Progression.PracticePosition);
@@ -277,7 +277,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
         using (var store = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             // Complete 12 attempts across all 4 operations
@@ -299,7 +299,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
 
         using (var reopened = new SqliteLearnerStore(path))
         {
-            var session = new TrainingSession(reopened, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(reopened, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             Assert.Equal(0, session.Progression.PracticePosition);
@@ -317,7 +317,7 @@ public sealed class SqliteEnabledSubsetPersistenceTests : IDisposable
         SetOnly(preferences, ArithmeticOperation.Addition);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var fact = session.CurrentFact;

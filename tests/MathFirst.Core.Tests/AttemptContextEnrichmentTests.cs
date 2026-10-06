@@ -298,28 +298,34 @@ public sealed class AttemptContextEnrichmentTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");
         try
         {
-            using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
-            await session.InitializeAsync();
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                var session = new TrainingSession(store);
+                await session.InitializeAsync();
 
-            var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
 
-            Assert.NotNull(eval.ChangeSet);
-            var attempt = eval.ChangeSet.Attempt;
-            Assert.Equal(1, attempt.ContextVersion);
-            Assert.Null(attempt.PresentedDeadlineMs);
-            Assert.True(attempt.ExpectedPaceMs > 0);
-            Assert.NotNull(attempt.ResolvedRole);
-            Assert.Equal("New", attempt.ResolvedRole);
-            Assert.True(attempt.OperationBandBefore >= 0);
-            Assert.True(attempt.IsCorrect);
+                Assert.NotNull(eval.ChangeSet);
+                var attempt = eval.ChangeSet.Attempt;
+                Assert.Equal(1, attempt.ContextVersion);
+                Assert.Null(attempt.PresentedDeadlineMs);
+                Assert.True(attempt.ExpectedPaceMs > 0);
+                Assert.NotNull(attempt.ResolvedRole);
+                Assert.Equal("New", attempt.ResolvedRole);
+                Assert.True(attempt.OperationBandBefore >= 0);
+                Assert.True(attempt.IsCorrect);
+            }
         }
         finally
         {
-            if (File.Exists(dbPath))
+            try
             {
-                File.Delete(dbPath);
+                if (File.Exists(dbPath))
+                {
+                    File.Delete(dbPath);
+                }
             }
+            catch { }
         }
     }
 
@@ -329,27 +335,33 @@ public sealed class AttemptContextEnrichmentTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");
         try
         {
-            using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
-            await session.InitializeAsync();
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                var session = new TrainingSession(store);
+                await session.InitializeAsync();
 
-            var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult + 1);
+                var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult + 1);
 
-            Assert.NotNull(eval.ChangeSet);
-            var attempt = eval.ChangeSet.Attempt;
-            Assert.Equal(1, attempt.ContextVersion);
-            Assert.Null(attempt.PresentedDeadlineMs);
-            Assert.True(attempt.ExpectedPaceMs > 0);
-            Assert.NotNull(attempt.ResolvedRole);
-            Assert.True(attempt.OperationBandBefore >= 0);
-            Assert.False(attempt.IsCorrect);
+                Assert.NotNull(eval.ChangeSet);
+                var attempt = eval.ChangeSet.Attempt;
+                Assert.Equal(1, attempt.ContextVersion);
+                Assert.Null(attempt.PresentedDeadlineMs);
+                Assert.True(attempt.ExpectedPaceMs > 0);
+                Assert.NotNull(attempt.ResolvedRole);
+                Assert.True(attempt.OperationBandBefore >= 0);
+                Assert.False(attempt.IsCorrect);
+            }
         }
         finally
         {
-            if (File.Exists(dbPath))
+            try
             {
-                File.Delete(dbPath);
+                if (File.Exists(dbPath))
+                {
+                    File.Delete(dbPath);
+                }
             }
+            catch { }
         }
     }
 
@@ -359,29 +371,35 @@ public sealed class AttemptContextEnrichmentTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");
         try
         {
-            using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
-            await session.InitializeAsync();
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                var session = new TrainingSession(store);
+                await session.InitializeAsync();
 
-            var eval = session.SubmitTimeout();
+                var eval = session.SubmitTimeout();
 
-            Assert.NotNull(eval.ChangeSet);
-            var attempt = eval.ChangeSet.Attempt;
-            Assert.Equal(1, attempt.ContextVersion);
-            Assert.Null(attempt.SubmittedAnswer);
-            Assert.Equal(AttemptOutcome.Timeout, attempt.Outcome);
-            Assert.Null(attempt.PresentedDeadlineMs);
-            Assert.True(attempt.ExpectedPaceMs > 0);
-            Assert.NotNull(attempt.ResolvedRole);
-            Assert.True(attempt.OperationBandBefore >= 0);
-            Assert.False(attempt.IsCorrect);
+                Assert.NotNull(eval.ChangeSet);
+                var attempt = eval.ChangeSet.Attempt;
+                Assert.Equal(1, attempt.ContextVersion);
+                Assert.Null(attempt.SubmittedAnswer);
+                Assert.Equal(AttemptOutcome.Timeout, attempt.Outcome);
+                Assert.Null(attempt.PresentedDeadlineMs);
+                Assert.True(attempt.ExpectedPaceMs > 0);
+                Assert.NotNull(attempt.ResolvedRole);
+                Assert.True(attempt.OperationBandBefore >= 0);
+                Assert.False(attempt.IsCorrect);
+            }
         }
         finally
         {
-            if (File.Exists(dbPath))
+            try
             {
-                File.Delete(dbPath);
+                if (File.Exists(dbPath))
+                {
+                    File.Delete(dbPath);
+                }
             }
+            catch { }
         }
     }
 
@@ -391,38 +409,44 @@ public sealed class AttemptContextEnrichmentTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");
         try
         {
-            using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
-            await session.InitializeAsync();
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                var session = new TrainingSession(store);
+                await session.InitializeAsync();
 
-            ClearPresentationContextForTest(session);
-            var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                ClearPresentationContextForTest(session);
+                var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
 
-            Assert.NotNull(eval.ChangeSet);
-            var attempt = eval.ChangeSet.Attempt;
-            Assert.Null(attempt.ContextVersion);
-            Assert.Null(attempt.PresentedDeadlineMs);
-            Assert.Null(attempt.ExpectedPaceMs);
-            Assert.Null(attempt.ResolvedRole);
-            Assert.Null(attempt.OperationBandBefore);
+                Assert.NotNull(eval.ChangeSet);
+                var attempt = eval.ChangeSet.Attempt;
+                Assert.Null(attempt.ContextVersion);
+                Assert.Null(attempt.PresentedDeadlineMs);
+                Assert.Null(attempt.ExpectedPaceMs);
+                Assert.Null(attempt.ResolvedRole);
+                Assert.Null(attempt.OperationBandBefore);
 
-            var commitResult = await session.CommitCurrentEvaluationAsync();
-            Assert.True(commitResult.IsSuccess);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(commitResult.IsSuccess);
 
-            var snapshot = await store.LoadSnapshotAsync();
-            var persistedAttempt = Assert.Single(snapshot.RecentAttempts);
-            Assert.Null(persistedAttempt.ContextVersion);
-            Assert.Null(persistedAttempt.PresentedDeadlineMs);
-            Assert.Null(persistedAttempt.ExpectedPaceMs);
-            Assert.Null(persistedAttempt.ResolvedRole);
-            Assert.Null(persistedAttempt.OperationBandBefore);
+                var snapshot = await store.LoadSnapshotAsync();
+                var persistedAttempt = Assert.Single(snapshot.RecentAttempts);
+                Assert.Null(persistedAttempt.ContextVersion);
+                Assert.Null(persistedAttempt.PresentedDeadlineMs);
+                Assert.Null(persistedAttempt.ExpectedPaceMs);
+                Assert.Null(persistedAttempt.ResolvedRole);
+                Assert.Null(persistedAttempt.OperationBandBefore);
+            }
         }
         finally
         {
-            if (File.Exists(dbPath))
+            try
             {
-                File.Delete(dbPath);
+                if (File.Exists(dbPath))
+                {
+                    File.Delete(dbPath);
+                }
             }
+            catch { }
         }
     }
 
@@ -432,38 +456,44 @@ public sealed class AttemptContextEnrichmentTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"mathfirst_test_{Guid.NewGuid():N}.db");
         try
         {
-            using var store = new SqliteLearnerStore(dbPath);
-            var session = new TrainingSession(store);
-            await session.InitializeAsync();
+            using (var store = new SqliteLearnerStore(dbPath))
+            {
+                var session = new TrainingSession(store);
+                await session.InitializeAsync();
 
-            var initialFact = session.CurrentFact;
-            Assert.NotNull(initialFact);
+                var initialFact = session.CurrentFact;
+                Assert.NotNull(initialFact);
 
-            await session.AdvanceToNextFactAsync();
+                await session.AdvanceToNextFactAsync();
 
-            var snapshotBeforeSubmit = await store.LoadSnapshotAsync();
-            Assert.Empty(snapshotBeforeSubmit.RecentAttempts);
+                var snapshotBeforeSubmit = await store.LoadSnapshotAsync();
+                Assert.Empty(snapshotBeforeSubmit.RecentAttempts);
 
-            var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
-            var commitResult = await session.CommitCurrentEvaluationAsync();
-            Assert.True(commitResult.IsSuccess);
+                var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(commitResult.IsSuccess);
 
-            var snapshotAfterSubmit = await store.LoadSnapshotAsync();
-            var persistedAttempt = Assert.Single(snapshotAfterSubmit.RecentAttempts);
-            Assert.Equal(session.CurrentFact.Id, persistedAttempt.FactId);
-            Assert.Equal(1, persistedAttempt.PracticePosition);
-            Assert.Equal(1, persistedAttempt.ContextVersion);
-            Assert.Equal((int)session.CurrentFactExpectedPaceMs, persistedAttempt.ExpectedPaceMs);
-            Assert.Equal(eval.ChangeSet!.Attempt.ExpectedPaceMs, persistedAttempt.ExpectedPaceMs);
-            Assert.Equal(eval.ChangeSet.Attempt.ResolvedRole, persistedAttempt.ResolvedRole);
-            Assert.Equal(eval.ChangeSet.Attempt.OperationBandBefore, persistedAttempt.OperationBandBefore);
+                var snapshotAfterSubmit = await store.LoadSnapshotAsync();
+                var persistedAttempt = Assert.Single(snapshotAfterSubmit.RecentAttempts);
+                Assert.Equal(session.CurrentFact.Id, persistedAttempt.FactId);
+                Assert.Equal(1, persistedAttempt.PracticePosition);
+                Assert.Equal(1, persistedAttempt.ContextVersion);
+                Assert.Equal((int)session.CurrentFactExpectedPaceMs, persistedAttempt.ExpectedPaceMs);
+                Assert.Equal(eval.ChangeSet!.Attempt.ExpectedPaceMs, persistedAttempt.ExpectedPaceMs);
+                Assert.Equal(eval.ChangeSet.Attempt.ResolvedRole, persistedAttempt.ResolvedRole);
+                Assert.Equal(eval.ChangeSet.Attempt.OperationBandBefore, persistedAttempt.OperationBandBefore);
+            }
         }
         finally
         {
-            if (File.Exists(dbPath))
+            try
             {
-                File.Delete(dbPath);
+                if (File.Exists(dbPath))
+                {
+                    File.Delete(dbPath);
+                }
             }
+            catch { }
         }
     }
 

@@ -53,7 +53,7 @@ public sealed class SubmissionIntegrityAndPublishBoundaryTests : IDisposable
     public async Task TrainingSession_DoesNotPublishCandidateStateWhileCommitIsPending()
     {
         var store = new GatedStore();
-        var session = new TrainingSession(store, new FakeClock());
+        var session = new TrainingSession(store, new FakeClock(), practiceMode: PracticeMode.Custom);
         await session.InitializeAsync();
         var factBefore = session.CurrentFact;
 

@@ -304,7 +304,7 @@ public sealed class AdaptiveReviewStabilizationTests : IDisposable
     {
         var dbPath = GetTempDbPath();
         using var store = new SqliteLearnerStore(dbPath);
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var newIntroductions = 0;

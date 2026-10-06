@@ -53,7 +53,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -168,7 +168,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -288,7 +288,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         using var store = new SqliteLearnerStore(dbPath);
         await store.InitializeAsync();
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -386,7 +386,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         using (var store = new SqliteLearnerStore(dbPath))
         {
             await store.InitializeAsync();
-            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+            var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: false);
 
             for (var i = 1; i <= 12; i++)
@@ -431,7 +431,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
 
         // Phase 2: Fresh session restart against the same database
         using var reopenedStore = new SqliteLearnerStore(dbPath);
-        var restartedSession = new TrainingSession(reopenedStore, new FixedClock(), preferenceStore: preferences);
+        var restartedSession = new TrainingSession(reopenedStore, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await restartedSession.InitializeAsync(startTiming: false);
 
         // Assertion A: Previously introduced facts remain materialized
@@ -533,7 +533,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -604,7 +604,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -680,7 +680,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -751,7 +751,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -811,7 +811,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -884,7 +884,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
             "Custom Mul+Div mode must NOT be classified as Guided Mode.");
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var tracker = new OperationPresentationTracker();
@@ -985,7 +985,7 @@ public sealed class PracticeBalanceIntegrationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var steps = new List<ReplayStep>(500);
