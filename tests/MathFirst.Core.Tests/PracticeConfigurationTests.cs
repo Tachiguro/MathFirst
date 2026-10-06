@@ -128,13 +128,17 @@ public sealed class PracticeConfigurationTests
     // ============================================================
 
     [Fact]
-    public void OperationPolicy_MissingOrEmptySelection_DefaultsToAdditionOnly()
+    public void OperationPolicy_MissingOrEmptySelection_DefaultsToAllFourOperations()
     {
         var nullResult = PracticeOperationPreferencePolicy.NormalizeEnabledOperations(null);
-        Assert.Equal([ArithmeticOperation.Addition], nullResult);
+        Assert.Equal(
+            [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
+            nullResult);
 
         var emptyResult = PracticeOperationPreferencePolicy.NormalizeEnabledOperations([]);
-        Assert.Equal([ArithmeticOperation.Addition], emptyResult);
+        Assert.Equal(
+            [ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication, ArithmeticOperation.Division],
+            emptyResult);
     }
 
     [Fact]
@@ -158,6 +162,18 @@ public sealed class PracticeConfigurationTests
         Assert.Equal(
             [ArithmeticOperation.Addition, ArithmeticOperation.Division],
             enabled);
+    }
+
+    [Fact]
+    public void OperationPreferenceStore_FreshStore_DefaultsToAdditionOnly()
+    {
+        var store = new InMemoryPreferenceStore();
+        Assert.True(store.GetOperationEnabled(ArithmeticOperation.Addition));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Subtraction));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Multiplication));
+        Assert.False(store.GetOperationEnabled(ArithmeticOperation.Division));
+
+        Assert.Equal([ArithmeticOperation.Addition], store.GetEnabledOperations());
     }
 
     [Fact]
@@ -248,7 +264,7 @@ public sealed class PracticeConfigurationTests
     }
 
     [Fact]
-    public void OperationPersistence_CorruptAllFalsePersistedState_RecoversToAdditionOnly()
+    public void OperationPersistence_CorruptAllFalsePersistedState_RecoversToAllFourOperations()
     {
         var store = new InMemoryPreferenceStore();
         foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
@@ -256,10 +272,10 @@ public sealed class PracticeConfigurationTests
             store.SetOperationEnabled(op, false);
         }
 
-        // When all 4 are persisted as false, reading normalized config safely recovers to Addition only
+        // When all 4 are persisted as false, reading normalized config safely recovers to all 4
         var enabled = store.GetEnabledOperations();
-        Assert.Single(enabled);
-        Assert.Equal(ArithmeticOperation.Addition, enabled[0]);
+        Assert.Equal(4, enabled.Count);
+        Assert.Equal(PracticeOperationPreferencePolicy.AllOperations, enabled);
     }
 
     [Fact]
@@ -372,12 +388,14 @@ public sealed class PracticeConfigurationTests
     }
 
     [Fact]
-    public void Scheduling_DefaultOperations_MatchesAdditionOnlySchedule()
+    public void Scheduling_DefaultOperations_MatchesAllFourOperationsSchedule()
     {
+        var allFour = PracticeOperationPreferencePolicy.AllOperations;
+
         for (var p = 1L; p <= 40; p++)
         {
-            var op = AdaptivePracticeSelector.GetScheduledOperation(p);
-            Assert.Equal(ArithmeticOperation.Addition, op);
+            var op = AdaptivePracticeSelector.GetScheduledOperation(p, allFour);
+            Assert.Equal(AdaptivePracticeSelector.GetScheduledOperation(p), op);
         }
     }
 
