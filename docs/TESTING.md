@@ -1265,9 +1265,30 @@ Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release`
   - Total package changed paths: **19 paths**.
   - Test case growth: Pre-P8 Base 2,228 passed $\to$ Post-P8 2,299 passed (**+71 automated test cases**).
   - 0 production code changes, 0 tooling production code changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
+- **Exact-Candidate Formal FULL_VALIDATION Evidence (Candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`)**:
+  - Candidate Commit SHA: `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`
+  - Final Validation Result: `MF_AUDIT_002_FULL_VALIDATION_PASSED`
+  - Focused Console-Stabilization Filter: 156 passed, 0 failed, 0 skipped
+  - Full Core Release Gate: 2,299 passed, 0 failed, 0 skipped (twice consecutively)
+  - Full Core Debug Gate: 2,299 passed, 0 failed, 0 skipped
+  - Normalized Cobertura Coverage Gate: 93.93% lines (8,330 / 8,868), 82.43% branches (2,983 / 3,619)
+  - Windows Release Build: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+  - Android Release Compilation: 0 warnings, 0 errors (`net10.0-android36.0`, Target `Compile`)
+  - NuGet Vulnerability Security Audit: 0 known vulnerable packages
+  - Markdown Link & Anchor Audit: 36 documents, 297 relative file links, 0 broken
+  - Candidate Diff Check: `git diff --check` PASS
+  - Candidate Repository Immutability: PASS
+- **Integration & Delivery Evidence**:
+  - Pull Request #70 merged to `main` at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b` (Merge parent 1: `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`, Merge parent 2: `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`).
+  - Merged tree `7f30fd950e21098a5376ac7251e906d29db78879` is identical to validated candidate tree `7f30fd950e21098a5376ac7251e906d29db78879`.
+  - Post-merge synchronization completed (`MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`) with clean working tree, clean index, and zero content drift.
+  - Post-merge local `main` at `cc81242177dd75114934c3ad48b830c9ce87c70b`.
+  - No new development package has been selected following P8.
+  - Step 55 remains unauthorized; Build 4 does not exist.
 
 ### Evidence Boundary Principles
 
-- **Evidence Boundary**: This document records historical implementation, consolidated review, historical first formal FULL_VALIDATION attempt, and approved validation test-infrastructure remediation facts. Formal lifecycle state, including any subsequent exact-candidate `FULL_VALIDATION` and integration status, must be discovered dynamically from live repository state.
-- **Durable Milestones**: Implementation, review, historical validation attempt, remediation, remediation review, and documentation reconciliation are complete. Live Git and GitHub state is authoritative for downstream integration status.
+- All automated tests run offline against synthetic fixtures, source files, and isolated test environments.
+- The merged content is Git-tree-identical to the exact candidate that passed `FULL_VALIDATION` (`7f30fd950e21098a5376ac7251e906d29db78879`).
+- Automated tests do not constitute physical hardware verification or store publishing.
 - **Release Boundaries**: P7 remains DEFERRED. Roadmap Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**. Production packaging, signing, and store publication remain strictly unauthorized.
