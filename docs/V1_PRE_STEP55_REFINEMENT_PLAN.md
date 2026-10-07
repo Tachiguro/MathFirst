@@ -233,7 +233,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P4 — Settings Simplification
 - **Priority**: Medium.
-- **Status**: **IMPLEMENTED & REVIEW APPROVED (UNCOMMITTED CANDIDATE)** (Implemented on task branch `feat/p4-settings-simplification`, review verdict `P4_COMPLETE_REVIEW_APPROVED`, permanent contract suite `SettingsSimplificationContractTests` with 8 tests, confirmed across 2,204 passing Core tests, candidate uncommitted, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
+- **Status**: **DELIVERED & MERGED** (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, 0 warnings / 0 errors on Windows and Android Release builds, Schema V9 preserved).
 - **Product Decision**: Streamline Settings following P1, P2, and P3 implementations:
   - **Retained Controls**: Language selection, Theme (System/Light/Dark), read-only operation status presentation, Keypad layout (Numpad/Phone), Haptic feedback toggle, Privacy Policy view, Reset Learning Progress, Restore Default Settings, Full Local Reset, Version/Build information, and Tester Diagnostics / telemetry export controls.
   - **Removed Controls**: Normal-practice time limit selection (Standard, No Time Pressure, 30s, 45s, 60s) removed from normal Settings UI.
@@ -244,9 +244,13 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P5 — Cyber Defense Visual Consistency
 - **Priority**: Medium.
-- **Product Decision**: Bring all secondary UI surfaces (specifically Settings and dialogs after onboarding removal) into full visual alignment with the established Cyber Defense aesthetic:
-  - Dark technical surfaces, restrained neon/cyber accents, high-contrast typography, and clear visual hierarchy.
-  - Active training screen remains the primary visual reference.
+- **Status**: **IMPLEMENTED & REVIEW APPROVED (UNCOMMITTED CANDIDATE)** (Implemented on task branch `feat/p5-cyber-defense-visual-consistency`, review verdict `P5_COMPLETE_REVIEW_APPROVED`, 18 permanent visual and accessibility contract tests across `SecondarySurfaceVisualContractTests`, `SecondaryDialogVisualContractTests`, and `SecondaryVisualAccessibilityContractTests`, confirmed across 2,222 passing Core review tests, candidate uncommitted, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
+- **Product Decision & Architecture**: Align all secondary UI surfaces (Settings, Privacy, secondary dialogs, overlays, Not Found) with the established Cyber Defense aesthetic following Option A (Scoped Cyber Defense Pattern Reuse):
+  - Dark technical surfaces, restrained neon/emerald accents, high-contrast typography, and clear visual hierarchy without creating a new design system or parallel token subsystem.
+  - Secondary overlays and dialogs aligned: `InitialReadyGate` progress overview, `ManualPauseGate` session summary, `TeachingIntervention`, `SessionCheckIn`, `IncorrectFeedback`, startup/persistence recovery panels, and `NotFound.razor` (preserving navigation and layout contracts).
+  - Multi-theme support: Light theme remains light, Dark theme uses cyber defense vocabulary, System theme dynamically resolves.
+  - Accessibility hardening: centralized focus ring covers `.keypad-choice-card:focus-visible`, reduced-motion suppression under `@media (prefers-reduced-motion: reduce)`, and read-only operation cascade specificity.
+  - Active gameplay isolation: zero impact on active gameplay coordinates, layout geometry, or `MF-UX-008` scroll/position containment.
   - Usability, legibility, and accessibility strictly outrank visual novelty.
 
 ---
@@ -316,9 +320,10 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P2 — Direct-to-Practice Start / Remove Onboarding`: Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
   - `P2b — Gameplay and Startup Refinements`: Delivered & Merged (PR #64 at commit `f580a7154a4043a5097ffd852b5cf454be2cc397`).
   - `P3 — Cumulative Operation Unlock Progression`: Delivered & Merged (PR #65 at commit `759389650778f5d7b6a334b15556c5f31f6de5d0`).
+  - `P4 — Settings Simplification`: Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
 - **Implemented & Review-Approved Refinements on Task Branch**:
-  - `P4 — Settings Simplification`: Implemented and review-approved (`P4_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p4-settings-simplification`, backed by permanent contract suite `SettingsSimplificationContractTests` (8 tests) and 2,204 passing Core tests (uncommitted, unpushed, no open PR, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
-- **Next Work Item**: `P4` documentation reconciliation review, candidate commit, and `FULL_VALIDATION` lifecycle (followed by push, PR, merge, and subsequent `P5 — Cyber Defense Visual Consistency`).
+  - `P5 — Cyber Defense Visual Consistency`: Implemented and consolidated review approved (`P5_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p5-cyber-defense-visual-consistency`, backed by 18 permanent visual and accessibility contract tests (6/6/6) and 2,222 passing Core review tests (uncommitted, unpushed, no open PR, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
+- **Next Work Item**: `P5` documentation reconciliation review, candidate commit, and `FULL_VALIDATION` lifecycle (followed by push, PR, merge, and subsequent `P6 — Tester Diagnostics / Telemetry Release Boundary`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.

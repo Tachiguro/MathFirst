@@ -995,5 +995,55 @@ The P4 implementation simplifies the normal Settings page by removing user-facin
 
 ### Evidence Boundary Principles & Validation State
 
-- **Implementation Evidence Boundary**: The 2,204 passing Core tests represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
-- **Delivery State**: P4 candidate is implemented and review-approved on task branch `feat/p4-settings-simplification`, uncommitted, unpushed, with no open Pull Request; documentation reconciliation is currently active under `OPERATION MODE: DOCUMENT_ONLY`; formal `FULL_VALIDATION`, push, PR, and merge remain **PENDING**.
+- **Implementation Evidence Boundary**: The 2,204 passing Core tests represent implementation and review evidence.
+- **Exact-Candidate FULL_VALIDATION Evidence**: Candidate `edcc150039f369b8f809982499a5e1b2714e064c` achieved `FULL_VALIDATION_PASS` across Core Debug (2,204 passed), Core Release (2,204 passed), Windows Release build (0 warnings / 0 errors), Android Release build (0 warnings / 0 errors), NuGet vulnerability audit (0 vulnerable packages), and markdown link audit (36 documents / 297 relative links / 0 broken).
+- **Delivery State**: P4 was merged into `main` via PR #66 at merge commit `8400151ff080caecf024a418a9b6b8ada4873c2d` on 2026-10-07.
+
+---
+
+## 28. P5 Cyber Defense Visual Consistency Contracts & Review Test Evidence
+
+The P5 implementation aligns secondary application surfaces (Settings, Privacy, secondary dialogs, overlays, and Not Found) with the established Cyber Defense visual identity following Option A (Scoped Cyber Defense Pattern Reuse), without introducing a new design system or parallel token subsystem. This behavior is covered by three permanent contract suites in `MathFirst.Core.Tests`:
+
+1. **Secondary Surface Visual Contracts (`SecondarySurfaceVisualContractTests`) (6 tests)**:
+   - Asserts Settings cards, read-only operation status, and Unlocked/Locked status badges use technical surface framing and emerald cyber accents.
+   - Asserts Keypad selection cards and previews reuse Cyber Defense keypad styling.
+   - Asserts Reset confirmation panels and Version/Build metadata share secondary styling.
+   - Asserts Tester diagnostics and telemetry export actions integrate with secondary card styling.
+   - Asserts Privacy Policy surface shares unified secondary card styling.
+   - Asserts read-only operation cascade specificity prevents inadvertent toggle behavior.
+
+2. **Secondary Dialog Visual Contracts (`SecondaryDialogVisualContractTests`) (6 tests)**:
+   - Asserts `InitialReadyGate` progress overview uses technical surface framing and high-contrast typography.
+   - Asserts `ManualPauseGate` session summary retains danger-accented pause treatment while adopting cyber framing.
+   - Asserts `TeachingIntervention` dialog adopts technical card framing with zero learning mutation.
+   - Asserts `SessionCheckIn` dialog retains Keep Going / Take a Break actions with dark cyber framing.
+   - Asserts `IncorrectFeedback` card uses semantic danger accents with cyber framing.
+   - Asserts `NotFound.razor` reuses secondary card styling while strictly preserving `@page "/not-found"`, `MainLayout`, localized title/description, `IAppBackNavigationCoordinator`, and navigation to `"/"`.
+
+3. **Secondary Visual & Accessibility Contracts (`SecondaryVisualAccessibilityContractTests`) (6 tests)**:
+   - Asserts centralized keyboard focus ring contract covers `.keypad-choice-card:focus-visible`.
+   - Asserts transitions and hover transforms are suppressed under `@media (prefers-reduced-motion: reduce)`.
+   - Asserts static theme token contrast contracts for Light, Dark, and System appearance modes.
+   - Asserts responsive and overflow safeguards for secondary surfaces.
+   - Asserts read-only operation status cascade specificity.
+   - Asserts strict isolation and zero impact on active gameplay coordinates (`MF-UX-008`).
+
+### Implementation & Review Test Evidence (Candidate on `feat/p5-cyber-defense-visual-consistency`)
+
+- **Permanent Contract Suites**:
+  - `tests/MathFirst.Core.Tests/SecondarySurfaceVisualContractTests.cs`: 6 tests
+  - `tests/MathFirst.Core.Tests/SecondaryDialogVisualContractTests.cs`: 6 tests
+  - `tests/MathFirst.Core.Tests/SecondaryVisualAccessibilityContractTests.cs`: 6 tests
+  - Total permanent P5 contract tests: **18 tests**
+- **Consolidated Review Verdict**: `P5_COMPLETE_REVIEW_APPROVED` (Slice 1 `P5_SLICE_1_REVIEW_APPROVED`, Slice 2 `P5_SLICE_2_REVIEW_APPROVED`, Slice 3 `P5_SLICE_3_REVIEW_APPROVED`).
+- **Test Evidence Reported & Confirmed**:
+  - *Dedicated P5 Contract Suites*: **18 passed**, 0 failed, 0 skipped.
+  - *Full Core Test Suite (Debug)*: **2,222 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - *`git diff --check`*: PASS.
+
+### Evidence Boundary Principles & Validation State
+
+- **Implementation Evidence Boundary**: The 2,222 passing Core tests represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
+- **Accessibility & Rendering Boundary**: Static contrast and source-contract tests do **not** constitute complete rendered WCAG certification. Rendered alpha-composited surfaces remain a later manual/device verification concern.
+- **Delivery State**: P5 candidate is implemented and review-approved (`P5_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p5-cyber-defense-visual-consistency`, uncommitted, unpushed, with no open Pull Request; documentation reconciliation is currently active under `OPERATION MODE: DOCUMENT_ONLY`; formal `FULL_VALIDATION`, push, PR, and merge remain **PENDING**.

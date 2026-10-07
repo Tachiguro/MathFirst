@@ -146,9 +146,11 @@ Worktrees: Exactly one normal worktree by default
   - P2 (Direct-to-Practice Start / Remove Onboarding): Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
   - P2b (Gameplay and Startup Refinements): Delivered & Merged (PR #64 at `f580a7154a4043a5097ffd852b5cf454be2cc397`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`).
   - P3 (Cumulative Operation Unlock Progression): Delivered & Merged (PR #65 at `759389650778f5d7b6a334b15556c5f31f6de5d0`, post-merge tests: 2,196 passed, Schema V9 live, ADR-0012 authoritative).
-  - P4 (Settings Simplification): Implemented and review-approved (`P4_COMPLETE_REVIEW_APPROVED`), permanent contract suite `SettingsSimplificationContractTests` (8 tests), 2,204 passing Core tests, candidate uncommitted on task branch `feat/p4-settings-simplification`, documentation reconciliation active under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending.
-  - P5 through P8: Planned downstream.
+  - P4 (Settings Simplification): Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
+  - P5 (Cyber Defense Visual Consistency): Implemented and consolidated review approved (`P5_COMPLETE_REVIEW_APPROVED`), 18 permanent visual and accessibility contract tests across 3 suites (6/6/6), 2,222 passing Core review tests, candidate uncommitted on task branch `feat/p5-cyber-defense-visual-consistency`, documentation reconciliation active under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending.
+  - P6 through P8: Planned downstream.
 - **Delivered Pre-Step55 Packages & Merged PRs**:
+  - PR #66 (`8400151ff080caecf024a418a9b6b8ada4873c2d`): `P4: simplify practice settings`
   - PR #65 (`759389650778f5d7b6a334b15556c5f31f6de5d0`): `P3: cumulative operation unlock progression`
   - PR #64 (`f580a7154a4043a5097ffd852b5cf454be2cc397`): `P2b: gameplay and startup refinements`
   - PR #63 (`1b485091755294221b6f242e174d99c168fc8e9d`): `P2: start fresh learners directly in practice`
@@ -179,6 +181,7 @@ When initializing a new session:
 5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P4 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **P4 Settings Simplification** (PR #66, merge `8400151ff080caecf024a418a9b6b8ada4873c2d`, candidate `edcc150039f369b8f809982499a5e1b2714e064c`): Streamlined Settings by removing user-facing Practice Time selection (Standard, No Time Pressure, 30s, 45s, 60s) while retaining lower-level plumbing and read-only curriculum operation status (`FULL_VALIDATION_PASS`, 2,204 Core tests passing, Schema V9 preserved).
 - **P3 Cumulative Operation Unlock Progression** (PR #65, merge `759389650778f5d7b6a334b15556c5f31f6de5d0`): Delivered four-stage cumulative progression ($+ \to + - \to + - \times \to + - \times \div$), monotonic `CurriculumStage` in Schema V9, tolerant prerequisite D01 frontier unlock predicates, aggregate broad weakness gating, conservative V8 $\to$ V9 migration, semantically Guided `CurriculumManaged` practice, and read-only Settings unlock status (`FULL_VALIDATION_PASS`, 2,196 Core tests passing).
 - **P2b Gameplay and Startup Refinements** (PR #64, merge `f580a7154a4043a5097ffd852b5cf454be2cc397`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`): Implemented digit-scaled Cyber Defense critical hit timing ($T_{\text{crit}} = T_{\text{easy}} \times \text{DigitCount}$), shared radar/damage authority (`Session.CurrentFactCriticalHitThresholdMs`), and fresh startup `InitialReadyGate` orientation without active timing before explicit Start (`FULL_VALIDATION_PASS`, 2,027 Core tests passing).
 - **P2 Direct-to-Practice Start / Remove Onboarding** (PR #63, merge `1b485091755294221b6f242e174d99c168fc8e9d`, candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`): Delivered direct start in active practice for fresh learners, initial preference default to Addition only, returning-learner progress overview, and complete removal of obsolete onboarding components, routes, CSS, and preference APIs (2,014 Core tests passing).

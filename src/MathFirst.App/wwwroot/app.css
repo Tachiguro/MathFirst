@@ -177,6 +177,7 @@ a {
 
 .button:focus-visible,
 .choice-button:focus-visible,
+.keypad-choice-card:focus-visible,
 .answer-input:focus-visible,
 .numeric-keypad-button:focus-visible,
 select:focus-visible,
@@ -286,15 +287,111 @@ select:disabled {
     word-break: normal;
 }
 
-.choice-button:not(:disabled):hover {
+.choice-button:not(:disabled):not(.read-only):hover {
     border-color: var(--color-border-strong);
 }
 
-.choice-button.active {
+.choice-button.active:not(.read-only) {
     border-color: var(--color-primary);
     background: var(--color-primary-soft);
     box-shadow: inset 0 0 0 1px var(--color-primary);
     color: var(--color-primary);
+}
+
+/* READ-ONLY OPERATION STATUS */
+.choice-button.read-only {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    cursor: default;
+    user-select: none;
+    text-align: left;
+}
+
+.choice-button.read-only:hover {
+    border-color: var(--color-input-border);
+    transform: none;
+}
+
+.choice-button.read-only.active {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-elevated);
+    box-shadow: none;
+    color: var(--color-text);
+}
+
+.choice-button.read-only.active:hover {
+    border-color: var(--color-border-strong);
+}
+
+.choice-button.read-only.disabled {
+    border-color: var(--color-border);
+    background: var(--color-surface-muted);
+    color: var(--color-muted);
+    opacity: 0.85;
+}
+
+.choice-button.read-only.disabled:hover {
+    border-color: var(--color-border);
+}
+
+.app-theme-root[data-theme="dark"] .choice-button.read-only.active {
+    border-color: rgba(27, 227, 169, 0.35);
+    background: rgba(14, 34, 27, 0.75);
+}
+
+.app-theme-root[data-theme="dark"] .choice-button.read-only.disabled {
+    border-color: rgba(26, 56, 45, 0.6);
+    background: rgba(10, 24, 19, 0.5);
+    color: var(--color-muted);
+}
+
+.operation-name {
+    font-weight: 700;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.operation-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.35rem;
+    font-size: clamp(0.7rem, 1.1vw, 0.78rem);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.2;
+    border: 1px solid transparent;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.badge-unlocked {
+    background: var(--color-primary-soft);
+    border-color: var(--color-border-strong);
+    color: var(--color-primary);
+}
+
+.badge-locked {
+    background: var(--color-surface-muted);
+    border-color: var(--color-border);
+    color: var(--color-muted);
+}
+
+.app-theme-root[data-theme="dark"] .badge-unlocked {
+    background: rgba(27, 227, 169, 0.18);
+    border-color: rgba(27, 227, 169, 0.5);
+    color: #3effa8;
+    text-shadow: 0 0 6px rgba(62, 255, 168, 0.35);
+}
+
+.app-theme-root[data-theme="dark"] .badge-locked {
+    background: rgba(10, 24, 19, 0.8);
+    border-color: rgba(26, 56, 45, 0.8);
+    color: var(--color-muted);
 }
 
 /* SETTING HELP & FEEDBACK */
@@ -348,17 +445,35 @@ select:disabled {
     background: var(--color-surface-elevated);
     color: var(--color-text);
     cursor: pointer;
-    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
 .keypad-choice-card:hover {
     border-color: var(--color-border-strong);
+    transform: translateY(-1px);
 }
 
 .keypad-choice-card.active {
     border-color: var(--color-primary);
     background: var(--color-primary-soft);
-    box-shadow: inset 0 0 0 1px var(--color-primary);
+    box-shadow: inset 0 0 0 1px var(--color-primary), 0 2px 8px rgba(23, 107, 77, 0.12);
+}
+
+.app-theme-root[data-theme="dark"] .keypad-choice-card {
+    background: rgba(14, 30, 24, 0.8);
+    border-color: var(--color-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.app-theme-root[data-theme="dark"] .keypad-choice-card:hover {
+    border-color: rgba(27, 227, 169, 0.5);
+}
+
+.app-theme-root[data-theme="dark"] .keypad-choice-card.active {
+    border-color: var(--color-primary);
+    background: rgba(27, 227, 169, 0.12);
+    box-shadow: inset 0 0 0 1px var(--color-primary), 0 0 12px rgba(27, 227, 169, 0.15);
 }
 
 .keypad-choice-title {
@@ -383,10 +498,18 @@ select:disabled {
     justify-content: center;
     border: 1px solid var(--color-border);
     border-radius: 0.35rem;
-    background: var(--color-input-background);
+    background: var(--color-surface);
     color: var(--color-text);
     font-size: 0.8rem;
     font-weight: 700;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.app-theme-root[data-theme="dark"] .keypad-preview-key {
+    background: linear-gradient(180deg, #102621 0%, #071512 100%);
+    border-color: rgba(27, 227, 169, 0.3);
+    color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* SETTINGS PAGE */
@@ -439,15 +562,20 @@ select:disabled {
 .settings-version-meta {
     font-size: 0.8125rem;
     color: var(--color-muted);
+    letter-spacing: 0.02em;
 }
 
 .settings-diagnostics-action {
     display: flex;
     justify-content: center;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
     margin-top: var(--space-1);
 }
 
-.settings-copy-diagnostics-btn {
+.settings-copy-diagnostics-btn,
+.settings-export-telemetry-btn {
     min-height: 2.25rem;
     font-size: 0.8125rem;
     padding: var(--space-1) var(--space-3);
@@ -470,10 +598,17 @@ select:disabled {
     box-shadow: var(--shadow-card);
 }
 
+.app-theme-root[data-theme="dark"] .settings-card {
+    background: linear-gradient(180deg, rgba(14, 30, 24, 0.95) 0%, rgba(10, 24, 19, 0.98) 100%);
+    border-color: rgba(27, 227, 169, 0.22);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(27, 227, 169, 0.02);
+}
+
 .settings-section-title {
     margin: 0;
     font-size: clamp(1rem, 2vw, 1.25rem);
     font-weight: 700;
+    color: var(--color-text);
 }
 
 .settings-action-header {
@@ -498,6 +633,7 @@ select:disabled {
 .settings-confirm-panel > p {
     margin: 0;
     line-height: 1.5;
+    font-size: clamp(0.875rem, 1.3vw, 0.95rem);
 }
 
 .settings-confirm-buttons {
@@ -516,9 +652,30 @@ select:disabled {
     border-color: var(--color-danger-border);
 }
 
+.restore-defaults-card {
+    border-color: var(--color-border);
+}
+
 .destructive-confirmation {
+    border: 1px solid var(--color-danger-border);
+    background: var(--color-danger-surface);
+}
+
+.restore-defaults-confirmation {
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-muted);
+}
+
+.app-theme-root[data-theme="dark"] .destructive-confirmation {
     border-color: var(--color-danger-border);
-    background: var(--color-surface);
+    background: var(--color-danger-surface);
+    box-shadow: 0 4px 14px rgba(255, 71, 102, 0.1);
+}
+
+.app-theme-root[data-theme="dark"] .restore-defaults-confirmation {
+    border-color: rgba(27, 227, 169, 0.35);
+    background: rgba(14, 30, 24, 0.9);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 
@@ -1023,12 +1180,19 @@ select:disabled {
     color: var(--color-muted);
     font-weight: 600;
     font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+    font-variant-numeric: tabular-nums;
     flex-shrink: 0;
     white-space: nowrap;
     text-align: right;
 }
 
 .checkin-progress {
+    width: min(100%, 24rem);
+    padding: clamp(0.65rem, 1.8vw, 0.9rem);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-surface-muted);
+    text-align: left;
     display: grid;
     gap: 0.35rem;
 }
@@ -1066,6 +1230,7 @@ select:disabled {
 .pause-summary-value {
     color: var(--color-text);
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 
 .practice-overlay-action {
@@ -1123,6 +1288,10 @@ select:disabled {
     line-height: 1.1;
 }
 
+.teaching-continue-button {
+    min-width: min(100%, 20rem);
+}
+
 .checkin-dialog {
     border: 2px solid var(--color-border-strong);
     background: var(--color-surface);
@@ -1140,6 +1309,7 @@ select:disabled {
     font-size: clamp(1.15rem, 2.8vw, 1.6rem);
     font-weight: 700;
     color: var(--color-text);
+    font-variant-numeric: tabular-nums;
 }
 
 .checkin-actions {
@@ -1150,17 +1320,108 @@ select:disabled {
     width: min(100%, 20rem);
 }
 
-.checkin-progress {
-    width: min(100%, 24rem);
-    padding: clamp(0.65rem, 1.8vw, 0.9rem);
-    border: 1px solid var(--color-border);
-    border-radius: 0.75rem;
-    background: var(--color-surface-muted);
-    text-align: left;
-}
-
 .checkin-actions .practice-overlay-action {
     width: 100%;
+}
+
+.startup-error-dialog,
+.persistence-error-dialog {
+    border: 2px solid var(--color-danger-border);
+    background: var(--color-surface);
+}
+
+/* ========================================================
+   CYBER DEFENSE SECONDARY OVERLAYS & DIALOGS (DARK THEME)
+   ======================================================== */
+.app-theme-root[data-theme="dark"] .practice-overlay {
+    background: var(--color-surface);
+    color: var(--color-text);
+}
+
+.app-theme-root[data-theme="dark"] .ready-progress-overview {
+    background: linear-gradient(180deg, rgba(14, 30, 24, 0.92) 0%, rgba(10, 24, 19, 0.96) 100%);
+    border-color: rgba(27, 227, 169, 0.22);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.app-theme-root[data-theme="dark"] .ready-progress-entry {
+    background: rgba(10, 24, 19, 0.85);
+    border-color: rgba(27, 227, 169, 0.2);
+}
+
+.app-theme-root[data-theme="dark"] .ready-progress-symbol {
+    color: #3effa8;
+    text-shadow: 0 0 6px rgba(62, 255, 168, 0.4);
+}
+
+.app-theme-root[data-theme="dark"] .ready-progress-stage {
+    color: #3effa8;
+}
+
+.app-theme-root[data-theme="dark"] .pause-session-summary {
+    background: linear-gradient(180deg, rgba(14, 30, 24, 0.92) 0%, rgba(10, 24, 19, 0.96) 100%);
+    border-color: rgba(27, 227, 169, 0.25);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.app-theme-root[data-theme="dark"] .pause-summary-value {
+    color: #3effa8;
+    text-shadow: 0 0 4px rgba(62, 255, 168, 0.3);
+}
+
+.app-theme-root[data-theme="dark"] .teaching-dialog {
+    background: linear-gradient(180deg, rgba(14, 30, 24, 0.96) 0%, rgba(8, 20, 16, 0.98) 100%);
+    border-color: rgba(27, 227, 169, 0.35);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(27, 227, 169, 0.04);
+}
+
+.app-theme-root[data-theme="dark"] .teaching-dialog .teaching-equation {
+    color: #ffffff;
+    text-shadow: 0 0 14px rgba(255, 255, 255, 0.3);
+}
+
+.app-theme-root[data-theme="dark"] .teaching-continue-button:disabled {
+    border-color: rgba(26, 56, 45, 0.8);
+    background: rgba(10, 24, 19, 0.8);
+    color: var(--color-muted);
+}
+
+.app-theme-root[data-theme="dark"] .checkin-dialog {
+    background: linear-gradient(180deg, rgba(14, 30, 24, 0.96) 0%, rgba(8, 20, 16, 0.98) 100%);
+    border-color: rgba(27, 227, 169, 0.3);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(27, 227, 169, 0.04);
+}
+
+.app-theme-root[data-theme="dark"] .checkin-progress {
+    background: linear-gradient(180deg, rgba(10, 24, 19, 0.9) 0%, rgba(8, 20, 16, 0.95) 100%);
+    border-color: rgba(27, 227, 169, 0.22);
+}
+
+.app-theme-root[data-theme="dark"] .checkin-stat {
+    color: #eaf5f0;
+}
+
+.app-theme-root[data-theme="dark"] .feedback-dialog {
+    background: linear-gradient(180deg, rgba(28, 12, 16, 0.96) 0%, rgba(18, 8, 11, 0.98) 100%);
+    border-color: rgba(255, 71, 102, 0.45);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 71, 102, 0.05);
+}
+
+.app-theme-root[data-theme="dark"] .feedback-dialog .feedback-expression {
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+}
+
+.app-theme-root[data-theme="dark"] .feedback-dialog .feedback-correct-answer {
+    color: #3effa8;
+    text-shadow: 0 0 10px rgba(62, 255, 168, 0.4);
+}
+
+.app-theme-root[data-theme="dark"] .startup-error-dialog,
+.app-theme-root[data-theme="dark"] .persistence-error-dialog {
+    background: linear-gradient(180deg, rgba(28, 12, 16, 0.95) 0%, rgba(14, 8, 10, 0.98) 100%);
+    border-color: rgba(255, 71, 102, 0.4);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 71, 102, 0.04);
 }
 
 .practice-layout {
@@ -1549,8 +1810,17 @@ select:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .timer-bar-fill {
+    .timer-bar-fill,
+    .button,
+    .choice-button,
+    .keypad-choice-card,
+    .operation-status-badge {
         transition: none;
+    }
+
+    .button:not(:disabled):hover,
+    .keypad-choice-card:hover {
+        transform: none;
     }
 }
 
