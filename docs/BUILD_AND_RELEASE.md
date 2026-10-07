@@ -64,15 +64,26 @@ The repository provides thin PowerShell entry point wrappers:
 - `scripts/package-android-tester-apk.ps1`: orchestrates MSBuild property evaluation, `dotnet publish` for standalone Tester APKs (`Tester` profile), provenance emission, and atomic artifact promotion.
 - `scripts/validate-android-apk.ps1`: invokes the offline APK validator for structural, manifest, DEX bytecode, cryptographic signature (`apksigner`), certificate chain, and provenance inspection.
 
-### B. Release Profiles
+### B. Release Profiles & Diagnostics Compile Boundary
 
-MathFirst release tooling strictly isolates three release profiles:
+MathFirst release tooling and MSBuild configuration strictly isolate release profiles, build classifications, and tester diagnostics compile boundaries:
 
-| Profile | Format | Target Branch | Git Baseline Requirement | Signing Mode | Promotion Target | Distribution Status |
-|---|---|---|---|---|---|---|
-| **`SourceCandidate`** | AAB | Any attached non-`main` branch; no package-specific branch name is encoded | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/source-candidate/<ArtifactId>/` | **Non-distributable** (development & validation only) |
-| **`Distributable`** | AAB | `main` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` == `local main` == `origin/main` | Production/release keystore (`-p:AndroidKeyStore=true`) with external secret files | `artifacts/android/distributable/<ArtifactId>/` | **Distributable** (validated release candidate; does not imply upload) |
-| **`Tester`** | APK | Any attached non-`main` branch OR synchronized `main` | Clean working tree, clean index, zero untracked files, exact full SHA == `HEAD` | Development/debug signed (`-p:AndroidKeyStore=false`) | `artifacts/android/tester/<ArtifactId>/` | **Non-distributable** (tester distribution only; not a production release) |
+- **Build Property**: `MathFirstEnableTesterDiagnostics` controls whether tester diagnostics, clipboard/platform info, and telemetry export/share capabilities are compiled in.
+  - Defaults to `true` under `Configuration == 'Debug'` and `false` under non-Debug / `Release` configurations.
+  - Explicit caller overrides (e.g. `-p:MathFirstEnableTesterDiagnostics=true` or `false`) take precedence deterministically.
+- **Compile Symbol**: `MATHFIRST_TESTER_DIAGNOSTICS` is defined if and only if `MathFirstEnableTesterDiagnostics == true`.
+- **Component & DI Isolation**: When `MATHFIRST_TESTER_DIAGNOSTICS` is defined, `TesterDiagnosticsSection` renders diagnostic/export actions, and `MauiProgram.cs` registers conditional tester services (`IAppPlatformInfo`, `IClipboardService`, `ITelemetryJsonSerializer`, `ITelemetryShareService`, `TelemetryExportCoordinator`). When absent, `TesterDiagnosticsSection` compiles to an empty dependency-free stub rendering no UI, and tester-only DI registrations are omitted.
+- **Shared Across All Profiles**: `AppBuildInfo`, `IInstallationIdStore`, `IInstallationIdProvider`, `ITelemetryShareCacheCleaner`, and `IAppResetCoordinator` remain registered in all profiles. `ITelemetryShareCacheCleaner` purges the `telemetry-share` cache directory on Full Local Reset across all build profiles (not Tester-only).
+
+#### Release Profile & Compilation Matrix
+
+| Profile | Configuration | Diagnostics Property | Compile Symbol (`MATHFIRST_TESTER_DIAGNOSTICS`) | Build Classification | Source Commit Semantics | Application ID | Package Format / Signing Posture | Distribution Status |
+|---|---|---|---|---|---|---|---|---|
+| **`Local` (Debug)** | `Debug` | `true` (default) | Defined | `Local` | Local working tree (or explicit) | `com.tachiguro.mathfirst` | Unpackaged / Debug local execution | Developer ergonomics |
+| **`Local` (Release)** | `Release` | `false` (default) | Absent | `Local` | Local working tree (or explicit) | `com.tachiguro.mathfirst` | Unpackaged / Release local execution | Local validation |
+| **`Tester`** | `Release` | `true` (explicit) | Defined | `Tester` | Authoritative Git `HEAD` | `com.tachiguro.mathfirst.tester` | APK / Development-debug signed (`-p:AndroidKeyStore=false`) | **Non-distributable** (tester distribution only) |
+| **`SourceCandidate`** | `Release` | `false` (explicit) | Absent | `SourceCandidate` | Authoritative Git `HEAD` | `com.tachiguro.mathfirst` | AAB / Development-debug signed (`-p:AndroidKeyStore=false`) | **Non-distributable** (validation candidate) |
+| **`Distributable`** | `Release` | `false` (explicit) | Absent | `Production` | Authoritative Git `HEAD` (on synchronized `main`) | `com.tachiguro.mathfirst` | AAB / Production release signed (`-p:AndroidKeyStore=true`) | **Distributable** (validated release candidate) |
 
 ### C. Android Platform Contract & Manifest Security
 

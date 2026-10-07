@@ -10,15 +10,12 @@
 @inject ILocalizationService Localizer
 @inject IThemeService ThemeService
 @inject AppBuildInfo BuildInfo
-@inject IAppPlatformInfo PlatformInfo
-@inject IClipboardService ClipboardService
 @inject IPreferenceStore PreferenceStore
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject IAppBackNavigationCoordinator BackCoordinator
 @inject IHapticFeedbackService HapticService
-@inject TelemetryExportCoordinator TelemetryCoordinator
 @inject IAppResetCoordinator ResetCoordinator
 
 <div class="settings-page">
@@ -268,31 +265,7 @@
     <footer class="settings-version">
         <p class="settings-version-text">@Localizer["Settings_VersionBuild", BuildInfo.DisplayVersion, BuildInfo.BuildNumber]</p>
         <p class="settings-version-meta">@Localizer["Settings_Build"]: @BuildInfo.BuildClassification &bull; @Localizer["Settings_Source"]: @BuildInfo.ShortSourceCommit</p>
-        <div class="settings-diagnostics-action">
-            <button type="button"
-                    class="button button-secondary button-compact settings-copy-diagnostics-btn"
-                    @onclick="CopyDiagnosticsAsync">
-                @Localizer["Settings_CopyDiagnostics"]
-            </button>
-            <button type="button"
-                    class="button button-secondary button-compact settings-export-telemetry-btn"
-                    disabled="@_isExporting"
-                    @onclick="ExportTelemetryAsync">
-                @(_isExporting ? Localizer["Settings_ExportTelemetry_InProgress"] : Localizer["Settings_ExportTelemetry"])
-            </button>
-        </div>
-        @if (!string.IsNullOrEmpty(_diagnosticMessage))
-        {
-            <p class="setting-feedback @(_diagnosticMessageIsError ? "setting-feedback-error" : "setting-feedback-success")" role="status">
-                @_diagnosticMessage
-            </p>
-        }
-        @if (!string.IsNullOrEmpty(_telemetryMessage))
-        {
-            <p class="setting-feedback @(_telemetryMessageIsError ? "setting-feedback-error" : "setting-feedback-success")" role="status">
-                @_telemetryMessage
-            </p>
-        }
+        <TesterDiagnosticsSection />
     </footer>
 </div>
 
@@ -304,11 +277,6 @@
     private string? _keypadMessage;
     private string? _hapticMessage;
     private string? _resetFeedbackMessage;
-    private string? _diagnosticMessage;
-    private bool _diagnosticMessageIsError;
-    private bool _isExporting;
-    private string? _telemetryMessage;
-    private bool _telemetryMessageIsError;
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
     private bool _hapticFeedbackEnabled = true;
@@ -378,8 +346,6 @@
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
     }
 
     private void SelectTheme(ThemePreference theme)
@@ -396,8 +362,6 @@
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -430,8 +394,6 @@
         _appearanceMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
     }
 
     private void SetHapticFeedback(bool enabled)
@@ -448,8 +410,6 @@
         _appearanceMessage = null;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
     }
 
     private void PromptConfirm(ConfirmAction action)
@@ -457,8 +417,6 @@
         _activeConfirmAction = action;
         _pendingConfirmationVisibility = true;
         _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
     }
 
     private void CancelConfirm()
@@ -476,8 +434,6 @@
         _appearanceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
     }
 
     private void ExecuteResetUiPreferences()
@@ -498,8 +454,6 @@
         _appearanceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
 
         Navigation.NavigateTo("/", replace: true);
     }
@@ -513,81 +467,6 @@
 
         _activeConfirmAction = ConfirmAction.None;
         Navigation.NavigateTo("/", replace: true);
-    }
-
-    private async Task ExportTelemetryAsync()
-    {
-        if (_isExporting)
-        {
-            return;
-        }
-
-        _isExporting = true;
-        _telemetryMessage = null;
-        _languageMessage = null;
-        _appearanceMessage = null;
-        _keypadMessage = null;
-        _hapticMessage = null;
-        _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-
-        try
-        {
-            var result = await TelemetryCoordinator.ExportAndShareAsync();
-            if (result.Success)
-            {
-                _telemetryMessage = Localizer["Settings_ExportTelemetry_Success"];
-                _telemetryMessageIsError = false;
-            }
-            else
-            {
-                _telemetryMessage = Localizer["Settings_ExportTelemetry_Failure"];
-                _telemetryMessageIsError = true;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch
-        {
-            _telemetryMessage = Localizer["Settings_ExportTelemetry_Failure"];
-            _telemetryMessageIsError = true;
-        }
-        finally
-        {
-            _isExporting = false;
-        }
-    }
-
-    private async Task CopyDiagnosticsAsync()
-    {
-        _languageMessage = null;
-        _appearanceMessage = null;
-        _keypadMessage = null;
-        _hapticMessage = null;
-        _resetFeedbackMessage = null;
-        _telemetryMessage = null;
-
-        try
-        {
-            var diagnosticText = AppDiagnosticFormatter.Format(
-                BuildInfo.ApplicationTitle,
-                BuildInfo.DisplayVersion,
-                BuildInfo.BuildNumber,
-                BuildInfo.BuildClassification,
-                BuildInfo.ShortSourceCommit,
-                PlatformInfo.PlatformDescription,
-                BuildInfo.ApplicationId);
-
-            await ClipboardService.SetTextAsync(diagnosticText);
-            _diagnosticMessage = Localizer["Settings_CopyDiagnostics_Success"];
-            _diagnosticMessageIsError = false;
-        }
-        catch
-        {
-            _diagnosticMessage = Localizer["Settings_CopyDiagnostics_Failure"];
-            _diagnosticMessageIsError = true;
-        }
     }
 
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";

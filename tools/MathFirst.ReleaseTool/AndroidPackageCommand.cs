@@ -279,6 +279,9 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 }
 
                 arguments.Add("-p:AndroidPackageFormat=aab");
+                arguments.Add("-p:MathFirstEnableTesterDiagnostics=false");
+                arguments.Add("-p:MathFirstBuildClassification=SourceCandidate");
+                arguments.Add($"-p:MathFirstSourceCommit={expectedCommitSha}");
                 arguments.Add("-p:AndroidKeyStore=false");
                 break;
 
@@ -289,6 +292,9 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
                 }
 
                 arguments.Add("-p:AndroidPackageFormat=aab");
+                arguments.Add("-p:MathFirstEnableTesterDiagnostics=false");
+                arguments.Add("-p:MathFirstBuildClassification=Production");
+                arguments.Add($"-p:MathFirstSourceCommit={expectedCommitSha}");
                 arguments.Add("-p:AndroidKeyStore=true");
                 arguments.Add($"-p:AndroidSigningKeyStore={signingInputs.KeystorePath}");
                 arguments.Add($"-p:AndroidSigningKeyAlias={signingInputs.KeyAlias}");
@@ -304,6 +310,7 @@ public sealed class AndroidPackageCommand(IProcessRunner processRunner)
 
                 arguments.Add("-p:AndroidPackageFormat=apk");
                 arguments.Add($"-p:ApplicationId={ReleaseConstants.TesterApplicationId}");
+                arguments.Add("-p:MathFirstEnableTesterDiagnostics=true");
                 arguments.Add("-p:MathFirstBuildClassification=Tester");
                 arguments.Add($"-p:MathFirstSourceCommit={expectedCommitSha}");
                 arguments.Add("-p:AndroidKeyStore=false");

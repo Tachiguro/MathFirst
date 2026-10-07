@@ -84,13 +84,8 @@ public sealed class SettingsUnlockContractTests : IDisposable
         public void ClearInstallationId() { }
     }
 
-    private sealed class DummyTelemetryShareService : ITelemetryShareService
+    private sealed class DummyTelemetryShareCacheCleaner : ITelemetryShareCacheCleaner
     {
-        public Task<string> PrepareShareFileAsync(string fileName, Stream content, CancellationToken cancellationToken = default) =>
-            Task.FromResult("/tmp/dummy.json");
-
-        public Task DispatchSystemShareAsync(string filePath, string title) => Task.CompletedTask;
-
         public void PurgeShareCache() { }
     }
 
@@ -249,7 +244,7 @@ public sealed class SettingsUnlockContractTests : IDisposable
         var session = new TrainingSession(store, preferenceStore: prefs, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
 
-        var resetCoordinator = new AppResetCoordinator(session, prefs, new DummyInstallationIdProvider(), new DummyTelemetryShareService());
+        var resetCoordinator = new AppResetCoordinator(session, prefs, new DummyInstallationIdProvider(), new DummyTelemetryShareCacheCleaner());
         await resetCoordinator.ExecuteFullResetAsync();
 
         Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);

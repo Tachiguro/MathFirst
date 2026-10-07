@@ -14,6 +14,4 @@ public interface ITelemetryShareService
     Task DispatchSystemShareAsync(
         string filePath,
         string title);
-
-    void PurgeShareCache();
 }

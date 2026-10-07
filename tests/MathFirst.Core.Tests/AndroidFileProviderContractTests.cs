@@ -253,10 +253,19 @@ public sealed class AndroidFileProviderContractTests
         Assert.True(
             Regex.IsMatch(source, @"public\s+sealed\s+class\s+MauiTelemetryShareService\s*:\s*(\w+,\s*)*ITelemetryShareService"),
             "MauiTelemetryShareService must implement ITelemetryShareService.");
-        Assert.Contains("FileSystem.CacheDirectory", source, StringComparison.Ordinal);
-        Assert.Contains("\"telemetry-share\"", source, StringComparison.Ordinal);
+        Assert.Contains("TelemetryShareCachePaths.DirectoryPath", source, StringComparison.Ordinal);
         Assert.Contains("Share.Default", source, StringComparison.Ordinal);
         Assert.DoesNotContain("HttpClient", source, StringComparison.Ordinal);
+
+        var pathsSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "TelemetryShareCachePaths.cs"));
+        Assert.Contains("FileSystem.CacheDirectory", pathsSource, StringComparison.Ordinal);
+        Assert.Contains("\"telemetry-share\"", pathsSource, StringComparison.Ordinal);
+
+        var cleanerSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Services", "MauiTelemetryShareCacheCleaner.cs"));
+        Assert.True(
+            Regex.IsMatch(cleanerSource, @"public\s+sealed\s+class\s+MauiTelemetryShareCacheCleaner\s*:\s*(\w+,\s*)*ITelemetryShareCacheCleaner"),
+            "MauiTelemetryShareCacheCleaner must implement ITelemetryShareCacheCleaner.");
+        Assert.Contains("TelemetryShareCachePaths.DirectoryPath", cleanerSource, StringComparison.Ordinal);
     }
 
     private static XDocument LoadFileProviderXml()

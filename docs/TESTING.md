@@ -1044,6 +1044,92 @@ The P5 implementation aligns secondary application surfaces (Settings, Privacy, 
 
 ### Evidence Boundary Principles & Validation State
 
-- **Implementation Evidence Boundary**: The 2,222 passing Core tests represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
-- **Accessibility & Rendering Boundary**: Static contrast and source-contract tests do **not** constitute complete rendered WCAG certification. Rendered alpha-composited surfaces remain a later manual/device verification concern.
-- **Delivery State**: P5 candidate is implemented and review-approved (`P5_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p5-cyber-defense-visual-consistency`, uncommitted, unpushed, with no open Pull Request; documentation reconciliation is currently active under `OPERATION MODE: DOCUMENT_ONLY`; formal `FULL_VALIDATION`, push, PR, and merge remain **PENDING**.
+- **Implementation Evidence Boundary**: The 2,222 passing Core tests represent implementation and review evidence.
+- **Exact-Candidate FULL_VALIDATION Evidence**: Candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a` achieved `FULL_VALIDATION_PASS` across Core Debug (2,222 passed), Core Release (2,222 passed), Windows Release build (0 warnings / 0 errors), Android Release build (0 warnings / 0 errors), NuGet vulnerability audit (0 vulnerable packages), and markdown link audit.
+- **Delivery State**: P5 was merged into `main` via PR #67 at merge commit `aeb7bc46e8b425d9da95493a367f99f7ed330871` on 2026-10-07.
+
+---
+
+## 29. P6 Tester Diagnostics / Telemetry Release Boundary Contracts & Review Test Evidence
+
+The P6 implementation establishes strict compile/profile boundaries isolating Tester diagnostic and telemetry export controls from non-Tester/production builds while preserving existing telemetry, persistence, and reset contracts. This behavior is covered by permanent contract and regression suites across 11 test suites in `MathFirst.Core.Tests`:
+
+1. **Build Property and Compile Symbol Isolation (`ReleaseProfileContractTests`, `MathFirst.App.csproj`)**:
+   - Asserts MSBuild property `MathFirstEnableTesterDiagnostics` defaults to `true` under `Configuration == 'Debug'` and `false` under non-Debug/Release configurations.
+   - Asserts explicit caller-provided values (`-p:MathFirstEnableTesterDiagnostics=true` or `false`) override configuration defaults deterministically.
+   - Asserts compile symbol `MATHFIRST_TESTER_DIAGNOSTICS` is defined if and only if `MathFirstEnableTesterDiagnostics == true`.
+
+2. **Component Isolation & Dedicated Presentation (`TesterDiagnosticsContractTests`, `SettingsTelemetryUiContractTests`)**:
+   - Asserts `Settings.razor` delegates tester diagnostics presentation to the isolated `TesterDiagnosticsSection` component.
+   - Asserts `Settings.razor` no longer directly injects or depends on `IAppPlatformInfo`, `IClipboardService`, `TelemetryExportCoordinator`, `ITelemetryJsonSerializer`, or `ITelemetryShareService`.
+   - Asserts that when `MATHFIRST_TESTER_DIAGNOSTICS` is defined, `TesterDiagnosticsSection` renders Copy Diagnostic Info and Export Telemetry actions with busy-state indicators and localized feedback.
+   - Asserts that when `MATHFIRST_TESTER_DIAGNOSTICS` is absent, `TesterDiagnosticsSection` compiles to an empty dependency-free component rendering zero diagnostic DOM markup or actions.
+
+3. **Conditional vs. Shared DI Composition (`TesterDiagnosticsContractTests`, `MauiProgram.cs`)**:
+   - Asserts Tester-only services (`IAppPlatformInfo`, `IClipboardService`, `ITelemetryJsonSerializer`, `ITelemetryShareService`, `TelemetryExportCoordinator`) are registered conditionally if and only if `MATHFIRST_TESTER_DIAGNOSTICS` is enabled.
+   - Asserts shared application services (`AppBuildInfo`, `IInstallationIdStore`, `IInstallationIdProvider`, `ITelemetryShareCacheCleaner`, `IAppResetCoordinator`) remain registered across all profiles.
+
+4. **Shared Full Local Reset Cache Cleanup (`AppResetCoordinatorTests`, `ResetWorkflowTests`)**:
+   - Asserts `ITelemetryShareCacheCleaner` and `MauiTelemetryShareCacheCleaner` purge the `telemetry-share` cache directory on Full Local Reset across all build profiles (Tester, Local Release, Production).
+   - Asserts Full Local Reset clears the persistent installation ID, resets learner database, restores UI and operation preferences, and navigates to `/` across all profiles.
+
+5. **ReleaseTool Metadata Propagation (`ReleaseProfileContractTests`, `TesterApkPackagingContractTests`, `AndroidPackageCommand.cs`)**:
+   - Asserts `tools/MathFirst.ReleaseTool` explicitly propagates `MathFirstBuildClassification` (`Tester`, `SourceCandidate`, `Production`) and `MathFirstSourceCommit` (authoritative repository HEAD SHA) to MSBuild invocations.
+   - Asserts Tester profile sets `MathFirstEnableTesterDiagnostics = true` and `ApplicationId = com.tachiguro.mathfirst.tester`.
+   - Asserts SourceCandidate and Production profiles set `MathFirstEnableTesterDiagnostics = false` and `ApplicationId = com.tachiguro.mathfirst`.
+
+6. **Telemetry, Persistence, and Learning Non-Interference (`TelemetryExportCoordinatorTests`, `NativeIdentityContractTests`, `AndroidFileProviderContractTests`)**:
+   - Asserts learner persistence Schema V9, `attempt_history` schema, FSRS telemetry, and `telemetry_export_schema_v2` (16 properties) remain untouched without data loss or schema migrations.
+   - Asserts Android `FileProvider` configuration strictly limits access to the `telemetry-share` cache subpath.
+
+### Implementation & Review Test Evidence (Candidate on `feat/p6-tester-diagnostics-release-boundary`)
+
+- **Permanent Contract & Regression Suites (117 focused P6 tests)**:
+  - `ReleaseProfileContractTests`: 5 passed
+  - `TesterApkPackagingContractTests`: 23 passed
+  - `TesterDiagnosticsContractTests`: 9 passed
+  - `SettingsTelemetryUiContractTests`: 10 passed
+  - `SettingsUnlockContractTests`: 12 passed
+  - `SettingsSimplificationContractTests`: 8 passed
+  - `NativeIdentityContractTests`: 6 passed
+  - `AndroidFileProviderContractTests`: 16 passed
+  - `AppResetCoordinatorTests`: 7 passed
+  - `ResetWorkflowTests`: 8 passed
+  - `TelemetryExportCoordinatorTests`: 13 passed
+- **Adjacent P5 Visual Regression**: 18 passed (`SecondarySurfaceVisualContractTests`, `SecondaryDialogVisualContractTests`, `SecondaryVisualAccessibilityContractTests`).
+- **Full Core Test Suite (Debug)**: **2,228 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Windows Compile Matrix Verification**:
+  - `Configuration=Debug`: 0 warnings, 0 errors
+  - `Configuration=Release`: 0 warnings, 0 errors
+  - `Configuration=Release -p:MathFirstEnableTesterDiagnostics=true`: 0 warnings, 0 errors
+- **Android Target `Compile` Verification**:
+  - Tester-like (`Configuration=Release -p:MathFirstEnableTesterDiagnostics=true -p:MathFirstBuildClassification=Tester -p:ApplicationId=com.tachiguro.mathfirst.tester`): 0 warnings, 0 errors
+  - SourceCandidate-like (`Configuration=Release -p:MathFirstEnableTesterDiagnostics=false -p:MathFirstBuildClassification=SourceCandidate -p:ApplicationId=com.tachiguro.mathfirst`): 0 warnings, 0 errors
+  - Production-like (`Configuration=Release -p:MathFirstEnableTesterDiagnostics=false -p:MathFirstBuildClassification=Production -p:ApplicationId=com.tachiguro.mathfirst`): 0 warnings, 0 errors
+- **Consolidated Review Verdict**: `P6_COMPLETE_REVIEW_APPROVED` (Slice 1 `P6_SLICE_1_REVIEW_APPROVED`, Slice 2 `P6_SLICE_2_REVIEW_APPROVED`, Slice 3 `P6_SLICE_3_REVIEW_APPROVED`).
+
+### Evidence Boundary Principles & Formal Validation State
+
+- **Implementation Evidence Boundary**: The 2,228 passing Core tests and compile matrix results represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires complete dual Debug/Release execution, NuGet security audits, full repository link audits, and clean whitespace verification).
+- **Tooling & Device Boundary**: Android compile verification used `-t:Compile` to verify compilation across profiles without executing packaging, signing, emulator, simulator, physical device, or ADB operations.
+- **First Formal FULL_VALIDATION Attempt**:
+  - **Candidate**: `a711c07d80ab2cc3873cbb5a0de96803fabe116b`
+  - **Result**: `P6_FULL_VALIDATION_FAILED`
+  - **Failure Phase**: Documentation current-state consistency gate (`FINDING-P6-DOC-STALE-STATE`)
+  - **Failure Cause**: Committed candidate documentation still described pre-commit lifecycle state (asserting P6 was uncommitted, 0 commits ahead of main, in DOCUMENT_ONLY, awaiting initial documentation review and commit).
+  - **Execution & Skipped Gate Evidence Boundary**:
+    - Exact candidate identity, path existence, and whitespace diff checks passed (`git diff --check`).
+    - P6 static contract presence was confirmed.
+    - MSBuild property matrix was skipped fail-closed.
+    - Core Debug test suite execution was skipped.
+    - Core Release test suite execution was skipped.
+    - Windows builds were skipped.
+    - Android builds were skipped.
+    - NuGet vulnerability security audit was skipped.
+    - Markdown repository link and anchor audit was skipped.
+    - No implementation, compilation, or test regression was established.
+    - No `FULL_VALIDATION_PASS` was established from this attempt.
+- **Remediation & Integration Lifecycle State**:
+  - Documentation current-state reconciliation was performed on task branch `feat/p6-tester-diagnostics-release-boundary` to resolve documentation drift.
+  - Candidate integration requires a successful fresh exact-candidate `FULL_VALIDATION` before `PUSH_ONLY`.
+  - The P6 branch remains unpushed and unmerged outside `main`; Step 55 remains unauthorized; Build 4 does not exist. Exact live HEAD, ahead-count, remote branch, and PR state must be discovered dynamically from live Git and GitHub.

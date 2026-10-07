@@ -160,6 +160,30 @@ public sealed class TesterDiagnosticsContractTests
         Assert.Equal("test payload", testClipboard.LastCopiedText);
     }
 
+    [Fact]
+    public void TelemetryShareService_DoesNotOwnPurgeShareCache()
+    {
+        var shareServiceType = typeof(MathFirst.Application.Telemetry.ITelemetryShareService);
+        var purgeMethod = shareServiceType.GetMethod("PurgeShareCache");
+
+        Assert.Null(purgeMethod);
+    }
+
+    [Fact]
+    public void TelemetryShareCacheCleaner_DeclaresPurgeShareCache()
+    {
+        var cacheCleanerType = typeof(MathFirst.Application.Telemetry.ITelemetryShareService).Assembly
+            .GetType("MathFirst.Application.Telemetry.ITelemetryShareCacheCleaner");
+
+        Assert.NotNull(cacheCleanerType);
+        Assert.True(cacheCleanerType.IsInterface);
+
+        var purgeMethod = cacheCleanerType.GetMethod("PurgeShareCache");
+        Assert.NotNull(purgeMethod);
+        Assert.Equal(typeof(void), purgeMethod.ReturnType);
+        Assert.Empty(purgeMethod.GetParameters());
+    }
+
     private sealed class TestPlatformInfo(string platformName, string platformVersion) : IAppPlatformInfo
     {
         public string PlatformName { get; } = platformName;

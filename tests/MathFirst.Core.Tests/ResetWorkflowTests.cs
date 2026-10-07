@@ -321,7 +321,7 @@ public sealed class ResetWorkflowTests : IDisposable
         var idStore = new InMemoryInstallationIdStore();
         var idProvider = new PreferenceInstallationIdProvider(idStore);
         var initialId = idProvider.GetOrCreateInstallationId();
-        var shareService = new SpyTelemetryShareService();
+        var cacheCleaner = new SpyTelemetryShareCacheCleaner();
 
         await session.ResetLearningProgressAsync();
 
@@ -332,7 +332,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal(initialId, idProvider.GetOrCreateInstallationId());
         Assert.Equal(initialId, idStore.StoredValue);
 
-        Assert.Equal(0, shareService.PurgeCallCount);
+        Assert.Equal(0, cacheCleaner.PurgeCallCount);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public sealed class ResetWorkflowTests : IDisposable
         var idStore = new InMemoryInstallationIdStore();
         var idProvider = new PreferenceInstallationIdProvider(idStore);
         var initialId = idProvider.GetOrCreateInstallationId();
-        var shareService = new SpyTelemetryShareService();
+        var cacheCleaner = new SpyTelemetryShareCacheCleaner();
 
         prefs.ResetAllPreferences();
 
@@ -358,7 +358,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal(initialId, idProvider.GetOrCreateInstallationId());
         Assert.Equal(initialId, idStore.StoredValue);
 
-        Assert.Equal(0, shareService.PurgeCallCount);
+        Assert.Equal(0, cacheCleaner.PurgeCallCount);
     }
 
     [Fact]
@@ -382,9 +382,9 @@ public sealed class ResetWorkflowTests : IDisposable
         var initialId = idProvider.GetOrCreateInstallationId();
         Assert.NotNull(idStore.StoredValue);
 
-        var shareService = new SpyTelemetryShareService();
+        var cacheCleaner = new SpyTelemetryShareCacheCleaner();
 
-        var coordinator = new AppResetCoordinator(session, prefs, idProvider, shareService);
+        var coordinator = new AppResetCoordinator(session, prefs, idProvider, cacheCleaner);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -396,7 +396,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal(1, idStore.ClearCallCount);
         Assert.Null(idStore.StoredValue);
 
-        Assert.Equal(1, shareService.PurgeCallCount);
+        Assert.Equal(1, cacheCleaner.PurgeCallCount);
     }
 
     private sealed class InMemoryInstallationIdStore : IInstallationIdStore
@@ -430,15 +430,9 @@ public sealed class ResetWorkflowTests : IDisposable
         }
     }
 
-    private sealed class SpyTelemetryShareService : ITelemetryShareService
+    private sealed class SpyTelemetryShareCacheCleaner : ITelemetryShareCacheCleaner
     {
         public int PurgeCallCount { get; private set; }
-
-        public Task<string> PrepareShareFileAsync(string fileName, Stream content, CancellationToken cancellationToken = default) =>
-            Task.FromResult("C:\\Cache\\" + fileName);
-
-        public Task DispatchSystemShareAsync(string filePath, string title) =>
-            Task.CompletedTask;
 
         public void PurgeShareCache()
         {

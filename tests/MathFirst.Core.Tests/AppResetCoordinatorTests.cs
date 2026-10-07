@@ -50,9 +50,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore(recordedEvents);
         var spyInstallId = new SpyInstallationIdProvider(recordedEvents);
-        var spyShare = new SpyTelemetryShareService(recordedEvents);
+        var spyCleaner = new SpyTelemetryShareCacheCleaner(recordedEvents);
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -80,9 +80,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
-        var spyShare = new SpyTelemetryShareService();
+        var spyCleaner = new SpyTelemetryShareCacheCleaner();
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -102,9 +102,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
-        var spyShare = new SpyTelemetryShareService();
+        var spyCleaner = new SpyTelemetryShareCacheCleaner();
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         using var cts = new CancellationTokenSource();
         await coordinator.ExecuteFullResetAsync(cts.Token);
@@ -124,17 +124,17 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
-        var spyShare = new SpyTelemetryShareService
+        var spyCleaner = new SpyTelemetryShareCacheCleaner
         {
             ThrowOnPurge = new IOException("Simulated disk I/O failure during purge")
         };
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         var exception = await Record.ExceptionAsync(() => coordinator.ExecuteFullResetAsync());
 
         Assert.Null(exception);
-        Assert.Equal(1, spyShare.PurgeCallCount);
+        Assert.Equal(1, spyCleaner.PurgeCallCount);
         Assert.Equal(1, spyPrefs.ResetAllPreferencesCallCount);
         Assert.Equal(1, spyInstallId.ClearCallCount);
     }
@@ -150,17 +150,17 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
-        var spyShare = new SpyTelemetryShareService
+        var spyCleaner = new SpyTelemetryShareCacheCleaner
         {
             ThrowOnPurge = new UnauthorizedAccessException("Simulated access denied during purge")
         };
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         var exception = await Record.ExceptionAsync(() => coordinator.ExecuteFullResetAsync());
 
         Assert.Null(exception);
-        Assert.Equal(1, spyShare.PurgeCallCount);
+        Assert.Equal(1, spyCleaner.PurgeCallCount);
         Assert.Equal(1, spyPrefs.ResetAllPreferencesCallCount);
         Assert.Equal(1, spyInstallId.ClearCallCount);
     }
@@ -176,16 +176,16 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
-        var spyShare = new SpyTelemetryShareService
+        var spyCleaner = new SpyTelemetryShareCacheCleaner
         {
             ThrowOnPurge = new InvalidOperationException("Unexpected failure during purge")
         };
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ExecuteFullResetAsync());
         Assert.Equal("Unexpected failure during purge", ex.Message);
-        Assert.Equal(1, spyShare.PurgeCallCount);
+        Assert.Equal(1, spyCleaner.PurgeCallCount);
         Assert.Equal(1, spyPrefs.ResetAllPreferencesCallCount);
         Assert.Equal(1, spyInstallId.ClearCallCount);
     }
@@ -205,9 +205,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
-        var spyShare = new SpyTelemetryShareService();
+        var spyCleaner = new SpyTelemetryShareCacheCleaner();
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyShare);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ExecuteFullResetAsync());
         Assert.Equal("Store reset simulated failure", ex.Message);
@@ -215,7 +215,7 @@ public sealed class AppResetCoordinatorTests : IDisposable
         Assert.False(spyStore.WasPracticeSurfaceActiveDuringReset);
         Assert.Equal(0, spyPrefs.ResetAllPreferencesCallCount);
         Assert.Equal(0, spyInstallId.ClearCallCount);
-        Assert.Equal(0, spyShare.PurgeCallCount);
+        Assert.Equal(0, spyCleaner.PurgeCallCount);
     }
 
     private sealed class SpyLearnerStore(ILearnerStore inner, List<string>? events = null) : ILearnerStore
@@ -324,16 +324,10 @@ public sealed class AppResetCoordinatorTests : IDisposable
         }
     }
 
-    private sealed class SpyTelemetryShareService(List<string>? events = null) : ITelemetryShareService
+    private sealed class SpyTelemetryShareCacheCleaner(List<string>? events = null) : ITelemetryShareCacheCleaner
     {
         public int PurgeCallCount { get; private set; }
         public Exception? ThrowOnPurge { get; set; }
-
-        public Task<string> PrepareShareFileAsync(string fileName, Stream content, CancellationToken cancellationToken = default) =>
-            Task.FromResult("C:\\Cache\\" + fileName);
-
-        public Task DispatchSystemShareAsync(string filePath, string title) =>
-            Task.CompletedTask;
 
         public void PurgeShareCache()
         {
