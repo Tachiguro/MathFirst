@@ -289,10 +289,12 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P8 — Test-Coverage Audit & Targeted Hardening
 - **Priority**: Medium-High (Quality Assurance).
-- **Product Decision**: Execute a factual, measurement-first test coverage audit before production release:
-  - Measure line coverage, branch coverage, domain coverage, persistence integration, and ReleaseTool verification.
-  - Focus highest testing rigor on critical invariants: learning engine, arithmetic correctness, FSRS scheduling, cumulative unlocks, pace/fluency estimation, remediation, and security/privacy boundaries.
-  - Reject superficial percentage inflation on trivial UI markup in favor of robust behavioral invariants and mutation resilience.
+- **Status**: **IMPLEMENTATION COMPLETE & CONSOLIDATED REVIEW APPROVED** (formal package `MF-AUDIT-002`, branch `feat/mf-audit-002-test-coverage-hardening` at `3558f8cee7b3aad031459990276ff99d73312379`, review `MF_AUDIT_002_REVIEW_APPROVED`, 2,299 Core tests passing, 0 production code changes, normalized Cobertura coverage: 93.93% lines / 82.43% branches; documentation reconciled, package integration in progress; formal exact-candidate `FULL_VALIDATION`, commit, push, PR, and merge remain pending).
+- **Product Decision & Implementation Slices**:
+  - Measured apples-to-apples line and branch coverage across the four production assemblies (`MathFirst.Application`, `MathFirst.Domain`, `MathFirst.Infrastructure.Sqlite`, `MathFirst.ReleaseTool`) using `coverlet.collector 6.0.4` under `Release` configuration.
+  - Hardened critical domain invariants across Slice 1 (`76e718006c2adc5953995d99bbfc1451dc8e63c1`), persistence recovery and long-run invariants across Slice 2 (`56880b3ff3da2c6e06840226ac236dafedba34bd`), and release tooling / security boundaries across Slice 3 (`3558f8cee7b3aad031459990276ff99d73312379`).
+  - Added 71 automated test cases across 8 test paths (3 added test files, 5 modified test files) with 0 production source changes, 0 tooling source changes, 0 script changes, 0 project configuration changes, 0 schema changes, and 0 migrations.
+  - Audited and formally approved no-new-test decisions (`NO_NEW_TEST_REQUIRED`) for archive validation, build profile boundaries, reset exceptions, telemetry/privacy boundaries, Guided G3 decoupling, and acquisition ownership resolver.
 
 ---
 
@@ -328,7 +330,9 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P4 — Settings Simplification`: Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
   - `P5 — Cyber Defense Visual Consistency`: Delivered & Merged (PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed, 18 contract tests across 3 suites).
   - `P6 — Tester Diagnostics / Telemetry Release Boundary`: Delivered & Merged (PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`, 2,228 Core tests passed in Debug and Release, 117 focused contract tests across 11 suites).
-- **Next Work Item**: `P8 — Test-Coverage Audit & Targeted Hardening` (planning not yet started; implementation requires separate explicit dispatch).
+- **In-Flight Package**:
+  - `P8 — Test-Coverage Audit & Targeted Hardening` (`MF-AUDIT-002`): Implementation complete across Slices 1–3 (`76e7180`, `56880b3`, `3558f8c`), consolidated review approved (`MF_AUDIT_002_REVIEW_APPROVED`), corrected normalized Cobertura coverage (93.93% lines / 82.43% branches), and documentation reconciled. Package lifecycle completion proceeds through documentation commit, formal exact-candidate `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual merge, and `POST_MERGE_SYNC_ONLY`.
+- **Package Integration Status**: Documentation reconciliation has been authored and remains unmerged; exact-candidate validation and merge remain pending.
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.

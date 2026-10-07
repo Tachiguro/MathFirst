@@ -363,6 +363,21 @@ When items are accepted into the backlog, they are recorded with:
   6. **Settings Integration & Localization**: Settings export and full reset UI cards with complete EN/DE/RU localization.
   7. **Strict Non-Interference**: Non-interference regression tests confirm zero alteration to FSRS-6, progression rules, pace calibration readiness, the 482 strong-learner benchmark, or Cyber Defense Critical Hits. Verified with 1,906 Core tests passing.
 
+### MF-AUDIT-002: Test-Coverage Audit & Targeted Hardening
+
+- **ID**: `MF-AUDIT-002`
+- **Title**: Test-Coverage Audit & Targeted Hardening
+- **Type**: `Architecture`
+- **Status**: `Implementation Complete / Review Approved / Documentation Reconciled / Package Integration In Progress` (Task branch `feat/mf-audit-002-test-coverage-hardening`; implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`; not yet merged to `main`)
+- **Dependencies**: `P6` complete and merged through PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02` (baseline synchronized via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
+- **Description**:
+  Factual test-coverage audit and targeted invariant hardening across Domain, Application, SQLite persistence, and ReleaseTool:
+  1. **Normalized Cobertura Baseline & Corrected Deltas**: Established normalized Release Cobertura coverage baseline (`coverlet.collector 6.0.4`), correcting prior multi-run aggregation deltas. Total coverage increased from 93.17% to 93.93% lines (+68 covered, +0.77 pp) and 80.63% to 82.43% branches (+65 covered, +1.80 pp).
+  2. **Domain Invariant Hardening (Slice 1, `76e718006c2adc5953995d99bbfc1451dc8e63c1`)**: Added `BroadWeaknessPolicyTests` and `CurriculumInvariantPropertyTests`, expanded `CurriculumUnlockPolicyTests` and `DeterministicOperationSchedulerTests` covering `BroadWeaknessPolicy` evaluation, `CurriculumUnlockPolicy` helper boundaries and fail-closed handling, canonical arithmetic property invariants, and scheduler rank/tie-break rules.
+  3. **Persistence & Long-Run Hardening (Slice 2, `56880b3ff3da2c6e06840226ac236dafedba34bd`)**: Expanded `SqlitePersistenceConformanceTests`, `PersistenceRecoveryAndLifecycleTests`, and `LongRunIndependentProgressionTests` covering real SQLite mid-transaction rollback, fail-closed handling of corrupted `CurriculumStage`, repeated transient recovery (Unavailable $\to$ Unavailable $\to$ Success), and 4-stage monotonic `CurriculumManaged` long-run progression.
+  4. **Release Tool CLI Fail-Closed Hardening (Slice 3, `3558f8cee7b3aad031459990276ff99d73312379`)**: Added `ReleaseCliFailClosedContractTests` protecting CLI argument parsing, missing/unknown commands and options, duplicate options, required packaging/validation options, and build number validation.
+  5. **Review & Test Evidence**: Verified `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit, 0 confirmed defects, 0 unresolved P0/P1 gaps); added 71 automated test cases (Core test suite increased from 2,228 to 2,299 passed tests across Debug and Release); 0 production or runtime code changes.
+
 ---
 
 ### Pre-Step55 V1 Refinement Program (P0–P8 Workstreams)
@@ -378,7 +393,7 @@ The accepted pre-production refinement program is defined canonically in [docs/V
 - **P4**: Settings Simplification (**COMPLETED & MERGED** via PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, 0 warnings / 0 errors on Windows and Android Release builds, Schema V9 preserved; streamlined settings removing Practice Time UI while retaining lower-level plumbing and read-only curriculum status)
 - **P5**: Cyber Defense Visual Consistency (**COMPLETED & MERGED** via PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `P5_COMPLETE_REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed in Debug and Release, 18 permanent visual and accessibility contract tests across `SecondarySurfaceVisualContractTests`, `SecondaryDialogVisualContractTests`, and `SecondaryVisualAccessibilityContractTests`, Schema V9 preserved; Option A Scoped Cyber Defense pattern reuse across Settings, Privacy, dialogs, overlays, and Not Found with Light/Dark/System theme support, keyboard focus ring on `.keypad-choice-card:focus-visible`, reduced-motion suppression, and MF-UX-008 gameplay isolation)
 - **P6**: Tester Diagnostics / Telemetry Release Boundary (**COMPLETED & MERGED** via PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_COMPLETE_REVIEW_APPROVED`, `P6_FULL_VALIDATION_PASSED` with 2,228 Core Debug / Release tests, 117 focused contract tests across 11 test suites, clean Windows and Android Release/Tester/SourceCandidate compile matrices; enforces strict compile/profile boundary isolating Tester diagnostic controls via `MathFirstEnableTesterDiagnostics` build property and `MATHFIRST_TESTER_DIAGNOSTICS` symbol, dedicated `TesterDiagnosticsSection` component isolation, conditional DI registration, `MathFirst.ReleaseTool` metadata propagation, and profile-wide Full Local Reset cache cleanup)
-- **P8**: Test-Coverage Audit & Targeted Hardening (factual baseline, critical invariant coverage — *Next planned workstream*)
+- **P8**: Test-Coverage Audit & Targeted Hardening (`MF-AUDIT-002` — *Implementation complete across three slices at `3558f8cee7b3aad031459990276ff99d73312379`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, documentation reconciled, package integration in progress; not merged*): Added 71 automated test cases (Core test suite increased from 2,228 to 2,299 passed tests), 0 production/tooling/script/schema changes, normalized Cobertura coverage increased to 93.93% lines (+0.77 pp) and 82.43% branches (+1.80 pp), 0 confirmed defects, 0 unresolved P0/P1 gaps.
 - **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*; boss timer separation principle; seeded deterministic procedural enemy generation)
 
 ---

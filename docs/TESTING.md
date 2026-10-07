@@ -1157,3 +1157,78 @@ The P6 implementation establishes strict compile/profile boundaries isolating Te
   - Merged tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68` is identical to validated candidate tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`.
   - `POST_MERGE_SYNC_ONLY` completed with clean working tree, clean index, and zero content drift.
   - Step 55 remains unauthorized; Build 4 does not exist.
+
+---
+
+## 30. MF-AUDIT-002 / P8 Test-Coverage Audit & Targeted Hardening Contracts & Reviewed Test Evidence
+
+The bounded P8 package executes a factual test-coverage baseline audit across the four production assemblies and hardens critical domain, persistence, and release policy invariants across three reviewed implementation slices. This hardening is covered by permanent unit, property, and contract suites in `MathFirst.Core.Tests`:
+
+1. **Critical Domain Invariants Hardening (Slice 1, Commit `76e718006c2adc5953995d99bbfc1451dc8e63c1`)**:
+   - **Broad Weakness Policy Contracts (`BroadWeaknessPolicyTests.cs`)**: Verifies multi-operation and single-operation broad weakness detection rules ($\ge 2$ active weak facts across active curriculum/operation space), context filtering, and suppression of opportunistic `New` fact acquisition during struggle.
+   - **Curriculum Invariant Properties (`CurriculumInvariantPropertyTests.cs`)**: Property-based and deterministic verification of curriculum band structures, monotonically ordered fact indices, exact fact ID formation, digit novelty thresholds, and non-empty band definitions across Addition, Subtraction, Multiplication, and Division.
+   - **Unlock Policy Boundary Regressions (`CurriculumUnlockPolicyTests.cs`)**: Verifies prerequisite D01 frontier readiness, single-error tolerance, monotonic stage properties, and aggregate weakness gating across Stage 1 $\to$ 2 $\to$ 3 $\to$ 4 transitions.
+   - **Deterministic Scheduler Bounds (`DeterministicOperationSchedulerTests.cs`)**: Verifies permutation bag turn allocations, bounded operation frequency, deterministic bag resets, and zero-RNG state neutrality.
+
+2. **Persistence Recovery & Long-Run Invariants Hardening (Slice 2, Commit `56880b3ff3da2c6e06840226ac236dafedba34bd`)**:
+   - **SQLite Persistence Conformance (`SqlitePersistenceConformanceTests.cs`)**: Verifies Schema V9 persistence contracts, transaction atomicity, dirty/duplicate submission rejection, practice position monotonicity, revision conflict detection, and idempotent commit replay.
+   - **Persistence Recovery & Lifecycle (`PersistenceRecoveryAndLifecycleTests.cs`)**: Verifies post-write evidence preparation recovery, separation of durable database commit from transient session presentation, and non-destructive retry mechanics without duplicate attempt records or store revisions.
+   - **Long-Run Independent Progression (`LongRunIndependentProgressionTests.cs`)**: Verifies multi-operation progression stability across extended simulated learning sessions, dual-window structured band advancement, and restart equivalence without session state drift.
+
+3. **Release Tooling & Security Boundaries Hardening (Slice 3, Commit `3558f8cee7b3aad031459990276ff99d73312379`)**:
+   - **Release CLI Fail-Closed Contracts (`ReleaseCliFailClosedContractTests.cs`)**: Verifies `MathFirst.ReleaseTool` command-line argument validation, rejection of invalid combinations, fail-closed handling of malformed input files, and clean error reporting without stack trace leaks.
+   - **Packaging Input & Signature Verification**: Verifies release keystore input validation, certificate fingerprint validation, and profile boundary assertions across Tester, SourceCandidate, and Production profiles.
+   - **Reset Telemetry Share Cache Purge**: Verifies profile-wide `ITelemetryShareCacheCleaner` execution on Full Local Reset across all build profiles.
+
+4. **Audited No-New-Test Decisions (`NO_NEW_TEST_REQUIRED`)**:
+   - Formally audited candidate areas and confirmed existing coverage is already sufficient:
+     - *Archive Validation*: Existing `AndroidAabValidationTests` and `AndroidApkValidationTests` thoroughly cover archive extraction, bundle structure, and DEX inspection.
+     - *Build Profile Boundaries*: Existing `ReleaseProfileContractTests` thoroughly cover compile symbols and MSBuild property defaults.
+     - *Reset Exceptions*: Existing `AppResetCoordinatorTests` and `ResetWorkflowTests` thoroughly cover reset failures and rollback handling.
+     - *Telemetry / Privacy Boundaries*: Existing `AndroidPackagingContractTests` and `TelemetryLearningNonInterferenceTests` enforce zero network permissions and privacy sanitization.
+     - *Guided Gate G3 Decoupling*: Existing `GuidedNumberSpaceSelectionTests` thoroughly cover independent multiplication/division ceiling decoupling at BandIndex $\ge 3$.
+     - *Acquisition Ownership Resolver*: Existing `AcquisitionOwnershipResolverTests` thoroughly cover fact-to-band ownership across all operations.
+
+### Corrected Normalized Cobertura Coverage Evidence (Release Configuration)
+
+Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release` configuration across all four production assemblies with identical test project and parser denominators.
+
+> [!IMPORTANT]
+> **Historical Coverage Delta Correction**:
+> The earlier PLAN_ONLY percentage delta (+2.73 pp line / +2.64 pp branch; 19,678/21,576 lines, 5,816/7,290 branches) resulted from mixing an earlier multi-run sequence-point framework with the normalized Cobertura parser and is **superseded**. The authoritative apples-to-apples baseline and post-P8 measurements are given below.
+
+| Assembly | Metric | Base (Pre-P8) | Head (Post-P8) | Delta | Delta (pp) |
+|---|---|---|---|---|---|
+| **MathFirst.Application** | Lines | 4,080 / 4,326 (94.31%) | 4,087 / 4,326 (94.48%) | +7 | +0.16 pp |
+| | Branches | 1,289 / 1,537 (83.86%) | 1,296 / 1,537 (84.32%) | +7 | +0.46 pp |
+| **MathFirst.Domain** | Lines | 777 / 872 (89.11%) | 811 / 872 (93.00%) | +34 | +3.90 pp |
+| | Branches | 385 / 460 (83.70%) | 413 / 460 (89.78%) | +28 | +6.09 pp |
+| **MathFirst.Infrastructure.Sqlite** | Lines | 1,695 / 1,781 (95.17%) | 1,701 / 1,781 (95.51%) | +6 | +0.34 pp |
+| | Branches | 429 / 540 (79.44%) | 435 / 540 (80.56%) | +6 | +1.11 pp |
+| **MathFirst.ReleaseTool** | Lines | 1,710 / 1,889 (90.52%) | 1,731 / 1,889 (91.64%) | +21 | +1.11 pp |
+| | Branches | 815 / 1,082 (75.32%) | 839 / 1,082 (77.54%) | +24 | +2.22 pp |
+| **TOTAL** | **Lines** | **8,262 / 8,868 (93.17%)** | **8,330 / 8,868 (93.93%)** | **+68** | **+0.77 pp** |
+| | **Branches** | **2,918 / 3,619 (80.63%)** | **2,983 / 3,619 (82.43%)** | **+65** | **+1.80 pp** |
+
+### Implementation & Review Test Evidence (Candidate `3558f8cee7b3aad031459990276ff99d73312379`)
+
+- **Checkpoints**:
+  - Slice 1: `76e718006c2adc5953995d99bbfc1451dc8e63c1` (`MathFirst-Checkpoint: MF-AUDIT-002 1/3 critical-domain-invariants`)
+  - Slice 2: `56880b3ff3da2c6e06840226ac236dafedba34bd` (`MathFirst-Checkpoint: MF-AUDIT-002 2/3 persistence-recovery-long-run`)
+  - Slice 3: `3558f8cee7b3aad031459990276ff99d73312379` (`MathFirst-Checkpoint: MF-AUDIT-002 3/3 release-security-reset`)
+- **Package Scope**:
+  - 3 added test files: `BroadWeaknessPolicyTests.cs`, `CurriculumInvariantPropertyTests.cs`, `ReleaseCliFailClosedContractTests.cs`.
+  - 5 modified test files: `CurriculumUnlockPolicyTests.cs`, `DeterministicOperationSchedulerTests.cs`, `SqlitePersistenceConformanceTests.cs`, `PersistenceRecoveryAndLifecycleTests.cs`, `LongRunIndependentProgressionTests.cs`.
+  - 0 production code changes, 0 tooling code changes, 0 script changes, 0 project/package configuration changes, 0 schema changes, 0 migrations, 0 runtime behavior changes.
+- **Test Case Growth**:
+  - Pre-P8 Base: 2,228 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - Post-P8 Head: 2,299 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - Total automated test cases added: **+71 test cases**.
+  - Focused P8 test suite: **155 passed**, 0 failed, 0 skipped.
+- **Consolidated Review Verdict**: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
+
+### Evidence Boundary Principles & In-Flight Status
+
+- **Implementation Evidence Boundary**: The 2,299 passing Core tests, 155 focused P8 tests, and Cobertura coverage metrics represent REVIEW_ONLY implementation evidence.
+- **Durable Lifecycle Boundary**: Documentation reconciliation has been authored and remains unmerged. The documentation-inclusive candidate still requires repository lifecycle completion including commit, formal exact-candidate `FULL_VALIDATION`, push, PR, manual merge, and post-merge synchronization.
+- **Release Boundaries**: P7 remains DEFERRED. Roadmap Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**. Production packaging, signing, and store publication remain strictly unauthorized.

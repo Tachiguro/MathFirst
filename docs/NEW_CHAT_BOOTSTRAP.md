@@ -148,11 +148,12 @@ Worktrees: Exactly one normal worktree by default
   - P3 (Cumulative Operation Unlock Progression): Delivered & Merged (PR #65 at `759389650778f5d7b6a334b15556c5f31f6de5d0`, post-merge tests: 2,196 passed, Schema V9 live, ADR-0012 authoritative).
   - P4 (Settings Simplification): Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
   - P5 (Cyber Defense Visual Consistency): Delivered & Merged (PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed, 18 contract tests across 3 suites).
-  - P6 (Tester Diagnostics / Telemetry Release Boundary): Delivered & Merged (PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`, 117 permanent focused P6 tests across 11 suites, 2,228 Core Debug and Release tests in formal validation).
-  - P8: Next planned workstream (planning/implementation not started).
+  - P6 (Tester Diagnostics / Telemetry Release Boundary): Delivered & Merged (PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`, 117 permanent focused P6 tests across 11 suites, 2,228 Core Debug and Release tests in formal validation; post-P6 merge state reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
+  - P8: MF-AUDIT-002 (Test-Coverage Audit & Targeted Hardening — implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, documentation reconciled, package integration in progress; not merged).
   - P7: Deferred / Post-Core.
   - Step 55: Unauthorized.
 - **Delivered Pre-Step55 Packages & Merged PRs**:
+  - PR #69 (`4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`): `docs: reconcile post-P6 merge state`
   - PR #68 (`049ec1d5d3859a139f8d5493d6dae7607d321b02`): `P6: isolate tester diagnostics from production builds`
   - PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`): `P5: cyber defense visual consistency`
   - PR #66 (`8400151ff080caecf024a418a9b6b8ada4873c2d`): `P4: simplify practice settings`
@@ -186,6 +187,7 @@ When initializing a new session:
 5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as P8 implementation or Step 55). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **Post-P6 Merge State Reconciliation** (PR #69, merge `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`): Reconciled baseline documentation following P6 integration.
 - **P6 Tester Diagnostics / Telemetry Release Boundary** (PR #68, merge `049ec1d5d3859a139f8d5493d6dae7607d321b02`, candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`): Enforced compile/profile isolation for tester diagnostics, dedicated `TesterDiagnosticsSection` component, conditional DI registrations, ReleaseTool build metadata propagation, and profile-wide Full Local Reset cache cleanup (`P6_FULL_VALIDATION_PASSED`, 2,228 Core tests passing in Debug and Release, 117 permanent P6 contract/regression tests across 11 suites, merge tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`).
 - **P5 Cyber Defense Visual Consistency** (PR #67, merge `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`): Aligned Settings, Privacy, secondary dialogs, overlays, and Not Found with Option A Scoped Cyber Defense visual language while preserving Light/Dark/System theme fidelity, keyboard focus rings, reduced-motion suppression, and MF-UX-008 gameplay stability (`FULL_VALIDATION_PASS`, 2,222 Core tests passing, 18 permanent visual and accessibility contract tests across three suites).
 - **P4 Settings Simplification** (PR #66, merge `8400151ff080caecf024a418a9b6b8ada4873c2d`, candidate `edcc150039f369b8f809982499a5e1b2714e064c`): Streamlined Settings by removing user-facing Practice Time selection (Standard, No Time Pressure, 30s, 45s, 60s) while retaining lower-level plumbing and read-only curriculum operation status (`FULL_VALIDATION_PASS`, 2,204 Core tests passing, Schema V9 preserved).
