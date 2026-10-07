@@ -584,6 +584,96 @@ public sealed class CurriculumUnlockPolicyTests
 
     #endregion
 
+    #region 36-41: MISSING UNLOCK POLICY BOUNDARY & ERROR CONTRACTS
+
+    [Fact]
+    public void Contract36_GetPrerequisiteFactIds_InvalidStageAndStage4_BehaveExpectedly()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.GetPrerequisiteFactIds((CurriculumStage)999));
+
+        var stage4Prereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage4_Division);
+        Assert.Empty(stage4Prereqs);
+    }
+
+    [Fact]
+    public void Contract37_GetPrerequisiteOperation_InvalidStageAndStage4_BehaveExpectedly()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.GetPrerequisiteOperation((CurriculumStage)999));
+
+        var stage4PrereqOp = CurriculumUnlockPolicy.GetPrerequisiteOperation(CurriculumStage.Stage4_Division);
+        Assert.Null(stage4PrereqOp);
+    }
+
+    [Fact]
+    public void Contract38_IsPrerequisiteFullyIntroduced_NullAndInvalidStageAndStage4_BehaveExpectedly()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage1_Addition, null!));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced((CurriculumStage)999, new Dictionary<string, ItemLearningState>()));
+
+        var stage4Introduced = CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(
+            CurriculumStage.Stage4_Division,
+            new Dictionary<string, ItemLearningState>());
+        Assert.False(stage4Introduced);
+    }
+
+    [Fact]
+    public void Contract39_CountPrerequisiteWeakFacts_NullAndInvalidStageAndStage4_BehaveExpectedly()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage1_Addition, null!));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.CountPrerequisiteWeakFacts((CurriculumStage)999, new Dictionary<string, ItemLearningState>()));
+
+        var stage4WeakCount = CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(
+            CurriculumStage.Stage4_Division,
+            new Dictionary<string, ItemLearningState>());
+        Assert.Equal(0, stage4WeakCount);
+    }
+
+    [Fact]
+    public void Contract40_CanAdvance_InvalidStageAndNullAndStage4_BehaveExpectedly()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.CanAdvance((CurriculumStage)999, isPrerequisiteIntroduced: true, prerequisiteWeakCount: 0, hasBroadWeakness: false));
+
+        Assert.False(CurriculumUnlockPolicy.CanAdvance(
+            CurriculumStage.Stage4_Division,
+            isPrerequisiteIntroduced: true,
+            prerequisiteWeakCount: 0,
+            hasBroadWeakness: false));
+
+        Assert.Throws<ArgumentNullException>(() =>
+            CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, null!, hasBroadWeakness: false));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.CanAdvance((CurriculumStage)999, new Dictionary<string, ItemLearningState>(), hasBroadWeakness: false));
+    }
+
+    [Fact]
+    public void Contract41_EvaluateNextStage_InvalidStageAndNullAndStage4_BehaveExpectedly()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.EvaluateNextStage((CurriculumStage)999, isPrerequisiteIntroduced: true, prerequisiteWeakCount: 0, hasBroadWeakness: false));
+
+        var stage4Next = CurriculumUnlockPolicy.EvaluateNextStage(
+            CurriculumStage.Stage4_Division,
+            isPrerequisiteIntroduced: true,
+            prerequisiteWeakCount: 0,
+            hasBroadWeakness: false);
+        Assert.Equal(CurriculumStage.Stage4_Division, stage4Next);
+
+        Assert.Throws<ArgumentNullException>(() =>
+            CurriculumUnlockPolicy.EvaluateNextStage(CurriculumStage.Stage1_Addition, null!, hasBroadWeakness: false));
+    }
+
+    #endregion
+
     #region Helpers
 
     private static Dictionary<string, ItemLearningState> CreateFullyIntroducedItemStates(

@@ -2,6 +2,7 @@ namespace MathFirst.Core.Tests;
 
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -901,5 +902,186 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         Assert.Equal(50, runtimeSnapshot.RecentAttempts.Count);
         Assert.Contains(runtimeSnapshot.RecentAttempts, a => a.PracticePosition == 1);
         Assert.Contains(runtimeSnapshot.RecentAttempts, a => a.PracticePosition == 50);
+    }
+
+    [Fact]
+    public async Task Conformance_20_TransactionRollback_PreservesAllDurableState_WhenMidTransactionFailureOccurs()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // 1. Establish known clean pre-commit snapshot at revision 1 and position 0
+        var preSnapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(1, preSnapshot.Revision);
+        Assert.Equal(0, preSnapshot.Progression.PracticePosition);
+        Assert.Equal(CurriculumStage.Stage1_Addition, preSnapshot.Progression.CurriculumStage);
+        Assert.Empty(preSnapshot.ItemStates);
+        Assert.Empty(preSnapshot.RecentAttempts);
+
+        // 2. Add synthetic trigger that raises an abort on learner_progression update (step 3 of transaction)
+        // This fires after step 1 (attempt_history insert) and step 2 (item_learning_state upsert) execute.
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                CREATE TRIGGER trg_abort_progression_update
+                BEFORE UPDATE ON learner_progression
+                BEGIN
+                    SELECT RAISE(ABORT, 'Synthetic mid-transaction abort on learner_progression');
+                END;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 3. Prepare an otherwise-valid SubmissionChangeSet
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
+        var subId = Guid.NewGuid().ToString("N");
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1000, DateTimeOffset.UtcNow, practicePosition: 1);
+        var itemState = ItemLearningState.CreateNew(fact);
+        itemState.TotalAttempts = 1;
+        itemState.CorrectAttempts = 1;
+
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
+
+        var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, progression);
+
+        // 4. CommitSubmissionAsync must fail due to mid-transaction abort
+        await Assert.ThrowsAnyAsync<SqliteException>(async () => await store.CommitSubmissionAsync(changeSet));
+
+        // 5. Verify atomic rollback: all tables remain exactly in pre-commit state
+        await using (var verifyConn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await verifyConn.OpenAsync();
+
+            using (var cmd = verifyConn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'store_revision';";
+                var rev = await cmd.ExecuteScalarAsync();
+                Assert.Equal("1", rev);
+            }
+
+            using (var cmd = verifyConn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT practice_position, curriculum_stage FROM learner_progression WHERE id = 1;";
+                using var reader = await cmd.ExecuteReaderAsync();
+                Assert.True(await reader.ReadAsync());
+                Assert.Equal(0, reader.GetInt64(0));
+                Assert.Equal(1, reader.GetInt32(1));
+            }
+
+            using (var cmd = verifyConn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM attempt_history;";
+                var attemptCount = Convert.ToInt64(await cmd.ExecuteScalarAsync());
+                Assert.Equal(0, attemptCount);
+            }
+
+            using (var cmd = verifyConn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM item_learning_state;";
+                var itemCount = Convert.ToInt64(await cmd.ExecuteScalarAsync());
+                Assert.Equal(0, itemCount);
+            }
+
+            using (var cmd = verifyConn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM fsrs_card_state;";
+                var fsrsCount = Convert.ToInt64(await cmd.ExecuteScalarAsync());
+                Assert.Equal(0, fsrsCount);
+            }
+
+            using (var cmd = verifyConn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM operation_progression WHERE band_index != 0 OR band_started_practice_position != 0;";
+                var mutatedOpCount = Convert.ToInt64(await cmd.ExecuteScalarAsync());
+                Assert.Equal(0, mutatedOpCount);
+            }
+        }
+
+        // Store can still read clean snapshot
+        var postSnapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(1, postSnapshot.Revision);
+        Assert.Equal(0, postSnapshot.Progression.PracticePosition);
+        Assert.Empty(postSnapshot.ItemStates);
+        Assert.Empty(postSnapshot.RecentAttempts);
+
+        // 6. Drop failure trigger and prove subsequent commit succeeds cleanly on the same database
+        await using (var dropConn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await dropConn.OpenAsync();
+            using var cmd = dropConn.CreateCommand();
+            cmd.CommandText = "DROP TRIGGER trg_abort_progression_update;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var retryResult = await store.CommitSubmissionAsync(changeSet);
+        Assert.True(retryResult.IsSuccess);
+        Assert.Equal(2, retryResult.NewRevision);
+
+        var finalSnapshot = await store.LoadSnapshotAsync();
+        Assert.Equal(2, finalSnapshot.Revision);
+        Assert.Equal(1, finalSnapshot.Progression.PracticePosition);
+        Assert.Single(finalSnapshot.ItemStates);
+        Assert.Single(finalSnapshot.RecentAttempts);
+        Assert.Equal(subId, finalSnapshot.RecentAttempts[0].SubmissionId);
+    }
+
+    [Fact]
+    public async Task Conformance_21_CommitSubmission_WithCorruptedStoredCurriculumStage_FailsClosedAndRollsBack()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+
+        // 1. Corrupt stored curriculum_stage to 99 by dropping/recreating table without CHECK constraint
+        await using (var conn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                CREATE TABLE temp_lp (id INTEGER PRIMARY KEY, practice_position INTEGER, curriculum_stage INTEGER, updated_at TEXT);
+                INSERT INTO temp_lp VALUES (1, 0, 99, '2026-10-06T00:00:00Z');
+                DROP TABLE learner_progression;
+                ALTER TABLE temp_lp RENAME TO learner_progression;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 2. Prepare valid SubmissionChangeSet
+        var fact = new ArithmeticFact(ArithmeticOperation.Addition, 0, 1);
+        var subId = Guid.NewGuid().ToString("N");
+        var attempt = new AttemptRecord(subId, fact.Id, fact.Operation, 0, 1, 1, 1, true, true, 1000, DateTimeOffset.UtcNow, practicePosition: 1);
+        var itemState = ItemLearningState.CreateNew(fact);
+        itemState.TotalAttempts = 1;
+        itemState.CorrectAttempts = 1;
+
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = 1;
+
+        var changeSet = new SubmissionChangeSet(subId, ExpectedRevision: 1, attempt, itemState, progression);
+
+        // 3. CommitSubmissionAsync inside transaction invokes ReadCurriculumStageInTxAsync,
+        // which fails closed and returns PersistenceResult.InvalidSubmission without mutating DB
+        var result = await store.CommitSubmissionAsync(changeSet);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(PersistenceStatus.InvalidSubmission, result.Status);
+        Assert.Contains("Invalid stored curriculum stage 99", result.Message);
+
+        // 4. Verify no partial changes: revision remains 1, attempt_history remains empty
+        await using (var verifyConn = new SqliteConnection($"Data Source={dbPath}"))
+        {
+            await verifyConn.OpenAsync();
+            using var cmd = verifyConn.CreateCommand();
+            cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'store_revision';";
+            var rev = await cmd.ExecuteScalarAsync();
+            Assert.Equal("1", rev);
+
+            using var attemptCmd = verifyConn.CreateCommand();
+            attemptCmd.CommandText = "SELECT COUNT(*) FROM attempt_history;";
+            var count = Convert.ToInt64(await attemptCmd.ExecuteScalarAsync());
+            Assert.Equal(0, count);
+        }
     }
 }

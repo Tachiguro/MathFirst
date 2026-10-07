@@ -5,7 +5,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using MathFirst.ReleaseTool;
+using Xunit;
 
+[Collection("ReleaseCli process console")]
 public sealed class AabPackagingScriptValidationTests
 {
     private const string FullSha = "199dbd7cd38feafca5c94f9a5b1939bf2d912a20";

@@ -130,6 +130,81 @@ public sealed class PersistenceRecoveryAndLifecycleTests
     }
 
     [Fact]
+    public async Task RepeatedPersistenceFailures_RetainPendingEvaluationAndLearnerState_UntilSuccessfulRecovery()
+    {
+        var store = new ControllableStore(
+        [
+            PersistenceResult.Unavailable("Synthetic transient failure 1."),
+            PersistenceResult.Unavailable("Synthetic transient failure 2."),
+            PersistenceResult.Success(2)
+        ]);
+        var clock = new FakeClock();
+        var session = new TrainingSession(store, clock);
+        await session.InitializeAsync();
+
+        var factBefore = session.CurrentFact;
+        var orderBefore = session.SessionOrderCounter;
+        clock.AdvanceMs(750);
+        var evaluation = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+
+        // 1. First commit fails
+        var firstResult = await session.CommitCurrentEvaluationAsync();
+        Assert.False(firstResult.IsSuccess);
+        Assert.Equal(SessionInteractionState.PersistenceFailure, session.InteractionState);
+        Assert.False(session.IsTimingActive);
+        Assert.Equal(factBefore, session.CurrentFact);
+        Assert.Equal(orderBefore, session.SessionOrderCounter);
+        Assert.Equal(0, session.SessionCorrectCount);
+        Assert.Equal(0, session.SessionTotalCount);
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.False(session.ItemStates.ContainsKey(factBefore.Id));
+        Assert.False(session.FsrsStates.ContainsKey(factBefore.Id));
+        Assert.Same(evaluation, session.LastEvaluation);
+        Assert.Single(store.Commits);
+        Assert.Same(evaluation.ChangeSet, store.Commits[0]);
+
+        // 2. Second commit (first recovery attempt) also fails
+        var firstRecovery = await session.RecoverFromPersistenceFailureAsync();
+        Assert.False(firstRecovery);
+        Assert.Equal(SessionInteractionState.PersistenceFailure, session.InteractionState);
+        Assert.False(session.IsTimingActive);
+        Assert.Equal(factBefore, session.CurrentFact);
+        Assert.Equal(orderBefore, session.SessionOrderCounter);
+        Assert.Equal(0, session.SessionCorrectCount);
+        Assert.Equal(0, session.SessionTotalCount);
+        Assert.Equal(0, session.Progression.PracticePosition);
+        Assert.False(session.ItemStates.ContainsKey(factBefore.Id));
+        Assert.False(session.FsrsStates.ContainsKey(factBefore.Id));
+        Assert.Same(evaluation, session.LastEvaluation);
+        Assert.Equal(2, store.Commits.Count);
+        Assert.Same(evaluation.ChangeSet, store.Commits[1]);
+        Assert.Equal(store.Commits[0].SubmissionId, store.Commits[1].SubmissionId);
+        Assert.Equal(store.Commits[0].ExpectedRevision, store.Commits[1].ExpectedRevision);
+
+        // 3. Third commit (second recovery attempt) succeeds
+        var secondRecovery = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(secondRecovery);
+        Assert.Equal(SessionInteractionState.CorrectFeedback, session.InteractionState);
+        Assert.Equal(3, store.Commits.Count);
+        Assert.Same(evaluation.ChangeSet, store.Commits[2]);
+        Assert.Equal(store.Commits[0].SubmissionId, store.Commits[2].SubmissionId);
+        Assert.Equal(store.Commits[0].ExpectedRevision, store.Commits[2].ExpectedRevision);
+        Assert.Equal(1, session.SessionCorrectCount);
+        Assert.Equal(1, session.SessionTotalCount);
+        Assert.Equal(1, session.Progression.PracticePosition);
+        Assert.Equal(1, session.ItemStates[factBefore.Id].TotalAttempts);
+        Assert.Equal(1, session.ItemStates[factBefore.Id].CorrectAttempts);
+        Assert.True(session.FsrsStates.ContainsKey(factBefore.Id));
+
+        // 4. Advance to next question normally
+        Assert.True(session.AdvanceAfterCorrectAnswer());
+        Assert.Equal(orderBefore + 1, session.SessionOrderCounter);
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+        Assert.True(session.IsTimingActive);
+        Assert.Null(session.LastEvaluation);
+    }
+
+    [Fact]
     public async Task BackgroundDuringCorrectCommit_RequiresExplicitResumeForPreparedFact()
     {
         var completion = new TaskCompletionSource<PersistenceResult>(

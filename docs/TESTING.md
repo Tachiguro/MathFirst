@@ -1157,3 +1157,117 @@ The P6 implementation establishes strict compile/profile boundaries isolating Te
   - Merged tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68` is identical to validated candidate tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`.
   - `POST_MERGE_SYNC_ONLY` completed with clean working tree, clean index, and zero content drift.
   - Step 55 remains unauthorized; Build 4 does not exist.
+
+---
+
+## 30. MF-AUDIT-002 / P8 Test-Coverage Audit & Targeted Hardening Contracts & Reviewed Test Evidence
+
+The bounded P8 package executes a factual test-coverage baseline audit across the four production assemblies and hardens critical domain, persistence, and release policy invariants across three reviewed implementation slices plus one review-approved validation test-infrastructure remediation. This hardening is covered by permanent unit, property, and contract suites in `MathFirst.Core.Tests`:
+
+1. **Critical Domain Invariants Hardening (Slice 1, Commit `76e718006c2adc5953995d99bbfc1451dc8e63c1`)**:
+   - **Broad Weakness Policy Contracts (`BroadWeaknessPolicyTests.cs`)**: Verifies multi-operation and single-operation broad weakness detection rules ($\ge 2$ active weak facts across active curriculum/operation space), context filtering, and suppression of opportunistic `New` fact acquisition during struggle.
+   - **Curriculum Invariant Properties (`CurriculumInvariantPropertyTests.cs`)**: Property-based and deterministic verification of curriculum band structures, monotonically ordered fact indices, exact fact ID formation, digit novelty thresholds, and non-empty band definitions across Addition, Subtraction, Multiplication, and Division.
+   - **Unlock Policy Boundary Regressions (`CurriculumUnlockPolicyTests.cs`)**: Verifies prerequisite D01 frontier readiness, single-error tolerance, monotonic stage properties, and aggregate weakness gating across Stage 1 $\to$ 2 $\to$ 3 $\to$ 4 transitions.
+   - **Deterministic Scheduler Bounds (`DeterministicOperationSchedulerTests.cs`)**: Verifies permutation bag turn allocations, bounded operation frequency, deterministic bag resets, and zero-RNG state neutrality.
+
+2. **Persistence Recovery & Long-Run Invariants Hardening (Slice 2, Commit `56880b3ff3da2c6e06840226ac236dafedba34bd`)**:
+   - **SQLite Persistence Conformance (`SqlitePersistenceConformanceTests.cs`)**: Verifies Schema V9 persistence contracts, transaction atomicity, dirty/duplicate submission rejection, practice position monotonicity, revision conflict detection, and idempotent commit replay.
+   - **Persistence Recovery & Lifecycle (`PersistenceRecoveryAndLifecycleTests.cs`)**: Verifies post-write evidence preparation recovery, separation of durable database commit from transient session presentation, and non-destructive retry mechanics without duplicate attempt records or store revisions.
+   - **Long-Run Independent Progression (`LongRunIndependentProgressionTests.cs`)**: Verifies multi-operation progression stability across extended simulated learning sessions, dual-window structured band advancement, and restart equivalence without session state drift.
+
+3. **Release Tooling & Security Boundaries Hardening (Slice 3, Commit `3558f8cee7b3aad031459990276ff99d73312379`)**:
+   - **Release CLI Fail-Closed Contracts (`ReleaseCliFailClosedContractTests.cs`)**: Verifies `MathFirst.ReleaseTool` command-line argument validation, rejection of invalid combinations, fail-closed handling of malformed input files, and clean error reporting without stack trace leaks.
+   - **Packaging Input & Signature Verification**: Verifies release keystore input validation, certificate fingerprint validation, and profile boundary assertions across Tester, SourceCandidate, and Production profiles.
+   - **Reset Telemetry Share Cache Purge**: Verifies profile-wide `ITelemetryShareCacheCleaner` execution on Full Local Reset across all build profiles.
+
+4. **Audited No-New-Test Decisions (`NO_NEW_TEST_REQUIRED`)**:
+   - Formally audited candidate areas and confirmed existing coverage is already sufficient:
+     - *Archive Validation*: Existing `AndroidAabValidationTests` and `AndroidApkValidationTests` thoroughly cover archive extraction, bundle structure, and DEX inspection.
+     - *Build Profile Boundaries*: Existing `ReleaseProfileContractTests` thoroughly cover compile symbols and MSBuild property defaults.
+     - *Reset Exceptions*: Existing `AppResetCoordinatorTests` and `ResetWorkflowTests` thoroughly cover reset failures and rollback handling.
+     - *Telemetry / Privacy Boundaries*: Existing `AndroidPackagingContractTests` and `TelemetryLearningNonInterferenceTests` enforce zero network permissions and privacy sanitization.
+     - *Guided Gate G3 Decoupling*: Existing `GuidedNumberSpaceSelectionTests` thoroughly cover independent multiplication/division ceiling decoupling at BandIndex $\ge 3$.
+     - *Acquisition Ownership Resolver*: Existing `AcquisitionOwnershipResolverTests` thoroughly cover fact-to-band ownership across all operations.
+
+5. **Validation Test-Infrastructure Stabilization & Serialization Architecture**:
+   - **Historical Failure**: The first formal exact-candidate FULL_VALIDATION attempt on candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` failed at the Full Core Release gate (2,298 passed / 1 failed; `MathFirst.Core.Tests.TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` failed with `System.ObjectDisposedException: Cannot write to a closed TextWriter` while `ReleaseCli.RunAsync` wrote through a process-global `Console.Error` stream; historical verdict `MF_AUDIT_002_FULL_VALIDATION_FAILED`).
+   - **Failure Classification & Root Cause**: Classified as a TEST-INFRASTRUCTURE CONCURRENCY / ISOLATION DEFECT. ReleaseCli test classes redirected process-global `Console.Error` and `Console.Out` to local `StringWriter` instances. Default xUnit class/collection parallelism allowed another ReleaseCli test to write while a redirected writer had been disposed/restored. Zero production `ReleaseTool` defect established, zero product behavior defect established, 0 production code changes required.
+   - **Remediation Architecture**: Introduced the dedicated non-parallel xUnit test collection definition:
+     ```csharp
+     [CollectionDefinition("ReleaseCli process console", DisableParallelization = true)]
+     public sealed class ReleaseCliProcessConsoleCollectionDefinition;
+     ```
+     and applied `[Collection("ReleaseCli process console")]` across all four participating test suites:
+     - `tests/MathFirst.Core.Tests/ReleaseCliFailClosedContractTests.cs`
+     - `tests/MathFirst.Core.Tests/TesterApkPackagingContractTests.cs`
+     - `tests/MathFirst.Core.Tests/AabPackagingScriptValidationTests.cs`
+     - `tests/MathFirst.Core.Tests/TesterApkWorkflowIntegrationTests.cs`
+   - **Parallelism Scope**: Serializes only test suites intercepting process-global console streams; assembly-wide parallelism remains active for all other tests.
+   - **Non-Blocking Review NIT**: `AabPackagingScriptValidationTests.cs` contains an explicit `using Xunit;` redundant with global using directives; classified as harmless non-blocking NIT.
+   - **Remediation Stability Evidence**:
+     - Focused four-class Release filter (156 tests): 5 consecutive runs, all 156 passed (0 failed, 0 skipped).
+     - Full Core Release: 3 consecutive runs, all 2,299 passed (0 failed, 0 skipped).
+     - Full Core Debug: 2,299 passed, 0 failed, 0 skipped.
+   - **Remediation Review Verdict**: `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 NIT; confirmed 156 focused Release tests passed, 2,299 Core Release tests passed).
+
+### Corrected Normalized Cobertura Coverage Evidence (Release Configuration)
+
+Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release` configuration across all four production assemblies with identical test project and parser denominators.
+
+> [!IMPORTANT]
+> **Historical Coverage Delta Correction**:
+> The earlier PLAN_ONLY percentage delta (+2.73 pp line / +2.64 pp branch; 19,678/21,576 lines, 5,816/7,290 branches) resulted from mixing an earlier multi-run sequence-point framework with the normalized Cobertura parser and is **superseded**. The authoritative apples-to-apples baseline and post-P8 measurements are given below.
+
+| Assembly | Metric | Base (Pre-P8) | Head (Post-P8) | Delta | Delta (pp) |
+|---|---|---|---|---|---|
+| **MathFirst.Application** | Lines | 4,080 / 4,326 (94.31%) | 4,087 / 4,326 (94.48%) | +7 | +0.16 pp |
+| | Branches | 1,289 / 1,537 (83.86%) | 1,296 / 1,537 (84.32%) | +7 | +0.46 pp |
+| **MathFirst.Domain** | Lines | 777 / 872 (89.11%) | 811 / 872 (93.00%) | +34 | +3.90 pp |
+| | Branches | 385 / 460 (83.70%) | 413 / 460 (89.78%) | +28 | +6.09 pp |
+| **MathFirst.Infrastructure.Sqlite** | Lines | 1,695 / 1,781 (95.17%) | 1,701 / 1,781 (95.51%) | +6 | +0.34 pp |
+| | Branches | 429 / 540 (79.44%) | 435 / 540 (80.56%) | +6 | +1.11 pp |
+| **MathFirst.ReleaseTool** | Lines | 1,710 / 1,889 (90.52%) | 1,731 / 1,889 (91.64%) | +21 | +1.11 pp |
+| | Branches | 815 / 1,082 (75.32%) | 839 / 1,082 (77.54%) | +24 | +2.22 pp |
+| **TOTAL** | **Lines** | **8,262 / 8,868 (93.17%)** | **8,330 / 8,868 (93.93%)** | **+68** | **+0.77 pp** |
+| | **Branches** | **2,918 / 3,619 (80.63%)** | **2,983 / 3,619 (82.43%)** | **+65** | **+1.80 pp** |
+
+### Implementation, Historical Validation & Remediation Evidence
+
+- **Historical Implementation Checkpoints (Original Slice 1–3 Scope)**:
+  - Slice 1: `76e718006c2adc5953995d99bbfc1451dc8e63c1` (`MathFirst-Checkpoint: MF-AUDIT-002 1/3 critical-domain-invariants`)
+  - Slice 2: `56880b3ff3da2c6e06840226ac236dafedba34bd` (`MathFirst-Checkpoint: MF-AUDIT-002 2/3 persistence-recovery-long-run`)
+  - Slice 3: `3558f8cee7b3aad031459990276ff99d73312379` (`MathFirst-Checkpoint: MF-AUDIT-002 3/3 release-security-reset`)
+- **Original Slice 1–3 Implementation Scope (Historical)**:
+  - 3 added test files: `BroadWeaknessPolicyTests.cs`, `CurriculumInvariantPropertyTests.cs`, `ReleaseCliFailClosedContractTests.cs`.
+  - 5 modified test files: `CurriculumUnlockPolicyTests.cs`, `DeterministicOperationSchedulerTests.cs`, `SqlitePersistenceConformanceTests.cs`, `PersistenceRecoveryAndLifecycleTests.cs`, `LongRunIndependentProgressionTests.cs`.
+  - Focused P8 test suite: **155 passed**, 0 failed, 0 skipped.
+  - Consolidated Review Verdict: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
+- **Historical First Formal FULL_VALIDATION Attempt (Candidate `0e76bf907653cd1d3256854a53e0c77684787ad4`)**:
+  - Candidate HEAD: `0e76bf907653cd1d3256854a53e0c77684787ad4`
+  - Overall Verdict: `MF_AUDIT_002_FULL_VALIDATION_FAILED` (Historical)
+  - Focused P8 Release Gate: 155 passed, 0 failed, 0 skipped.
+  - Full Core Debug Gate: 2,299 passed, 0 failed, 0 skipped.
+  - Full Core Release Gate: 2,298 passed, 1 failed, 0 skipped (`TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` failed with `ObjectDisposedException` on process-global `Console.Error`).
+  - Normalized Cobertura Coverage Gate: 93.93% lines (8,330/8,868), 82.43% branches (2,983/3,619).
+  - NuGet Vulnerability Audit: 0 known vulnerable packages.
+  - Markdown Link & Anchor Audit: 36 documents, 297 relative file links, 1 relative fragment, 0 broken file links, 0 broken fragments.
+  - Candidate Repository Immutability: PASS.
+- **Validation Test-Infrastructure Remediation & Review**:
+  - Remediated 4 test files (`AabPackagingScriptValidationTests.cs`, `ReleaseCliFailClosedContractTests.cs`, `TesterApkPackagingContractTests.cs`, `TesterApkWorkflowIntegrationTests.cs`) with shared xUnit non-parallel collection isolation.
+  - Stabilization Focused Filter: **156 passed**, 0 failed, 0 skipped (5 consecutive runs).
+  - Full Core Release: **2,299 passed**, 0 failed, 0 skipped (3 consecutive runs).
+  - Remediation Review Verdict: `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production defects).
+- **Final Package-Wide Scope (Relative to Base `main@4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)**:
+  - 11 test paths (3 added, 8 modified).
+    - Added (3): `tests/MathFirst.Core.Tests/BroadWeaknessPolicyTests.cs`, `tests/MathFirst.Core.Tests/CurriculumInvariantPropertyTests.cs`, `tests/MathFirst.Core.Tests/ReleaseCliFailClosedContractTests.cs`.
+    - Modified (8): `tests/MathFirst.Core.Tests/AabPackagingScriptValidationTests.cs`, `tests/MathFirst.Core.Tests/CurriculumUnlockPolicyTests.cs`, `tests/MathFirst.Core.Tests/DeterministicOperationSchedulerTests.cs`, `tests/MathFirst.Core.Tests/LongRunIndependentProgressionTests.cs`, `tests/MathFirst.Core.Tests/PersistenceRecoveryAndLifecycleTests.cs`, `tests/MathFirst.Core.Tests/SqlitePersistenceConformanceTests.cs`, `tests/MathFirst.Core.Tests/TesterApkPackagingContractTests.cs`, `tests/MathFirst.Core.Tests/TesterApkWorkflowIntegrationTests.cs`.
+  - 8 documentation paths: `CHANGELOG.md`, `docs/BACKLOG.md`, `docs/CURRENT_WORK.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`, `docs/TESTING.md`, `docs/V1_PRE_STEP55_REFINEMENT_PLAN.md`.
+  - Total package changed paths: **19 paths**.
+  - Test case growth: Pre-P8 Base 2,228 passed $\to$ Post-P8 2,299 passed (**+71 automated test cases**).
+  - 0 production code changes, 0 tooling production code changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
+
+### Evidence Boundary Principles
+
+- **Evidence Boundary**: This document records historical implementation, consolidated review, historical first formal FULL_VALIDATION attempt, and approved validation test-infrastructure remediation facts. Formal lifecycle state, including any subsequent exact-candidate `FULL_VALIDATION` and integration status, must be discovered dynamically from live repository state.
+- **Durable Milestones**: Implementation, review, historical validation attempt, remediation, remediation review, and documentation reconciliation are complete. Live Git and GitHub state is authoritative for downstream integration status.
+- **Release Boundaries**: P7 remains DEFERRED. Roadmap Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**. Production packaging, signing, and store publication remain strictly unauthorized.
