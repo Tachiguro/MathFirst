@@ -514,4 +514,144 @@ public sealed class LongRunIndependentProgressionTests
         }
         throw new InvalidOperationException($"Operation {operation} not found in bag {bagIndex}.");
     }
+
+    [Fact]
+    public async Task CurriculumManaged_LongRun_ExercisesCumulativeStageProgression_StageMonotonicity_AndNoImmediateFactRepetition()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "MathFirstCurriculumLongRun_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "curriculum_learner.db");
+
+        try
+        {
+            var store = new SqliteLearnerStore(path);
+            await store.InitializeAsync();
+            var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
+            await session.InitializeAsync(startTiming: false);
+
+            var stageFirstPositions = new Dictionary<CurriculumStage, long>
+            {
+                [CurriculumStage.Stage1_Addition] = 0
+            };
+            var stageTurnCounts = new Dictionary<CurriculumStage, int>();
+            var seenFactIds = new List<string>();
+            var seenPositions = new List<long>();
+            var presentedOperations = new HashSet<ArithmeticOperation>();
+            var currentStage = session.Progression.CurriculumStage;
+            Assert.Equal(CurriculumStage.Stage1_Addition, currentStage);
+
+            const int maxTurnsSafetyCap = 1000;
+            var totalTurns = 0;
+
+            while (totalTurns < maxTurnsSafetyCap)
+            {
+                totalTurns++;
+                var currentFact = session.CurrentFact;
+                Assert.NotNull(currentFact);
+                Assert.False(string.IsNullOrWhiteSpace(currentFact.Id));
+
+                // 1. Presented operations are always within the currently unlocked set
+                var allowedOps = CurriculumUnlockPolicy.GetUnlockedOperations(session.Progression.CurriculumStage);
+                Assert.Contains(currentFact.Operation, (IReadOnlyList<ArithmeticOperation>)allowedOps);
+                presentedOperations.Add(currentFact.Operation);
+
+                // 2. No immediate repeated FactId: FactId(t + 1) != FactId(t)
+                if (seenFactIds.Count > 0)
+                {
+                    Assert.NotEqual(seenFactIds[^1], currentFact.Id);
+                }
+                seenFactIds.Add(currentFact.Id);
+
+                // 3. Submit correct answer and commit
+                session.SubmitAnswer(currentFact.CorrectResult);
+                var commitResult = await session.CommitCurrentEvaluationAsync();
+                Assert.True(commitResult.IsSuccess);
+
+                // 4. PracticePosition monotonicity: strictly increments by 1 with no gaps or duplicates
+                var newPosition = session.Progression.PracticePosition;
+                Assert.Equal(seenPositions.Count + 1, newPosition);
+                seenPositions.Add(newPosition);
+
+                // 5. Stage monotonicity: currentStage >= previousStage
+                var newStage = session.Progression.CurriculumStage;
+                Assert.True(newStage >= currentStage, $"Curriculum stage regressed from {currentStage} to {newStage}.");
+
+                if (newStage > currentStage)
+                {
+                    stageFirstPositions[newStage] = newPosition;
+                    currentStage = newStage;
+
+                    // Option A: Durable store reload across stage boundaries
+                    await store.CloseAsync();
+                    store = new SqliteLearnerStore(path);
+                    await store.InitializeAsync();
+                    session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
+                    await session.InitializeAsync(startTiming: false);
+
+                    Assert.Equal(currentStage, session.Progression.CurriculumStage);
+                    Assert.Equal(newPosition, session.Progression.PracticePosition);
+                    Assert.Contains(session.CurrentFact.Operation, (IReadOnlyList<ArithmeticOperation>)CurriculumUnlockPolicy.GetUnlockedOperations(currentStage));
+                }
+                else
+                {
+                    // Advance to next fact or handle session check-in
+                    if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
+                    {
+                        Assert.Equal(SessionInteractionState.SessionCheckIn, session.InteractionState);
+                        session.ContinuePractice(startTiming: false);
+                    }
+                }
+
+                stageTurnCounts[currentStage] = stageTurnCounts.GetValueOrDefault(currentStage, 0) + 1;
+
+                // 6. Termination condition: Stage 4 reached and exercised through post-Stage4 window
+                if (currentStage == CurriculumStage.Stage4_Division && stageTurnCounts[CurriculumStage.Stage4_Division] >= 50)
+                {
+                    break;
+                }
+            }
+
+            // Post-run assertions
+            Assert.True(totalTurns < maxTurnsSafetyCap, $"Safety cap ({maxTurnsSafetyCap}) was reached before stage progression finished.");
+            Assert.True(stageFirstPositions.ContainsKey(CurriculumStage.Stage1_Addition));
+            Assert.True(stageFirstPositions.ContainsKey(CurriculumStage.Stage2_Subtraction));
+            Assert.True(stageFirstPositions.ContainsKey(CurriculumStage.Stage3_Multiplication));
+            Assert.True(stageFirstPositions.ContainsKey(CurriculumStage.Stage4_Division));
+
+            // Stage positions must be strictly ordered
+            Assert.True(stageFirstPositions[CurriculumStage.Stage1_Addition] < stageFirstPositions[CurriculumStage.Stage2_Subtraction]);
+            Assert.True(stageFirstPositions[CurriculumStage.Stage2_Subtraction] < stageFirstPositions[CurriculumStage.Stage3_Multiplication]);
+            Assert.True(stageFirstPositions[CurriculumStage.Stage3_Multiplication] < stageFirstPositions[CurriculumStage.Stage4_Division]);
+
+            // All four operations were presented
+            Assert.Equal(4, presentedOperations.Count);
+            Assert.All(Enum.GetValues<ArithmeticOperation>(), op => Assert.Contains(op, presentedOperations));
+
+            // PracticePosition sequence is contiguous 1..N
+            for (var i = 0; i < seenPositions.Count; i++)
+            {
+                Assert.Equal(i + 1, seenPositions[i]);
+            }
+            Assert.Equal(seenPositions.Distinct().Count(), seenPositions.Count);
+
+            // Final reload verification
+            await store.CloseAsync();
+            using var finalStore = new SqliteLearnerStore(path);
+            await finalStore.InitializeAsync();
+            var finalSnapshot = await finalStore.LoadSnapshotAsync();
+            Assert.Equal(CurriculumStage.Stage4_Division, finalSnapshot.Progression.CurriculumStage);
+            Assert.Equal(seenPositions.Count, finalSnapshot.Progression.PracticePosition);
+
+            await using var verifyConn = new SqliteConnection($"Data Source={path}");
+            await verifyConn.OpenAsync();
+            using var countCmd = verifyConn.CreateCommand();
+            countCmd.CommandText = "SELECT COUNT(*) FROM attempt_history WHERE practice_position IS NOT NULL;";
+            var attemptCount = Convert.ToInt64(await countCmd.ExecuteScalarAsync());
+            Assert.Equal(seenPositions.Count, attemptCount);
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
 }
