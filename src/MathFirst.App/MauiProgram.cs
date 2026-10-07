@@ -44,15 +44,19 @@ public static class MauiProgram
 		builder.Services.AddSingleton<AppBuildInfo>();
 		builder.Services.AddSingleton<IAppBuildInfo>(
 			sp => sp.GetRequiredService<AppBuildInfo>());
-		builder.Services.AddSingleton<IAppPlatformInfo, MauiAppPlatformInfo>();
-		builder.Services.AddSingleton<IClipboardService, MauiClipboardService>();
 		builder.Services.AddSingleton<IInstallationIdStore, MauiInstallationIdStore>();
 		builder.Services.AddSingleton<IInstallationIdProvider, PreferenceInstallationIdProvider>();
+		builder.Services.AddSingleton<ITelemetryShareCacheCleaner, MauiTelemetryShareCacheCleaner>();
+		builder.Services.AddSingleton<IAppResetCoordinator, AppResetCoordinator>();
+		builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+
+#if MATHFIRST_TESTER_DIAGNOSTICS
+		builder.Services.AddSingleton<IAppPlatformInfo, MauiAppPlatformInfo>();
+		builder.Services.AddSingleton<IClipboardService, MauiClipboardService>();
 		builder.Services.AddSingleton<ITelemetryJsonSerializer, TelemetryJsonSerializer>();
 		builder.Services.AddSingleton<ITelemetryShareService, MauiTelemetryShareService>();
 		builder.Services.AddSingleton<TelemetryExportCoordinator>();
-		builder.Services.AddSingleton<IAppResetCoordinator, AppResetCoordinator>();
-		builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+#endif
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));

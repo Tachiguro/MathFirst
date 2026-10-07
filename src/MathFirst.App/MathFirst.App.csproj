@@ -38,6 +38,8 @@
 
         <MathFirstSourceCommit Condition="'$(MathFirstSourceCommit)' == ''">local</MathFirstSourceCommit>
         <MathFirstBuildClassification Condition="'$(MathFirstBuildClassification)' == ''">Local</MathFirstBuildClassification>
+        <MathFirstEnableTesterDiagnostics Condition="'$(MathFirstEnableTesterDiagnostics)' == '' and '$(Configuration)' == 'Debug'">true</MathFirstEnableTesterDiagnostics>
+        <MathFirstEnableTesterDiagnostics Condition="'$(MathFirstEnableTesterDiagnostics)' == ''">false</MathFirstEnableTesterDiagnostics>
 
         <Company>Tachiguro</Company>
         <Product>$(ApplicationTitle)</Product>
@@ -51,6 +53,10 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(MathFirstEnableTesterDiagnostics)' == 'true'">
+        <DefineConstants>$(DefineConstants);MATHFIRST_TESTER_DIAGNOSTICS</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>

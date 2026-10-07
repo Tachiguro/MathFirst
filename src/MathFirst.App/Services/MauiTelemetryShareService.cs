@@ -10,8 +10,6 @@ using Microsoft.Maui.Storage;
 
 public sealed class MauiTelemetryShareService : ITelemetryShareService
 {
-    private const string TelemetryShareDirectoryName = "telemetry-share";
-
     public async Task<string> PrepareShareFileAsync(
         string fileName,
         Stream content,
@@ -20,7 +18,7 @@ public sealed class MauiTelemetryShareService : ITelemetryShareService
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentNullException.ThrowIfNull(content);
 
-        var directory = Path.Combine(FileSystem.CacheDirectory, TelemetryShareDirectoryName);
+        var directory = TelemetryShareCachePaths.DirectoryPath;
         Directory.CreateDirectory(directory);
 
         var safeFileName = Path.GetFileName(fileName);
@@ -45,14 +43,5 @@ public sealed class MauiTelemetryShareService : ITelemetryShareService
             Title = title,
             File = new ShareFile(filePath)
         }).ConfigureAwait(false);
-    }
-
-    public void PurgeShareCache()
-    {
-        var directory = Path.Combine(FileSystem.CacheDirectory, TelemetryShareDirectoryName);
-        if (Directory.Exists(directory))
-        {
-            Directory.Delete(directory, recursive: true);
-        }
     }
 }

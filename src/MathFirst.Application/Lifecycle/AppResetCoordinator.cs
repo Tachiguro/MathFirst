@@ -12,18 +12,18 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
     private readonly TrainingSession _session;
     private readonly IPreferenceStore _preferenceStore;
     private readonly IInstallationIdProvider _installationIdProvider;
-    private readonly ITelemetryShareService _shareService;
+    private readonly ITelemetryShareCacheCleaner _cacheCleaner;
 
     public AppResetCoordinator(
         TrainingSession session,
         IPreferenceStore preferenceStore,
         IInstallationIdProvider installationIdProvider,
-        ITelemetryShareService shareService)
+        ITelemetryShareCacheCleaner cacheCleaner)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _preferenceStore = preferenceStore ?? throw new ArgumentNullException(nameof(preferenceStore));
         _installationIdProvider = installationIdProvider ?? throw new ArgumentNullException(nameof(installationIdProvider));
-        _shareService = shareService ?? throw new ArgumentNullException(nameof(shareService));
+        _cacheCleaner = cacheCleaner ?? throw new ArgumentNullException(nameof(cacheCleaner));
     }
 
     public async Task ExecuteFullResetAsync(CancellationToken cancellationToken = default)
@@ -41,7 +41,7 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
 
         try
         {
-            _shareService.PurgeShareCache();
+            _cacheCleaner.PurgeShareCache();
         }
         catch (IOException)
         {

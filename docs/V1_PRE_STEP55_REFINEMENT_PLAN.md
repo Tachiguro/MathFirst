@@ -244,7 +244,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P5 — Cyber Defense Visual Consistency
 - **Priority**: Medium.
-- **Status**: **IMPLEMENTED & REVIEW APPROVED (UNCOMMITTED CANDIDATE)** (Implemented on task branch `feat/p5-cyber-defense-visual-consistency`, review verdict `P5_COMPLETE_REVIEW_APPROVED`, 18 permanent visual and accessibility contract tests across `SecondarySurfaceVisualContractTests`, `SecondaryDialogVisualContractTests`, and `SecondaryVisualAccessibilityContractTests`, confirmed across 2,222 passing Core review tests, candidate uncommitted, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
+- **Status**: **DELIVERED & MERGED** (PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `P5_COMPLETE_REVIEW_APPROVED`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed in Debug and Release, 18 permanent visual and accessibility contract tests across three suites, Schema V9 preserved).
 - **Product Decision & Architecture**: Align all secondary UI surfaces (Settings, Privacy, secondary dialogs, overlays, Not Found) with the established Cyber Defense aesthetic following Option A (Scoped Cyber Defense Pattern Reuse):
   - Dark technical surfaces, restrained neon/emerald accents, high-contrast typography, and clear visual hierarchy without creating a new design system or parallel token subsystem.
   - Secondary overlays and dialogs aligned: `InitialReadyGate` progress overview, `ManualPauseGate` session summary, `TeachingIntervention`, `SessionCheckIn`, `IncorrectFeedback`, startup/persistence recovery panels, and `NotFound.razor` (preserving navigation and layout contracts).
@@ -257,10 +257,15 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P6 — Tester Diagnostics / Telemetry Release Boundary
 - **Priority**: Medium-High (Release Hygiene).
-- **Product Decision**: Enforce a rigid compile/profile boundary between Tester and Production builds:
-  - Tester-specific actions (e.g. "Copy diagnostic info", telemetry JSON export/share, troubleshooting resets) must be strictly isolated to `Tester` profile builds.
-  - `Distributable` production builds must not compile or expose Tester diagnostic UI controls.
-  - Underlying telemetry infrastructure (`attempt_history` presentation context, persistence contracts) remains intact for learner history.
+- **Status**: **IMPLEMENTED & REVIEW APPROVED (UNCOMMITTED CANDIDATE)** (Implemented on task branch `feat/p6-tester-diagnostics-release-boundary`, review verdict `P6_COMPLETE_REVIEW_APPROVED`, 117 focused contract tests across eleven suites, 2,228 passing Core review tests, clean Windows and Android Release/Tester/SourceCandidate compile matrices, candidate uncommitted in working tree, documentation reconciliation in progress under `DOCUMENT_ONLY`, awaiting documentation review and commit, formal `FULL_VALIDATION` pending).
+- **Product Decision & Architecture**: Enforce a rigid compile/profile boundary between Tester and Production builds:
+  - MSBuild property `MathFirstEnableTesterDiagnostics` controls the `MATHFIRST_TESTER_DIAGNOSTICS` compile symbol (enabled by default in Debug, disabled in non-Debug/Release unless explicitly set).
+  - Dedicated `TesterDiagnosticsSection` component encapsulates diagnostic/export UI actions and compiles to an empty dependency-free stub when disabled; `Settings.razor` no longer directly owns platform info, clipboard, or export services.
+  - Conditional DI registers tester-only services (`IAppPlatformInfo`, `IClipboardService`, `ITelemetryJsonSerializer`, `ITelemetryShareService`, `TelemetryExportCoordinator`) only when tester diagnostics are enabled.
+  - Shared application services (`AppBuildInfo`, `IInstallationIdStore`, `IInstallationIdProvider`, `ITelemetryShareCacheCleaner`, `IAppResetCoordinator`) remain registered in all profiles.
+  - `ITelemetryShareCacheCleaner` purges the `telemetry-share` cache directory on Full Local Reset across all build profiles (not Tester-only).
+  - `tools/MathFirst.ReleaseTool` explicitly propagates `MathFirstBuildClassification` (`Tester`, `SourceCandidate`, `Production`) and `MathFirstSourceCommit` (authoritative repository HEAD SHA) to MSBuild invocations.
+  - Underlying persistence (Schema V9), `attempt_history` structure, FSRS telemetry, and `telemetry_export_schema_v2` (16 properties) remain preserved without data loss or schema migrations.
 
 ---
 
@@ -321,9 +326,10 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P2b — Gameplay and Startup Refinements`: Delivered & Merged (PR #64 at commit `f580a7154a4043a5097ffd852b5cf454be2cc397`).
   - `P3 — Cumulative Operation Unlock Progression`: Delivered & Merged (PR #65 at commit `759389650778f5d7b6a334b15556c5f31f6de5d0`).
   - `P4 — Settings Simplification`: Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
+  - `P5 — Cyber Defense Visual Consistency`: Delivered & Merged (PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed, 18 contract tests across 3 suites).
 - **Implemented & Review-Approved Refinements on Task Branch**:
-  - `P5 — Cyber Defense Visual Consistency`: Implemented and consolidated review approved (`P5_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p5-cyber-defense-visual-consistency`, backed by 18 permanent visual and accessibility contract tests (6/6/6) and 2,222 passing Core review tests (uncommitted, unpushed, no open PR, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
-- **Next Work Item**: `P5` documentation reconciliation review, candidate commit, and `FULL_VALIDATION` lifecycle (followed by push, PR, merge, and subsequent `P6 — Tester Diagnostics / Telemetry Release Boundary`).
+  - `P6 — Tester Diagnostics / Telemetry Release Boundary`: Implemented and consolidated review approved (`P6_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p6-tester-diagnostics-release-boundary`, backed by 117 focused contract tests across 11 suites, 2,228 passing Core review tests, clean Windows and Android Release/Tester/SourceCandidate compile matrices (uncommitted candidate in working tree, unpushed, no open PR, documentation reconciliation in progress under `DOCUMENT_ONLY`, awaiting documentation review and commit, formal `FULL_VALIDATION` pending).
+- **Next Work Item**: `P6` documentation reconciliation review, candidate commit, and `FULL_VALIDATION` lifecycle (followed by push, PR, merge, and subsequent `P8 — Test-Coverage Audit & Targeted Hardening`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.

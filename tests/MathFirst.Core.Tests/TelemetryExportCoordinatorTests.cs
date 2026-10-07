@@ -63,7 +63,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
 
         Assert.Equal(1, shareService.PrepareCallCount);
         Assert.Equal(1, shareService.DispatchCallCount);
-        Assert.Equal(0, shareService.PurgeCallCount);
 
         // Verify prepared stream content
         Assert.NotNull(shareService.LastPreparedContent);
@@ -146,7 +145,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
 
         Assert.Equal(1, shareService.PrepareCallCount);
         Assert.Equal(0, shareService.DispatchCallCount);
-        Assert.Equal(0, shareService.PurgeCallCount);
     }
 
     [Fact]
@@ -177,7 +175,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
         Assert.Equal(0, serializer.SerializeCallCount);
         Assert.Equal(0, shareService.PrepareCallCount);
         Assert.Equal(0, shareService.DispatchCallCount);
-        Assert.Equal(0, shareService.PurgeCallCount);
     }
 
     [Fact]
@@ -210,7 +207,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
 
         Assert.Equal(0, shareService.PrepareCallCount);
         Assert.Equal(0, shareService.DispatchCallCount);
-        Assert.Equal(0, shareService.PurgeCallCount);
     }
 
     [Fact]
@@ -242,35 +238,10 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
         Assert.Contains("Native share sheet failed", result.ErrorMessage, StringComparison.Ordinal);
 
         Assert.Equal(1, shareService.PrepareCallCount);
-        Assert.Equal(0, shareService.PurgeCallCount);
     }
 
     [Fact]
-    public async Task ExportAndShareAsync_DoesNotPurgeCacheImmediately()
-    {
-        var store = new FakeLearnerStore { AttemptsToReturn = [] };
-        var installationIdProvider = new FakeInstallationIdProvider("test-install-id");
-        var appBuildInfo = new FakeAppBuildInfo("1.0.0", "Release");
-        var serializer = new TelemetryJsonSerializer();
-        var shareService = new FakeTelemetryShareService();
-        var timeProvider = new FixedTimeProvider(DateTimeOffset.UtcNow);
-
-        var coordinator = new TelemetryExportCoordinator(
-            store,
-            installationIdProvider,
-            appBuildInfo,
-            serializer,
-            shareService,
-            timeProvider);
-
-        var result = await coordinator.ExportAndShareAsync();
-
-        Assert.True(result.Success);
-        Assert.Equal(0, shareService.PurgeCallCount);
-    }
-
-    [Fact]
-    public async Task ExportAndShareAsync_SubsequentExportDoesNotPurgePriorCacheFiles()
+    public async Task ExportAndShareAsync_SubsequentExportDispatchesDistinctFiles()
     {
         var store = new FakeLearnerStore { AttemptsToReturn = [] };
         var installationIdProvider = new FakeInstallationIdProvider("test-install-id");
@@ -294,7 +265,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
         Assert.True(result2.Success);
         Assert.Equal(2, shareService.PrepareCallCount);
         Assert.Equal(2, shareService.DispatchCallCount);
-        Assert.Equal(0, shareService.PurgeCallCount);
         Assert.Equal(2, shareService.DispatchedFilePaths.Count);
         Assert.NotEqual(shareService.DispatchedFilePaths[0], shareService.DispatchedFilePaths[1]);
     }
@@ -589,7 +559,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
     {
         public int PrepareCallCount { get; private set; }
         public int DispatchCallCount { get; private set; }
-        public int PurgeCallCount { get; private set; }
 
         public List<string> PreparedFileNames { get; } = [];
         public List<string> DispatchedFilePaths { get; } = [];
@@ -632,11 +601,6 @@ public sealed class TelemetryExportCoordinatorTests : IDisposable
             LastDispatchedFilePath = filePath;
             LastDispatchedTitle = title;
             return Task.CompletedTask;
-        }
-
-        public void PurgeShareCache()
-        {
-            PurgeCallCount++;
         }
     }
 

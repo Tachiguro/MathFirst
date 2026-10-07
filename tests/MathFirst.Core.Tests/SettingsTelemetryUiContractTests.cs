@@ -101,35 +101,61 @@ public sealed class SettingsTelemetryUiContractTests
     }
 
     [Fact]
-    public void Settings_ExportAction_DisablesButtonDuringExport()
+    public void Settings_DiagnosticsAndExportActions_AreIsolatedInTesterDiagnosticsSection()
     {
         var settingsSource = ReadSourceWithoutComments("src", "MathFirst.App", "Components", "Pages", "Settings.razor");
 
-        // 1. Injects TelemetryExportCoordinator
-        Assert.True(
-            Regex.IsMatch(settingsSource, @"@inject\s+TelemetryExportCoordinator\b"),
-            "Settings.razor must inject TelemetryExportCoordinator.");
+        // 1. Settings.razor must NOT directly inject Tester-only services
+        Assert.DoesNotContain("@inject IAppPlatformInfo", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("@inject IClipboardService", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("@inject TelemetryExportCoordinator", settingsSource, StringComparison.Ordinal);
 
-        // 2. Invokes ExportAndShareAsync
-        Assert.Contains("ExportAndShareAsync", settingsSource, StringComparison.Ordinal);
+        // 2. Settings.razor must NOT contain direct action handlers or state
+        Assert.DoesNotContain("CopyDiagnosticsAsync", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExportTelemetryAsync", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("settings-copy-diagnostics-btn", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("settings-export-telemetry-btn", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_diagnosticMessage", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_telemetryMessage", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_isExporting", settingsSource, StringComparison.Ordinal);
 
-        // 3. Button disabled attribute bound to busy flag
-        Assert.True(
-            Regex.IsMatch(settingsSource, @"disabled\s*=\s*""@_isExporting""|disabled\s*=\s*""@\(_isExporting\)"""),
-            "Export button disabled attribute must be bound to _isExporting flag.");
+        // 3. Settings.razor must invoke the TesterDiagnosticsSection component
+        Assert.Contains("TesterDiagnosticsSection", settingsSource, StringComparison.Ordinal);
+    }
 
-        // 4. Sets _isExporting before await and resets in finally
+    [Fact]
+    public void TesterDiagnosticsSection_EncapsulatesTesterActionsBehindDiagnosticsSymbol()
+    {
+        var sectionSource = ReadSourceWithoutComments("src", "MathFirst.App", "Components", "Shared", "TesterDiagnosticsSection.cs");
+
+        // 1. Must define the compile-time diagnostics symbol condition
+        Assert.Contains("#if MATHFIRST_TESTER_DIAGNOSTICS", sectionSource, StringComparison.Ordinal);
+
+        // 2. Active branch must inject required services
+        Assert.Contains("ILocalizationService", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("AppBuildInfo", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("IAppPlatformInfo", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("IClipboardService", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("TelemetryExportCoordinator", sectionSource, StringComparison.Ordinal);
+
+        // 3. Active branch must contain action handlers and DOM classes
+        Assert.Contains("CopyDiagnosticsAsync", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("ExportTelemetryAsync", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("settings-copy-diagnostics-btn", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("settings-export-telemetry-btn", sectionSource, StringComparison.Ordinal);
+        Assert.Contains("settings-diagnostics-action", sectionSource, StringComparison.Ordinal);
+
+        // 4. Export action disables button during export and guards re-entry
         Assert.True(
-            Regex.IsMatch(settingsSource, @"_isExporting\s*=\s*true;[\s\S]*?await\s+[\w\.]*ExportAndShareAsync"),
+            Regex.IsMatch(sectionSource, @"_isExporting\s*=\s*true;[\s\S]*?await\s+[\w\.]*ExportAndShareAsync"),
             "_isExporting must be set to true before awaiting ExportAndShareAsync.");
 
         Assert.True(
-            Regex.IsMatch(settingsSource, @"finally\s*\{[\s\S]*?_isExporting\s*=\s*false;"),
+            Regex.IsMatch(sectionSource, @"finally\s*\{[\s\S]*?_isExporting\s*=\s*false;"),
             "_isExporting must be reset to false in a finally block.");
 
-        // 5. Guard check at start of export action
         Assert.True(
-            Regex.IsMatch(settingsSource, @"if\s*\(\s*_isExporting\s*\)\s*\{\s*return;?\s*\}|if\s*\(\s*_isExporting\s*\)\s*return;"),
+            Regex.IsMatch(sectionSource, @"if\s*\(\s*_isExporting\s*\)\s*\{\s*return;?\s*\}|if\s*\(\s*_isExporting\s*\)\s*return;"),
             "Export action must guard against concurrent invocation when _isExporting is true.");
     }
 
@@ -221,19 +247,38 @@ public sealed class SettingsTelemetryUiContractTests
     }
 
     [Fact]
-    public void DependencyInjection_TimeProvider_ResolvesSystemInstance()
+    public void DependencyInjection_CompositionBoundary_RegistersNormalAndConditionalServices()
     {
         var mauiSource = ReadSourceWithoutComments("src", "MathFirst.App", "MauiProgram.cs");
 
         var timeProviderMatches = Regex.Matches(mauiSource, @"AddSingleton<TimeProvider>\s*\(\s*TimeProvider\.System\s*\)");
         Assert.Single(timeProviderMatches);
 
+        // Normal-product services registered in all profiles
         Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<IInstallationIdStore,\s*MauiInstallationIdStore>\s*\(\s*\)"));
         Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<IInstallationIdProvider,\s*PreferenceInstallationIdProvider>\s*\(\s*\)"));
-        Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<ITelemetryJsonSerializer,\s*TelemetryJsonSerializer>\s*\(\s*\)"));
-        Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<ITelemetryShareService,\s*MauiTelemetryShareService>\s*\(\s*\)"));
-        Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<TelemetryExportCoordinator>\s*\(\s*\)"));
+        Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<ITelemetryShareCacheCleaner,\s*MauiTelemetryShareCacheCleaner>\s*\(\s*\)"));
         Assert.Single(Regex.Matches(mauiSource, @"AddSingleton<IAppResetCoordinator,\s*AppResetCoordinator>\s*\(\s*\)"));
+
+        // Tester-only services must be inside #if MATHFIRST_TESTER_DIAGNOSTICS
+        var rawMauiSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "MauiProgram.cs"));
+        var symbolIndex = rawMauiSource.IndexOf("#if MATHFIRST_TESTER_DIAGNOSTICS", StringComparison.Ordinal);
+        Assert.True(symbolIndex >= 0, "MauiProgram.cs must contain '#if MATHFIRST_TESTER_DIAGNOSTICS'.");
+
+        var conditionalSection = rawMauiSource[symbolIndex..];
+        Assert.Contains("AddSingleton<IAppPlatformInfo, MauiAppPlatformInfo>()", conditionalSection, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<IClipboardService, MauiClipboardService>()", conditionalSection, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<ITelemetryJsonSerializer, TelemetryJsonSerializer>()", conditionalSection, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<ITelemetryShareService, MauiTelemetryShareService>()", conditionalSection, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<TelemetryExportCoordinator>()", conditionalSection, StringComparison.Ordinal);
+
+        // Ensure Tester-only services are NOT registered before the conditional block
+        var preSymbolSection = rawMauiSource[..symbolIndex];
+        Assert.DoesNotContain("MauiAppPlatformInfo", preSymbolSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("MauiClipboardService", preSymbolSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("TelemetryJsonSerializer", preSymbolSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("MauiTelemetryShareService", preSymbolSection, StringComparison.Ordinal);
+        Assert.DoesNotContain("TelemetryExportCoordinator", preSymbolSection, StringComparison.Ordinal);
 
         Assert.DoesNotContain("DateTime.Now", mauiSource);
         Assert.DoesNotContain("DateTime.UtcNow", mauiSource);

@@ -133,6 +133,7 @@ public sealed class TesterApkPackagingContractTests
         Assert.Contains("Release", invocation.Arguments);
         Assert.Contains("-p:AndroidPackageFormat=apk", invocation.Arguments);
         Assert.Contains("-p:ApplicationId=com.tachiguro.mathfirst.tester", invocation.Arguments);
+        Assert.Contains("-p:MathFirstEnableTesterDiagnostics=true", invocation.Arguments);
         Assert.Contains("-p:MathFirstBuildClassification=Tester", invocation.Arguments);
         Assert.Contains($"-p:MathFirstSourceCommit={FullSha}", invocation.Arguments);
         Assert.Contains("-p:AndroidKeyStore=false", invocation.Arguments);

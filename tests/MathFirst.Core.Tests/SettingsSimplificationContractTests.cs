@@ -154,10 +154,8 @@ public sealed class SettingsSimplificationContractTests : IDisposable
         Assert.Contains("Settings_Build", settingsSource, StringComparison.Ordinal);
         Assert.Contains("Settings_Source", settingsSource, StringComparison.Ordinal);
 
-        // 11. Tester diagnostics & telemetry (current pre-P6 state)
-        Assert.Contains("Settings_CopyDiagnostics", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("CopyDiagnosticsAsync", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("ExportTelemetryAsync", settingsSource, StringComparison.Ordinal);
+        // 11. Tester diagnostics & telemetry component invocation
+        Assert.Contains("TesterDiagnosticsSection", settingsSource, StringComparison.Ordinal);
     }
 
     // =========================================================================
@@ -282,8 +280,8 @@ public sealed class SettingsSimplificationContractTests : IDisposable
 
         // 3. Full Local Reset: resets database to Stage 1, Schema V9, and clears preferences
         var idProvider = new TestInstallationIdProvider();
-        var shareService = new TestTelemetryShareService();
-        var coordinator = new AppResetCoordinator(session, prefStore, idProvider, shareService);
+        var cacheCleaner = new TestTelemetryShareCacheCleaner();
+        var coordinator = new AppResetCoordinator(session, prefStore, idProvider, cacheCleaner);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -291,7 +289,7 @@ public sealed class SettingsSimplificationContractTests : IDisposable
         Assert.Equal(0, session.Progression.PracticePosition);
         Assert.Equal(9, session.Progression.SchemaVersion);
         Assert.Equal(1, idProvider.ClearCallCount);
-        Assert.Equal(1, shareService.PurgeCallCount);
+        Assert.Equal(1, cacheCleaner.PurgeCallCount);
     }
 
     // =========================================================================
@@ -397,12 +395,9 @@ public sealed class SettingsSimplificationContractTests : IDisposable
         public void ClearInstallationId() => ClearCallCount++;
     }
 
-    private sealed class TestTelemetryShareService : ITelemetryShareService
+    private sealed class TestTelemetryShareCacheCleaner : ITelemetryShareCacheCleaner
     {
         public int PurgeCallCount { get; private set; }
-        public Task<string> PrepareShareFileAsync(string fileName, Stream content, System.Threading.CancellationToken cancellationToken = default) =>
-            Task.FromResult("/tmp/" + fileName);
-        public Task DispatchSystemShareAsync(string filePath, string title) => Task.CompletedTask;
         public void PurgeShareCache() => PurgeCallCount++;
     }
 }
