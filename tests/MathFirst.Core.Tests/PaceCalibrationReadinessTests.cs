@@ -552,12 +552,12 @@ public sealed class PaceCalibrationReadinessTests : IDisposable
         await using var conn = new SqliteConnection($"Data Source={dbPath}");
         await conn.OpenAsync();
 
-        // 1. Schema version is exactly 8
+        // 1. Schema version is exactly 9
         using (var versionCmd = conn.CreateCommand())
         {
             versionCmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
             var version = await versionCmd.ExecuteScalarAsync();
-            Assert.Equal("8", version);
+            Assert.Equal("9", version);
         }
 
         // 2. Expected tables only: schema_info, learner_progression, operation_progression, item_learning_state, attempt_history, fsrs_card_state

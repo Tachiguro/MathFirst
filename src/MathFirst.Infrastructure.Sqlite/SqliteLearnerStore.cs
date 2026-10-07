@@ -79,6 +79,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             CREATE TABLE IF NOT EXISTS learner_progression (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 practice_position INTEGER NOT NULL DEFAULT 0,
+                curriculum_stage INTEGER NOT NULL DEFAULT 1 CHECK (curriculum_stage BETWEEN 1 AND 4),
                 updated_at TEXT NOT NULL
             );
 
@@ -168,6 +169,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
@@ -177,6 +179,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
@@ -185,6 +188,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
@@ -192,25 +196,33 @@ public sealed class SqliteLearnerStore : ILearnerStore
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 5)
         {
             await MigrateV5ToV6Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 6)
         {
             await MigrateV6ToV7Async(_connection, cancellationToken).ConfigureAwait(false);
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 7)
         {
             await MigrateV7ToV8Async(_connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 8)
+        {
+            await MigrateV8ToV9Async(_connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == LearnerProgression.DefaultSchemaVersion)
         {
-            // Already at default V8
+            // Already at default V9
         }
         else if (version > LearnerProgression.DefaultSchemaVersion)
         {
@@ -667,8 +679,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
             try
             {
                 var storedPracticePosition = await ReadPracticePositionInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
+                var storedCurriculumStage = await ReadCurriculumStageInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
                 var storedOperationProgressions = await ReadOperationProgressionsInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
-                ValidateNewAcceptedSubmission(changeSet, storedPracticePosition, storedOperationProgressions);
+                ValidateNewAcceptedSubmission(changeSet, storedPracticePosition, storedCurriculumStage, storedOperationProgressions);
             }
             catch (InvalidOperationException ex)
             {
@@ -778,16 +791,18 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 progCmd.Transaction = transaction;
                 progCmd.CommandText = @"
                     INSERT INTO learner_progression (
-                        id, practice_position, updated_at
+                        id, practice_position, curriculum_stage, updated_at
                     ) VALUES (
-                        1, @practice_position, @updated_at
+                        1, @practice_position, @curriculum_stage, @updated_at
                     )
                     ON CONFLICT(id) DO UPDATE SET
                         practice_position = excluded.practice_position,
+                        curriculum_stage = excluded.curriculum_stage,
                         updated_at = excluded.updated_at;
                 ";
                 var p = changeSet.UpdatedProgression;
                 progCmd.Parameters.AddWithValue("@practice_position", p.PracticePosition);
+                progCmd.Parameters.AddWithValue("@curriculum_stage", (int)p.CurriculumStage);
                 progCmd.Parameters.AddWithValue("@updated_at", DateTimeOffset.UtcNow.ToString("O"));
                 await progCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -907,10 +922,11 @@ public sealed class SqliteLearnerStore : ILearnerStore
             using var progCmd = _connection.CreateCommand();
             progCmd.Transaction = transaction;
             progCmd.CommandText = @"
-                INSERT INTO learner_progression (id, practice_position, updated_at)
-                VALUES (1, @practice_position, @updated_at);
+                INSERT INTO learner_progression (id, practice_position, curriculum_stage, updated_at)
+                VALUES (1, @practice_position, @curriculum_stage, @updated_at);
             ";
             progCmd.Parameters.AddWithValue("@practice_position", fresh.PracticePosition);
+            progCmd.Parameters.AddWithValue("@curriculum_stage", (int)fresh.CurriculumStage);
             progCmd.Parameters.AddWithValue("@updated_at", DateTimeOffset.UtcNow.ToString("O"));
             await progCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             foreach (var operation in fresh.OperationProgressions.Values)
@@ -1044,6 +1060,28 @@ public sealed class SqliteLearnerStore : ILearnerStore
         return result is null or DBNull ? 0 : Convert.ToInt64(result);
     }
 
+    private static async Task<CurriculumStage> ReadCurriculumStageInTxAsync(
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var command = transaction.Connection!.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT curriculum_stage FROM learner_progression WHERE id = 1;";
+        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (result is null or DBNull)
+        {
+            return CurriculumStage.Stage1_Addition;
+        }
+
+        var rawStage = Convert.ToInt32(result);
+        if (rawStage < 1 || rawStage > 4 || !Enum.IsDefined(typeof(CurriculumStage), rawStage))
+        {
+            throw new InvalidOperationException($"Invalid stored curriculum stage {rawStage}.");
+        }
+
+        return (CurriculumStage)rawStage;
+    }
+
     private static async Task<IReadOnlyDictionary<ArithmeticOperation, OperationProgression>> ReadOperationProgressionsInTxAsync(
         SqliteTransaction transaction,
         CancellationToken cancellationToken)
@@ -1069,6 +1107,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
     private static void ValidateNewAcceptedSubmission(
         SubmissionChangeSet changeSet,
         long storedPracticePosition,
+        CurriculumStage storedCurriculumStage,
         IReadOnlyDictionary<ArithmeticOperation, OperationProgression> storedOperationProgressions)
     {
         ValidateAttemptAndRelatedState(changeSet);
@@ -1090,6 +1129,22 @@ public sealed class SqliteLearnerStore : ILearnerStore
         if (changeSet.UpdatedProgression.PracticePosition != attemptPracticePosition)
         {
             throw new InvalidOperationException("Updated learner progression practice position must match the accepted attempt.");
+        }
+
+        var candidateStage = changeSet.UpdatedProgression.CurriculumStage;
+        if ((int)candidateStage < 1 || (int)candidateStage > 4 || !Enum.IsDefined(typeof(CurriculumStage), candidateStage))
+        {
+            throw new InvalidOperationException($"Candidate curriculum stage {candidateStage} is invalid.");
+        }
+
+        if (candidateStage < storedCurriculumStage)
+        {
+            throw new InvalidOperationException($"Curriculum stage cannot regress from {storedCurriculumStage} to {candidateStage}.");
+        }
+
+        if (candidateStage > storedCurriculumStage + 1)
+        {
+            throw new InvalidOperationException($"Curriculum stage cannot advance more than one stage at a time (from {storedCurriculumStage} to {candidateStage}).");
         }
 
         var candidateOperationProgressions = ResolveOperationProgressions(changeSet);
@@ -1255,18 +1310,25 @@ public sealed class SqliteLearnerStore : ILearnerStore
         }
 
         using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "SELECT practice_position, updated_at FROM learner_progression WHERE id = 1;";
+        cmd.CommandText = "SELECT practice_position, curriculum_stage, updated_at FROM learner_progression WHERE id = 1;";
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
         if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             var practicePosition = reader.GetInt64(0);
-            var updatedStr = reader.GetString(1);
+            var rawStage = reader.GetInt32(1);
+            if (rawStage < 1 || rawStage > 4 || !Enum.IsDefined(typeof(CurriculumStage), rawStage))
+            {
+                throw new InvalidOperationException($"Invalid stored curriculum stage {rawStage}.");
+            }
+            var stage = (CurriculumStage)rawStage;
+            var updatedStr = reader.GetString(2);
             var updated = DateTimeOffset.TryParse(updatedStr, out var dto) ? dto : DateTimeOffset.UtcNow;
 
             return new LearnerProgression
             {
                 PracticePosition = practicePosition,
+                CurriculumStage = stage,
                 UpdatedAt = updated
             };
         }
@@ -1274,8 +1336,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
         return LearnerProgression.CreateFresh();
     }
 
-    private async Task SaveProgressionAsync(LearnerProgression progression, CancellationToken cancellationToken)
+    public async Task SaveProgressionAsync(LearnerProgression progression, CancellationToken cancellationToken = default)
     {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
         if (_connection is null)
         {
             return;
@@ -1283,16 +1347,25 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO learner_progression (id, practice_position, updated_at)
-            VALUES (1, @practice_position, @updated_at)
-            ON CONFLICT(id) DO UPDATE SET practice_position = excluded.practice_position, updated_at = excluded.updated_at;";
+            INSERT INTO learner_progression (id, practice_position, curriculum_stage, updated_at)
+            VALUES (1, @practice_position, @curriculum_stage, @updated_at)
+            ON CONFLICT(id) DO UPDATE SET
+                practice_position = excluded.practice_position,
+                curriculum_stage = excluded.curriculum_stage,
+                updated_at = excluded.updated_at;";
         cmd.Parameters.AddWithValue("@practice_position", progression.PracticePosition);
+        cmd.Parameters.AddWithValue("@curriculum_stage", (int)progression.CurriculumStage);
         cmd.Parameters.AddWithValue("@updated_at", progression.UpdatedAt.ToString("O"));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         foreach (var operation in progression.OperationProgressions.Values)
         {
             using var operationCmd = _connection.CreateCommand();
-            operationCmd.CommandText = "INSERT INTO operation_progression (operation, band_index, band_started_practice_position) VALUES (@operation, @band, @start);";
+            operationCmd.CommandText = @"
+                INSERT INTO operation_progression (operation, band_index, band_started_practice_position)
+                VALUES (@operation, @band, @start)
+                ON CONFLICT(operation) DO UPDATE SET
+                    band_index = excluded.band_index,
+                    band_started_practice_position = excluded.band_started_practice_position;";
             operationCmd.Parameters.AddWithValue("@operation", operation.Operation.ToString());
             operationCmd.Parameters.AddWithValue("@band", operation.BandIndex);
             operationCmd.Parameters.AddWithValue("@start", operation.BandStartedPracticePosition);
@@ -2374,6 +2447,105 @@ public sealed class SqliteLearnerStore : ILearnerStore
         catch
         {
             try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV8ToV9Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var tx = connection.BeginTransaction();
+        try
+        {
+            var operationProgressions = await ReadOperationProgressionsInTxAsync(tx, cancellationToken).ConfigureAwait(false);
+
+            var itemStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+            using (var itemCmd = connection.CreateCommand())
+            {
+                itemCmd.Transaction = tx;
+                itemCmd.CommandText = "SELECT fact_id, operation, left_operand, right_operand, total_attempts, correct_attempts, incorrect_attempts, consecutive_correct, last_latency_ms, rolling_latency_ms, fluent_streak, is_mastered, needs_remediation, remediation_due_order, last_practiced_order, last_practiced_at FROM item_learning_state;";
+                using var reader = await itemCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    var op = Enum.Parse<ArithmeticOperation>(reader.GetString(1));
+                    var item = new ItemLearningState
+                    {
+                        FactId = reader.GetString(0),
+                        Operation = op,
+                        LeftOperand = reader.GetInt32(2),
+                        RightOperand = reader.GetInt32(3),
+                        TotalAttempts = reader.GetInt32(4),
+                        CorrectAttempts = reader.GetInt32(5),
+                        IncorrectAttempts = reader.GetInt32(6),
+                        ConsecutiveCorrectStreak = reader.GetInt32(7),
+                        LastLatencyMs = reader.GetInt64(8),
+                        RollingLatencyMs = reader.GetInt64(9),
+                        FluentStreak = reader.GetInt32(10),
+                        IsProvisionallyMastered = reader.GetInt32(11) == 1,
+                        NeedsRemediation = reader.GetInt32(12) == 1,
+                        RemediationDueOrder = reader.GetInt32(13),
+                        LastPracticedOrder = reader.GetInt32(14),
+                        LastPracticedAt = reader.IsDBNull(15) ? null : DateTimeOffset.Parse(reader.GetString(15), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                    };
+                    itemStates[item.FactId] = item;
+                }
+            }
+
+            var stage = CurriculumStage.Stage1_Addition;
+            var isAddReady = CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage1_Addition, itemStates, operationProgressions)
+                && CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage1_Addition, itemStates) <= 1;
+
+            if (isAddReady)
+            {
+                stage = CurriculumStage.Stage2_Subtraction;
+                var isSubReady = CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage2_Subtraction, itemStates, operationProgressions)
+                    && CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage2_Subtraction, itemStates) <= 1;
+
+                if (isSubReady)
+                {
+                    stage = CurriculumStage.Stage3_Multiplication;
+                    var isMulReady = CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage3_Multiplication, itemStates, operationProgressions)
+                        && CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage3_Multiplication, itemStates) <= 1;
+
+                    if (isMulReady)
+                    {
+                        stage = CurriculumStage.Stage4_Division;
+                    }
+                }
+            }
+
+            using (var alterCmd = connection.CreateCommand())
+            {
+                alterCmd.Transaction = tx;
+                alterCmd.CommandText = @"
+                    CREATE TABLE learner_progression_v9 (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        practice_position INTEGER NOT NULL DEFAULT 0,
+                        curriculum_stage INTEGER NOT NULL DEFAULT 1 CHECK (curriculum_stage BETWEEN 1 AND 4),
+                        updated_at TEXT NOT NULL
+                    );
+
+                    INSERT INTO learner_progression_v9 (id, practice_position, curriculum_stage, updated_at)
+                    SELECT id, practice_position, @stage, updated_at FROM learner_progression;
+
+                    DROP TABLE learner_progression;
+                    ALTER TABLE learner_progression_v9 RENAME TO learner_progression;
+                ";
+                alterCmd.Parameters.AddWithValue("@stage", (int)stage);
+                await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            using (var updateSchemaCmd = connection.CreateCommand())
+            {
+                updateSchemaCmd.Transaction = tx;
+                updateSchemaCmd.CommandText = "UPDATE schema_info SET value = '9' WHERE key = 'schema_version';";
+                await updateSchemaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
             throw;
         }
     }

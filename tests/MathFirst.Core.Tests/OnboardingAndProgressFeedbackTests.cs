@@ -219,7 +219,7 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
     {
         using var store = new SqliteLearnerStore(GetTempDbPath());
         var preferences = InMemoryPreferenceStore.WithEnabled([ArithmeticOperation.Multiplication]);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync();
 
         await CompleteAttemptsAsync(session, 20, AttemptOutcome.Correct);
@@ -235,7 +235,7 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
     {
         using var store = new SqliteLearnerStore(GetTempDbPath());
         var preferences = InMemoryPreferenceStore.WithEnabled([ArithmeticOperation.Multiplication]);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync();
         await CompleteAttemptsAsync(session, 20, AttemptOutcome.Correct);
         Assert.NotEmpty(session.PendingCheckIn!.ProgressionChanges);
@@ -253,7 +253,7 @@ public sealed class OnboardingAndProgressFeedbackTests : IDisposable
     {
         using var store = new SqliteLearnerStore(GetTempDbPath());
         var preferences = InMemoryPreferenceStore.WithEnabled([ArithmeticOperation.Multiplication]);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync();
         await CompleteAttemptsAsync(session, 20, AttemptOutcome.Correct);
         Assert.NotEmpty(session.PendingCheckIn!.ProgressionChanges);

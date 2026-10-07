@@ -22,7 +22,7 @@ public sealed class LongRunIndependentProgressionTests
         {
             using (var store = new SqliteLearnerStore(path))
             {
-                var session = new TrainingSession(store);
+                var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
                 await session.InitializeAsync(startTiming: false);
                 for (var position = 1; position <= 500; position++)
                 {
@@ -40,7 +40,7 @@ public sealed class LongRunIndependentProgressionTests
             await SeedHistoricalMaterializationAsync(path, 1200);
 
             using var reopened = new SqliteLearnerStore(path);
-            var reopenedSession = new TrainingSession(reopened);
+            var reopenedSession = new TrainingSession(reopened, practiceMode: PracticeMode.Custom);
             await reopenedSession.InitializeAsync(startTiming: false);
 
             Assert.True(
@@ -80,7 +80,7 @@ public sealed class LongRunIndependentProgressionTests
     public async Task StrongLearner_LongRun_UsesBoundedRuntimeEvidenceWithoutSelectorDeadEnds()
     {
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var operationSlots = Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, _ => 0);
@@ -127,7 +127,7 @@ public sealed class LongRunIndependentProgressionTests
     public async Task StrongFreshLearner_AdvancesInitialMultiplicationAndNaturallyReceivesFactorTwo()
     {
         using var store = new InMemoryLearnerStore();
-        var session = new TrainingSession(store);
+        var session = new TrainingSession(store, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var mulAttempts = 0;
@@ -389,6 +389,7 @@ public sealed class LongRunIndependentProgressionTests
         var practicePosition = targetMulPos - 1;
         var progression = LearnerProgression.CreateFresh();
         progression.PracticePosition = practicePosition;
+        progression.CurriculumStage = CurriculumStage.Stage4_Division;
         progression.StoreRevision = 7;
         progression.OperationProgressions[ArithmeticOperation.Multiplication] =
             new OperationProgression(ArithmeticOperation.Multiplication, bandIndex, 0);

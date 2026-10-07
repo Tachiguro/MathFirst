@@ -31,7 +31,7 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
         var path = Path.Combine(_directory, "mixed-weak.db");
         using var store = new SqliteLearnerStore(path);
         var clock = new ScriptedClock();
-        var session = new TrainingSession(store, clock);
+        var session = new TrainingSession(store, clock, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
         var slots = Enum.GetValues<ArithmeticOperation>().ToDictionary(operation => operation, _ => 0);
 
@@ -202,7 +202,7 @@ public sealed class BoundedSelectionIntegrationTests : IDisposable
             async Task OpenAsync()
             {
                 store = new SqliteLearnerStore(path);
-                session = new TrainingSession(store, clock);
+                session = new TrainingSession(store, clock, practiceMode: PracticeMode.Custom);
                 await session.InitializeAsync(startTiming: false);
                 operationAcceptedCounts = session.OperationAcceptedAttemptCounts.ToDictionary(pair => pair.Key, pair => pair.Value);
             }

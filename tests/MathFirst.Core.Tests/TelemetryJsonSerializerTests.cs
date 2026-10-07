@@ -915,37 +915,39 @@ public sealed class TelemetryJsonSerializerTests
                         'legacy-v7-sub-1', 'add:3+4', 'Addition', 3, 4, 7, 7, 1, 1, 1200,
                         '2026-09-20T10:00:00.0000000+00:00', 'Correct', 1, 1, 3000, 2500, 'Due', 1
                     );
-                    CREATE TABLE item_state (
+                    CREATE TABLE item_learning_state (
                         fact_id TEXT PRIMARY KEY,
                         operation TEXT NOT NULL,
                         left_operand INTEGER NOT NULL,
                         right_operand INTEGER NOT NULL,
-                        first_seen_timestamp TEXT NOT NULL,
-                        last_attempt_timestamp TEXT NOT NULL,
                         total_attempts INTEGER NOT NULL,
                         correct_attempts INTEGER NOT NULL,
-                        consecutive_correct_streak INTEGER NOT NULL,
+                        incorrect_attempts INTEGER NOT NULL,
+                        consecutive_correct INTEGER NOT NULL,
                         last_latency_ms INTEGER NOT NULL,
-                        study_state TEXT NOT NULL,
-                        difficulty REAL NOT NULL,
-                        stability REAL NOT NULL,
-                        retrievability REAL NOT NULL,
-                        fsrs_due_timestamp TEXT NOT NULL,
-                        fsrs_last_review_timestamp TEXT,
-                        consecutive_lapses INTEGER NOT NULL,
-                        last_rating TEXT NOT NULL
+                        rolling_latency_ms INTEGER NOT NULL,
+                        fluent_streak INTEGER NOT NULL,
+                        is_mastered INTEGER NOT NULL,
+                        needs_remediation INTEGER NOT NULL,
+                        remediation_due_order INTEGER NOT NULL,
+                        last_practiced_order INTEGER NOT NULL,
+                        last_practiced_at TEXT
                     );
+                    CREATE TABLE operation_progression (
+                        operation TEXT PRIMARY KEY,
+                        band_index INTEGER NOT NULL CHECK (band_index >= 0),
+                        band_started_practice_position INTEGER NOT NULL CHECK (band_started_practice_position >= 0)
+                    );
+                    INSERT INTO operation_progression VALUES ('Addition', 0, 0);
+                    INSERT INTO operation_progression VALUES ('Subtraction', 0, 0);
+                    INSERT INTO operation_progression VALUES ('Multiplication', 0, 0);
+                    INSERT INTO operation_progression VALUES ('Division', 0, 0);
                     CREATE TABLE learner_progression (
-                        singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
-                        current_operation TEXT NOT NULL,
-                        active_band INTEGER NOT NULL,
-                        highest_unlocked_band INTEGER NOT NULL,
-                        practice_position INTEGER NOT NULL,
-                        consecutive_correct_in_band INTEGER NOT NULL,
-                        total_facts_mastered INTEGER NOT NULL,
-                        schema_version INTEGER NOT NULL
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        practice_position INTEGER NOT NULL DEFAULT 0,
+                        updated_at TEXT NOT NULL
                     );
-                    INSERT INTO learner_progression VALUES (1, 'Addition', 1, 1, 1, 0, 0, 7);
+                    INSERT INTO learner_progression VALUES (1, 1, '2026-09-20T10:00:00.0000000+00:00');
                 ";
                 await cmd.ExecuteNonQueryAsync();
             }

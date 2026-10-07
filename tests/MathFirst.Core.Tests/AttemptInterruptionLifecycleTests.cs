@@ -125,7 +125,7 @@ public sealed class AttemptInterruptionLifecycleTests
             preferenceStore = new SingleOperationPreferenceStore(ArithmeticOperation.Addition);
         }
         var store = new InMemoryStore(snapshot);
-        var session = new TrainingSession(store, clock, preferenceStore: preferenceStore);
+        var session = new TrainingSession(store, clock, preferenceStore: preferenceStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: startTiming);
         return (session, clock, store);
     }

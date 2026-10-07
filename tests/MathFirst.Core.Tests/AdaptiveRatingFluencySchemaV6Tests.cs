@@ -179,7 +179,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         await store.InitializeAsync();
         var snapshot = await store.LoadSnapshotAsync();
 
-        Assert.Equal(8, snapshot.SchemaVersion);
+        Assert.Equal(9, snapshot.SchemaVersion);
 
         await store.CloseAsync();
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -374,7 +374,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         await connection.OpenAsync();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-        Assert.Equal("8", Assert.IsType<string>(await command.ExecuteScalarAsync()));
+        Assert.Equal("9", Assert.IsType<string>(await command.ExecuteScalarAsync()));
 
         command.CommandText = "SELECT submission_id, is_fluent, practice_position FROM attempt_history ORDER BY submission_id;";
         using var reader = await command.ExecuteReaderAsync();

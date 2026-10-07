@@ -881,4 +881,63 @@ The bounded P2b package implements digit-scaled Cyber Defense critical hit timin
 
 - **Implementation Evidence Boundary**: The 2,027 passing Core tests represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires complete dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
 - **Physical Device Boundary**: Pre-P2b observations on Samsung SM-S948B (Galaxy S26 Ultra, Android 16) motivated the P2b refinements; candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b` has **NOT** been tested on physical hardware.
-- **Delivery State**: P2b is implemented and review-approved on task branch `feat/p2b-gameplay-startup-refinements`, unmerged, unpushed, with no open Pull Request; formal `FULL_VALIDATION` remains **PENDING**.
+- **Delivery State**: P2b achieved exact-candidate `FULL_VALIDATION_PASS` and was merged into `main` via PR #64 at merge commit `f580a7154a4043a5097ffd852b5cf454be2cc397`.
+
+---
+
+## 26. P3 Cumulative Operation Unlock Progression Contracts & Reviewed Test Evidence
+
+The P3 implementation establishes a cumulative arithmetic progression across four discrete stages in `PracticeMode.CurriculumManaged`, governed by monotonic persisted learner state, tolerant prerequisite D01 frontier readiness, and aggregate broad weakness gating. This behavior is covered by automated contract, regression, and simulation suites in `MathFirst.Core.Tests`:
+
+1. **Cumulative Operation Unlock Progression Contracts (`CurriculumUnlockPolicyTests`, `CurriculumStage`)**:
+   - **Four Cumulative Stages**:
+     - Stage 1: Addition ($+$)
+     - Stage 2: Addition & Subtraction ($+$, $-$)
+     - Stage 3: Addition, Subtraction, & Multiplication ($+$, $-$, $\times$)
+     - Stage 4: Addition, Subtraction, Multiplication, & Division ($+$, $-$, $\times$, $\div$)
+   - **Tolerant Prerequisite D01 Readiness**: Stage transitions require full D01 frontier introduction (`IntroducedFactIds.ContainsAll(prerequisiteFrontier)`) and $\le 1$ prerequisite `NeedsRemediation` fact (or `BandIndex >= 1`).
+   - **Aggregate Broad Weakness Gating**: Stage advancement is blocked if aggregate broad weakness is detected ($\ge 2$ eligible `NeedsRemediation` facts across all active operations). Broad weakness respects acquisition ownership, active progression, and effective Guided number space gates.
+   - **Decoupled Non-Factors**: Operation unlock does not depend on chronological age, school grade, onboarding answers, arbitrary attempt counts, response latency, pace calibration readiness, Cyber Defense Critical Hit scoring, or fluency alone.
+
+2. **Persistence Schema V9 & Conservative Migration Contracts (`SchemaV9MigrationTests`, `LearnerStore`)**:
+   - **Schema V9 Invariants**: Persists `curriculum_stage` INTEGER NOT NULL DEFAULT 1 (`CHECK (curriculum_stage BETWEEN 1 AND 4)`) in table `learner_progression`.
+   - **Atomic State Commit**: `CurriculumStage` is committed atomically alongside attempts, item learning states, operation progression, FSRS states, and `PracticePosition`. Persistence failures roll back completely without publishing an unlock.
+   - **Conservative Migration**: V8 $\to$ V9 migration computes stage from cumulative historical evidence (BandIndex $\ge 1$ or full D01 introduction with $\le 1$ weak fact). UI preference booleans, historical Custom-mode access, and unearned Division attempts have zero stage migration authority.
+   - **Dormant History Preservation**: Historical progression, FSRS states, and attempt records for locked operations remain preserved and resume seamlessly when the operation is unlocked.
+
+3. **Monotonicity & Reset Lifecycle Contracts (`P3MonotonicityRegressionTests`, `ResetWorkflowTests`)**:
+   - **Monotonic Progression (M1–M7 Properties)**: An earned `CurriculumStage` never regresses during normal learning. Emergent broad weakness blocks only advancement to the *next* stage and cannot relock the current stage.
+   - **Reset Invariants**: Explicit learning-destructive resets (`Reset Learning Progress`, `Full Local Reset`) restore stage to Stage 1. UI preference resets (`Reset UI Preferences`) restore settings defaults without altering `CurriculumStage`.
+
+4. **Practice Mode Separation & Settings Contracts (`SettingsUnlockContractTests`, `PracticeSession`)**:
+   - **CurriculumManaged Mode**: Standard practice mode where active operations derive strictly from `CurriculumStage`. Operation controls in Settings render as read-only unlock indicators. Guided Number-Space Gate operates with Addition Ceiling coupling until G3 decoupling at `BandIndex >= 3`.
+   - **Custom Mode**: Explicit diagnostic/testing/legacy mode where active operations derive from stored or programmatic operation preferences. Normal application Settings remains read-only for curriculum operation status; P3 does not expose interactive Custom-mode operation controls.
+   - **Benchmark Isolation**: The 482 multi-operation benchmark suite executes under `PracticeMode.Custom` with all four operations enabled from start to isolate MF-LEARN-006 remediation authority from curriculum unlock gates.
+
+5. **Learner Persona Simulations & Regression Coverage (`P3PersonaSimulationRegressionTests`, `P3SchedulerTransitionRegressionTests`, `P3LegacyDormantEvidenceRegressionTests`)**:
+   - **Persona A (Struggling Beginner)**: Retained safely in Stage 1 Addition; broad weakness prevents premature Subtraction unlock until foundational mastery is achieved.
+   - **Persona B (Mixed Learner with Single Weak Fact)**: Advances through Stage 2 and Stage 3 despite a single isolated difficult fact; broad weakness triggers only upon accumulating $\ge 2$ concurrent weak facts.
+   - **Persona C (Fluent / Accelerated Learner)**: Rapidly unlocks Stage 2, Stage 3, and Stage 4 upon completing foundational D01 frontiers with high accuracy.
+   - **Scheduler Transitions**: Verifies smooth 10-slot role distribution expansion across 1 $\to$ 2 $\to$ 3 $\to$ 4 active operations without starvation, role inversion, or duplicate positions.
+
+### Implementation & Review Test Evidence (Candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5`)
+
+- **Candidate Commit**: `d1e794cf529598e1d57ae39dbe790bc51ede81d5` (Slice 4 HEAD on `feat/p3-cumulative-operation-unlock-progression`).
+- **Base Commit**: `f580a7154a4043a5097ffd852b5cf454be2cc397` (`main` after PR #64 merge).
+- **Consolidated Review Verdict**: `P3_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit, 3 informational Notes).
+- **Implementation Core Test Evidence**: **2,196 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Focused P3 Test Evidence (169 passed, 0 failed, 0 skipped)**:
+  - `CurriculumUnlockPolicyTests`: 42 passed
+  - `SchemaV9MigrationTests`: 23 passed
+  - `TrainingSessionUnlockIntegrationTests`: 21 passed
+  - `SettingsUnlockContractTests`: 15 passed
+  - `P3PersonaSimulationRegressionTests`: 18 passed
+  - `P3MonotonicityRegressionTests`: 20 passed
+  - `P3SchedulerTransitionRegressionTests`: 16 passed
+  - `P3LegacyDormantEvidenceRegressionTests`: 14 passed
+- **High-Risk Adjacent Suites**: 190 passed, 0 failed, 0 skipped (across `PracticeBalanceIntegrationTests`, `GuidedNumberSpaceSelectionTests`, `PracticeSessionIntegrationTests`, `StaleSelectionEvidenceRemediationTests`, `BoundedSelectionIntegrationTests`, and `ResetWorkflowTests`).
+
+### Evidence Boundary Principles & Validation State
+
+- **Implementation Evidence Boundary**: The 2,196 passing Core tests represent REVIEW_ONLY implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
+- **Delivery State**: P3 is implemented and review-approved on task branch `feat/p3-cumulative-operation-unlock-progression`, unmerged, unpushed, with no open Pull Request; documentation reconciliation is complete and formal `FULL_VALIDATION` remains **PENDING**.

@@ -57,7 +57,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations([ArithmeticOperation.Addition]);
 
-        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Attempt 1: Addition -> correct
@@ -82,7 +82,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // 200 all-four attempts
@@ -133,7 +133,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Advance through 400 attempts to get operations to dense bands
@@ -183,7 +183,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Run some attempts with mistakes on Subtraction to create FSRS review schedules
@@ -247,7 +247,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations([ArithmeticOperation.Addition]);
 
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         for (int i = 0; i < 300; i++)
@@ -279,7 +279,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations([ArithmeticOperation.Addition]);
 
-        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // 1. Submit first fact and trigger evidence preparation failure on post-write
@@ -372,7 +372,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations([ArithmeticOperation.Addition]);
 
-        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Position 0 -> Practice fact 1 (Addition)
@@ -418,7 +418,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         var prefStore = new TestPreferenceStore();
         prefStore.SetEnabledOperations([ArithmeticOperation.Addition]);
 
-        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore);
+        var session = new TrainingSession(failingStore, new FixedClock(), preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Turn 1 (pos 1): Practice fact 1 (Addition)
@@ -479,7 +479,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         {
             await store.InitializeAsync();
             var clock = new AdvancingTestClock();
-            var session = new TrainingSession(store, clock, preferenceStore: prefStore);
+            var session = new TrainingSession(store, clock, preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: true);
 
             // 10 clean attempts (1000ms each)
@@ -508,7 +508,7 @@ public sealed class RuntimePersistenceRegressionTests : IDisposable
         {
             await store.InitializeAsync();
             var clock = new AdvancingTestClock();
-            var session = new TrainingSession(store, clock, preferenceStore: prefStore);
+            var session = new TrainingSession(store, clock, preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
             await session.InitializeAsync(startTiming: true);
 
             // Verify older eligible attempts are rehydrated and used for adaptive pace calculation

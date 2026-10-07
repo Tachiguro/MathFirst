@@ -43,7 +43,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Attempt 1: Op1 (pos 1) -> correct
@@ -94,7 +94,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Attempt 1: Op1 (pos 1) -> correct
@@ -145,7 +145,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         preferences.SetEnabledOperations([ArithmeticOperation.Addition]);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         var factId = session.CurrentFact.Id;
@@ -193,7 +193,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Complete 19 correct attempts
@@ -242,7 +242,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Turn 1 (pos 1): Addition -> correct
@@ -286,7 +286,7 @@ public sealed class StaleSelectionEvidenceRemediationTests : IDisposable
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
         using var store = new SqliteLearnerStore(path);
-        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences);
+        var session = new TrainingSession(store, new FixedClock(), preferenceStore: preferences, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: false);
 
         // Part 1: All 4 operations (4 attempts completed, 5th committed)

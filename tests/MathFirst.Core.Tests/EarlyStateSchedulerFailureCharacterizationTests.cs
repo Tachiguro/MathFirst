@@ -52,7 +52,7 @@ public sealed class EarlyStateSchedulerFailureCharacterizationTests : IDisposabl
         var dbPath = GetDatabasePath("live_advance");
         using var store = new SqliteLearnerStore(dbPath);
         var clock = new ScriptedClock();
-        var session = new TrainingSession(store, clock);
+        var session = new TrainingSession(store, clock, practiceMode: PracticeMode.Custom);
 
         await session.InitializeAsync(startTiming: true);
 
@@ -100,7 +100,7 @@ public sealed class EarlyStateSchedulerFailureCharacterizationTests : IDisposabl
 
         using (var initialStore = new SqliteLearnerStore(dbPath))
         {
-            var initialSession = new TrainingSession(initialStore, clock);
+            var initialSession = new TrainingSession(initialStore, clock, practiceMode: PracticeMode.Custom);
             await initialSession.InitializeAsync(startTiming: true);
 
             await ReconstructTasksOneThroughFourAsync(initialSession, clock);
@@ -125,7 +125,7 @@ public sealed class EarlyStateSchedulerFailureCharacterizationTests : IDisposabl
 
         // Reopen against the persisted revision-5 SQLite database
         using var reopenedStore = new SqliteLearnerStore(dbPath);
-        var reopenedSession = new TrainingSession(reopenedStore, clock);
+        var reopenedSession = new TrainingSession(reopenedStore, clock, practiceMode: PracticeMode.Custom);
 
         // Future expected behavior: initialization succeeds from persisted revision-5 state
         await reopenedSession.InitializeAsync(startTiming: true);

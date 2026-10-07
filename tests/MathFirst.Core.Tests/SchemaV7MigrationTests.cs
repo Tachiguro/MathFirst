@@ -26,15 +26,15 @@ public sealed class SchemaV7MigrationTests : IDisposable
     }
 
     [Fact]
-    public async Task FreshDatabase_InitializesAtSchemaV8_WithAllColumns()
+    public async Task FreshDatabase_InitializesAtSchemaV9_WithAllColumns()
     {
         var path = Path.Combine(_directory, "fresh_v7.db");
         using (var store = new SqliteLearnerStore(path))
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
-            Assert.Equal(8, LearnerProgression.DefaultSchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
+            Assert.Equal(9, LearnerProgression.DefaultSchemaVersion);
         }
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -44,7 +44,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         {
             cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
             var version = await cmd.ExecuteScalarAsync();
-            Assert.Equal("8", version);
+            Assert.Equal("9", version);
         }
 
         var columns = await GetTableColumnsAsync(connection, "attempt_history");
@@ -123,7 +123,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
         }
 
         await using var connection = new SqliteConnection($"Data Source={path}");
@@ -132,7 +132,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         using (var cmd = connection.CreateCommand())
         {
             cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-            Assert.Equal("8", await cmd.ExecuteScalarAsync());
+            Assert.Equal("9", await cmd.ExecuteScalarAsync());
         }
 
         var columns = await GetTableColumnsAsync(connection, "attempt_history");
@@ -250,7 +250,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         {
             await store2.InitializeAsync();
             var snapshot = await store2.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
             await store2.CloseAsync();
         }
 
@@ -298,7 +298,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
         {
             await store.InitializeAsync();
             var snapshot = await store.LoadSnapshotAsync();
-            Assert.Equal(8, snapshot.SchemaVersion);
+            Assert.Equal(9, snapshot.SchemaVersion);
         }
 
         await using (var connection = new SqliteConnection($"Data Source={path}"))
@@ -306,7 +306,7 @@ public sealed class SchemaV7MigrationTests : IDisposable
             await connection.OpenAsync();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT value FROM schema_info WHERE key = 'schema_version';";
-            Assert.Equal("8", await cmd.ExecuteScalarAsync());
+            Assert.Equal("9", await cmd.ExecuteScalarAsync());
 
             var columns = await GetTableColumnsAsync(connection, "attempt_history");
             Assert.Equal(19, columns.Count);
