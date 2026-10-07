@@ -7,8 +7,14 @@
 @inject NavigationManager Navigation
 @inject IAppBackNavigationCoordinator BackCoordinator
 
-<h3>@Localizer["NotFound_Title"]</h3>
-<p>@Localizer["NotFound_Description"]</p>
+<div class="settings-page notfound-page">
+    <div class="settings-container">
+        <section class="settings-card notfound-card" role="region" aria-labelledby="notfound-title">
+            <h2 id="notfound-title" class="settings-section-title">@Localizer["NotFound_Title"]</h2>
+            <p class="setting-help">@Localizer["NotFound_Description"]</p>
+        </section>
+    </div>
+</div>
 
 @code {
     private IDisposable? _backRegistration;
