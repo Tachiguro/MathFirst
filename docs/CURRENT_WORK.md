@@ -9,13 +9,13 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Current Program Position**: MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening) is the active package. Implementation is complete across three slices (`76e718006c2adc5953995d99bbfc1451dc8e63c1`, `56880b3ff3da2c6e06840226ac236dafedba34bd`, `3558f8cee7b3aad031459990276ff99d73312379`), consolidated package review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), corrected apples-to-apples Cobertura coverage evidence is recorded (`PRIOR COVERAGE DELTA CORRECTED`), test-infrastructure validation remediation is review approved (`MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`), and documentation reconciliation is complete. Current integration state must be discovered dynamically from live Git and GitHub repository state; this document does not encode transient commit, validation, push, PR, merge, or synchronization status.
-- **Active Package**: `MF-AUDIT-002` — Test-Coverage Audit & Targeted Hardening.
+- **Current Program Position**: Following completion, review approval (`MF_AUDIT_002_REVIEW_APPROVED`), validation remediation review approval (`MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`), formal validation (`MF_AUDIT_002_FULL_VALIDATION_PASSED`), and merge of `MF-AUDIT-002` / `P8` via PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`), post-merge synchronization was completed (`MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`). At the post-P8 baseline on `main@cc81242177dd75114934c3ad48b830c9ce87c70b`, no subsequent product development package had been selected. `MF-DOC-009` is a separate documentation-only reconciliation package; current active work, checked-out branch, and lifecycle phase must be determined dynamically from live Git and GitHub repository state.
+- **Active Package**: `MF-DOC-009` — Post-P8 Merge State Reconciliation.
 - **Repository State & Synchronization Anchor**:
   - Live local Git and GitHub repository state always takes precedence over documentation baselines.
-  - Verified base main: `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5` (PR #69 Post-P6 Merge State Reconciliation; P6 merged via PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`).
-  - Active task branch: `feat/mf-audit-002-test-coverage-hardening`.
-  - Historical implementation checkpoints:
+  - Verified base main: `cc81242177dd75114934c3ad48b830c9ce87c70b` (PR #70 `MF-AUDIT-002 / P8` merge commit).
+  - Active task branch: `docs/post-p8-merge-reconciliation`.
+  - Historical P8 implementation checkpoints:
     - Slice 1: `76e718006c2adc5953995d99bbfc1451dc8e63c1` (`test: harden critical domain invariants`).
     - Slice 2: `56880b3ff3da2c6e06840226ac236dafedba34bd` (`test: harden persistence and long-run invariants`).
     - Slice 3: `3558f8cee7b3aad031459990276ff99d73312379` (`test: harden release and security boundaries`).
@@ -28,6 +28,9 @@ This document provides operational context for current repository work.
   - Historical First Formal FULL_VALIDATION Attempt: Candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` failed at the Full Core Release gate (2,298 passed / 1 failed; `TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` threw `ObjectDisposedException` on process-global `Console.Error` stream; historical verdict `MF_AUDIT_002_FULL_VALIDATION_FAILED`).
   - Validation Test-Infrastructure Remediation: Isolated process-global Console redirection in ReleaseCli test infrastructure by assigning all four ReleaseCli test suites to the shared non-parallel xUnit collection `[Collection("ReleaseCli process console")]` (`DisableParallelization = true`), leaving whole-assembly parallelism active for unrelated tests. Verified with 5 $\times$ 156 focused green runs and 3 $\times$ 2,299 Full Core Release runs.
   - Validation Remediation Review: Review verdict returned `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production code changes).
+  - Formal FULL_VALIDATION: Candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89` passed full validation (`MF_AUDIT_002_FULL_VALIDATION_PASSED`).
+  - Pull Request & Merge: PR #70 merged to `main` at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b`.
+  - Post-Merge Synchronization: Fast-forward synchronization completed (`MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`).
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
@@ -64,6 +67,7 @@ This document provides operational context for current repository work.
     - Total: Lines 93.17% (8262/8868) $\to$ 93.93% (8330/8868), +68 lines (+0.77 pp); Branches 80.63% (2918/3619) $\to$ 82.43% (2983/3619), +65 branches (+1.80 pp).
   - **Evidence Boundary**: Records implementation, consolidated-review, and validation remediation evidence. Formal candidate validation and integration status must be established dynamically from live repository state.
 - **Prior Merged Work**:
+  - **MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening)**: Merged via PR #70 at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b` (validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_REVIEW_APPROVED`, `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing in Debug and Release [+71 automated test cases], normalized Cobertura coverage 93.93% lines / 82.43% branches, 11 test paths [3 added, 8 modified; 19 total package paths including 8 documentation paths], 0 production code changes).
   - **Post-P6 Merge State Reconciliation**: Merged via PR #69 at merge commit `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`.
   - **P6 (Tester Diagnostics / Telemetry Release Boundary)**: Merged via PR #68 at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02` (validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, 2,228 Core tests).
   - **P5 (Cyber Defense Visual Consistency)**: Merged via PR #67 at merge commit `aeb7bc46e8b425d9da95493a367f99f7ed330871` (validated candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`, 2,222 Core tests).
@@ -75,7 +79,8 @@ This document provides operational context for current repository work.
   - **P1 (Normal Practice Without Deadline Failure)**: Merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`, 1,936 Core tests).
   - **P0 (Zero-Answer / `0 + 0` Core-Flow Freeze Blocker)**: Merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`, 1,917 Core tests).
 - **Downstream Scope**:
-  - **P8 (MF-AUDIT-002)**: Implementation complete, review approved, documentation reconciled. Downstream integration status is determined from live repository state.
+  - **Completed Refinements**: Workstreams P0 through P6 and P8 are complete, fully validated, and merged into `main`.
+  - **No New Development Package Selected**: Following completed P8 integration, no new production or gameplay development package had been selected at the post-P8 baseline. The active package is explicitly authorized documentation maintenance `MF-DOC-009`.
   - **P7 (Deferred Game Polish)**: Deferred / Post-Core.
   - Roadmap Step 55 is **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
 
@@ -91,14 +96,14 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 7. **P4**: Settings Simplification (`Merged` — PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, candidate `edcc150039f369b8f809982499a5e1b2714e064c`)
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`)
 9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Merged` — PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-merge docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
-10. **P8**: Test-Coverage Audit & Targeted Hardening (`MF-AUDIT-002` — *Active package; implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review approved, validation remediation review approved, documentation reconciled; live repository state is authoritative for integration status*)
+10. **P8**: Test-Coverage Audit & Targeted Hardening (`Merged` — PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`)
 11. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*)
 
 ### 1.2 Current Verified Quality State
 
-#### Merged Main Baseline (`main@4ba870a` / PR #69 `Post-P6 Merge State Reconciliation`)
-- **Merge Commit**: `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5` (PR #69 `Merge pull request #69 from Tachiguro/docs/post-p6-merge-reconciliation`; P6 feature merge PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`).
-- **Post-Merge Baseline**: Complete P0–P6 delivered baseline on `main`: Tester diagnostics compile/profile boundary (`MATHFIRST_TESTER_DIAGNOSTICS`), dedicated `TesterDiagnosticsSection` component isolation, conditional DI composition, ReleaseTool build metadata propagation (`MathFirstBuildClassification`, `MathFirstSourceCommit`), profile-wide Full Local Reset cache cleanup, Cyber Defense secondary surface visual alignment across Settings, Privacy, dialogs, overlays, and Not Found; full Light/Dark/System theme fidelity; keyboard focus rings on `.keypad-choice-card:focus-visible`; reduced-motion suppression; MF-UX-008 gameplay stability; Settings simplification (removal of Practice Time UI, retention of read-only curriculum status, lower-level practice-time plumbing preserved, durable Settings cards retained); four-stage cumulative progression ($+ \to + - \to + - \times \to + - \times \div$); monotonic `CurriculumStage` in `learner_progression`; Schema V9 persistence; tolerant D01 unlock predicates; aggregate broad weakness gating; Guided G3 soft decoupling; 2,228 Core tests passing in Debug and Release.
+#### Merged Main Baseline (`main@cc81242177dd75114934c3ad48b830c9ce87c70b` / PR #70 `MF-AUDIT-002 / P8 Baseline`)
+- **Merge Commit**: `cc81242177dd75114934c3ad48b830c9ce87c70b` (PR #70 `Merge pull request #70 from Tachiguro/feat/mf-audit-002-test-coverage-hardening`; validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`).
+- **Post-Merge Baseline**: Complete P0–P6 and P8 delivered baseline on `main`: 2,299 Core tests passing in Debug and Release (+71 automated test cases over pre-P8 2,228), normalized Cobertura coverage 93.93% lines / 82.43% branches (+0.77 pp lines / +1.80 pp branches across four production assemblies), hardened domain invariants, SQLite rollback and corruption fail-closed contracts, ReleaseTool CLI fail-closed parsing, isolated ReleaseCli console test infrastructure (`[Collection("ReleaseCli process console")]`), P6 compile/profile isolation (`MATHFIRST_TESTER_DIAGNOSTICS`), Cyber Defense secondary surface visual alignment, Settings simplification, four-stage cumulative progression ($+ \to + - \to + - \times \to + - \times \div$), monotonic `CurriculumStage` in `learner_progression`, Schema V9 persistence, Schema V8 `is_interrupted`, Telemetry Schema V2, tolerant D01 unlock predicates, aggregate broad weakness gating, Guided G3 soft decoupling, and direct-to-practice startup.
 
 #### Verified MF-AUDIT-002 Quality Evidence (`feat/mf-audit-002-test-coverage-hardening`)
 - **Implementation State**:
@@ -123,6 +128,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 
 ## 2. Historical Merged Implementation Packages
 
+- **MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening)**: Merged via PR #70 at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b` (validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_REVIEW_APPROVED`, `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing in Debug and Release [+71 automated test cases], normalized Cobertura coverage 93.93% lines / 82.43% branches, 11 test paths [3 added, 8 modified; 19 total package paths including 8 documentation paths], 0 production code changes). Hardened critical domain invariants across `BroadWeaknessPolicy`, `CurriculumUnlockPolicy`, property tests, and scheduler rank; hardened SQLite mid-transaction trigger rollback, corrupted `CurriculumStage` fail-closed rejection, repeated transient recovery, and 4-stage monotonic `CurriculumManaged` long-run simulations; hardened ReleaseTool CLI argument parsing and option validation; and stabilized ReleaseCli console test infrastructure under non-parallel collection isolation.
 - **Post-P6 Merge State Reconciliation**: Merged via PR #69 at merge commit `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`.
 - **P6 (Tester Diagnostics / Telemetry Release Boundary)**: Merged via PR #68 at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02` (validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_COMPLETE_REVIEW_APPROVED`, `P6_FULL_VALIDATION_PASSED` with 2,228 Core Debug / 2,228 Core Release tests, 117 focused tests across 11 suites, clean Windows and Android compile matrices, merge tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`). Enforces strict compile/profile boundary isolating Tester diagnostic controls and conditional DI services from non-Tester builds, propagates ReleaseTool build classification and source commit metadata, and maintains profile-wide Full Local Reset cache cleanup.
 - **P5 (Cyber Defense Visual Consistency)**: Merged via PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`). Aligned secondary application surfaces (Settings, Privacy, dialogs, overlays, Not Found) with Option A Scoped Cyber Defense visual language while preserving full Light/Dark/System theme fidelity, keyboard focus rings (`.keypad-choice-card:focus-visible`), reduced-motion suppression, and MF-UX-008 gameplay stability. Post-merge validation: 2,222 Core tests passed.
@@ -144,7 +150,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 
 ### Release Context:
 - **Build 2 Rejection**: Historical. Build 2 was rejected (`REAL_DEVICE_VERIFICATION_FAILED` at Step 31) due to the selector crash/starvation bug on operation reconfiguration and restart, resolved by `MF-STAB-003`.
-- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004`, `MF-LEARN-005`, `MF-UX-007`, `MF-LEARN-006`, `MF-UX-008`, `MF-TELEM-001`, `P0`, `P1`, `P1b`, `P2`, `P2b`, `P3`, `P4`, `P5`, and `P6` and no longer represents current repository source.
+- **Build 3 Status**: Historical only. Build 3 passed technical smoke (Step 30) and manual physical-device verification (Step 31) on Samsung SM-S948B, Android 16. However, Build 3 source predates `MF-LEARN-004`, `MF-LEARN-005`, `MF-UX-007`, `MF-LEARN-006`, `MF-UX-008`, `MF-TELEM-001`, `P0`, `P1`, `P1b`, `P2`, `P2b`, `P3`, `P4`, `P5`, `P6`, and `P8` and no longer represents current repository source.
 - **Step 52 Tester Build**: Built from `main@8fb7568cb015101259c22285a4b5a7fdf6c1d63f` (`com.tachiguro.mathfirst.tester`, version `1.0 / versionCode 1`, SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`), installed and manually validated on Samsung Galaxy S26 Ultra in Steps 53–54 (`STEP_54_MANUAL_VALIDATION_PASS`).
 - **Future Production Candidate**:
   - Any future production candidate packaging after pre-Step55 refinement will have `versionCode >= 4`.
@@ -161,8 +167,8 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 7. P4 is integrated and merged into `main` via PR #66 (`8400151ff080caecf024a418a9b6b8ada4873c2d`).
 8. P5 is integrated and merged into `main` via PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`).
 9. P6 is integrated and merged into `main` via PR #68 (`049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-P6 docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
-10. Active package P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) implementation, review, and validation remediation review are complete, and documentation has been reconciled. Downstream integration status is determined dynamically from live Git/GitHub state.
-11. Downstream P-item sequence ($\text{P8}$) must be completed and merged before Step 55 may be proposed.
+10. P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) is integrated and merged into `main` via PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`).
+11. Following P8 completion, no subsequent production or gameplay development package had been selected at the post-P8 baseline. Pre-Step55 refinement sequence (P0–P6, P8) is completed and merged.
 12. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
