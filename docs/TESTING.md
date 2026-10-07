@@ -1227,8 +1227,8 @@ Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release`
   - Focused P8 test suite: **155 passed**, 0 failed, 0 skipped.
 - **Consolidated Review Verdict**: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
 
-### Evidence Boundary Principles & In-Flight Status
+### Evidence Boundary Principles
 
-- **Implementation Evidence Boundary**: The 2,299 passing Core tests, 155 focused P8 tests, and Cobertura coverage metrics represent REVIEW_ONLY implementation evidence.
-- **Durable Lifecycle Boundary**: Documentation reconciliation has been authored and remains unmerged. The documentation-inclusive candidate still requires repository lifecycle completion including commit, formal exact-candidate `FULL_VALIDATION`, push, PR, manual merge, and post-merge synchronization.
+- **Implementation Evidence Boundary**: The 2,299 passing Core tests, 155 focused P8 tests, and Cobertura coverage metrics represent implementation and consolidated-review evidence. Formal lifecycle state, including exact-candidate `FULL_VALIDATION` and integration status, must be established dynamically from live repository state.
+- **Durable Milestones**: Implementation is complete across Slices 1–3, consolidated review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), and documentation reconciliation is complete. Live Git and GitHub state is authoritative for downstream integration status.
 - **Release Boundaries**: P7 remains DEFERRED. Roadmap Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**. Production packaging, signing, and store publication remain strictly unauthorized.

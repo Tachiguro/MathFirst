@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- MF-AUDIT-002 / P8 — Test-Coverage Audit & Targeted Hardening (Implementation complete across three slices at `3558f8cee7b3aad031459990276ff99d73312379`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, documentation reconciled, package integration in progress; not merged, no PR opened yet, formal exact-candidate FULL_VALIDATION pending candidate commit):
+- MF-AUDIT-002 / P8 — Test-Coverage Audit & Targeted Hardening (Implementation complete across three slices at `3558f8cee7b3aad031459990276ff99d73312379`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, documentation reconciled; integration status is determined from live repository state):
   - **71 Added Automated Test Cases**: Expanded the Core automated test suite from 2,228 to 2,299 passing tests across Debug and Release configurations, adding targeted contract, property, persistence, and fail-closed CLI protection across 8 test suites.
   - **Corrected Apples-to-Apples Cobertura Coverage Hardening**: Total repository test coverage increased from 93.17% to 93.93% lines (+68 lines covered, +0.77 percentage points) and 80.63% to 82.43% branches (+65 branches covered, +1.80 percentage points) under normalized Release `coverlet.collector 6.0.4` measurement across the four production assemblies:
     - `MathFirst.Domain`: Lines 89.11% $\to$ 93.00% (+34 covered, +3.90 pp); Branches 83.70% $\to$ 89.78% (+28 covered, +6.09 pp).

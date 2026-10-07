@@ -149,7 +149,7 @@ Worktrees: Exactly one normal worktree by default
   - P4 (Settings Simplification): Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
   - P5 (Cyber Defense Visual Consistency): Delivered & Merged (PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed, 18 contract tests across 3 suites).
   - P6 (Tester Diagnostics / Telemetry Release Boundary): Delivered & Merged (PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`, 117 permanent focused P6 tests across 11 suites, 2,228 Core Debug and Release tests in formal validation; post-P6 merge state reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
-  - P8: MF-AUDIT-002 (Test-Coverage Audit & Targeted Hardening — implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, documentation reconciled, package integration in progress; not merged).
+  - P8: MF-AUDIT-002 (Test-Coverage Audit & Targeted Hardening — implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, documentation reconciled; fresh sessions must inspect live Git/GitHub to determine downstream integration status).
   - P7: Deferred / Post-Core.
   - Step 55: Unauthorized.
 - **Delivered Pre-Step55 Packages & Merged PRs**:

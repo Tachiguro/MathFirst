@@ -9,7 +9,7 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Current Program Position**: MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening) is the active package. Implementation is complete across three slices (`76e718006c2adc5953995d99bbfc1451dc8e63c1`, `56880b3ff3da2c6e06840226ac236dafedba34bd`, `3558f8cee7b3aad031459990276ff99d73312379`), consolidated package review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), corrected apples-to-apples Cobertura coverage evidence is approved (`PRIOR COVERAGE DELTA CORRECTED`), and documentation reconciliation has been authored and remains unmerged. Package integration is still in progress: the documentation-inclusive candidate still requires repository lifecycle completion including commit, formal exact-candidate `FULL_VALIDATION`, push, PR, manual merge, and post-merge synchronization.
+- **Current Program Position**: MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening) is the active package. Implementation is complete across three slices (`76e718006c2adc5953995d99bbfc1451dc8e63c1`, `56880b3ff3da2c6e06840226ac236dafedba34bd`, `3558f8cee7b3aad031459990276ff99d73312379`), consolidated package review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), corrected apples-to-apples Cobertura coverage evidence is recorded (`PRIOR COVERAGE DELTA CORRECTED`), and documentation reconciliation is complete. Current integration state must be discovered dynamically from live Git and GitHub repository state; this document does not encode transient commit, validation, push, PR, merge, or synchronization status.
 - **Active Package**: `MF-AUDIT-002` — Test-Coverage Audit & Targeted Hardening.
 - **Repository State & Synchronization Anchor**:
   - Live local Git and GitHub repository state always takes precedence over documentation baselines.
@@ -59,7 +59,7 @@ This document provides operational context for current repository work.
     - `MathFirst.Infrastructure.Sqlite`: Lines 95.17% (1695/1781) $\to$ 95.51% (1701/1781), +6 lines (+0.34 pp); Branches 79.44% (429/540) $\to$ 80.56% (435/540), +6 branches (+1.11 pp).
     - `MathFirst.ReleaseTool`: Lines 90.52% (1710/1889) $\to$ 91.64% (1731/1889), +21 lines (+1.11 pp); Branches 75.32% (815/1082) $\to$ 77.54% (839/1082), +24 branches (+2.22 pp).
     - Total: Lines 93.17% (8262/8868) $\to$ 93.93% (8330/8868), +68 lines (+0.77 pp); Branches 80.63% (2918/3619) $\to$ 82.43% (2983/3619), +65 branches (+1.80 pp).
-  - **Evidence Boundary**: Implementation and review evidence only. Formal candidate `FULL_VALIDATION` will be executed against the final documentation-inclusive candidate commit.
+  - **Evidence Boundary**: Records implementation and consolidated-review evidence. Formal candidate validation and integration status must be established dynamically from live repository state.
 - **Prior Merged Work**:
   - **Post-P6 Merge State Reconciliation**: Merged via PR #69 at merge commit `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`.
   - **P6 (Tester Diagnostics / Telemetry Release Boundary)**: Merged via PR #68 at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02` (validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, 2,228 Core tests).
@@ -72,7 +72,7 @@ This document provides operational context for current repository work.
   - **P1 (Normal Practice Without Deadline Failure)**: Merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`, 1,936 Core tests).
   - **P0 (Zero-Answer / `0 + 0` Core-Flow Freeze Blocker)**: Merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`, 1,917 Core tests).
 - **Downstream Scope**:
-  - **P8 (MF-AUDIT-002)**: Complete repository lifecycle through documentation commit, formal exact-candidate `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, user manual merge, and `POST_MERGE_SYNC_ONLY`.
+  - **P8 (MF-AUDIT-002)**: Implementation complete, review approved, documentation reconciled. Downstream integration status is determined from live repository state.
   - **P7 (Deferred Game Polish)**: Deferred / Post-Core.
   - Roadmap Step 55 is **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
 
@@ -88,7 +88,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 7. **P4**: Settings Simplification (`Merged` — PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, candidate `edcc150039f369b8f809982499a5e1b2714e064c`)
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`)
 9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Merged` — PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-merge docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
-10. **P8**: Test-Coverage Audit & Targeted Hardening (`MF-AUDIT-002` — *Active package; implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review approved, documentation reconciled, package integration in progress; not merged*)
+10. **P8**: Test-Coverage Audit & Targeted Hardening (`MF-AUDIT-002` — *Active package; implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review approved, documentation reconciled; live repository state is authoritative for integration status*)
 11. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*)
 
 ### 1.2 Current Verified Quality State
@@ -112,7 +112,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
     - Branches: 2918/3619 (80.63%) $\to$ 2983/3619 (82.43%), +65 covered (+1.80 percentage points).
   - Code scope: 3 added test files, 5 modified test files, 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
   - Candidate whitespace and diff check: `git diff --check` PASS.
-  - Evidence boundary: Implementation and review evidence only. Candidate `FULL_VALIDATION` will be executed against the final documentation-inclusive candidate commit.
+  - Evidence boundary: Implementation and review evidence only. Formal exact-candidate validation and integration status are determined dynamically from live Git/GitHub state.
 
 ---
 
@@ -156,7 +156,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 7. P4 is integrated and merged into `main` via PR #66 (`8400151ff080caecf024a418a9b6b8ada4873c2d`).
 8. P5 is integrated and merged into `main` via PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`).
 9. P6 is integrated and merged into `main` via PR #68 (`049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-P6 docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
-10. Active package P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) implementation and review are complete, and documentation has been reconciled. Package lifecycle proceeds through documentation commit, formal exact-candidate `FULL_VALIDATION` on the documentation-inclusive candidate, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
+10. Active package P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) implementation and review are complete, and documentation has been reconciled. Downstream integration status is determined dynamically from live Git/GitHub state.
 11. Downstream P-item sequence ($\text{P8}$) must be completed and merged before Step 55 may be proposed.
 12. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
