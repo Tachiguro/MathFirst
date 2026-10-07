@@ -7,6 +7,12 @@ using System.Threading.Tasks;
 using MathFirst.ReleaseTool;
 using Xunit;
 
+[CollectionDefinition("ReleaseCli process console", DisableParallelization = true)]
+public sealed class ReleaseCliProcessConsoleCollection
+{
+}
+
+[Collection("ReleaseCli process console")]
 public sealed class ReleaseCliFailClosedContractTests
 {
     private const string FullSha = "199dbd7cd38feafca5c94f9a5b1939bf2d912a20";

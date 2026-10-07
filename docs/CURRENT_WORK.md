@@ -9,7 +9,7 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Current Program Position**: MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening) is the active package. Implementation is complete across three slices (`76e718006c2adc5953995d99bbfc1451dc8e63c1`, `56880b3ff3da2c6e06840226ac236dafedba34bd`, `3558f8cee7b3aad031459990276ff99d73312379`), consolidated package review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), corrected apples-to-apples Cobertura coverage evidence is recorded (`PRIOR COVERAGE DELTA CORRECTED`), and documentation reconciliation is complete. Current integration state must be discovered dynamically from live Git and GitHub repository state; this document does not encode transient commit, validation, push, PR, merge, or synchronization status.
+- **Current Program Position**: MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening) is the active package. Implementation is complete across three slices (`76e718006c2adc5953995d99bbfc1451dc8e63c1`, `56880b3ff3da2c6e06840226ac236dafedba34bd`, `3558f8cee7b3aad031459990276ff99d73312379`), consolidated package review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), corrected apples-to-apples Cobertura coverage evidence is recorded (`PRIOR COVERAGE DELTA CORRECTED`), test-infrastructure validation remediation is review approved (`MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`), and documentation reconciliation is complete. Current integration state must be discovered dynamically from live Git and GitHub repository state; this document does not encode transient commit, validation, push, PR, merge, or synchronization status.
 - **Active Package**: `MF-AUDIT-002` — Test-Coverage Audit & Targeted Hardening.
 - **Repository State & Synchronization Anchor**:
   - Live local Git and GitHub repository state always takes precedence over documentation baselines.
@@ -25,6 +25,9 @@ This document provides operational context for current repository work.
   - Slice 3 Implementation: Hardened ReleaseTool CLI fail-closed boundaries in `ReleaseCliFailClosedContractTests` (`MathFirst-Checkpoint: MF-AUDIT-002 3/3 release-security-reset`).
   - Consolidated Package Review: Review verdict returned `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed production defects; 0 unresolved P0/P1 gaps).
   - Coverage Remediation Decision: Adopted normalized apples-to-apples Cobertura delta (`PRIOR COVERAGE DELTA CORRECTED`).
+  - Historical First Formal FULL_VALIDATION Attempt: Candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` failed at the Full Core Release gate (2,298 passed / 1 failed; `TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` threw `ObjectDisposedException` on process-global `Console.Error` stream; historical verdict `MF_AUDIT_002_FULL_VALIDATION_FAILED`).
+  - Validation Test-Infrastructure Remediation: Isolated process-global Console redirection in ReleaseCli test infrastructure by assigning all four ReleaseCli test suites to the shared non-parallel xUnit collection `[Collection("ReleaseCli process console")]` (`DisableParallelization = true`), leaving whole-assembly parallelism active for unrelated tests. Verified with 5 $\times$ 156 focused green runs and 3 $\times$ 2,299 Full Core Release runs.
+  - Validation Remediation Review: Review verdict returned `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production code changes).
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
@@ -49,17 +52,17 @@ This document provides operational context for current repository work.
   4. **Intentional No-New-Test Decisions (`NO_NEW_TEST_REQUIRED`)**:
      - Judged already sufficiently protected without percentage padding: archive validation, Tester / SourceCandidate / Production profile boundaries, reset exception semantics, telemetry/privacy/network boundaries, Guided gate coverage, and acquisition ownership coverage.
   5. **Zero Production & Runtime Code Changes**:
-     - Exactly 8 test files changed (3 added, 5 modified); 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
-- **Verification Evidence on MF-AUDIT-002 Implementation HEAD (`3558f8cee7b3aad031459990276ff99d73312379`)**:
+     - Exactly 11 test files changed (3 added, 8 modified; 19 total package paths including 8 documentation paths); 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
+- **Verification Evidence on MF-AUDIT-002 Implementation & Remediation State**:
   - Core automated test suite: 2,299 passed in Release, 0 failed, 0 skipped (+71 automated test cases over BASE 2,228).
-  - Consolidated focused P8 test suite: 155 passed, 0 failed, 0 skipped.
+  - Consolidated focused P8 test suite: 155 passed, 0 failed, 0 skipped; remediation 4-suite filter: 156 passed, 0 failed, 0 skipped.
   - Normalized Cobertura Coverage Baseline (`coverlet.collector 6.0.4`, Release configuration across 4 assemblies):
     - `MathFirst.Application`: Lines 94.31% (4080/4326) $\to$ 94.48% (4087/4326), +7 lines (+0.16 pp); Branches 83.86% (1289/1537) $\to$ 84.32% (1296/1537), +7 branches (+0.46 pp).
     - `MathFirst.Domain`: Lines 89.11% (777/872) $\to$ 93.00% (811/872), +34 lines (+3.90 pp); Branches 83.70% (385/460) $\to$ 89.78% (413/460), +28 branches (+6.09 pp).
     - `MathFirst.Infrastructure.Sqlite`: Lines 95.17% (1695/1781) $\to$ 95.51% (1701/1781), +6 lines (+0.34 pp); Branches 79.44% (429/540) $\to$ 80.56% (435/540), +6 branches (+1.11 pp).
     - `MathFirst.ReleaseTool`: Lines 90.52% (1710/1889) $\to$ 91.64% (1731/1889), +21 lines (+1.11 pp); Branches 75.32% (815/1082) $\to$ 77.54% (839/1082), +24 branches (+2.22 pp).
     - Total: Lines 93.17% (8262/8868) $\to$ 93.93% (8330/8868), +68 lines (+0.77 pp); Branches 80.63% (2918/3619) $\to$ 82.43% (2983/3619), +65 branches (+1.80 pp).
-  - **Evidence Boundary**: Records implementation and consolidated-review evidence. Formal candidate validation and integration status must be established dynamically from live repository state.
+  - **Evidence Boundary**: Records implementation, consolidated-review, and validation remediation evidence. Formal candidate validation and integration status must be established dynamically from live repository state.
 - **Prior Merged Work**:
   - **Post-P6 Merge State Reconciliation**: Merged via PR #69 at merge commit `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`.
   - **P6 (Tester Diagnostics / Telemetry Release Boundary)**: Merged via PR #68 at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02` (validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, 2,228 Core tests).
@@ -88,7 +91,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 7. **P4**: Settings Simplification (`Merged` — PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, candidate `edcc150039f369b8f809982499a5e1b2714e064c`)
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`)
 9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Merged` — PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-merge docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
-10. **P8**: Test-Coverage Audit & Targeted Hardening (`MF-AUDIT-002` — *Active package; implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review approved, documentation reconciled; live repository state is authoritative for integration status*)
+10. **P8**: Test-Coverage Audit & Targeted Hardening (`MF-AUDIT-002` — *Active package; implementation complete across 3 slices at `3558f8cee7b3aad031459990276ff99d73312379`, review approved, validation remediation review approved, documentation reconciled; live repository state is authoritative for integration status*)
 11. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*)
 
 ### 1.2 Current Verified Quality State
@@ -104,15 +107,17 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
   - Slice 3 (`3558f8cee7b3aad031459990276ff99d73312379`): ReleaseTool CLI fail-closed boundaries (argument parsing, missing/unknown commands and options, option requirements, positive integer build number validation).
 - **Review & Validation Status**:
   - Consolidated package review: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
+  - Validation remediation review: `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production defects).
+  - First formal FULL_VALIDATION attempt on candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` recorded historical failure (`MF_AUDIT_002_FULL_VALIDATION_FAILED`) due to a test-infrastructure Console redirection race, subsequently remediated and review-approved.
   - Coverage decision: `PRIOR COVERAGE DELTA CORRECTED` (normalized apples-to-apples Cobertura delta adopted).
   - Core automated test suite: 2,299 passed in Release (0 failed, 0 skipped; +71 automated test cases).
-  - Focused P8 test suite: 155 passed, 0 failed, 0 skipped.
+  - Focused P8 test suite: 155 passed, 0 failed, 0 skipped; remediation 4-suite filter: 156 passed, 0 failed, 0 skipped.
   - Normalized Cobertura Coverage (coverlet.collector 6.0.4, Release configuration across 4 assemblies):
     - Lines: 8262/8868 (93.17%) $\to$ 8330/8868 (93.93%), +68 covered (+0.77 percentage points).
     - Branches: 2918/3619 (80.63%) $\to$ 2983/3619 (82.43%), +65 covered (+1.80 percentage points).
-  - Code scope: 3 added test files, 5 modified test files, 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
+  - Code scope: 3 added test files, 8 modified test files (11 test paths, 8 documentation paths, 19 total package paths), 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
   - Candidate whitespace and diff check: `git diff --check` PASS.
-  - Evidence boundary: Implementation and review evidence only. Formal exact-candidate validation and integration status are determined dynamically from live Git/GitHub state.
+  - Evidence boundary: Implementation, review, and validation remediation evidence only. Formal exact-candidate validation and integration status are determined dynamically from live Git/GitHub state.
 
 ---
 
@@ -156,7 +161,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 7. P4 is integrated and merged into `main` via PR #66 (`8400151ff080caecf024a418a9b6b8ada4873c2d`).
 8. P5 is integrated and merged into `main` via PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`).
 9. P6 is integrated and merged into `main` via PR #68 (`049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-P6 docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
-10. Active package P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) implementation and review are complete, and documentation has been reconciled. Downstream integration status is determined dynamically from live Git/GitHub state.
+10. Active package P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) implementation, review, and validation remediation review are complete, and documentation has been reconciled. Downstream integration status is determined dynamically from live Git/GitHub state.
 11. Downstream P-item sequence ($\text{P8}$) must be completed and merged before Step 55 may be proposed.
 12. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 

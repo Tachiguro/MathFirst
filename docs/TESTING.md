@@ -1162,7 +1162,7 @@ The P6 implementation establishes strict compile/profile boundaries isolating Te
 
 ## 30. MF-AUDIT-002 / P8 Test-Coverage Audit & Targeted Hardening Contracts & Reviewed Test Evidence
 
-The bounded P8 package executes a factual test-coverage baseline audit across the four production assemblies and hardens critical domain, persistence, and release policy invariants across three reviewed implementation slices. This hardening is covered by permanent unit, property, and contract suites in `MathFirst.Core.Tests`:
+The bounded P8 package executes a factual test-coverage baseline audit across the four production assemblies and hardens critical domain, persistence, and release policy invariants across three reviewed implementation slices plus one review-approved validation test-infrastructure remediation. This hardening is covered by permanent unit, property, and contract suites in `MathFirst.Core.Tests`:
 
 1. **Critical Domain Invariants Hardening (Slice 1, Commit `76e718006c2adc5953995d99bbfc1451dc8e63c1`)**:
    - **Broad Weakness Policy Contracts (`BroadWeaknessPolicyTests.cs`)**: Verifies multi-operation and single-operation broad weakness detection rules ($\ge 2$ active weak facts across active curriculum/operation space), context filtering, and suppression of opportunistic `New` fact acquisition during struggle.
@@ -1189,6 +1189,27 @@ The bounded P8 package executes a factual test-coverage baseline audit across th
      - *Guided Gate G3 Decoupling*: Existing `GuidedNumberSpaceSelectionTests` thoroughly cover independent multiplication/division ceiling decoupling at BandIndex $\ge 3$.
      - *Acquisition Ownership Resolver*: Existing `AcquisitionOwnershipResolverTests` thoroughly cover fact-to-band ownership across all operations.
 
+5. **Validation Test-Infrastructure Stabilization & Serialization Architecture**:
+   - **Historical Failure**: The first formal exact-candidate FULL_VALIDATION attempt on candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` failed at the Full Core Release gate (2,298 passed / 1 failed; `MathFirst.Core.Tests.TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` failed with `System.ObjectDisposedException: Cannot write to a closed TextWriter` while `ReleaseCli.RunAsync` wrote through a process-global `Console.Error` stream; historical verdict `MF_AUDIT_002_FULL_VALIDATION_FAILED`).
+   - **Failure Classification & Root Cause**: Classified as a TEST-INFRASTRUCTURE CONCURRENCY / ISOLATION DEFECT. ReleaseCli test classes redirected process-global `Console.Error` and `Console.Out` to local `StringWriter` instances. Default xUnit class/collection parallelism allowed another ReleaseCli test to write while a redirected writer had been disposed/restored. Zero production `ReleaseTool` defect established, zero product behavior defect established, 0 production code changes required.
+   - **Remediation Architecture**: Introduced the dedicated non-parallel xUnit test collection definition:
+     ```csharp
+     [CollectionDefinition("ReleaseCli process console", DisableParallelization = true)]
+     public sealed class ReleaseCliProcessConsoleCollectionDefinition;
+     ```
+     and applied `[Collection("ReleaseCli process console")]` across all four participating test suites:
+     - `tests/MathFirst.Core.Tests/ReleaseCliFailClosedContractTests.cs`
+     - `tests/MathFirst.Core.Tests/TesterApkPackagingContractTests.cs`
+     - `tests/MathFirst.Core.Tests/AabPackagingScriptValidationTests.cs`
+     - `tests/MathFirst.Core.Tests/TesterApkWorkflowIntegrationTests.cs`
+   - **Parallelism Scope**: Serializes only test suites intercepting process-global console streams; assembly-wide parallelism remains active for all other tests.
+   - **Non-Blocking Review NIT**: `AabPackagingScriptValidationTests.cs` contains an explicit `using Xunit;` redundant with global using directives; classified as harmless non-blocking NIT.
+   - **Remediation Stability Evidence**:
+     - Focused four-class Release filter (156 tests): 5 consecutive runs, all 156 passed (0 failed, 0 skipped).
+     - Full Core Release: 3 consecutive runs, all 2,299 passed (0 failed, 0 skipped).
+     - Full Core Debug: 2,299 passed, 0 failed, 0 skipped.
+   - **Remediation Review Verdict**: `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 NIT; confirmed 156 focused Release tests passed, 2,299 Core Release tests passed).
+
 ### Corrected Normalized Cobertura Coverage Evidence (Release Configuration)
 
 Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release` configuration across all four production assemblies with identical test project and parser denominators.
@@ -1210,25 +1231,43 @@ Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release`
 | **TOTAL** | **Lines** | **8,262 / 8,868 (93.17%)** | **8,330 / 8,868 (93.93%)** | **+68** | **+0.77 pp** |
 | | **Branches** | **2,918 / 3,619 (80.63%)** | **2,983 / 3,619 (82.43%)** | **+65** | **+1.80 pp** |
 
-### Implementation & Review Test Evidence (Candidate `3558f8cee7b3aad031459990276ff99d73312379`)
+### Implementation, Historical Validation & Remediation Evidence
 
-- **Checkpoints**:
+- **Historical Implementation Checkpoints (Original Slice 1–3 Scope)**:
   - Slice 1: `76e718006c2adc5953995d99bbfc1451dc8e63c1` (`MathFirst-Checkpoint: MF-AUDIT-002 1/3 critical-domain-invariants`)
   - Slice 2: `56880b3ff3da2c6e06840226ac236dafedba34bd` (`MathFirst-Checkpoint: MF-AUDIT-002 2/3 persistence-recovery-long-run`)
   - Slice 3: `3558f8cee7b3aad031459990276ff99d73312379` (`MathFirst-Checkpoint: MF-AUDIT-002 3/3 release-security-reset`)
-- **Package Scope**:
+- **Original Slice 1–3 Implementation Scope (Historical)**:
   - 3 added test files: `BroadWeaknessPolicyTests.cs`, `CurriculumInvariantPropertyTests.cs`, `ReleaseCliFailClosedContractTests.cs`.
   - 5 modified test files: `CurriculumUnlockPolicyTests.cs`, `DeterministicOperationSchedulerTests.cs`, `SqlitePersistenceConformanceTests.cs`, `PersistenceRecoveryAndLifecycleTests.cs`, `LongRunIndependentProgressionTests.cs`.
-  - 0 production code changes, 0 tooling code changes, 0 script changes, 0 project/package configuration changes, 0 schema changes, 0 migrations, 0 runtime behavior changes.
-- **Test Case Growth**:
-  - Pre-P8 Base: 2,228 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
-  - Post-P8 Head: 2,299 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
-  - Total automated test cases added: **+71 test cases**.
   - Focused P8 test suite: **155 passed**, 0 failed, 0 skipped.
-- **Consolidated Review Verdict**: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
+  - Consolidated Review Verdict: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
+- **Historical First Formal FULL_VALIDATION Attempt (Candidate `0e76bf907653cd1d3256854a53e0c77684787ad4`)**:
+  - Candidate HEAD: `0e76bf907653cd1d3256854a53e0c77684787ad4`
+  - Overall Verdict: `MF_AUDIT_002_FULL_VALIDATION_FAILED` (Historical)
+  - Focused P8 Release Gate: 155 passed, 0 failed, 0 skipped.
+  - Full Core Debug Gate: 2,299 passed, 0 failed, 0 skipped.
+  - Full Core Release Gate: 2,298 passed, 1 failed, 0 skipped (`TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` failed with `ObjectDisposedException` on process-global `Console.Error`).
+  - Normalized Cobertura Coverage Gate: 93.93% lines (8,330/8,868), 82.43% branches (2,983/3,619).
+  - NuGet Vulnerability Audit: 0 known vulnerable packages.
+  - Markdown Link & Anchor Audit: 36 documents, 297 relative file links, 1 relative fragment, 0 broken file links, 0 broken fragments.
+  - Candidate Repository Immutability: PASS.
+- **Validation Test-Infrastructure Remediation & Review**:
+  - Remediated 4 test files (`AabPackagingScriptValidationTests.cs`, `ReleaseCliFailClosedContractTests.cs`, `TesterApkPackagingContractTests.cs`, `TesterApkWorkflowIntegrationTests.cs`) with shared xUnit non-parallel collection isolation.
+  - Stabilization Focused Filter: **156 passed**, 0 failed, 0 skipped (5 consecutive runs).
+  - Full Core Release: **2,299 passed**, 0 failed, 0 skipped (3 consecutive runs).
+  - Remediation Review Verdict: `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production defects).
+- **Final Package-Wide Scope (Relative to Base `main@4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)**:
+  - 11 test paths (3 added, 8 modified).
+    - Added (3): `tests/MathFirst.Core.Tests/BroadWeaknessPolicyTests.cs`, `tests/MathFirst.Core.Tests/CurriculumInvariantPropertyTests.cs`, `tests/MathFirst.Core.Tests/ReleaseCliFailClosedContractTests.cs`.
+    - Modified (8): `tests/MathFirst.Core.Tests/AabPackagingScriptValidationTests.cs`, `tests/MathFirst.Core.Tests/CurriculumUnlockPolicyTests.cs`, `tests/MathFirst.Core.Tests/DeterministicOperationSchedulerTests.cs`, `tests/MathFirst.Core.Tests/LongRunIndependentProgressionTests.cs`, `tests/MathFirst.Core.Tests/PersistenceRecoveryAndLifecycleTests.cs`, `tests/MathFirst.Core.Tests/SqlitePersistenceConformanceTests.cs`, `tests/MathFirst.Core.Tests/TesterApkPackagingContractTests.cs`, `tests/MathFirst.Core.Tests/TesterApkWorkflowIntegrationTests.cs`.
+  - 8 documentation paths: `CHANGELOG.md`, `docs/BACKLOG.md`, `docs/CURRENT_WORK.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`, `docs/TESTING.md`, `docs/V1_PRE_STEP55_REFINEMENT_PLAN.md`.
+  - Total package changed paths: **19 paths**.
+  - Test case growth: Pre-P8 Base 2,228 passed $\to$ Post-P8 2,299 passed (**+71 automated test cases**).
+  - 0 production code changes, 0 tooling production code changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
 
 ### Evidence Boundary Principles
 
-- **Implementation Evidence Boundary**: The 2,299 passing Core tests, 155 focused P8 tests, and Cobertura coverage metrics represent implementation and consolidated-review evidence. Formal lifecycle state, including exact-candidate `FULL_VALIDATION` and integration status, must be established dynamically from live repository state.
-- **Durable Milestones**: Implementation is complete across Slices 1–3, consolidated review is approved (`MF_AUDIT_002_REVIEW_APPROVED`), and documentation reconciliation is complete. Live Git and GitHub state is authoritative for downstream integration status.
+- **Evidence Boundary**: This document records historical implementation, consolidated review, historical first formal FULL_VALIDATION attempt, and approved validation test-infrastructure remediation facts. Formal lifecycle state, including any subsequent exact-candidate `FULL_VALIDATION` and integration status, must be discovered dynamically from live repository state.
+- **Durable Milestones**: Implementation, review, historical validation attempt, remediation, remediation review, and documentation reconciliation are complete. Live Git and GitHub state is authoritative for downstream integration status.
 - **Release Boundaries**: P7 remains DEFERRED. Roadmap Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**. Production packaging, signing, and store publication remain strictly unauthorized.
