@@ -9,15 +9,17 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Active Task**: `P6-DOCUMENTATION-RECONCILIATION` (P6 Tester Diagnostics / Telemetry Release Boundary Documentation Reconciliation).
+- **Active Task**: `P6-DOCUMENTATION-REMEDIATION` (P6 Tester Diagnostics / Telemetry Release Boundary Documentation Remediation).
 - **Active Package**: `P6`: Tester Diagnostics / Telemetry Release Boundary.
-- **Branch / Upstream State**: Task branch `feat/p6-tester-diagnostics-release-boundary` based on `main` (`aeb7bc46e8b425d9da95493a367f99f7ed330871`), `origin/main` at `aeb7bc46e8b425d9da95493a367f99f7ed330871` (0 ahead / 0 behind).
+- **Branch / Upstream State**: Task branch `feat/p6-tester-diagnostics-release-boundary` based on `main` (`aeb7bc46e8b425d9da95493a367f99f7ed330871`). Historical anchor: implementation committed locally in `a711c07d80ab2cc3873cbb5a0de96803fabe116b`.
 - **Implementation & Integration Milestones**:
   - Slice 1: Property, Symbol, Profile Mapping, and Compile Boundary (implemented & review-approved: `P6_SLICE_1_REVIEW_APPROVED`).
   - Slice 2: Component & DI Boundary, Cache Purge Split, and Reset Invariant (implemented & review-approved: `P6_SLICE_2_REVIEW_APPROVED`).
   - Slice 3: Regression Suite, Test Matrix, and Release Hardening (implemented & review-approved: `P6_SLICE_3_REVIEW_APPROVED`).
   - Complete Candidate Review: Consolidated package review returned `P6_COMPLETE_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit, 0 Note).
-  - Working Tree State: Uncommitted review-approved candidate in working tree (22 implementation/test/tooling paths: 18 tracked modified, 4 untracked new; 0 staged; 0 commits).
+  - Implementation Commit: P6 implementation committed locally in commit `a711c07d80ab2cc3873cbb5a0de96803fabe116b`.
+  - First Formal FULL_VALIDATION Attempt: Failed fail-closed at the documentation-current-state gate (`FINDING-P6-DOC-STALE-STATE` / `P6_FULL_VALIDATION_FAILED`) against candidate `a711c07d80ab2cc3873cbb5a0de96803fabe116b` because committed docs still asserted pre-commit lifecycle state. Downstream expensive test/build gates were skipped fail-closed.
+  - Remediation & Integration Status: Documentation state is reconciled on `feat/p6-tester-diagnostics-release-boundary` before fresh exact-candidate `FULL_VALIDATION`. The branch remains outside `main` until validation passes, followed by `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
@@ -27,7 +29,7 @@ This document provides operational context for current repository work.
   - `gh pr list --state open`
 - **Status of Active Work**:
   - **P6 Implementation & Review Status**: Implementation complete. Consolidated package review returned `P6_COMPLETE_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit, 0 Note). 2,228 Core review tests passing (0 failed, 0 skipped), 117 focused P6 contract and regression tests across 11 suites, 18 P5 UI regression tests across 3 suites. Windows compile matrix (Debug, Release, Release with diagnostics=true) and Android profile-like compile matrix (Tester-like, SourceCandidate-like, Production-like) compile with 0 warnings and 0 errors.
-  - **P6 Integration & Procedural State**: Candidate remains uncommitted on task branch `feat/p6-tester-diagnostics-release-boundary` (0 ahead / 0 behind `main@aeb7bc46e8b425d9da95493a367f99f7ed330871`, unpushed, no open PR). Documentation reconciliation is CURRENT. Next later lifecycle steps: documentation review (`REVIEW_ONLY`), `COMMIT_ONLY`, formal `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual merge, `POST_MERGE_SYNC_ONLY`. Formal `FULL_VALIDATION` remains **PENDING**.
+  - **P6 Integration & Procedural State**: P6 implementation was committed locally in implementation commit `a711c07d80ab2cc3873cbb5a0de96803fabe116b`. The first formal `FULL_VALIDATION` attempt against that candidate failed at the documentation-current-state gate (`FINDING-P6-DOC-STALE-STATE`) because committed docs still described pre-commit lifecycle state. No code/test/build failure was observed; downstream expensive gates were skipped fail-closed. Documentation was therefore reconciled as part of the same P6 task branch before fresh exact-candidate `FULL_VALIDATION`. No successful P6 `FULL_VALIDATION_PASS` exists yet at this documented checkpoint. Candidate integration requires a successful exact-candidate `FULL_VALIDATION` before `PUSH_ONLY`. P6 remains unpushed and unmerged; exact live branch HEAD, ahead-count, remote branch, and PR state must be discovered dynamically from live Git/GitHub.
   - **Durable P6 Technical Contract & Architecture**:
     1. **Build Property & Compile Symbol Boundary**:
        - `MathFirstEnableTesterDiagnostics` controls compile symbol `MATHFIRST_TESTER_DIAGNOSTICS`.
@@ -76,7 +78,7 @@ This document provides operational context for current repository work.
     - Windows compile matrix (Debug, Release, Release with diagnostics=true): all 0 warnings / 0 errors.
     - Android profile-like compile matrix (Tester-like, SourceCandidate-like, Production-like): all 0 warnings / 0 errors.
     - `git diff --check`: PASS.
-    - **Evidence Boundary**: This evidence is implementation/review evidence on the uncommitted candidate. Formal `FULL_VALIDATION` remains **PENDING**. No packaging or signing was performed; no physical-device / ADB testing was performed.
+    - **Evidence Boundary**: This evidence is implementation and review evidence. The first formal `FULL_VALIDATION` attempt against implementation commit `a711c07d80ab2cc3873cbb5a0de96803fabe116b` failed at the documentation-current-state gate (`FINDING-P6-DOC-STALE-STATE` / `P6_FULL_VALIDATION_FAILED`), skipping downstream test/build gates fail-closed. Fresh exact-candidate `FULL_VALIDATION` remains required before `PUSH_ONLY`. No packaging or signing was performed; no physical-device / ADB testing was performed.
 - **Prior Merged Work**:
   - **P5 (Cyber Defense Visual Consistency)**: Merged via PR #67 at merge commit `aeb7bc46e8b425d9da95493a367f99f7ed330871` (validated candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`, review `P5_COMPLETE_REVIEW_APPROVED`, 2,222 Core tests). Aligned secondary application surfaces (Settings, Privacy, dialogs, overlays, Not Found) with Option A Scoped Cyber Defense visual language while preserving full Light/Dark/System theme fidelity, keyboard focus rings (`.keypad-choice-card:focus-visible`), reduced-motion suppression, and MF-UX-008 gameplay stability.
   - **P4 (Settings Simplification)**: Merged via PR #66 at merge commit `8400151ff080caecf024a418a9b6b8ada4873c2d` (validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS` with 2,204 Core Debug / Release tests). Removed user-facing Practice Time selection from normal Settings, retained read-only curriculum operation status, preserved lower-level Practice Time plumbing, and established permanent 8-test contract coverage in `SettingsSimplificationContractTests.cs`.
@@ -102,7 +104,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 6. **P3**: Cumulative Operation Unlock Progression (`Merged` — PR #65 at `759389650778f5d7b6a334b15556c5f31f6de5d0`, candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5`)
 7. **P4**: Settings Simplification (`Merged` — PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, candidate `edcc150039f369b8f809982499a5e1b2714e064c`)
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`)
-9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Implementation Complete & Review Approved` — uncommitted candidate on `feat/p6-tester-diagnostics-release-boundary`, review `P6_COMPLETE_REVIEW_APPROVED`, docs reconciliation current, full validation pending)
+9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Implementation Complete & Review Approved — In Validation / Integration Lifecycle` — task branch `feat/p6-tester-diagnostics-release-boundary`, implementation commit `a711c07d80ab2cc3873cbb5a0de96803fabe116b`, review `P6_COMPLETE_REVIEW_APPROVED`; first `FULL_VALIDATION` attempt failed on documentation-current-state gate; documentation reconciled; fresh exact-candidate full validation required before push/PR)
 10. **P8**: Test-Coverage Audit & Targeted Hardening (factual baseline, critical invariant coverage — *Downstream*)
 11. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*)
 
@@ -123,7 +125,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
   - Implementation review test evidence on candidate: 2,228 Core tests passed (0 failed, 0 skipped), including 117 focused P6 contract/regression tests and 18 P5 UI regression tests.
   - Windows compile matrix (Debug, Release, Release with diagnostics=true): all 0 warnings / 0 errors.
   - Android profile-like compile matrix (Tester-like, SourceCandidate-like, Production-like): all 0 warnings / 0 errors.
-  - Formal `FULL_VALIDATION` remains pending on the uncommitted candidate.
+  - Formal `FULL_VALIDATION` against implementation commit `a711c07d80ab2cc3873cbb5a0de96803fabe116b` failed at the documentation-current-state gate (`P6_FULL_VALIDATION_FAILED`); fresh exact-candidate `FULL_VALIDATION` remains required following documentation remediation.
   - Packaging boundaries strictly preserved: zero APK/AAB packaging, zero signing, zero store actions.
 
 ---
@@ -165,7 +167,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 6. P3 is integrated and merged into `main` via PR #65 (`759389650778f5d7b6a334b15556c5f31f6de5d0`).
 7. P4 is integrated and merged into `main` via PR #66 (`8400151ff080caecf024a418a9b6b8ada4873c2d`).
 8. P5 is integrated and merged into `main` via PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`).
-9. P6 implementation and review are complete on task branch `feat/p6-tester-diagnostics-release-boundary` (uncommitted candidate, review `P6_COMPLETE_REVIEW_APPROVED`). Documentation reconciliation and independent review precede full validation rerun, commit, push, and PR.
+9. P6 implementation and review are complete on task branch `feat/p6-tester-diagnostics-release-boundary` (implementation commit `a711c07d80ab2cc3873cbb5a0de96803fabe116b`, review `P6_COMPLETE_REVIEW_APPROVED`). First formal `FULL_VALIDATION` failed at documentation current-state consistency; documentation remediation is followed by review, remediation commit, fresh exact-candidate `FULL_VALIDATION`, push, PR, and manual merge.
 10. Downstream P-item sequence ($\text{P8}$) must be completed and merged before Step 55 may be proposed.
 11. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 

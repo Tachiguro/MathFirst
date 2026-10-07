@@ -1108,8 +1108,28 @@ The P6 implementation establishes strict compile/profile boundaries isolating Te
   - Production-like (`Configuration=Release -p:MathFirstEnableTesterDiagnostics=false -p:MathFirstBuildClassification=Production -p:ApplicationId=com.tachiguro.mathfirst`): 0 warnings, 0 errors
 - **Consolidated Review Verdict**: `P6_COMPLETE_REVIEW_APPROVED` (Slice 1 `P6_SLICE_1_REVIEW_APPROVED`, Slice 2 `P6_SLICE_2_REVIEW_APPROVED`, Slice 3 `P6_SLICE_3_REVIEW_APPROVED`).
 
-### Evidence Boundary Principles & Validation State
+### Evidence Boundary Principles & Formal Validation State
 
 - **Implementation Evidence Boundary**: The 2,228 passing Core tests and compile matrix results represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires complete dual Debug/Release execution, NuGet security audits, full repository link audits, and clean whitespace verification).
 - **Tooling & Device Boundary**: Android compile verification used `-t:Compile` to verify compilation across profiles without executing packaging, signing, emulator, simulator, physical device, or ADB operations.
-- **Delivery State**: P6 candidate is implemented and consolidated-review approved (`P6_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p6-tester-diagnostics-release-boundary` (0 commits ahead of `main` at `aeb7bc46e8b425d9da95493a367f99f7ed330871`), uncommitted in the working tree, unpushed, with no open Pull Request; documentation reconciliation is currently active under `OPERATION MODE: DOCUMENT_ONLY`; formal `FULL_VALIDATION`, commit, push, PR, and merge remain **PENDING**. Step 55 remains unauthorized. Build 4 does not exist.
+- **First Formal FULL_VALIDATION Attempt**:
+  - **Candidate**: `a711c07d80ab2cc3873cbb5a0de96803fabe116b`
+  - **Result**: `P6_FULL_VALIDATION_FAILED`
+  - **Failure Phase**: Documentation current-state consistency gate (`FINDING-P6-DOC-STALE-STATE`)
+  - **Failure Cause**: Committed candidate documentation still described pre-commit lifecycle state (asserting P6 was uncommitted, 0 commits ahead of main, in DOCUMENT_ONLY, awaiting initial documentation review and commit).
+  - **Execution & Skipped Gate Evidence Boundary**:
+    - Exact candidate identity, path existence, and whitespace diff checks passed (`git diff --check`).
+    - P6 static contract presence was confirmed.
+    - MSBuild property matrix was skipped fail-closed.
+    - Core Debug test suite execution was skipped.
+    - Core Release test suite execution was skipped.
+    - Windows builds were skipped.
+    - Android builds were skipped.
+    - NuGet vulnerability security audit was skipped.
+    - Markdown repository link and anchor audit was skipped.
+    - No implementation, compilation, or test regression was established.
+    - No `FULL_VALIDATION_PASS` was established from this attempt.
+- **Remediation & Integration Lifecycle State**:
+  - Documentation current-state reconciliation was performed on task branch `feat/p6-tester-diagnostics-release-boundary` to resolve documentation drift.
+  - Candidate integration requires a successful fresh exact-candidate `FULL_VALIDATION` before `PUSH_ONLY`.
+  - The P6 branch remains unpushed and unmerged outside `main`; Step 55 remains unauthorized; Build 4 does not exist. Exact live HEAD, ahead-count, remote branch, and PR state must be discovered dynamically from live Git and GitHub.
