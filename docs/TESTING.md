@@ -1110,26 +1110,50 @@ The P6 implementation establishes strict compile/profile boundaries isolating Te
 
 ### Evidence Boundary Principles & Formal Validation State
 
-- **Implementation Evidence Boundary**: The 2,228 passing Core tests and compile matrix results represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires complete dual Debug/Release execution, NuGet security audits, full repository link audits, and clean whitespace verification).
+- **Implementation Evidence Boundary**: The 2,228 passing Core tests and compile matrix results represent implementation and review evidence.
 - **Tooling & Device Boundary**: Android compile verification used `-t:Compile` to verify compilation across profiles without executing packaging, signing, emulator, simulator, physical device, or ADB operations.
-- **First Formal FULL_VALIDATION Attempt**:
-  - **Candidate**: `a711c07d80ab2cc3873cbb5a0de96803fabe116b`
-  - **Result**: `P6_FULL_VALIDATION_FAILED`
-  - **Failure Phase**: Documentation current-state consistency gate (`FINDING-P6-DOC-STALE-STATE`)
-  - **Failure Cause**: Committed candidate documentation still described pre-commit lifecycle state (asserting P6 was uncommitted, 0 commits ahead of main, in DOCUMENT_ONLY, awaiting initial documentation review and commit).
-  - **Execution & Skipped Gate Evidence Boundary**:
-    - Exact candidate identity, path existence, and whitespace diff checks passed (`git diff --check`).
-    - P6 static contract presence was confirmed.
-    - MSBuild property matrix was skipped fail-closed.
-    - Core Debug test suite execution was skipped.
-    - Core Release test suite execution was skipped.
-    - Windows builds were skipped.
-    - Android builds were skipped.
-    - NuGet vulnerability security audit was skipped.
-    - Markdown repository link and anchor audit was skipped.
-    - No implementation, compilation, or test regression was established.
-    - No `FULL_VALIDATION_PASS` was established from this attempt.
-- **Remediation & Integration Lifecycle State**:
-  - Documentation current-state reconciliation was performed on task branch `feat/p6-tester-diagnostics-release-boundary` to resolve documentation drift.
-  - Candidate integration requires a successful fresh exact-candidate `FULL_VALIDATION` before `PUSH_ONLY`.
-  - The P6 branch remains unpushed and unmerged outside `main`; Step 55 remains unauthorized; Build 4 does not exist. Exact live HEAD, ahead-count, remote branch, and PR state must be discovered dynamically from live Git and GitHub.
+
+#### Historical First Formal FULL_VALIDATION Attempt (Candidate `a711c07d80ab2cc3873cbb5a0de96803fabe116b`)
+- **Candidate**: `a711c07d80ab2cc3873cbb5a0de96803fabe116b`
+- **Result**: `P6_FULL_VALIDATION_FAILED` (Historical)
+- **Failure Phase**: Documentation current-state consistency gate (`FINDING-P6-DOC-STALE-STATE`)
+- **Failure Cause**: Committed candidate documentation still described pre-commit lifecycle state (asserting P6 was uncommitted, 0 commits ahead of main, in DOCUMENT_ONLY, awaiting initial documentation review and commit).
+- **Execution & Skipped Gate Evidence Boundary**:
+  - Exact candidate identity, path existence, and whitespace diff checks passed (`git diff --check`).
+  - P6 static contract presence was confirmed.
+  - MSBuild property matrix was skipped fail-closed.
+  - Core Debug test suite execution was skipped.
+  - Core Release test suite execution was skipped.
+  - Windows builds were skipped.
+  - Android builds were skipped.
+  - NuGet vulnerability security audit was skipped.
+  - Markdown repository link and anchor audit was skipped.
+  - No implementation, compilation, or test regression was established.
+  - Downstream gates were skipped fail-closed. Documentation was subsequently remediated in commit `bceede18dd5bc2007f4bdc211f721979a50f2c35`.
+
+#### Final Formal P6 FULL_VALIDATION (Candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`)
+- **Candidate**: `bceede18dd5bc2007f4bdc211f721979a50f2c35`
+- **Result**: `P6_FULL_VALIDATION_PASSED`
+- **Formal Verification Evidence**:
+  - **Core Debug Test Suite**: 2,228 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - **Core Release Test Suite**: 2,228 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - **Dedicated Permanent P6 Contracts**: 117 passed across 11 suites.
+  - **P5 UI Regressions**: 18 passed across 3 suites.
+  - **Windows Build Matrix**:
+    - `Release` (non-Tester default): 0 warnings, 0 errors
+    - `Release -p:MathFirstEnableTesterDiagnostics=true`: 0 warnings, 0 errors
+    - `Debug`: 0 warnings, 0 errors
+  - **Android Profile Compile Matrix**:
+    - Tester-like (`Release -p:MathFirstEnableTesterDiagnostics=true -p:MathFirstBuildClassification=Tester -p:ApplicationId=com.tachiguro.mathfirst.tester`): 0 warnings, 0 errors
+    - SourceCandidate-like (`Release -p:MathFirstEnableTesterDiagnostics=false -p:MathFirstBuildClassification=SourceCandidate -p:ApplicationId=com.tachiguro.mathfirst`): 0 warnings, 0 errors
+    - Production-like (`Release -p:MathFirstEnableTesterDiagnostics=false -p:MathFirstBuildClassification=Production -p:ApplicationId=com.tachiguro.mathfirst`): 0 warnings, 0 errors
+  - **NuGet Vulnerability Security Audit**: 0 known vulnerable packages.
+  - **Markdown Repository Link & Anchor Audit**: 36 documents, 299 relative file links, 1 relative fragment link, 0 broken file links, 0 broken fragments.
+  - **Candidate Diff Check**: `git diff --check` PASS.
+  - **Final Repository Immutability**: PASS.
+- **Integration & Delivery Evidence**:
+  - Pushed to `origin/feat/p6-tester-diagnostics-release-boundary`.
+  - Pull Request #68 merged to `main` at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02`.
+  - Merged tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68` is identical to validated candidate tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`.
+  - `POST_MERGE_SYNC_ONLY` completed with clean working tree, clean index, and zero content drift.
+  - Step 55 remains unauthorized; Build 4 does not exist.
