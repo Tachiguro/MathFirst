@@ -105,50 +105,6 @@
                     }
                 </div>
             </div>
-
-            <div class="settings-subsection">
-                <h3 class="settings-subsection-title">@Localizer["Settings_PracticeTimeTitle"]</h3>
-                <p class="setting-help">@Localizer["Settings_PracticeTimeHelp"]</p>
-                <div class="choice-grid choice-grid-practice-time">
-                    <button type="button"
-                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Standard ? "active" : null)"
-                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Standard)"
-                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Standard)">
-                        @Localizer["PracticeTime_Standard"]
-                    </button>
-                    <button type="button"
-                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.NoTimePressure ? "active" : null)"
-                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.NoTimePressure)"
-                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.NoTimePressure)">
-                        @Localizer["PracticeTime_NoTimePressure"]
-                    </button>
-                    <button type="button"
-                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds30 ? "active" : null)"
-                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Seconds30)"
-                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Seconds30)">
-                        @Localizer["PracticeTime_30s"]
-                    </button>
-                    <button type="button"
-                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds45 ? "active" : null)"
-                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Seconds45)"
-                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Seconds45)">
-                        @Localizer["PracticeTime_45s"]
-                    </button>
-                    <button type="button"
-                            class="choice-button @(_selectedPracticeTime == PracticeTimeSetting.Seconds60 ? "active" : null)"
-                            aria-pressed="@(_selectedPracticeTime == PracticeTimeSetting.Seconds60)"
-                            @onclick="() => SelectPracticeTime(PracticeTimeSetting.Seconds60)">
-                        @Localizer["PracticeTime_60s"]
-                    </button>
-                </div>
-            </div>
-
-            @if (!string.IsNullOrEmpty(_practiceMessage))
-            {
-                <p class="setting-feedback @(_practiceMessageIsError ? "setting-feedback-error" : "setting-feedback-success")" role="status">
-                    @_practiceMessage
-                </p>
-            }
         </section>
 
         <!-- 4. NUMBER KEYPAD -->
@@ -345,8 +301,6 @@
 
     private string? _languageMessage;
     private string? _appearanceMessage;
-    private string? _practiceMessage;
-    private bool _practiceMessageIsError;
     private string? _keypadMessage;
     private string? _hapticMessage;
     private string? _resetFeedbackMessage;
@@ -358,7 +312,6 @@
     private string _selectedLanguage = LanguagePreferencePolicy.SystemPreferenceCode;
     private NumericKeypadLayout _selectedKeypadLayout = NumericKeypadLayout.Numpad;
     private bool _hapticFeedbackEnabled = true;
-    private PracticeTimeSetting _selectedPracticeTime = PracticeTimeSetting.Standard;
     private ConfirmAction _activeConfirmAction = ConfirmAction.None;
     private ElementReference _confirmationPanel;
     private bool _pendingConfirmationVisibility;
@@ -372,7 +325,6 @@
         _selectedLanguage = Localizer.SelectedLanguagePreference;
         _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
         _hapticFeedbackEnabled = PreferenceStore.GetHapticFeedbackEnabled();
-        _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
 
         if (!Session.IsInitialized)
         {
@@ -423,8 +375,6 @@
         };
         _languageMessage = Localizer["Settings_LanguageChangedTo", displayName];
         _appearanceMessage = null;
-        _practiceMessage = null;
-        _practiceMessageIsError = false;
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
@@ -443,42 +393,6 @@
         };
         _appearanceMessage = Localizer["Settings_AppearanceChangedTo", displayName];
         _languageMessage = null;
-        _practiceMessage = null;
-        _practiceMessageIsError = false;
-        _keypadMessage = null;
-        _hapticMessage = null;
-        _resetFeedbackMessage = null;
-        _diagnosticMessage = null;
-        _telemetryMessage = null;
-    }
-
-    private void SelectPracticeTime(PracticeTimeSetting setting)
-    {
-        var normalized = PracticeTimePreferencePolicy.Normalize(setting);
-        try
-        {
-            PreferenceStore.SetPracticeTimeSetting(normalized);
-            _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
-            var displayName = _selectedPracticeTime switch
-            {
-                PracticeTimeSetting.NoTimePressure => Localizer["PracticeTime_NoTimePressure"],
-                PracticeTimeSetting.Seconds30 => Localizer["PracticeTime_30s"],
-                PracticeTimeSetting.Seconds45 => Localizer["PracticeTime_45s"],
-                PracticeTimeSetting.Seconds60 => Localizer["PracticeTime_60s"],
-                _ => Localizer["PracticeTime_Standard"]
-            };
-            _practiceMessage = Localizer["Settings_PracticeTimeChangedTo", displayName];
-            _practiceMessageIsError = false;
-        }
-        catch
-        {
-            _selectedPracticeTime = PreferenceStore.GetPracticeTimeSetting();
-            _practiceMessage = Localizer["Settings_SaveFailed"];
-            _practiceMessageIsError = true;
-        }
-
-        _languageMessage = null;
-        _appearanceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
@@ -514,7 +428,6 @@
         _keypadMessage = Localizer["Keypad_ChangedTo", displayName];
         _languageMessage = null;
         _appearanceMessage = null;
-        _practiceMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
         _diagnosticMessage = null;
@@ -533,8 +446,6 @@
         _hapticMessage = Localizer["Settings_HapticFeedbackChangedTo", stateDisplay];
         _languageMessage = null;
         _appearanceMessage = null;
-        _practiceMessage = null;
-        _practiceMessageIsError = false;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
         _diagnosticMessage = null;
@@ -563,7 +474,6 @@
         _resetFeedbackMessage = Localizer["Reset_LearningProgress_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
-        _practiceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
         _diagnosticMessage = null;
@@ -586,7 +496,6 @@
         _resetFeedbackMessage = Localizer["Reset_UiPreferences_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
-        _practiceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
         _diagnosticMessage = null;
@@ -617,8 +526,6 @@
         _telemetryMessage = null;
         _languageMessage = null;
         _appearanceMessage = null;
-        _practiceMessage = null;
-        _practiceMessageIsError = false;
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
@@ -656,8 +563,6 @@
     {
         _languageMessage = null;
         _appearanceMessage = null;
-        _practiceMessage = null;
-        _practiceMessageIsError = false;
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;

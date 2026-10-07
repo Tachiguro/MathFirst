@@ -213,7 +213,7 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P3 — Cumulative Operation Unlock Progression
 - **Priority**: High (Curriculum Architecture).
-- **Status**: **IMPLEMENTED & REVIEW APPROVED** (Implemented across 4 checkpoint slices on task branch `feat/p3-cumulative-operation-unlock-progression`, candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5`, review verdict `P3_REVIEW_APPROVED`, backed by 2,196 passing Core tests, unpushed, no open PR, documentation reconciliation in progress, formal `FULL_VALIDATION` pending).
+- **Status**: **DELIVERED & MERGED** (PR #65 at commit `759389650778f5d7b6a334b15556c5f31f6de5d0`, post-merge tests: 2,196 passed, 0 failed, 0 skipped, Schema V9 live, ADR-0012 authoritative).
 - **Product Decision**: Replace the legacy model where all four operations could be manually enabled from the start. MathFirst adopts a disciplined, cumulative arithmetic progression under `PracticeMode.CurriculumManaged`:
   - **Stage 1**: Addition ($+$)
   - **Stage 2**: Addition & Subtraction ($+$, $-$)
@@ -233,10 +233,12 @@ The refinement program consists of nine dedicated workstreams, executed in stric
 
 ### P4 — Settings Simplification
 - **Priority**: Medium.
+- **Status**: **IMPLEMENTED & REVIEW APPROVED (UNCOMMITTED CANDIDATE)** (Implemented on task branch `feat/p4-settings-simplification`, review verdict `P4_COMPLETE_REVIEW_APPROVED`, permanent contract suite `SettingsSimplificationContractTests` with 8 tests, confirmed across 2,204 passing Core tests, candidate uncommitted, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
 - **Product Decision**: Streamline Settings following P1, P2, and P3 implementations:
-  - **Retained Controls**: Language selection, Theme (System/Light/Dark), Keypad layout (Numpad/Phone), Haptic feedback toggle, Privacy Policy view, Full Reset, and Tester Diagnostics (in Tester builds only).
-  - **Removed Controls**: Normal-practice time limit selection (Standard, 30s, 45s, 60s).
-  - **Operation Controls Guardrail**: Settings must **not** allow bypassing mathematical unlock progression. Operation toggles may, at most, filter among *already-unlocked* operations.
+  - **Retained Controls**: Language selection, Theme (System/Light/Dark), read-only operation status presentation, Keypad layout (Numpad/Phone), Haptic feedback toggle, Privacy Policy view, Reset Learning Progress, Restore Default Settings, Full Local Reset, Version/Build information, and Tester Diagnostics / telemetry export controls.
+  - **Removed Controls**: Normal-practice time limit selection (Standard, No Time Pressure, 30s, 45s, 60s) removed from normal Settings UI.
+  - **Plumbing Retention**: Lower-level Practice Time plumbing (`PracticeTimeSetting`, `PracticeTimePreferencePolicy`, `IPreferenceStore`, `MauiPreferenceStore`, `TrainingSession`) and `AttemptOutcome.Timeout` semantics remain intentionally retained.
+  - **Operation Controls Guardrail**: Settings operation controls display read-only "Locked" / "Unlocked" status derived from `CurriculumStage` and `CurriculumUnlockPolicy`; no manual toggling, bypassing, or disabling of curriculum operations.
 
 ---
 
@@ -312,10 +314,11 @@ $$\text{P0} \longrightarrow \text{P1} \longrightarrow \text{P1b} \longrightarrow
   - `P1 — Normal Practice Without Deadline Failure`: Delivered & Merged (PR #61).
   - `P1b — Active Thinking Time / Interruption Safety`: Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
   - `P2 — Direct-to-Practice Start / Remove Onboarding`: Delivered & Merged (PR #63 at `1b485091755294221b6f242e174d99c168fc8e9d`, validated candidate `985012dfe6d0415bfa8e8c730ffa8f9fb548effd`).
-  - `P2b — Gameplay and Startup Refinements`: Delivered & Merged (PR #64 at commit `f580a7154a4043a5097ffd852b5cf454be2cc397`, candidate `11181fe0d3e4b7c752e15815432f66b6c862a61b`).
+  - `P2b — Gameplay and Startup Refinements`: Delivered & Merged (PR #64 at commit `f580a7154a4043a5097ffd852b5cf454be2cc397`).
+  - `P3 — Cumulative Operation Unlock Progression`: Delivered & Merged (PR #65 at commit `759389650778f5d7b6a334b15556c5f31f6de5d0`).
 - **Implemented & Review-Approved Refinements on Task Branch**:
-  - `P3 — Cumulative Operation Unlock Progression`: Implemented across 4 checkpoint slices on task branch `feat/p3-cumulative-operation-unlock-progression` (candidate `d1e794cf529598e1d57ae39dbe790bc51ede81d5`), passed consolidated review (`P3_REVIEW_APPROVED`), backed by 2,196 passing Core tests (unmerged, unpushed, no open PR, documentation reconciliation in progress, formal `FULL_VALIDATION` pending).
-- **Next Work Item**: `P3` documentation reconciliation review / `FULL_VALIDATION` lifecycle (followed by `P4 — Settings Simplification`).
+  - `P4 — Settings Simplification`: Implemented and review-approved (`P4_COMPLETE_REVIEW_APPROVED`) on task branch `feat/p4-settings-simplification`, backed by permanent contract suite `SettingsSimplificationContractTests` (8 tests) and 2,204 passing Core tests (uncommitted, unpushed, no open PR, documentation reconciliation in progress under `DOCUMENT_ONLY`, formal `FULL_VALIDATION` pending).
+- **Next Work Item**: `P4` documentation reconciliation review, candidate commit, and `FULL_VALIDATION` lifecycle (followed by push, PR, merge, and subsequent `P5 — Cyber Defense Visual Consistency`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly deferred pending completion of refinement program P0–P6 and P8; requires separate affirmative user authorization).
 - **Production AAB Packaging**: NOT AUTHORIZED.
 - **Google Play Release**: NOT AUTHORIZED.

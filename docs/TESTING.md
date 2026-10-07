@@ -940,4 +940,60 @@ The P3 implementation establishes a cumulative arithmetic progression across fou
 ### Evidence Boundary Principles & Validation State
 
 - **Implementation Evidence Boundary**: The 2,196 passing Core tests represent REVIEW_ONLY implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
-- **Delivery State**: P3 is implemented and review-approved on task branch `feat/p3-cumulative-operation-unlock-progression`, unmerged, unpushed, with no open Pull Request; documentation reconciliation is complete and formal `FULL_VALIDATION` remains **PENDING**.
+- **Delivery State**: P3 achieved exact-candidate `FULL_VALIDATION_PASS` and was merged into `main` via PR #65 at merge commit `759389650778f5d7b6a334b15556c5f31f6de5d0` (post-merge tests: 2,196 passed, 0 failed, 0 skipped; Schema V9 live; ADR-0012 authoritative).
+
+---
+
+## 27. P4 Settings Simplification Contracts & Reviewed Test Evidence
+
+The P4 implementation simplifies the normal Settings page by removing user-facing Practice Time selection (Standard, No Time Pressure, 30s, 45s, 60s), eliminating obsolete transitional UI while preserving all required Settings surfaces, read-only curriculum operation status, and lower-level Practice Time compatibility plumbing. This behavior is covered by the permanent P4 contract suite in `MathFirst.Core.Tests`:
+
+1. **Absence of Practice Time UI & Bindings (`SettingsSimplificationContractTests`)**:
+   - Asserts complete removal of the Practice Time card, mode choices (Standard, No Time Pressure, 30s, 45s, 60s), radio buttons, and UI bindings from `Settings.razor`.
+   - Asserts removal of unused practice-time UI CSS classes from `app.css`.
+   - Asserts that normal practice operates deadline-free (`HasEnforcedDeadline = false`) without presenting deadline options.
+
+2. **Retention of Lower-Level Practice Time Plumbing (`SettingsSimplificationContractTests`)**:
+   - Asserts full retention of `PracticeTimeSetting`, `PracticeTimePreferencePolicy`, `IPreferenceStore` practice-time methods (`GetPracticeTime`, `SetPracticeTime`), `MauiPreferenceStore` persistence, and `TrainingSession` timing plumbing.
+   - Asserts retention of `AttemptOutcome.Timeout` semantics and explicit/legacy timeout grading paths for backward compatibility, custom testing, and domain plumbing.
+   - Asserts that existing persisted Practice Time preference values remain completely harmless with zero database or preference migration required.
+
+3. **Retention of Required Settings Surfaces (`SettingsSimplificationContractTests`)**:
+   - Asserts retention of Language selection (English, German, Russian).
+   - Asserts retention of Theme / Appearance selection (System, Light, Dark).
+   - Asserts retention of read-only arithmetic operation status display.
+   - Asserts retention of Keypad layout selection (Numpad, Phone).
+   - Asserts retention of Haptic feedback toggle.
+   - Asserts retention of in-app Privacy Policy entry card and navigation.
+   - Asserts retention of three distinct two-step reset actions (*Reset Learning Progress*, *Restore Default Settings*, *Full Local Reset*).
+   - Asserts retention of Version / Build identity information.
+   - Asserts retention of Tester diagnostics and telemetry export/share controls.
+
+4. **Read-Only Curriculum Operation Presentation & Authority (`SettingsSimplificationContractTests`)**:
+   - Asserts operation controls render strictly as read-only "Locked" / "Unlocked" status indicators derived from `CurriculumUnlockPolicy` and `CurriculumStage`.
+   - Asserts Settings contains no interactive operation toggles, cannot unlock locked operations, and cannot disable unlocked `CurriculumManaged` operations.
+   - Asserts `CurriculumStage` remains the sole operation-unlock authority under `PracticeMode.CurriculumManaged`.
+   - Asserts `PracticeMode.Custom` remains explicit preference-driven behavior without interference from normal Settings simplifications.
+
+5. **Reset Semantics & Settings Lifecycle (`SettingsSimplificationContractTests`)**:
+   - Asserts *Restore Default Settings* resets preferences (including restoring default plumbing values) and preserves learning progress and `CurriculumStage`.
+   - Asserts *Reset Learning Progress* resets learning data and resets `CurriculumStage` to Stage 1 while preserving UI preferences.
+   - Asserts *Full Local Reset* resets learning data, resets `CurriculumStage` to Stage 1, restores default preferences, and purges telemetry cache.
+   - Asserts navigating to Settings cleanly pauses active interaction timing, and returning to practice preserves or cleanly reconciles prospective question state.
+
+### Implementation & Review Test Evidence (Candidate on `feat/p4-settings-simplification`)
+
+- **Permanent Contract Suite**: `tests/MathFirst.Core.Tests/SettingsSimplificationContractTests.cs` (8 tests).
+- **Consolidated Review Verdict**: `P4_COMPLETE_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit, 0 Note; test classification: 2 UNIQUE P4 CONTRACT, 6 VALUABLE CONSOLIDATION).
+- **Test Evidence Reported & Confirmed**:
+  - *Dedicated P4 Contract Suite*: **8 passed**, 0 failed, 0 skipped.
+  - *Focused Settings / Reset / Config set*: **220 passed**, 0 failed, 0 skipped.
+  - *P3 High-Risk Regression set*: **169 passed**, 0 failed, 0 skipped.
+  - *P1/P1b Adjacent Regression set*: **107 passed**, 0 failed, 0 skipped.
+  - *Full Core Test Suite*: **2,204 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+  - *`git diff --check`*: PASS.
+
+### Evidence Boundary Principles & Validation State
+
+- **Implementation Evidence Boundary**: The 2,204 passing Core tests represent implementation and review evidence. They do **NOT** constitute formal exact-candidate `FULL_VALIDATION` (which requires dual Debug/Release execution, clean builds, NuGet security audit, and full repository hygiene checks).
+- **Delivery State**: P4 candidate is implemented and review-approved on task branch `feat/p4-settings-simplification`, uncommitted, unpushed, with no open Pull Request; documentation reconciliation is currently active under `OPERATION MODE: DOCUMENT_ONLY`; formal `FULL_VALIDATION`, push, PR, and merge remain **PENDING**.

@@ -481,27 +481,23 @@ public sealed class NoTimePressureModeTests
     }
 
     [Fact]
-    public void UI_SettingsPage_IncludesNoTimePressureOption()
+    public void UI_SettingsPage_DoesNotIncludePracticeTimeOrNoTimePressureOption()
     {
         var settingsSource = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor"));
 
-        Assert.Contains("PracticeTimeSetting.NoTimePressure", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("PracticeTime_NoTimePressure", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("choice-grid-practice-time", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTimeSetting", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTime_NoTimePressure", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("choice-grid-practice-time", settingsSource, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Localization_ParityAcrossLanguagesForNoTimePressure()
+    public void Localization_ParityAcrossLanguagesForTimerElapsedAriaLabel()
     {
         var localizer = new LocalizationService();
 
         foreach (var lang in new[] { "en", "de", "ru" })
         {
             localizer.ApplyLanguagePreference(lang);
-
-            var noTimePressureStr = localizer["PracticeTime_NoTimePressure"];
-            Assert.False(string.IsNullOrWhiteSpace(noTimePressureStr));
-            Assert.NotEqual("PracticeTime_NoTimePressure", noTimePressureStr);
 
             var elapsedAriaLabel = localizer["Training_TimerElapsedAriaLabel"];
             Assert.False(string.IsNullOrWhiteSpace(elapsedAriaLabel));

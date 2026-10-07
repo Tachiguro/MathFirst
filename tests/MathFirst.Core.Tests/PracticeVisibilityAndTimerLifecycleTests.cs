@@ -312,12 +312,16 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
         Assert.Contains("PracticeOperationPreferencePolicy.AllOperations", settingsSource, StringComparison.Ordinal);
         Assert.Contains("Settings_OperationsTitle", settingsSource, StringComparison.Ordinal);
 
-        // Must retain Practice Time settings
-        Assert.Contains("Settings_PracticeTimeTitle", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("PracticeTime_Standard", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("PracticeTime_30s", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("PracticeTime_45s", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("PracticeTime_60s", settingsSource, StringComparison.Ordinal);
+        // Must NOT contain Practice Time settings (P4 Settings Simplification)
+        Assert.DoesNotContain("Settings_PracticeTimeTitle", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTime_Standard", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTime_30s", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTime_45s", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTime_60s", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("PracticeTimeSetting", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_selectedPracticeTime", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectPracticeTime", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("choice-grid-practice-time", settingsSource, StringComparison.Ordinal);
 
         // Must retain Reset options
         Assert.Contains("Reset_LearningProgress_Title", settingsSource, StringComparison.Ordinal);
