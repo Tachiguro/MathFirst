@@ -1,5 +1,6 @@
 namespace MathFirst.Core.Tests;
 
+using System.Buffers.Binary;
 using MathFirst.Application.Practice;
 using MathFirst.Domain;
 using Xunit;
@@ -214,5 +215,119 @@ public sealed class DeterministicOperationSchedulerTests
         Assert.Throws<ArgumentOutOfRangeException>(() => DeterministicOperationScheduler.GetScheduledOperation(-1));
         Assert.Throws<ArgumentOutOfRangeException>(() => DeterministicOperationScheduler.OrderBag(AllFour, -1));
         Assert.Throws<ArgumentNullException>(() => DeterministicOperationScheduler.OrderBag(null!, 0));
+    }
+
+    [Fact]
+    public void CompareRankKeys_PrimaryKeyDifference_OrdersByUInt64BigEndian()
+    {
+        var left = new byte[32];
+        var right = new byte[32];
+
+        BinaryPrimitives.WriteUInt64BigEndian(left.AsSpan(0, 8), 100UL);
+        BinaryPrimitives.WriteUInt64BigEndian(right.AsSpan(0, 8), 200UL);
+
+        Assert.True(DeterministicOperationScheduler.CompareRankKeys(
+            left,
+            ArithmeticOperation.Addition,
+            right,
+            ArithmeticOperation.Addition) < 0);
+
+        Assert.True(DeterministicOperationScheduler.CompareRankKeys(
+            right,
+            ArithmeticOperation.Addition,
+            left,
+            ArithmeticOperation.Addition) > 0);
+    }
+
+    [Fact]
+    public void CompareRankKeys_SecondaryByteDifference_OrdersByDifferingByte()
+    {
+        var left = new byte[32];
+        var right = new byte[32];
+
+        BinaryPrimitives.WriteUInt64BigEndian(left.AsSpan(0, 8), 100UL);
+        BinaryPrimitives.WriteUInt64BigEndian(right.AsSpan(0, 8), 100UL);
+
+        for (var i = 8; i < 31; i++)
+        {
+            left[i] = 0xAA;
+            right[i] = 0xAA;
+        }
+
+        left[31] = 0x01;
+        right[31] = 0x02;
+
+        Assert.True(DeterministicOperationScheduler.CompareRankKeys(
+            left,
+            ArithmeticOperation.Addition,
+            right,
+            ArithmeticOperation.Addition) < 0);
+
+        Assert.True(DeterministicOperationScheduler.CompareRankKeys(
+            right,
+            ArithmeticOperation.Addition,
+            left,
+            ArithmeticOperation.Addition) > 0);
+    }
+
+    [Fact]
+    public void CompareRankKeys_IdenticalDigests_FallsBackToOperationEnumComparison()
+    {
+        var left = new byte[32];
+        var right = new byte[32];
+
+        BinaryPrimitives.WriteUInt64BigEndian(left.AsSpan(0, 8), 100UL);
+        BinaryPrimitives.WriteUInt64BigEndian(right.AsSpan(0, 8), 100UL);
+        Array.Fill<byte>(left, 0x55, 8, 24);
+        Array.Fill<byte>(right, 0x55, 8, 24);
+
+        // Addition (0) vs Subtraction (1)
+        Assert.True(DeterministicOperationScheduler.CompareRankKeys(
+            left,
+            ArithmeticOperation.Addition,
+            right,
+            ArithmeticOperation.Subtraction) < 0);
+
+        // Division (3) vs Multiplication (2)
+        Assert.True(DeterministicOperationScheduler.CompareRankKeys(
+            left,
+            ArithmeticOperation.Division,
+            right,
+            ArithmeticOperation.Multiplication) > 0);
+
+        // Same operation
+        Assert.Equal(0, DeterministicOperationScheduler.CompareRankKeys(
+            left,
+            ArithmeticOperation.Addition,
+            right,
+            ArithmeticOperation.Addition));
+    }
+
+    [Fact]
+    public void CompareRankKeys_InvalidDigestLengths_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => DeterministicOperationScheduler.CompareRankKeys(
+            new byte[31],
+            ArithmeticOperation.Addition,
+            new byte[32],
+            ArithmeticOperation.Addition));
+
+        Assert.Throws<ArgumentException>(() => DeterministicOperationScheduler.CompareRankKeys(
+            new byte[33],
+            ArithmeticOperation.Addition,
+            new byte[32],
+            ArithmeticOperation.Addition));
+
+        Assert.Throws<ArgumentException>(() => DeterministicOperationScheduler.CompareRankKeys(
+            new byte[32],
+            ArithmeticOperation.Addition,
+            new byte[31],
+            ArithmeticOperation.Addition));
+
+        Assert.Throws<ArgumentException>(() => DeterministicOperationScheduler.CompareRankKeys(
+            new byte[32],
+            ArithmeticOperation.Addition,
+            new byte[0],
+            ArithmeticOperation.Addition));
     }
 }
