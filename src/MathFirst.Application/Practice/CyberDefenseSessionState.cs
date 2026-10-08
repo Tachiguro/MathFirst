@@ -4,8 +4,9 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Application-scoped state holder managing the lifetime of the transient Cyber Defense encounter
-/// and in-memory deduplication of confirmed combat attempt dispatches.
+/// Application-scoped state holder managing the lifetime of the transient Cyber Defense encounter,
+/// in-memory deduplication of confirmed combat attempt dispatches, and immutable pending combat contexts
+/// preserved across UI navigation and component disposal.
 /// Respects Calm Mode preferences: when disabled, no combat state is allocated and queries return null.
 /// Preserves combat state when toggling between enabled and disabled, and clears state upon full local reset.
 /// </summary>
@@ -14,6 +15,7 @@ public sealed class CyberDefenseSessionState
     private readonly ICyberDefenseModePreferences _preferences;
     private readonly Func<CyberDefenseEncounterState> _encounterFactory;
     private readonly HashSet<string> _processedSubmissionIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PendingCombatContext> _pendingContexts = new(StringComparer.Ordinal);
     private CyberDefenseEncounterState? _encounter;
 
     public CyberDefenseSessionState(
@@ -55,6 +57,61 @@ public sealed class CyberDefenseSessionState
         }
     }
 
+    public void RegisterPendingContext(PendingCombatContext context)
+    {
+        if (context is null || string.IsNullOrWhiteSpace(context.SubmissionId))
+        {
+            return;
+        }
+
+        lock (_processedSubmissionIds)
+        {
+            _pendingContexts[context.SubmissionId] = context;
+        }
+    }
+
+    public PendingCombatContext? GetPendingContext(string submissionId)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            return null;
+        }
+
+        lock (_processedSubmissionIds)
+        {
+            return _pendingContexts.GetValueOrDefault(submissionId);
+        }
+    }
+
+    public bool TryGetPendingContext(string submissionId, out PendingCombatContext? context)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            context = null;
+            return false;
+        }
+
+        lock (_processedSubmissionIds)
+        {
+            return _pendingContexts.TryGetValue(submissionId, out context);
+        }
+    }
+
+    public void ClearPendingContext(string? submissionId = null)
+    {
+        lock (_processedSubmissionIds)
+        {
+            if (submissionId is null)
+            {
+                _pendingContexts.Clear();
+            }
+            else
+            {
+                _pendingContexts.Remove(submissionId);
+            }
+        }
+    }
+
     public CombatDispatchResult DispatchAttempt(ConfirmedCombatAttempt attempt)
     {
         if (attempt is null || string.IsNullOrWhiteSpace(attempt.SubmissionId))
@@ -73,6 +130,8 @@ public sealed class CyberDefenseSessionState
             {
                 return CombatDispatchResult.Duplicate();
             }
+
+            _pendingContexts.Remove(attempt.SubmissionId);
         }
 
         var isEligible = attempt.WasEligibleAtSubmission && IsCyberDefenseEnabled;
@@ -112,6 +171,7 @@ public sealed class CyberDefenseSessionState
         lock (_processedSubmissionIds)
         {
             _processedSubmissionIds.Clear();
+            _pendingContexts.Clear();
         }
     }
 }

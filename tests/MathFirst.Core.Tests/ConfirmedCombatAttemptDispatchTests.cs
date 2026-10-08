@@ -747,4 +747,496 @@ public sealed class ConfirmedCombatAttemptDispatchTests : IDisposable
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Dispose() { }
     }
+
+    // =========================================================================
+    // PERSISTENCE RECOVERY & NAVIGATION CASES (MF-CYBER-001 / MF-FINDING-001)
+    // =========================================================================
+
+    [Fact]
+    public async Task Case1_CyberDefenseOrigin_WriteFails_NavigationToSettings_ReturnAndRecover_PreservesEligibilityAndDispatchesOneHit()
+    {
+        var store = new ControlledLearnerStore(
+        [
+            PersistenceResult.Unavailable("Transient initial store write failure."),
+            PersistenceResult.Success(2)
+        ]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        // Step 1: Submit answer in Cyber Defense mode on Home (Instance 1)
+        var isCyberDefenseActiveAtSubmission = sessionState.IsCyberDefenseEnabled;
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+        var isCritical = eval.IsCorrect
+            && session.IsPaceCalibrationReady
+            && eval.LatencyMs <= session.CurrentFactCriticalHitThresholdMs;
+
+        sessionState.RegisterPendingContext(new PendingCombatContext(
+            submissionId,
+            wasEligibleAtSubmission: isCyberDefenseActiveAtSubmission,
+            isCritical: isCritical));
+
+        var commitResult = await session.CommitCurrentEvaluationAsync();
+        Assert.False(commitResult.IsSuccess);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Step 2: Component Instance 1 is disposed upon navigating to Settings.
+        // Step 3: Component Instance 2 is created upon navigating back to Home.
+        // Step 4: Component Instance 2 recovers persistence failure.
+        var recovered = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recovered);
+        Assert.True(session.IsCurrentSubmissionCommitted);
+
+        var pendingContext = sessionState.GetPendingContext(submissionId);
+        Assert.NotNull(pendingContext);
+        Assert.True(pendingContext.WasEligibleAtSubmission);
+        Assert.Equal(isCritical, pendingContext.IsCritical);
+
+        var confirmedAttempt = new ConfirmedCombatAttempt(
+            submissionId: submissionId,
+            isCorrect: session.LastEvaluation!.IsCorrect,
+            isCritical: pendingContext.IsCritical,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: pendingContext.WasEligibleAtSubmission);
+
+        var dispatchResult = sessionState.DispatchAttempt(confirmedAttempt);
+
+        Assert.Equal(CombatDispatchStatus.Dispatched, dispatchResult.Status);
+        Assert.True(dispatchResult.MutatedCombatState);
+        Assert.Equal(hpBefore - 1, encounter.EnemyHitPoints);
+        Assert.True(sessionState.IsSubmissionProcessed(submissionId));
+    }
+
+    [Fact]
+    public async Task Case2_CyberDefenseOrigin_RepeatedWriteFailuresAndNavigation_ZeroMutationsUntilCommitted_DispatchesOnceAfterFinalSuccess()
+    {
+        var store = new ControlledLearnerStore(
+        [
+            PersistenceResult.Unavailable("Transient error 1"),
+            PersistenceResult.Unavailable("Transient error 2"),
+            PersistenceResult.Success(2)
+        ]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        // Initial submission
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+        sessionState.RegisterPendingContext(new PendingCombatContext(submissionId, wasEligibleAtSubmission: true, isCritical: false));
+
+        // Attempt 1 fails
+        await session.CommitCurrentEvaluationAsync();
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Simulated navigation away and back -> retry 1 fails
+        var rec1 = await session.RecoverFromPersistenceFailureAsync();
+        Assert.False(rec1);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+        Assert.Equal(hpBefore, encounter.EnemyHitPoints);
+
+        // Simulated navigation away and back -> retry 2 succeeds
+        var rec2 = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(rec2);
+        Assert.True(session.IsCurrentSubmissionCommitted);
+
+        var pendingContext = sessionState.GetPendingContext(submissionId);
+        Assert.NotNull(pendingContext);
+        Assert.True(pendingContext.WasEligibleAtSubmission);
+
+        var result = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            session.LastEvaluation!.IsCorrect,
+            pendingContext.IsCritical,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: pendingContext.WasEligibleAtSubmission));
+
+        Assert.Equal(CombatDispatchStatus.Dispatched, result.Status);
+        Assert.True(result.MutatedCombatState);
+        Assert.Equal(hpBefore - 1, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public async Task Case3_CalmModeOrigin_WriteFails_NavigateToSettings_EnableCyberDefense_ReturnAndRecover_ZeroCombatMutations()
+    {
+        var store = new ControlledLearnerStore(
+        [
+            PersistenceResult.Unavailable("Write failure in Calm Mode."),
+            PersistenceResult.Success(2)
+        ]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = false }; // Calm Mode active
+        var sessionState = new CyberDefenseSessionState(preferences);
+
+        // Step 1: Submit in Calm Mode
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+        sessionState.RegisterPendingContext(new PendingCombatContext(
+            submissionId,
+            wasEligibleAtSubmission: sessionState.IsCyberDefenseEnabled, // false
+            isCritical: false));
+
+        await session.CommitCurrentEvaluationAsync();
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Step 2: Navigate to Settings and enable Cyber Defense
+        preferences.Enabled = true;
+        Assert.True(sessionState.IsCyberDefenseEnabled);
+
+        // Step 3: Return to Home and retry
+        var recovered = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recovered);
+        Assert.True(session.IsCurrentSubmissionCommitted);
+
+        var pendingContext = sessionState.GetPendingContext(submissionId);
+        Assert.NotNull(pendingContext);
+        Assert.False(pendingContext.WasEligibleAtSubmission); // Calm origin preserved!
+
+        var result = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            session.LastEvaluation!.IsCorrect,
+            pendingContext.IsCritical,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: pendingContext.WasEligibleAtSubmission));
+
+        Assert.Equal(CombatDispatchStatus.CalmModeSuppressed, result.Status);
+        Assert.False(result.MutatedCombatState);
+
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public async Task Case4_CyberDefenseOrigin_WriteFails_NavigateToSettings_EnableCalmMode_ReturnAndRecover_SuppressesCombatAndNeverReplays()
+    {
+        var store = new ControlledLearnerStore(
+        [
+            PersistenceResult.Unavailable("Write failure in Cyber Defense."),
+            PersistenceResult.Success(2)
+        ]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        // Step 1: Submit in Cyber Defense mode
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+        sessionState.RegisterPendingContext(new PendingCombatContext(
+            submissionId,
+            wasEligibleAtSubmission: true,
+            isCritical: false));
+
+        await session.CommitCurrentEvaluationAsync();
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Step 2: Navigate to Settings and enable Calm Mode
+        preferences.Enabled = false;
+        Assert.False(sessionState.IsCyberDefenseEnabled);
+
+        // Step 3: Return to Home and retry
+        var recovered = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recovered);
+        Assert.True(session.IsCurrentSubmissionCommitted);
+
+        var pendingContext = sessionState.GetPendingContext(submissionId);
+        Assert.NotNull(pendingContext);
+        Assert.True(pendingContext.WasEligibleAtSubmission);
+
+        var result = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            session.LastEvaluation!.IsCorrect,
+            pendingContext.IsCritical,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: pendingContext.WasEligibleAtSubmission));
+
+        Assert.Equal(CombatDispatchStatus.CalmModeSuppressed, result.Status);
+        Assert.False(result.MutatedCombatState);
+
+        // Step 4: Re-enable Cyber Defense later -> suppressed attempt is not replayed
+        preferences.Enabled = true;
+        var resumedEncounter = sessionState.ActiveEncounter;
+        Assert.NotNull(resumedEncounter);
+        Assert.Equal(hpBefore, resumedEncounter.EnemyHitPoints);
+
+        var replayResult = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            true,
+            false,
+            true,
+            true));
+        Assert.Equal(CombatDispatchStatus.DuplicateSuppressed, replayResult.Status);
+        Assert.False(replayResult.MutatedCombatState);
+        Assert.Equal(hpBefore, resumedEncounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public async Task Case5_OriginallyCriticalCorrectAnswer_PersistenceFailureAndNavigation_PreservesCriticalHitClassification()
+    {
+        var store = new ControlledLearnerStore(
+        [
+            PersistenceResult.Unavailable("Transient error on critical hit."),
+            PersistenceResult.Success(2)
+        ]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        // Step 1: Submit critical hit answer
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+
+        // Explicit critical hit captured at submission
+        sessionState.RegisterPendingContext(new PendingCombatContext(
+            submissionId,
+            wasEligibleAtSubmission: true,
+            isCritical: true));
+
+        await session.CommitCurrentEvaluationAsync();
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Step 2: Component recreation & recovery
+        var recovered = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recovered);
+
+        var pendingContext = sessionState.GetPendingContext(submissionId);
+        Assert.NotNull(pendingContext);
+        Assert.True(pendingContext.IsCritical);
+
+        var result = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            session.LastEvaluation!.IsCorrect,
+            isCritical: pendingContext.IsCritical,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: pendingContext.WasEligibleAtSubmission));
+
+        Assert.Equal(CombatDispatchStatus.Dispatched, result.Status);
+        Assert.True(result.MutatedCombatState);
+        Assert.Equal(hpBefore - 2, encounter.EnemyHitPoints); // 2 damage for critical hit
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, encounter.LastFeedback);
+    }
+
+    [Fact]
+    public async Task Case6_DurableCommitSucceeds_NextFactPreparationFails_DispatchesOnceAndDeduplicatesRepeatedRecovery()
+    {
+        var throwEvidence = false;
+        var store = new DynamicEvidenceStore(() => throwEvidence);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+        sessionState.RegisterPendingContext(new PendingCombatContext(submissionId, wasEligibleAtSubmission: true, isCritical: false));
+
+        throwEvidence = true;
+        await session.CommitCurrentEvaluationAsync();
+        Assert.True(session.IsCurrentSubmissionCommitted);
+
+        // First dispatch upon confirmed commit
+        var pending1 = sessionState.GetPendingContext(submissionId);
+        var dispatch1 = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            eval.IsCorrect,
+            pending1?.IsCritical ?? false,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: pending1?.WasEligibleAtSubmission ?? true));
+
+        Assert.Equal(CombatDispatchStatus.Dispatched, dispatch1.Status);
+        Assert.Equal(hpBefore - 1, encounter.EnemyHitPoints);
+
+        // Navigation to Settings and back, then recovery
+        throwEvidence = false;
+        var recovered = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recovered);
+
+        // Attempting second dispatch during recovery returns duplicate
+        var dispatch2 = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(
+            submissionId,
+            eval.IsCorrect,
+            false,
+            isCommitted: session.IsCurrentSubmissionCommitted,
+            wasEligibleAtSubmission: true));
+
+        Assert.Equal(CombatDispatchStatus.DuplicateSuppressed, dispatch2.Status);
+        Assert.Equal(hpBefore - 1, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public async Task Case7_RevisionConflict_DiscardsPendingEvaluation_InvalidatesPendingContext()
+    {
+        var store = new ControlledLearnerStore([PersistenceResult.Conflict("Revision mismatch.")]);
+        var session = new TrainingSession(store, new FakeClock());
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        var submissionId = eval.ChangeSet.SubmissionId;
+        sessionState.RegisterPendingContext(new PendingCombatContext(submissionId, wasEligibleAtSubmission: true, isCritical: false));
+
+        var commitResult = await session.CommitCurrentEvaluationAsync();
+        Assert.Equal(PersistenceStatus.RevisionConflict, commitResult.Status);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Recovery on revision conflict reloads authoritative state and resets LastEvaluation
+        var recovered = await session.RecoverFromPersistenceFailureAsync();
+        Assert.True(recovered);
+        Assert.Null(session.LastEvaluation);
+        Assert.False(session.IsCurrentSubmissionCommitted);
+
+        // Pending context is invalidated / cleared
+        sessionState.ClearPendingContext(submissionId);
+        Assert.Null(sessionState.GetPendingContext(submissionId));
+        Assert.Equal(hpBefore, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public void Case8_HomeRecreation_WithoutPendingEvaluation_ZeroCombatDispatches()
+    {
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+
+        // No pending context registered
+        Assert.Null(sessionState.GetPendingContext("nonexistent-submission"));
+        Assert.Equal(CyberDefenseEncounterState.PrototypeEnemyHitPoints, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public void Case9_FullLocalReset_ClearsPendingContextAndEncounter()
+    {
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+
+        var subId = Guid.NewGuid().ToString("N");
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId, wasEligibleAtSubmission: true, isCritical: true));
+        Assert.NotNull(sessionState.GetPendingContext(subId));
+
+        sessionState.ClearEncounter();
+
+        Assert.False(sessionState.HasActiveEncounter);
+        Assert.Null(sessionState.GetPendingContext(subId));
+        Assert.False(sessionState.IsSubmissionProcessed(subId));
+    }
+
+    [Fact]
+    public async Task Case10_LearningOnlyReset_PreservesEncounter_InvalidatesDiscardedPendingContext()
+    {
+        var dbPath = Path.Combine(_tempDirectory, "case_10.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        var session = new TrainingSession(store);
+        await session.InitializeAsync();
+
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+
+        var subId1 = Guid.NewGuid().ToString("N");
+        sessionState.DispatchAttempt(new ConfirmedCombatAttempt(subId1, true, false, true, true));
+        var hpAfterDispatch = encounter.EnemyHitPoints;
+
+        // Pending context for uncommitted attempt
+        var subId2 = Guid.NewGuid().ToString("N");
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId2, wasEligibleAtSubmission: true, isCritical: false));
+
+        await session.ResetLearningProgressAsync(startTiming: false);
+        sessionState.ClearPendingContext();
+
+        Assert.True(sessionState.HasActiveEncounter);
+        Assert.Equal(hpAfterDispatch, sessionState.ActiveEncounter?.EnemyHitPoints);
+        Assert.True(sessionState.IsSubmissionProcessed(subId1));
+        Assert.Null(sessionState.GetPendingContext(subId2));
+    }
+
+    [Fact]
+    public void Case11_DistinctConfirmedAttempts_MaintainIndependentContextsWithoutCrossAssociation()
+    {
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var initialHp = encounter.EnemyHitPoints;
+
+        var subId1 = "sub-1-" + Guid.NewGuid().ToString("N");
+        var subId2 = "sub-2-" + Guid.NewGuid().ToString("N");
+
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId1, wasEligibleAtSubmission: true, isCritical: false));
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId2, wasEligibleAtSubmission: true, isCritical: true));
+
+        var ctx1 = sessionState.GetPendingContext(subId1);
+        var ctx2 = sessionState.GetPendingContext(subId2);
+
+        Assert.NotNull(ctx1);
+        Assert.NotNull(ctx2);
+        Assert.False(ctx1.IsCritical);
+        Assert.True(ctx2.IsCritical);
+
+        var res1 = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(subId1, true, ctx1.IsCritical, true, ctx1.WasEligibleAtSubmission));
+        Assert.Equal(CombatDispatchStatus.Dispatched, res1.Status);
+        Assert.Equal(initialHp - 1, encounter.EnemyHitPoints);
+
+        var res2 = sessionState.DispatchAttempt(new ConfirmedCombatAttempt(subId2, true, ctx2.IsCritical, true, ctx2.WasEligibleAtSubmission));
+        Assert.Equal(CombatDispatchStatus.Dispatched, res2.Status);
+        Assert.Equal(initialHp - 3, encounter.EnemyHitPoints);
+    }
+
+    [Fact]
+    public void Case12_ConcurrentDispatchAndRecovery_ThreadSafeSingleDispatch()
+    {
+        var preferences = new FakePreferences { Enabled = true };
+        var sessionState = new CyberDefenseSessionState(preferences);
+        var encounter = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter);
+        var hpBefore = encounter.EnemyHitPoints;
+
+        var subId = "concurrent-" + Guid.NewGuid().ToString("N");
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId, wasEligibleAtSubmission: true, isCritical: false));
+
+        var attempts = Enumerable.Range(0, 20).Select(_ => new ConfirmedCombatAttempt(subId, true, false, true, true)).ToList();
+        var results = attempts.AsParallel().Select(a => sessionState.DispatchAttempt(a)).ToList();
+
+        var dispatchedCount = results.Count(r => r.Status == CombatDispatchStatus.Dispatched);
+        var duplicateCount = results.Count(r => r.Status == CombatDispatchStatus.DuplicateSuppressed);
+
+        Assert.Equal(1, dispatchedCount);
+        Assert.Equal(19, duplicateCount);
+        Assert.Equal(hpBefore - 1, encounter.EnemyHitPoints);
+    }
 }

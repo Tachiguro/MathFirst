@@ -1169,7 +1169,7 @@ public sealed class CyberDefenseUiContractTests
 
         // Combat mutations are dispatched only after commit with mode eligibility flags
         Assert.Contains("CyberDefenseState.DispatchAttempt", content, StringComparison.Ordinal);
-        Assert.Contains("wasEligibleAtSubmission: _pendingWasEligibleAtSubmission", content, StringComparison.Ordinal);
+        Assert.Contains("wasEligibleAtSubmission: wasEligible", content, StringComparison.Ordinal);
         Assert.Contains("isCommitted: true", content, StringComparison.Ordinal);
     }
 
@@ -1360,6 +1360,32 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("solve-corner", home, StringComparison.Ordinal);
         Assert.Contains("CyberDefenseState.DispatchAttempt", home, StringComparison.Ordinal);
         Assert.Contains("ConfirmedCombatAttempt", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PendingCombatContext_SourceContract_HomeUsesApplicationScopedPendingContext()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var home = File.ReadAllText(homePath);
+
+        // Home registers and retrieves pending combat context via CyberDefenseState
+        Assert.Contains("CyberDefenseState.RegisterPendingContext", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseState.GetPendingContext", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseState.ClearPendingContext", home, StringComparison.Ordinal);
+        Assert.Contains("new PendingCombatContext", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PendingCombatContext_SourceContract_HomeDoesNotRetainDisposedPrivateEligibilityFields()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var home = File.ReadAllText(homePath);
+
+        // Home must not store mutable pending eligibility or critical classification in private component fields
+        Assert.DoesNotContain("_pendingWasEligibleAtSubmission", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("_pendingIsCritical", home, StringComparison.Ordinal);
     }
 
     private sealed class FakeCyberDefenseModePreferences : ICyberDefenseModePreferences

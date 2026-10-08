@@ -428,6 +428,119 @@ public sealed class CyberDefenseSessionStateTests : IDisposable
         }
     }
 
+    // =========================================================================
+    // SCENARIO L: Pending combat context storage, retrieval, and retirement
+    // =========================================================================
+
+    [Fact]
+    public void ScenarioL_PendingCombatContext_StoresAndRetrievesKeyedBySubmissionId()
+    {
+        var preferences = new InMemoryCyberDefensePreferences();
+        var sessionState = new CyberDefenseSessionState(preferences);
+
+        var subId1 = "sub-1-" + Guid.NewGuid().ToString("N");
+        var subId2 = "sub-2-" + Guid.NewGuid().ToString("N");
+
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId1, wasEligibleAtSubmission: true, isCritical: false));
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId2, wasEligibleAtSubmission: false, isCritical: true));
+
+        var ctx1 = sessionState.GetPendingContext(subId1);
+        var ctx2 = sessionState.GetPendingContext(subId2);
+
+        Assert.NotNull(ctx1);
+        Assert.NotNull(ctx2);
+        Assert.Equal(subId1, ctx1.SubmissionId);
+        Assert.True(ctx1.WasEligibleAtSubmission);
+        Assert.False(ctx1.IsCritical);
+
+        Assert.Equal(subId2, ctx2.SubmissionId);
+        Assert.False(ctx2.WasEligibleAtSubmission);
+        Assert.True(ctx2.IsCritical);
+
+        Assert.Null(sessionState.GetPendingContext("nonexistent"));
+        Assert.Null(sessionState.GetPendingContext(""));
+        Assert.Null(sessionState.GetPendingContext(null!));
+    }
+
+    [Fact]
+    public void ScenarioL_PendingCombatContext_CalmModeRegistration_DoesNotAllocateEncounter()
+    {
+        var preferences = new InMemoryCyberDefensePreferences();
+        preferences.SetCyberDefenseEnabled(false);
+
+        var factoryCount = 0;
+        var sessionState = new CyberDefenseSessionState(preferences, () =>
+        {
+            factoryCount++;
+            return new CyberDefenseEncounterState();
+        });
+
+        var subId = Guid.NewGuid().ToString("N");
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId, wasEligibleAtSubmission: false, isCritical: false));
+
+        Assert.False(sessionState.HasActiveEncounter);
+        Assert.Null(sessionState.ActiveEncounter);
+        Assert.Equal(0, factoryCount);
+
+        var ctx = sessionState.GetPendingContext(subId);
+        Assert.NotNull(ctx);
+        Assert.Equal(subId, ctx.SubmissionId);
+    }
+
+    [Fact]
+    public void ScenarioL_PendingCombatContext_ConfirmedDispatchConsumesContext()
+    {
+        var preferences = new InMemoryCyberDefensePreferences();
+        var sessionState = new CyberDefenseSessionState(preferences);
+
+        var subId = Guid.NewGuid().ToString("N");
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId, wasEligibleAtSubmission: true, isCritical: false));
+
+        Assert.NotNull(sessionState.GetPendingContext(subId));
+
+        var attempt = new ConfirmedCombatAttempt(subId, isCorrect: true, isCritical: false, isCommitted: true, wasEligibleAtSubmission: true);
+        var result = sessionState.DispatchAttempt(attempt);
+
+        Assert.Equal(CombatDispatchStatus.Dispatched, result.Status);
+        Assert.Null(sessionState.GetPendingContext(subId)); // Consumed upon dispatch
+    }
+
+    [Fact]
+    public void ScenarioL_PendingCombatContext_ClearPendingContext_RemovesSpecificOrAllContexts()
+    {
+        var preferences = new InMemoryCyberDefensePreferences();
+        var sessionState = new CyberDefenseSessionState(preferences);
+
+        var subId1 = "sub-1-" + Guid.NewGuid().ToString("N");
+        var subId2 = "sub-2-" + Guid.NewGuid().ToString("N");
+
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId1, wasEligibleAtSubmission: true, isCritical: false));
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId2, wasEligibleAtSubmission: true, isCritical: true));
+
+        // Clear specific
+        sessionState.ClearPendingContext(subId1);
+        Assert.Null(sessionState.GetPendingContext(subId1));
+        Assert.NotNull(sessionState.GetPendingContext(subId2));
+
+        // Clear all
+        sessionState.ClearPendingContext();
+        Assert.Null(sessionState.GetPendingContext(subId2));
+    }
+
+    [Fact]
+    public void ScenarioL_PendingCombatContext_FullResetClearsContexts()
+    {
+        var preferences = new InMemoryCyberDefensePreferences();
+        var sessionState = new CyberDefenseSessionState(preferences);
+
+        var subId = Guid.NewGuid().ToString("N");
+        sessionState.RegisterPendingContext(new PendingCombatContext(subId, wasEligibleAtSubmission: true, isCritical: false));
+
+        sessionState.ClearEncounter();
+
+        Assert.Null(sessionState.GetPendingContext(subId));
+    }
+
     private sealed class TestInstallationIdProvider : IInstallationIdProvider
     {
         public void ClearInstallationId() { }
