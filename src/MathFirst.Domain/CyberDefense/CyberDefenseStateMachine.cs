@@ -12,12 +12,12 @@ public static class CyberDefenseStateMachine
 
         if (!isCorrect)
         {
-            throw new NotSupportedException("Incorrect answer transitions are not supported in Slice 4.");
+            throw new NotSupportedException("Incorrect answer transitions are not supported in Slice 5.");
         }
 
-        if (run.CurrentOpponent.Kind != OpponentKind.Normal)
+        if (run.CurrentOpponent.Kind != OpponentKind.Normal && run.CurrentOpponent.Kind != OpponentKind.Boss)
         {
-            throw new NotSupportedException($"Combat against opponent kind '{run.CurrentOpponent.Kind}' is not supported in Slice 4.");
+            throw new NotSupportedException($"Combat against opponent kind '{run.CurrentOpponent.Kind}' is not supported in Slice 5.");
         }
 
         int requestedAttackDamage = effectiveAttackDamage;
@@ -30,7 +30,6 @@ public static class CyberDefenseStateMachine
         const int incomingEnemyDamage = 0;
         const int appliedPlayerDamage = 0;
         const int excessEnemyDamage = 0;
-        const bool isSectorCompleted = false;
         const bool isGameOver = false;
         const CyberDefenseTerminalRunSnapshot? terminalSnapshot = null;
 
@@ -58,20 +57,34 @@ public static class CyberDefenseStateMachine
                 potentialHealing: 0,
                 appliedHealing: 0,
                 isOpponentDefeated: false,
-                isSectorCompleted: isSectorCompleted,
+                isSectorCompleted: false,
                 isGameOver: isGameOver,
                 nextState: nextState,
                 terminalSnapshot: terminalSnapshot);
         }
         else
         {
-            int potentialHealing = CyberDefenseCombatPolicy.GetDefeatHealing(OpponentKind.Normal);
+            int potentialHealing = CyberDefenseCombatPolicy.GetDefeatHealing(run.CurrentOpponent.Kind);
             int availableHealingCapacity = checked(CyberDefenseCombatPolicy.PlayerMaxHp - run.PlayerCurrentHp);
             int appliedHealing = Math.Min(potentialHealing, Math.Max(0, availableHealingCapacity));
             int nextPlayerHp = checked(run.PlayerCurrentHp + appliedHealing);
 
-            int nextOpponentIndex = checked(run.OpponentIndex + 1);
-            int nextSector = run.Sector;
+            int nextSector;
+            int nextOpponentIndex;
+            bool isSectorCompleted;
+
+            if (run.CurrentOpponent.Kind == OpponentKind.Normal)
+            {
+                isSectorCompleted = false;
+                nextSector = run.Sector;
+                nextOpponentIndex = checked(run.OpponentIndex + 1);
+            }
+            else
+            {
+                isSectorCompleted = true;
+                nextSector = checked(run.Sector + 1);
+                nextOpponentIndex = 0;
+            }
 
             OpponentKind nextOpponentKind = CyberDefenseScalingPolicy.GetOpponentKind(nextSector, nextOpponentIndex);
             int nextOpponentMaxHp = CyberDefenseScalingPolicy.GetOpponentMaxHp(nextSector, nextOpponentIndex);

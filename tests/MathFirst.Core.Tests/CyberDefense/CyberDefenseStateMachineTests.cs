@@ -425,25 +425,12 @@ public class CyberDefenseStateMachineTests
     }
 
     [Fact]
-    public void ApplyAttempt_ThrowsNotSupported_ForIncorrectAnswer_InSlice4()
+    public void ApplyAttempt_ThrowsNotSupported_ForIncorrectAnswer()
     {
         var run = CyberDefenseRunState.InitialRun();
 
         Assert.Throws<NotSupportedException>(() =>
             CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 1));
-    }
-
-    [Fact]
-    public void ApplyAttempt_ThrowsNotSupported_ForBossEncounter_InSlice4()
-    {
-        // Construct boss run
-        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
-        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
-        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
-        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 100, boss);
-
-        Assert.Throws<NotSupportedException>(() =>
-            CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 1));
     }
 
     // =========================================================================
@@ -664,5 +651,384 @@ public class CyberDefenseStateMachineTests
         Assert.NotEqual(res1, res3);
         Assert.False(res1 == res3);
         Assert.True(res1 != res3);
+    }
+
+    // =========================================================================
+    // K. PARTIAL BOSS DAMAGE
+    // =========================================================================
+
+    [Fact]
+    public void ApplyAttempt_Boss_PartialDamage_Sector1_Attack1()
+    {
+        // Sector 1: Boss index = 5, Boss MaxHp = 12, CurrentHp = 12
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 1);
+
+        Assert.True(result.IsCorrect);
+        Assert.Equal(1, result.RequestedAttackDamage);
+        Assert.Equal(1, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(0, result.IncomingEnemyDamage);
+        Assert.Equal(0, result.AppliedPlayerDamage);
+        Assert.Equal(0, result.ExcessEnemyDamage);
+        Assert.Equal(0, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing);
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.False(result.IsGameOver);
+        Assert.Null(result.TerminalSnapshot);
+
+        Assert.NotNull(result.NextState);
+        Assert.Equal(1, result.NextState.Sector);
+        Assert.Equal(bossIndex, result.NextState.OpponentIndex);
+        Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Boss, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(12, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(11, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_PartialDamage_Sector1_Attack5()
+    {
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 5);
+
+        Assert.True(result.IsCorrect);
+        Assert.Equal(5, result.RequestedAttackDamage);
+        Assert.Equal(5, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(0, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing);
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.False(result.IsGameOver);
+
+        Assert.Equal(1, result.NextState.Sector);
+        Assert.Equal(bossIndex, result.NextState.OpponentIndex);
+        Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        Assert.Equal(12, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(7, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_PartialDamage_RehydratedPartiallyDamagedBoss()
+    {
+        // Rehydrated partially damaged boss in Sector 1 (CurrentHp = 7, PlayerHp = 80)
+        var run = CyberDefenseRunState.Rehydrate(sector: 1, opponentIndex: 5, opponentCurrentHp: 7, playerCurrentHp: 80);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 3);
+
+        Assert.True(result.IsCorrect);
+        Assert.Equal(3, result.RequestedAttackDamage);
+        Assert.Equal(3, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(0, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing);
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.False(result.IsGameOver);
+
+        Assert.Equal(1, result.NextState.Sector);
+        Assert.Equal(5, result.NextState.OpponentIndex);
+        Assert.Equal(80, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Boss, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(12, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(4, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_PartialDamage_HigherSectorBoss()
+    {
+        // Sector 10: Boss index = 8, Boss MaxHp = 18
+        int sector = 10;
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(sector);
+        Assert.Equal(8, bossIndex);
+        Assert.Equal(18, bossMaxHp);
+
+        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var run = CyberDefenseRunState.CreateActive(sector, bossIndex, 90, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 4);
+
+        Assert.True(result.IsCorrect);
+        Assert.Equal(4, result.RequestedAttackDamage);
+        Assert.Equal(4, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.False(result.IsGameOver);
+        Assert.Equal(0, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing);
+
+        Assert.Equal(sector, result.NextState.Sector);
+        Assert.Equal(bossIndex, result.NextState.OpponentIndex);
+        Assert.Equal(90, result.NextState.PlayerCurrentHp);
+        Assert.Equal(18, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(14, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    // =========================================================================
+    // L. EXACT AND ONE-HIT BOSS DEFEAT (OVERKILL & NO SPLASH)
+    // =========================================================================
+
+    [Fact]
+    public void ApplyAttempt_Boss_ExactDefeat_AccountsDamageAndFlagsCorrectly()
+    {
+        // Sector 1: Boss MaxHp = 12, CurrentHp = 12. Attack = 12
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        var boss = new OpponentState(OpponentKind.Boss, 12, 12);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 12);
+
+        Assert.True(result.IsCorrect);
+        Assert.Equal(12, result.RequestedAttackDamage);
+        Assert.Equal(12, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(0, result.IncomingEnemyDamage);
+        Assert.Equal(0, result.AppliedPlayerDamage);
+        Assert.Equal(0, result.ExcessEnemyDamage);
+        Assert.Equal(6, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing); // Cap at 100
+        Assert.True(result.IsOpponentDefeated);
+        Assert.True(result.IsSectorCompleted);
+        Assert.False(result.IsGameOver);
+        Assert.Null(result.TerminalSnapshot);
+
+        // Next state advances to Sector 2, Index 0, Normal opponent
+        Assert.Equal(2, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(2, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_ExactDefeat_FromWeakenedBoss()
+    {
+        // Sector 1: Boss CurrentHp = 3. Attack = 3
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        var boss = new OpponentState(OpponentKind.Boss, 12, 3);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 90, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 3);
+
+        Assert.True(result.IsOpponentDefeated);
+        Assert.True(result.IsSectorCompleted);
+        Assert.Equal(3, result.RequestedAttackDamage);
+        Assert.Equal(3, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(6, result.PotentialHealing);
+        Assert.Equal(6, result.AppliedHealing);
+
+        Assert.Equal(2, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(96, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_OneHitDefeat_Overkill_AccountsExcessCorrectlyWithoutSplashDamage()
+    {
+        // Sector 1: Boss MaxHp = 12, CurrentHp = 12. Attack = 50
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        var boss = new OpponentState(OpponentKind.Boss, 12, 12);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 50);
+
+        Assert.True(result.IsOpponentDefeated);
+        Assert.True(result.IsSectorCompleted);
+        Assert.Equal(50, result.RequestedAttackDamage);
+        Assert.Equal(12, result.AppliedOpponentDamage);
+        Assert.Equal(38, result.ExcessOpponentDamage);
+
+        // Next sector opponent starts at full HP (excess 38 damage is completely discarded)
+        Assert.Equal(2, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(2, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_OneHitDefeat_MaxIntDamage_DiscardsExcessWithoutOverflow()
+    {
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        var boss = new OpponentState(OpponentKind.Boss, 12, 12);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: int.MaxValue);
+
+        Assert.True(result.IsOpponentDefeated);
+        Assert.True(result.IsSectorCompleted);
+        Assert.Equal(int.MaxValue, result.RequestedAttackDamage);
+        Assert.Equal(12, result.AppliedOpponentDamage);
+        Assert.Equal(int.MaxValue - 12, result.ExcessOpponentDamage);
+
+        Assert.Equal(2, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    // =========================================================================
+    // M. BOSS DEFEAT HEALING & PLAYER HP CAP
+    // =========================================================================
+
+    [Theory]
+    [InlineData(100, 6, 0, 100)]
+    [InlineData(99, 6, 1, 100)]
+    [InlineData(95, 6, 5, 100)]
+    [InlineData(94, 6, 6, 100)]
+    [InlineData(40, 6, 6, 46)]
+    [InlineData(1, 6, 6, 7)]
+    public void ApplyAttempt_Boss_DefeatHealing_RespectsCapAndAvailableCapacity(
+        int startingPlayerHp,
+        int expectedPotential,
+        int expectedApplied,
+        int expectedNextPlayerHp)
+    {
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        var boss = new OpponentState(OpponentKind.Boss, 12, 1);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, startingPlayerHp, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 1);
+
+        Assert.True(result.IsOpponentDefeated);
+        Assert.True(result.IsSectorCompleted);
+        Assert.Equal(expectedPotential, result.PotentialHealing);
+        Assert.Equal(expectedApplied, result.AppliedHealing);
+        Assert.Equal(expectedNextPlayerHp, result.NextState.PlayerCurrentHp);
+        Assert.True(result.NextState.PlayerCurrentHp <= CyberDefenseCombatPolicy.PlayerMaxHp);
+    }
+
+    // =========================================================================
+    // N. SECTOR ADVANCEMENT & EXACT REFERENCE TRANSITIONS
+    // =========================================================================
+
+    [Theory]
+    [InlineData(1, 5, 12, 2, 0, 2)]
+    [InlineData(4, 7, 14, 5, 0, 2)]
+    [InlineData(10, 8, 18, 11, 0, 3)]
+    public void ApplyAttempt_Boss_Defeat_ExactReferenceTransitions(
+        int currentSector,
+        int expectedBossIndex,
+        int expectedBossMaxHp,
+        int expectedNextSector,
+        int expectedNextOpponentIndex,
+        int expectedNextOpponentMaxHp)
+    {
+        Assert.Equal(expectedBossIndex, CyberDefenseScalingPolicy.GetBossIndex(currentSector));
+        Assert.Equal(expectedBossMaxHp, CyberDefenseScalingPolicy.GetBossMaxHp(currentSector));
+
+        var boss = new OpponentState(OpponentKind.Boss, expectedBossMaxHp, expectedBossMaxHp);
+        var run = CyberDefenseRunState.CreateActive(currentSector, expectedBossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: expectedBossMaxHp);
+
+        Assert.True(result.IsOpponentDefeated);
+        Assert.True(result.IsSectorCompleted);
+        Assert.False(result.IsGameOver);
+
+        Assert.Equal(expectedNextSector, result.NextState.Sector);
+        Assert.Equal(expectedNextOpponentIndex, result.NextState.OpponentIndex);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(expectedNextOpponentMaxHp, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(expectedNextOpponentMaxHp, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_Defeat_AdvancesExactlyOneSectorWithoutSkipping()
+    {
+        int sector = 1;
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(sector);
+        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var run = CyberDefenseRunState.CreateActive(sector, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: bossMaxHp);
+
+        Assert.Equal(2, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+    }
+
+    // =========================================================================
+    // O. BOSS COMBAT IMMUTABILITY & RESULT ACCOUNTING
+    // =========================================================================
+
+    [Fact]
+    public void ApplyAttempt_Boss_NeverMutatesInputRunOrBossState()
+    {
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        var boss = new OpponentState(OpponentKind.Boss, 12, 12);
+        var run = CyberDefenseRunState.CreateActive(1, bossIndex, 90, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 5);
+
+        // Original input state is unchanged
+        Assert.Equal(1, run.Sector);
+        Assert.Equal(bossIndex, run.OpponentIndex);
+        Assert.Equal(90, run.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Boss, run.CurrentOpponent.Kind);
+        Assert.Equal(12, run.CurrentOpponent.MaxHp);
+        Assert.Equal(12, run.CurrentOpponent.CurrentHp);
+
+        // NextState is a separate valid instance
+        Assert.NotSame(run, result.NextState);
+        Assert.NotSame(run.CurrentOpponent, result.NextState.CurrentOpponent);
+        Assert.Equal(7, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    // =========================================================================
+    // P. SECTOR NUMERIC BOUNDARY & OVERFLOW SAFETY
+    // =========================================================================
+
+    [Fact]
+    public void ApplyAttempt_Boss_SectorMaxInt_NonLethalHit_PreservesActiveSector()
+    {
+        int sector = int.MaxValue;
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(sector);
+        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var run = CyberDefenseRunState.CreateActive(sector, bossIndex, 100, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 1);
+
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.Equal(sector, result.NextState.Sector);
+        Assert.Equal(bossIndex, result.NextState.OpponentIndex);
+        Assert.Equal(bossMaxHp - 1, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    [Fact]
+    public void ApplyAttempt_Boss_SectorMaxInt_LethalHit_FailsClosedWithCheckedOverflowException()
+    {
+        int sector = int.MaxValue;
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(sector);
+        var boss = new OpponentState(OpponentKind.Boss, bossMaxHp, 1);
+        var run = CyberDefenseRunState.CreateActive(sector, bossIndex, 100, boss);
+
+        Assert.Throws<OverflowException>(() =>
+            CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: true, effectiveAttackDamage: 1));
+
+        // Input state remains intact
+        Assert.Equal(int.MaxValue, run.Sector);
+        Assert.Equal(bossIndex, run.OpponentIndex);
+        Assert.Equal(100, run.PlayerCurrentHp);
+        Assert.Equal(1, run.CurrentOpponent.CurrentHp);
     }
 }
