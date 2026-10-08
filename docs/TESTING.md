@@ -1292,3 +1292,79 @@ Coverage measurement methodology uses `coverlet.collector 6.0.4` under `Release`
 - The merged content is Git-tree-identical to the exact candidate that passed `FULL_VALIDATION` (`7f30fd950e21098a5376ac7251e906d29db78879`).
 - Automated tests do not constitute physical hardware verification or store publishing.
 - **Release Boundaries**: P7 remains DEFERRED. Roadmap Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**. Production packaging, signing, and store publication remain strictly unauthorized.
+
+---
+
+## 31. MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) Contracts & Reviewed Test Evidence
+
+The bounded MF-CYBER-001 development package delivers the architectural boundary, user-selectable Calm Mode, post-commit combat dispatch, in-memory deduplication, navigation-recovery context preservation, and mathematical non-interference contracts across four implementation slices and one targeted navigation-recovery remediation.
+
+### Verified Candidate Test Results (Reviewed Implementation Baseline)
+
+- **Baseline before MF-CYBER-001**: 2,299 Core tests passing in Debug and Release (`MathFirst.Core.Tests` on `main@3d476dd2211e4bc00898bc8162ade4f22312effb`).
+- **Full Core Test Suite (Debug)**: **2,390 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Full Core Test Suite (Release)**: **2,390 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Net Test Increase**: **+91 automated test cases** (zero skipped, zero failing).
+- **Windows Compilation Matrix**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+- **Android Compilation Matrix**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-android36.0`)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-android36.0`)
+- **Final Review Verdict**: `MF_CYBER_001_FINAL_REVIEW_APPROVED` (Consolidated review, corrective evidence audit, and post-remediation review approved).
+
+### Dedicated MF-CYBER-001 Test Suites & Coverage Categories
+
+The package-wide net test increase of +91 automated test cases spans five newly introduced test suites (76 tests) and two modified test suites (+15 net tests) in `tests/MathFirst.Core.Tests/`. The six candidate test suites specifically exercising Cyber Defense boundary and Calm Mode contracts total 126 test cases:
+
+1. **Cyber Defense Session State & Preference Contracts (`CyberDefenseSessionStateTests.cs`, 18 tests — new suite, +18 net)**:
+   - Verifies default preference initialization (`mathfirst.cyber_defense_enabled` defaults to `true`).
+   - Verifies lazy encounter instantiation and application-scoped singleton lifetime.
+   - Verifies Calm Mode encounter state freezing without background ticks, simulations, or allocations.
+   - Verifies Full Local Reset clearing encounter state and restoring default preferences.
+   - Verifies Learning-Only reset preserving encounter state while retiring uncommitted context on next practice fact.
+
+2. **Calm Mode Autonomous Practice & UI Decoupling Contracts (`CalmModeDecouplingContractTests.cs`, 13 tests — new suite, +13 net)**:
+   - Verifies rendering isolation in `Home.razor`: complete omission of `CyberDefenseHud`, top-region combat visuals, combo badges, and combat styling in Calm Mode.
+   - Verifies presentation of neutral localized solve heading `Practice_SolveHeading` in English, German, and Russian.
+   - Verifies Practice header quick toggle enabling instantaneous mode switching without interrupting active arithmetic timing or fact state (Scenarios A–K).
+   - Verifies independent mathematical practice flow under Calm Mode.
+
+3. **Confirmed Combat Dispatch & Idempotence Contracts (`ConfirmedCombatAttemptDispatchTests.cs`, 28 tests — new suite, +28 net)**:
+   - Verifies post-commit combat dispatch triggering combat mutations strictly after `Session.IsCurrentSubmissionCommitted` is `true` (Cases A–N).
+   - Verifies in-memory deduplication by `SubmissionId` in `CyberDefenseSessionState` to prevent duplicate combat mutations upon replay or retry.
+   - Verifies navigation-safe recovery context preservation via `PendingCombatContext` storing pre-persistence eligibility and critical-hit classification at submission time.
+   - Verifies that pending combat dispatch survives Blazor component disposal and re-creation across Home $\to$ Settings $\to$ Home navigation.
+   - Verifies learner persistence failure handling: combat dispatch is skipped if persistence fails, and retry dispatches correctly upon confirmed commit.
+
+4. **Mathematical Non-Interference Regressions (`NonInterferenceRegressionTests.cs`, 8 tests — new suite, +8 net)**:
+   - Verifies 100% mathematical domain authority: combat state never alters arithmetic fact selection, difficulty, correctness grading, FSRS-6 spaced repetition, or band progression (paired 100-attempt and 120-turn simulations).
+   - Verifies exact FSRS-6 stability, difficulty, and review interval equivalence between Cyber Defense and Calm Mode.
+   - Verifies active thinking time separation: active response latency strictly excludes combat presentation or animation overhead.
+   - Verifies Learner Store Schema V9 protection: zero schema changes, zero database migrations, zero column additions.
+   - *(Note: Distinct from the 6 pre-existing tests in `TelemetryNonInterferenceRegressionTests.cs` from prior packages).*
+
+5. **Cyber Defense UI & Interaction Contracts (`CyberDefenseUiContractTests.cs`, 50 tests — 40 baseline, +10 net)**:
+   - Verifies Settings toggle card integration and binding with `ICyberDefenseModePreferences`.
+   - Verifies localized string parity across English, German, and Russian for all new mode selection controls and labels.
+   - Verifies accessibility labels and focus behavior across mode switching controls.
+
+6. **Lower Math Area Layout Contract Tests (`LowerMathAreaLayoutContractTests.cs`, 9 tests — new suite, +9 net)**:
+   - Verifies positional stability of the numeric keypad, arithmetic typography, and answer input area.
+   - Verifies source-level CSS and component layout contracts ensuring lower math area geometry is isolated from combat HUD mutations, themes, reduced motion, and viewport height variations.
+
+7. **Reset Coordinator Integration Contracts (`AppResetCoordinatorTests.cs`, 8 tests — 3 baseline, +5 net)**:
+   - Verifies Full Local Reset integration clearing `CyberDefenseSessionState` encounter, deduplication history, and resetting mode preferences to default.
+   - Verifies learning-only reset isolation preserving encounter state and mode preferences.
+
+### Distinct Test Methodology & Evidence Boundaries
+
+MathFirst maintains strict distinctions between testing tiers:
+
+- **Unit Tests**: Isolated domain tests (`CyberDefenseSessionStateTests`, `ConfirmedCombatAttemptDispatchTests`) running in-memory with deterministic clocks and synthetic fixtures.
+- **Behavioral Integration Tests**: Multi-component interaction tests (`CalmModeDecouplingContractTests`, `NonInterferenceRegressionTests`) verifying `TrainingSession`, `CyberDefenseSessionState`, and preferences.
+- **Real SQLite Integration Tests**: Persistence tests executing against real isolated SQLite instances verifying transaction atomicity, Schema V9 integrity, and rollback behavior.
+- **Razor/CSS Source-Contract Tests**: Static analysis and DOM contract suites (`CyberDefenseUiContractTests`, `LowerMathAreaLayoutContractTests`) validating component markup, CSS selector invariants, and localization resources. *Source-contract tests do NOT validate physical screen geometry or pixel rendering.*
+- **Platform Builds**: Compilation matrix verification on Windows (`net10.0-windows10.0.19041.0` Debug/Release) and Android (`net10.0-android36.0` Debug/Release) confirming 0 warnings and 0 errors.
+- **Physical-Device Runtime Tests**: Manual or automated testing on physical hardware. *The candidate on `feat/mf-cyber-001-calm-mode-slice1` has NOT yet been validated on a physical device.*
+- **Formal Validation Gate**: *Passing prior test suites during implementation and review does NOT replace the formal `FULL_VALIDATION` gate required for the final candidate commit.*

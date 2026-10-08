@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) — Candidate (Reviewed)
+
+- **User-Visible Functionality**:
+  - Optional Cyber Defense gameplay with newly introduced Calm Mode for distraction-free mental arithmetic practice.
+  - Cyber Defense / Calm Mode selection available in Settings and via header quick toggle in Practice (`Home.razor`).
+  - Seamless, instantaneous mode switching preserving encounter state without mathematical interruption.
+  - Complete Calm Mode rendering isolation presenting neutral localized solve headings (`Practice_SolveHeading`) in English, German, and Russian.
+  - Cyber Defense enabled by default (`mathfirst.cyber_defense_enabled`), persistent across sessions.
+- **Engineering & Architecture Hardening**:
+  - Implemented post-commit combat dispatch via ConfirmedCombatAttempt (directly dispatched in Home.razor to CyberDefenseSessionState.DispatchAttempt, with CyberDefenseCombatDispatcher available as an Application-layer wrapper), triggering combat mutations strictly after Session.IsCurrentSubmissionCommitted is confirmed.
+  - Added in-memory deduplication by `SubmissionId` in `CyberDefenseSessionState` to suppress duplicate damage and score inflation upon replay or retry.
+  - Implemented navigation-safe recovery context preservation via `PendingCombatContext` storing pre-persistence eligibility and critical-hit classification at submission time, surviving Blazor component disposal during Home $\to$ Settings/Home navigation.
+  - Hardened reset coordination: Full Local Reset purges transient encounter state and restores default mode preference; Learning-only reset preserves encounter state while retiring uncommitted context on next practice fact.
+  - Added 91 automated contract and regression tests across five new and two modified test suites (126 candidate tests across the six dedicated boundary and Calm Mode suites), expanding the Core automated test suite to 2,390 passing tests in Debug and Release (0 failed, 0 skipped).
+  - Preserved strict mathematical domain boundaries and Learner Store Schema V9 integrity: combat never alters arithmetic fact selection, difficulty, correctness evaluation, FSRS-6 spaced repetition, or band progression.
+
 - Completed and merged MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening) through Pull Request #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b` (validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, review verdict `MF_AUDIT_002_REVIEW_APPROVED`, validation remediation review verdict `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`, formal validation `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge synchronization `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`):
   - **71 Added Automated Test Cases**: Expanded the Core automated test suite from 2,228 to 2,299 passing tests across Debug and Release configurations, adding targeted contract, property, persistence, and fail-closed CLI protection across 11 test suites (3 added test files, 8 modified test files; 19 total changed paths across the package including 8 documentation paths).
   - **Corrected Apples-to-Apples Cobertura Coverage Hardening**: Total repository test coverage increased from 93.17% to 93.93% lines (+68 lines covered, +0.77 percentage points) and 80.63% to 82.43% branches (+65 branches covered, +1.80 percentage points) under normalized Release `coverlet.collector 6.0.4` measurement across the four production assemblies:
