@@ -147,13 +147,11 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(File.Exists(homePath));
         var home = File.ReadAllText(homePath);
 
-        // Application-scoped state holder instance
+        // Application-scoped state holder instance and confirmed post-commit dispatch
         Assert.Contains("CyberDefenseSessionState", home, StringComparison.Ordinal);
         Assert.Contains("<CyberDefenseHud", home, StringComparison.Ordinal);
-
-        // Wired reactions on accepted answer outcomes
-        Assert.Contains("RecordCorrectAnswer()", home, StringComparison.Ordinal);
-        Assert.Contains("RecordIncorrectAnswer()", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseState.DispatchAttempt", home, StringComparison.Ordinal);
+        Assert.Contains("ConfirmedCombatAttempt", home, StringComparison.Ordinal);
 
         // Settings access preserved
         Assert.Contains("href=\"settings\"", home, StringComparison.Ordinal);
@@ -515,14 +513,14 @@ public sealed class CyberDefenseUiContractTests
         var home = File.ReadAllText(homePath);
         var hud = File.ReadAllText(hudPath);
 
-        // Feedback triggers only after Session.SubmitAnswer
+        // Feedback and combat mutations trigger only after Session.SubmitAnswer and Session.CommitCurrentEvaluationAsync
         var evalIdx = home.IndexOf("Session.SubmitAnswer", StringComparison.Ordinal);
-        var correctRecordIdx = home.IndexOf("CyberDefenseState.ActiveEncounter?.RecordCorrectAnswer()", StringComparison.Ordinal);
-        var incorrectRecordIdx = home.IndexOf("CyberDefenseState.ActiveEncounter?.RecordIncorrectAnswer()", StringComparison.Ordinal);
+        var commitIdx = home.IndexOf("Session.CommitCurrentEvaluationAsync", StringComparison.Ordinal);
+        var dispatchIdx = home.IndexOf("CyberDefenseState.DispatchAttempt", StringComparison.Ordinal);
 
         Assert.True(evalIdx > 0, "SubmitAnswer must be called.");
-        Assert.True(correctRecordIdx > evalIdx, "RecordCorrectAnswer must occur AFTER evaluation.");
-        Assert.True(incorrectRecordIdx > evalIdx, "RecordIncorrectAnswer must occur AFTER evaluation.");
+        Assert.True(commitIdx > evalIdx, "CommitCurrentEvaluationAsync must occur AFTER SubmitAnswer.");
+        Assert.True(dispatchIdx > commitIdx, "DispatchAttempt must occur strictly AFTER CommitCurrentEvaluationAsync.");
 
         // Feedback overlays in HUD
         Assert.Contains("hit-feedback-overlay", hud, StringComparison.Ordinal);
@@ -1169,10 +1167,10 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(File.Exists(homePath));
         var content = File.ReadAllText(homePath);
 
-        // Combat mutations are guarded against Calm Mode
-        Assert.Matches(@"if\s*\(\s*IsCyberDefenseActive\s*\)[\s\S]*?RecordCorrectAnswer", content);
-        Assert.Matches(@"if\s*\(\s*IsCyberDefenseActive\s*\)[\s\S]*?RecordCriticalHit", content);
-        Assert.Matches(@"if\s*\(\s*IsCyberDefenseActive\s*\)[\s\S]*?RecordIncorrectAnswer", content);
+        // Combat mutations are dispatched only after commit with mode eligibility flags
+        Assert.Contains("CyberDefenseState.DispatchAttempt", content, StringComparison.Ordinal);
+        Assert.Contains("wasEligibleAtSubmission: _pendingWasEligibleAtSubmission", content, StringComparison.Ordinal);
+        Assert.Contains("isCommitted: true", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1360,9 +1358,8 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("CyberDefense_SolveToAttack", home, StringComparison.Ordinal);
         Assert.Contains("cyber-combo-slot", home, StringComparison.Ordinal);
         Assert.Contains("solve-corner", home, StringComparison.Ordinal);
-        Assert.Contains("RecordCorrectAnswer()", home, StringComparison.Ordinal);
-        Assert.Contains("RecordCriticalHit()", home, StringComparison.Ordinal);
-        Assert.Contains("RecordIncorrectAnswer()", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseState.DispatchAttempt", home, StringComparison.Ordinal);
+        Assert.Contains("ConfirmedCombatAttempt", home, StringComparison.Ordinal);
     }
 
     private sealed class FakeCyberDefenseModePreferences : ICyberDefenseModePreferences

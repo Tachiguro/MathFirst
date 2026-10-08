@@ -452,6 +452,8 @@
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
     private HashSet<ArithmeticOperation>? _enabledOperations;
+    private bool _pendingWasEligibleAtSubmission;
+    private bool _pendingIsCritical;
     private bool IsCyberDefenseActive => CyberDefensePreferences.GetCyberDefenseEnabled();
     private bool IsCalmMode => !IsCyberDefenseActive;
 
@@ -827,34 +829,29 @@
             {
                 _validationError = null;
                 _submittedAnswerDisplay = _answerInput;
+                _pendingWasEligibleAtSubmission = IsCyberDefenseActive;
+
                 var eval = Session.SubmitAnswer(parsedAnswer);
-                if (eval.IsCorrect)
-                {
-                    if (IsCyberDefenseActive)
-                    {
-                        var isCritical =
-                            Session.IsPaceCalibrationReady
-                            && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
-                        if (isCritical)
-                        {
-                            CyberDefenseState.ActiveEncounter?.RecordCriticalHit();
-                        }
-                        else
-                        {
-                            CyberDefenseState.ActiveEncounter?.RecordCorrectAnswer();
-                        }
-                    }
-                    HapticService.PerformCue(HapticFeedbackCue.Correct);
-                }
-                else
-                {
-                    if (IsCyberDefenseActive)
-                    {
-                        CyberDefenseState.ActiveEncounter?.RecordIncorrectAnswer();
-                    }
-                    HapticService.PerformCue(HapticFeedbackCue.Incorrect);
-                }
+                var isCritical = eval.IsCorrect
+                    && Session.IsPaceCalibrationReady
+                    && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
+                _pendingIsCritical = isCritical;
+                var submissionId = eval.ChangeSet.SubmissionId;
+
+                HapticService.PerformCue(eval.IsCorrect ? HapticFeedbackCue.Correct : HapticFeedbackCue.Incorrect);
+
                 var persistence = await Session.CommitCurrentEvaluationAsync();
+
+                if (Session.IsCurrentSubmissionCommitted)
+                {
+                    CyberDefenseState.DispatchAttempt(new ConfirmedCombatAttempt(
+                        submissionId,
+                        eval.IsCorrect,
+                        _pendingIsCritical,
+                        isCommitted: true,
+                        wasEligibleAtSubmission: _pendingWasEligibleAtSubmission));
+                }
+
                 var advancedAutomatically = eval.IsCorrect &&
                     persistence.IsSuccess &&
                     await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
@@ -930,6 +927,16 @@
             var recovered = await Session.RecoverFromPersistenceFailureAsync();
             if (recovered)
             {
+                if (Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null)
+                {
+                    CyberDefenseState.DispatchAttempt(new ConfirmedCombatAttempt(
+                        Session.LastEvaluation.ChangeSet.SubmissionId,
+                        Session.LastEvaluation.IsCorrect,
+                        _pendingIsCritical,
+                        isCommitted: true,
+                        wasEligibleAtSubmission: _pendingWasEligibleAtSubmission));
+                }
+
                 if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
                 {
                     await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
@@ -965,6 +972,8 @@
         Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
+        _pendingWasEligibleAtSubmission = false;
+        _pendingIsCritical = false;
         SyncPracticeGateCopy();
         _shouldFocusInput = true;
         _shouldFocusPrimaryOverlay = false;
@@ -1001,6 +1010,8 @@
         Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
+        _pendingWasEligibleAtSubmission = false;
+        _pendingIsCritical = false;
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();
