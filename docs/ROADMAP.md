@@ -154,3 +154,19 @@ Following Step 54 validation, the user established the **Pre-Step55 V1 Refinemen
 - **Chat Handoff**: Each P-item is executed as an isolated development package. Upon completion and post-merge synchronization of a P-item, the agent reports completion and recommends opening a new chat. The new chat discovers its next task strictly from repository documentation.
 - **Step 55 Gate**: Step 55 may only be proposed after P0–P6 and P8 are completed and merged, requiring fresh explicit user authorization. Production release packaging and store publication remain strictly unauthorized.
 
+---
+
+### Phase 8: Cyber Defense Roguelite Program (MF-CYBER-001 through MF-CYBER-010)
+
+Following the completion of the Pre-Step55 V1 Refinement Program, PR #72 merged the approved [Cyber Defense Roguelite Game Design Document](superpowers/specs/2026-10-08-cyber-defense-roguelite-gdd.md) and [Implementation Roadmap](superpowers/plans/2026-10-08-cyber-defense-implementation-roadmap.md) establishing a structured 10-package development program:
+
+1. **MF-CYBER-001: Architectural Boundary, Calm Mode & Math Decoupling**: **ACTIVE CANDIDATE** on branch `feat/mf-cyber-001-calm-mode-slice1` (HEAD `c1ff1635f40bec62d1c41bf1bd64ece93e054824`). Delivered Calm Mode preference, rendering isolation, post-commit combat dispatch, in-memory deduplication, navigation-recovery context preservation, and mathematical non-interference contracts. Reviewed and approved (`MF_CYBER_001_FINAL_REVIEW_APPROVED`), undergoing documentation reconciliation. Not yet pushed or merged.
+2. **MF-CYBER-002: Core Domain State Machine**: *Planned*. Pure domain encounter state machine, turn resolution engine, and enemy phase modeling.
+3. **MF-CYBER-003: Persistent Gameplay Store and Receipts**: *Planned*. Dedicated SQLite gameplay database schema, receipt ledger, and crash-safe transaction semantics decoupled from Learner Store Schema V9.
+4. **MF-CYBER-004: Headless Combat Simulator**: *Planned*. Headless combat simulation harness, Monte Carlo balancing, and deterministic battle verification.
+5. **MF-CYBER-005: XP Economy and Attack Tree**: *Planned*. Experience progression, skill unlock trees, and tactical combat choices.
+6. **MF-CYBER-006: Firewall and Beginner Assistance**: *Planned*. Defensive shield mechanics, beginner assistance systems, and adaptive defensive buffers.
+7. **MF-CYBER-007: Critical Strike and Overdrive**: *Planned*. Fluency-driven critical strikes, overdrive mechanics, and mathematical momentum rewards.
+8. **MF-CYBER-008: Combat HUD and Layout Invariant**: *Planned*. Responsive combat presentation, visual hierarchy, and strict lower-math layout positional stability.
+9. **MF-CYBER-009: Narrative Tutorial and Copy**: *Planned*. Contextual cyber-defense narrative, localized copy, and introductory tutorial flow.
+10. **MF-CYBER-010: Simulation Matrix and Calibration**: *Planned*. End-to-end multi-profile balancing matrix, long-run encounter stability, and final calibration audit.

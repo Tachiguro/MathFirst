@@ -1,10 +1,11 @@
 namespace MathFirst.App.Services;
 
 using MathFirst.Application;
+using MathFirst.Application.Practice;
 using MathFirst.Domain;
 using Microsoft.Maui.Storage;
 
-public sealed class MauiPreferenceStore : IPreferenceStore
+public sealed class MauiPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences
 {
     private const string ThemeKey = "mathfirst.theme_preference";
     private const string LanguageKey = "mathfirst.language_preference";
@@ -16,6 +17,8 @@ public sealed class MauiPreferenceStore : IPreferenceStore
     private const string DivisionEnabledKey = "mathfirst.operation.division_enabled";
     private const string PracticeTimeSettingKey = "mathfirst.practice_time_setting";
     private const string HapticFeedbackEnabledKey = "mathfirst.haptic_feedback_enabled";
+    private const string CyberDefenseEnabledKey = "mathfirst.cyber_defense_enabled";
+
 
     private static string GetOperationKey(ArithmeticOperation operation) => operation switch
     {
@@ -93,6 +96,12 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         Preferences.Default.Set(PracticeTimeSettingKey, (int)normalized);
     }
 
+    public bool GetCyberDefenseEnabled() =>
+        Preferences.Default.Get(CyberDefenseEnabledKey, true);
+
+    public void SetCyberDefenseEnabled(bool enabled) =>
+        Preferences.Default.Set(CyberDefenseEnabledKey, enabled);
+
     public void ResetPracticePreferences()
     {
         Preferences.Default.Remove(AdditionEnabledKey);
@@ -100,6 +109,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore
         Preferences.Default.Remove(MultiplicationEnabledKey);
         Preferences.Default.Remove(DivisionEnabledKey);
         Preferences.Default.Remove(PracticeTimeSettingKey);
+        Preferences.Default.Remove(CyberDefenseEnabledKey);
     }
 
     public void ResetAllPreferences()

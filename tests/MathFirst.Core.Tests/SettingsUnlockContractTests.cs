@@ -3,6 +3,7 @@ namespace MathFirst.Core.Tests;
 using MathFirst.Application;
 using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
 using MathFirst.Application.Telemetry;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
@@ -39,15 +40,20 @@ public sealed class SettingsUnlockContractTests : IDisposable
         [System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
 
-    private sealed class TrackingPreferenceStore : IPreferenceStore
+    private sealed class TrackingPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences
     {
         public int SetOperationEnabledCallCount { get; private set; }
         private readonly Dictionary<ArithmeticOperation, bool> _ops = new();
+        private bool? _cyberDefenseEnabled;
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
         public PracticeTimeSetting TimeSetting { get; set; } = PracticeTimeSetting.Standard;
+
+        public bool GetCyberDefenseEnabled() => _cyberDefenseEnabled ?? true;
+        public void SetCyberDefenseEnabled(bool enabled) => _cyberDefenseEnabled = enabled;
+
 
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
@@ -244,8 +250,10 @@ public sealed class SettingsUnlockContractTests : IDisposable
         var session = new TrainingSession(store, preferenceStore: prefs, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
 
-        var resetCoordinator = new AppResetCoordinator(session, prefs, new DummyInstallationIdProvider(), new DummyTelemetryShareCacheCleaner());
+        var sessionState = new CyberDefenseSessionState(prefs);
+        var resetCoordinator = new AppResetCoordinator(session, prefs, new DummyInstallationIdProvider(), new DummyTelemetryShareCacheCleaner(), sessionState);
         await resetCoordinator.ExecuteFullResetAsync();
+
 
         Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
         Assert.Equal(0, session.Progression.PracticePosition);

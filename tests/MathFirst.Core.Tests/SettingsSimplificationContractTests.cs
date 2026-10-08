@@ -281,7 +281,8 @@ public sealed class SettingsSimplificationContractTests : IDisposable
         // 3. Full Local Reset: resets database to Stage 1, Schema V9, and clears preferences
         var idProvider = new TestInstallationIdProvider();
         var cacheCleaner = new TestTelemetryShareCacheCleaner();
-        var coordinator = new AppResetCoordinator(session, prefStore, idProvider, cacheCleaner);
+        var sessionState = new CyberDefenseSessionState(prefStore);
+        var coordinator = new AppResetCoordinator(session, prefStore, idProvider, cacheCleaner, sessionState);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -344,14 +345,18 @@ public sealed class SettingsSimplificationContractTests : IDisposable
     private static string GetRepositoryRoot([CallerFilePath] string sourceFile = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourceFile)!, "..", ".."));
 
-    private sealed class TestPreferenceStore : IPreferenceStore
+    private sealed class TestPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences
     {
         private readonly Dictionary<ArithmeticOperation, bool> _ops = new();
+        private bool? _cyberDefenseEnabled;
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
         public PracticeTimeSetting TimeSetting { get; set; } = PracticeTimeSetting.Standard;
+
+        public bool GetCyberDefenseEnabled() => _cyberDefenseEnabled ?? true;
+        public void SetCyberDefenseEnabled(bool enabled) => _cyberDefenseEnabled = enabled;
 
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
@@ -361,6 +366,7 @@ public sealed class SettingsSimplificationContractTests : IDisposable
         public void SetNumericKeypadLayout(NumericKeypadLayout layout) => KeypadLayout = layout;
         public bool GetHapticFeedbackEnabled() => HapticFeedbackEnabled;
         public void SetHapticFeedbackEnabled(bool enabled) => HapticFeedbackEnabled = enabled;
+
 
         public bool GetOperationEnabled(ArithmeticOperation operation) =>
             _ops.GetValueOrDefault(operation, true);

@@ -9,28 +9,29 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Current Program Position**: Following completion, review approval (`MF_AUDIT_002_REVIEW_APPROVED`), validation remediation review approval (`MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`), formal validation (`MF_AUDIT_002_FULL_VALIDATION_PASSED`), and merge of `MF-AUDIT-002` / `P8` via PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`), post-merge synchronization was completed (`MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`). At the post-P8 baseline on `main@cc81242177dd75114934c3ad48b830c9ce87c70b`, no subsequent product development package had been selected. `MF-DOC-009` is a separate documentation-only reconciliation package; current active work, checked-out branch, and lifecycle phase must be determined dynamically from live Git and GitHub repository state.
-- **Active Package**: `MF-DOC-009` — Post-P8 Merge State Reconciliation.
+- **Current Program Position**: Following completion, formal validation, and merge of `MF-AUDIT-002` / `P8` via PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`), post-merge baseline reconciliation via PR #71 (`4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`), and finalization and merge of the Cyber Defense Roguelite GDD and Implementation Roadmap via PR #72 (`3d476dd2211e4bc00898bc8162ade4f22312effb`), development transitioned into the approved Cyber Defense roadmap. The active package is `MF-CYBER-001` (Architectural Boundary, Calm Mode & Math Decoupling). All four implementation slices and one targeted navigation-recovery remediation have been completed and approved in final review (`MF_CYBER_001_FINAL_REVIEW_APPROVED`). The current lifecycle mode is `DOCUMENT_ONLY`.
+- **Active Package**: `MF-CYBER-001` — Architectural Boundary, Calm Mode & Math Decoupling.
+- **Official Package Objective**: Establish the strict architectural boundary between the Math Engine and Cyber Defense, introduce user-selectable Calm Mode and persistent mode preferences, isolate layout and rendering, implement confirmed-attempt combat dispatch with `SubmissionId` deduplication and navigation-safe recovery context, and prove mathematical non-interference across 100% autonomous arithmetic practice.
 - **Repository State & Synchronization Anchor**:
   - Live local Git and GitHub repository state always takes precedence over documentation baselines.
-  - Verified base main: `cc81242177dd75114934c3ad48b830c9ce87c70b` (PR #70 `MF-AUDIT-002 / P8` merge commit).
-  - Active task branch: `docs/post-p8-merge-reconciliation`.
-  - Historical P8 implementation checkpoints:
-    - Slice 1: `76e718006c2adc5953995d99bbfc1451dc8e63c1` (`test: harden critical domain invariants`).
-    - Slice 2: `56880b3ff3da2c6e06840226ac236dafedba34bd` (`test: harden persistence and long-run invariants`).
-    - Slice 3: `3558f8cee7b3aad031459990276ff99d73312379` (`test: harden release and security boundaries`).
-- **Completed P8 Milestones**:
-  - Slice 1 Implementation: Hardened domain invariants across `BroadWeaknessPolicyTests`, `CurriculumUnlockPolicyTests`, `CurriculumInvariantPropertyTests`, and `DeterministicOperationSchedulerTests` (`MathFirst-Checkpoint: MF-AUDIT-002 1/3 critical-domain-invariants`).
-  - Slice 2 Implementation: Hardened persistence, recovery, and long-run invariants across `SqlitePersistenceConformanceTests`, `PersistenceRecoveryAndLifecycleTests`, and `LongRunIndependentProgressionTests` (`MathFirst-Checkpoint: MF-AUDIT-002 2/3 persistence-recovery-long-run`).
-  - Slice 3 Implementation: Hardened ReleaseTool CLI fail-closed boundaries in `ReleaseCliFailClosedContractTests` (`MathFirst-Checkpoint: MF-AUDIT-002 3/3 release-security-reset`).
-  - Consolidated Package Review: Review verdict returned `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed production defects; 0 unresolved P0/P1 gaps).
-  - Coverage Remediation Decision: Adopted normalized apples-to-apples Cobertura delta (`PRIOR COVERAGE DELTA CORRECTED`).
-  - Historical First Formal FULL_VALIDATION Attempt: Candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` failed at the Full Core Release gate (2,298 passed / 1 failed; `TesterApkPackagingContractTests.FailClosed_CliValidate_RejectsTesterProfile` threw `ObjectDisposedException` on process-global `Console.Error` stream; historical verdict `MF_AUDIT_002_FULL_VALIDATION_FAILED`).
-  - Validation Test-Infrastructure Remediation: Isolated process-global Console redirection in ReleaseCli test infrastructure by assigning all four ReleaseCli test suites to the shared non-parallel xUnit collection `[Collection("ReleaseCli process console")]` (`DisableParallelization = true`), leaving whole-assembly parallelism active for unrelated tests. Verified with 5 $\times$ 156 focused green runs and 3 $\times$ 2,299 Full Core Release runs.
-  - Validation Remediation Review: Review verdict returned `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production code changes).
-  - Formal FULL_VALIDATION: Candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89` passed full validation (`MF_AUDIT_002_FULL_VALIDATION_PASSED`).
-  - Pull Request & Merge: PR #70 merged to `main` at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b`.
-  - Post-Merge Synchronization: Fast-forward synchronization completed (`MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`).
+  - Verified base `main`: `3d476dd2211e4bc00898bc8162ade4f22312effb` (PR #72 Cyber Defense GDD and Implementation Roadmap merge commit).
+  - Active task branch: `feat/mf-cyber-001-calm-mode-slice1`.
+  - Current candidate HEAD: `c1ff1635f40bec62d1c41bf1bd64ece93e054824`.
+  - Feature branch status: Active local task branch; unpushed, unmerged, 0 open PRs.
+  - Local checkpoint commit sequence (5 commits):
+    1. `506366d83c4f9686745c9cd535138b5006aa5a43` (`feat(cyber): implement calm mode preferences, encounter lifetime, and reset safety` — `MathFirst-Checkpoint: MF-CYBER-001 1/4 calm-mode-preferences-and-state-lifetime`).
+    2. `e871fa4603a515e31adc0995a4f7e01dbce85a63` (`feat(cyber-defense): add Calm Mode UI, localization, and layout isolation` — `MathFirst-Checkpoint: MF-CYBER-001 2/4 calm-mode-ui-and-layout`).
+    3. `c8d6e31f95886c2afd487d1412b16a2125b287b9` (`feat(practice): implement confirmed-attempt combat dispatch and deduplication (MF-CYBER-001 slice 3/4)` — `MathFirst-Checkpoint: MF-CYBER-001 3/4 committed-attempt-combat-dispatch`).
+    4. `747c28ea66bdc1371c46c569280daa51bcd33eac` (`test(cyber-defense): add Calm Mode mathematical non-interference and layout regression tests (MF-CYBER-001 slice 4/4)` — `MathFirst-Checkpoint: MF-CYBER-001 4/4 non-interference-regression-hardening`).
+    5. `c1ff1635f40bec62d1c41bf1bd64ece93e054824` (`fix(practice): remediate pending combat context loss across navigation (MF-CYBER-001)` — `MathFirst-Checkpoint: MF-CYBER-001 1/1 navigation-recovery-remediation`).
+- **Completed MF-CYBER-001 Milestones**:
+  - Slice 1 Implementation: Established persistent Cyber Defense preference under key `mathfirst.cyber_defense_enabled` via `ICyberDefenseModePreferences` and `MauiPreferenceStore` (defaulting to `true` for backward compatibility); implemented application-scoped `CyberDefenseSessionState` with lazy encounter initialization and frozen state preservation during Calm Mode; and integrated encounter state reset into `AppResetCoordinator` during Full Local Reset.
+  - Slice 2 Implementation: Added accessible Cyber Defense vs. Calm Mode selection in Settings with immediate preference persistence; added Practice header quick toggle in `Home.razor` with race-condition guards against in-flight submission mutations; conditionally omitted `CyberDefenseHud`, top-region combat visuals, combo badges, and combat styling when Calm Mode is active; introduced neutral localized math practice presentation (`Practice_SolveHeading`) localized in EN, DE, and RU; and isolated practice layout via scoped `.calm-mode` CSS modifier preserving keypad geometry, touch targets, and viewport stability.
+  - Slice 3 Implementation: Introduced `ConfirmedCombatAttempt` and `CyberDefenseCombatDispatcher` for post-commit combat bridging; deferred combat mutation until `Session.IsCurrentSubmissionCommitted` is confirmed; added session-lifetime deduplication in `CyberDefenseSessionState` by `SubmissionId`; safely captured pre-persistence eligibility and critical-hit classification; and handled persistence failure recovery and Calm Mode suppression without retroactive replay.
+  - Slice 4 Implementation: Added `NonInterferenceRegressionTests` with 120-turn paired session simulations proving zero alteration to FSRS-6, `AttemptOutcome`, response latency, progression, or Schema V9 persistence; added `CalmModeDecouplingContractTests` verifying complete practice autonomy without encounter allocation and testing mode-toggle scenarios A–K; and added `LowerMathAreaLayoutContractTests` enforcing rigid geometry protection for the lower mathematical practice area across themes and reduced motion.
+  - Consolidated Package Review: Initial consolidated review identified pending combat context loss when navigating from Home to Settings and back while in a post-submission feedback state due to component-local storage in `Home.razor`.
+  - Targeted Navigation-Recovery Remediation: Introduced immutable `PendingCombatContext` to capture pre-persistence eligibility and critical-hit classification at submission time; moved pending context holder to application-scoped `CyberDefenseSessionState` keyed by `SubmissionId`; removed disposed component-local fields from `Home.razor`; and added targeted unit, behavioral, and UI contract tests.
+  - Corrective Evidence Audit & Final Review Approval: Final review confirmed all remediation requirements, returning `MF_CYBER_001_FINAL_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production code defects; 0 unresolved P0/P1 gaps).
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
@@ -38,35 +39,53 @@ This document provides operational context for current repository work.
   - `git log origin/main..HEAD`
   - `gh repo view Tachiguro/MathFirst`
   - `gh pr list --state open`
-- **Durable MF-AUDIT-002 Technical Contracts & Invariants**:
-  1. **Domain Invariant Hardening (Slice 1)**:
-     - `BroadWeaknessPolicy`: Evaluates NeedsRemediation eligibility, active-operation filtering, missing-progression exclusion, acquisition ownership/band gating, Guided number-space gate filtering, multi-operation aggregation, and exact uncapped counts.
-     - `CurriculumUnlockPolicy`: Direct boundary and error coverage for public helpers, invalid-stage fail-closed handling, and terminal Stage 4 behavior.
-     - Canonical arithmetic property tests: Validated addition ($a + b$), non-negative exact subtraction, exact multiplication with zero-safe inverse checks, and exact division with positive divisors, exact divisibility, and multiplication inverse.
-     - Scheduler rank & tie-break: Primary rank key, secondary deterministic bytes, operation enum fallback, and digest-length validation.
-  2. **Persistence, Recovery & Long-Run Hardening (Slice 2)**:
-     - Real SQLite mid-transaction rollback: Verified via deterministic SQLite trigger that write failures after meaningful row writes roll back completely, preserving durable state and allowing subsequent valid commits to succeed.
-     - Corrupted `CurriculumStage` fail-closed: Verified transactional commit read path fails closed upon encountering out-of-range persisted stage values without partial persistence.
-     - Repeated transient persistence recovery: Verified Unavailable $\to$ Unavailable $\to$ Success lifecycle retains in-flight evaluation and applies state exactly once.
-     - Multi-stage `CurriculumManaged` long-run: Verified monotonic Stage 1 $\to$ Stage 2 $\to$ Stage 3 $\to$ Stage 4 progression, cumulative unlock behavior, `PracticePosition` continuity, anti-repetition invariants, selector liveness, and durable restart across stage boundaries (distinguished from pre-existing 2,000-turn Custom mode long-run).
-  3. **ReleaseTool CLI Fail-Closed Protection (Slice 3)**:
-     - Hardened CLI parsing in `MathFirst.ReleaseTool` against missing command, unknown commands, missing option values, duplicate options, unknown options, missing required options across packaging and validation commands, and positive integer validation on build number overrides.
-     - Accurate required-option rules: `android-package` requires `--profile` and `--expected-commit-sha`; `android-validate` requires `--aab-path`, `--provenance-path`, `--expected-commit-sha`, and `--profile`; `android-validate-apk` requires `--apk-path`, `--provenance-path`, and `--expected-commit-sha`.
-  4. **Intentional No-New-Test Decisions (`NO_NEW_TEST_REQUIRED`)**:
-     - Judged already sufficiently protected without percentage padding: archive validation, Tester / SourceCandidate / Production profile boundaries, reset exception semantics, telemetry/privacy/network boundaries, Guided gate coverage, and acquisition ownership coverage.
-  5. **Zero Production & Runtime Code Changes**:
-     - Exactly 11 test files changed (3 added, 8 modified; 19 total package paths including 8 documentation paths); 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
-- **Verification Evidence on MF-AUDIT-002 Implementation & Remediation State**:
-  - Core automated test suite: 2,299 passed in Release, 0 failed, 0 skipped (+71 automated test cases over BASE 2,228).
-  - Consolidated focused P8 test suite: 155 passed, 0 failed, 0 skipped; remediation 4-suite filter: 156 passed, 0 failed, 0 skipped.
-  - Normalized Cobertura Coverage Baseline (`coverlet.collector 6.0.4`, Release configuration across 4 assemblies):
-    - `MathFirst.Application`: Lines 94.31% (4080/4326) $\to$ 94.48% (4087/4326), +7 lines (+0.16 pp); Branches 83.86% (1289/1537) $\to$ 84.32% (1296/1537), +7 branches (+0.46 pp).
-    - `MathFirst.Domain`: Lines 89.11% (777/872) $\to$ 93.00% (811/872), +34 lines (+3.90 pp); Branches 83.70% (385/460) $\to$ 89.78% (413/460), +28 branches (+6.09 pp).
-    - `MathFirst.Infrastructure.Sqlite`: Lines 95.17% (1695/1781) $\to$ 95.51% (1701/1781), +6 lines (+0.34 pp); Branches 79.44% (429/540) $\to$ 80.56% (435/540), +6 branches (+1.11 pp).
-    - `MathFirst.ReleaseTool`: Lines 90.52% (1710/1889) $\to$ 91.64% (1731/1889), +21 lines (+1.11 pp); Branches 75.32% (815/1082) $\to$ 77.54% (839/1082), +24 branches (+2.22 pp).
-    - Total: Lines 93.17% (8262/8868) $\to$ 93.93% (8330/8868), +68 lines (+0.77 pp); Branches 80.63% (2918/3619) $\to$ 82.43% (2983/3619), +65 branches (+1.80 pp).
-  - **Evidence Boundary**: Records implementation, consolidated-review, and validation remediation evidence. Formal candidate validation and integration status must be established dynamically from live repository state.
+- **Durable MF-CYBER-001 Technical Contracts & Invariants**:
+  1. **Persistent Mode Preference & Defaults**:
+     - `ICyberDefenseModePreferences` defines persistent boolean property `IsCyberDefenseEnabled`.
+     - `MauiPreferenceStore` persists preference under key `mathfirst.cyber_defense_enabled`.
+     - Default value is `true` (Cyber Defense enabled) for seamless backward compatibility.
+     - Settings and Home quick-toggle immediately update persistent storage without allocating encounter state or mutating learner progression.
+  2. **Application-Scoped Session State & Lifetime**:
+     - `CyberDefenseSessionState` is registered as an application singleton in `MauiProgram.cs`.
+     - Encounter state (`CyberDefenseEncounterState`) is initialized lazily upon first access when Cyber Defense is enabled.
+     - When Calm Mode is active, encounter allocation is bypassed entirely (`Encounter` remains null).
+     - Switching to Calm Mode preserves existing in-memory encounter state in a frozen condition without background simulation or stealth changes.
+     - Full Local Reset invokes `CyberDefenseSessionState.ClearEncounter()` in `AppResetCoordinator` and restores default preference; learning-only reset preserves encounter state while retiring uncommitted context on next practice fact.
+  3. **Presentation & Layout Decoupling**:
+     - `Home.razor` checks `CyberDefenseSessionState.IsCyberDefenseEnabled` and conditionally omits `CyberDefenseHud`, top-region combat visuals, combo badges, and combat styling when Calm Mode is active.
+     - Introduces neutral localized solve heading (`Practice_SolveHeading`: "Solve the problem" / "Löse die Aufgabe" / "Решите задачу") when combat HUD is omitted.
+     - `.calm-mode` CSS modifier isolates practice layout, preserving keypad coordinates, touch targets ($\ge 48\text{px}$), finger spacing, and viewport stability across Light/Dark themes and reduced motion.
+  4. **Confirmed-Attempt Post-Commit Combat Dispatch**:
+     - Introduces `ConfirmedCombatAttempt` value model capturing confirmed attempt attributes (`SubmissionId`, `IsCorrect`, `IsCritical`, `IsCommitted`, `WasEligibleAtSubmission`).
+     - Combat mutation in `CyberDefenseSessionState.ProcessConfirmedAttempt` occurs strictly after `Session.IsCurrentSubmissionCommitted` is true.
+     - If learner database commit fails (`PersistenceResult.StoreUnavailable` or `DatabaseError`), combat mutation is bypassed and pending context is preserved.
+     - When next-exercise evidence loads after a successful commit, the confirmed attempt is dispatched to combat safely.
+  5. **Session-Lifetime `SubmissionId` Deduplication**:
+     - `CyberDefenseSessionState` maintains an in-memory set of processed `SubmissionId` values for the session lifetime.
+     - Reprocessing an already-processed `SubmissionId` (e.g. during recovery or rapid re-dispatch) returns `CombatDispatchResult.DuplicateIgnored` with zero state mutation, zero extra damage, and zero duplicate score/XP.
+  6. **Navigation-Safe Recovery Metadata (`PendingCombatContext`)**:
+     - `PendingCombatContext` preserves the original `SubmissionId`, Cyber Defense eligibility at submission time (`WasEligibleAtSubmission`), and critical-hit classification (`IsCritical`). These values are captured before learner persistence and retained across Home component disposal and navigation.
+     - Context is stored in application-scoped `CyberDefenseSessionState` keyed by `SubmissionId`.
+     - Navigating from Home to Settings and back while in feedback states preserves pending combat metadata across Blazor component disposal and re-initialization.
+  7. **Calm Mode Decoupling & Non-Retroactivity**:
+     - Submissions committed while Calm Mode is active do not mutate combat state and are recorded as processed.
+     - Re-enabling Cyber Defense resumes preserved encounter state without retroactively executing skipped battles.
+  8. **Known Non-Blocking Review Observations**:
+     - *Learning Reset Handler Lifecycle*: Learning-only reset does not immediately invoke `CyberDefenseSessionState.ClearPendingContext()`. The pending `TrainingSession` evaluation becomes unreachable after learning reset, and the stale context is subsequently retired during preparation of the next practice fact.
+     - *Combat Dispatcher Architectural Role*: `CyberDefenseCombatDispatcher` exists as a thin pass-through wrapper while `Home.razor` dispatches through `CyberDefenseSessionState` directly; retained as a non-blocking future cleanup opportunity.
+  9. **Critical Mathematical Boundaries**:
+     - Math Engine retains absolute authority: combat never selects facts, alters difficulty, modifies correctness evaluation, alters FSRS-6 scheduling, or penalizes learning progress.
+     - Active thinking time excludes gameplay presentation overhead.
+     - Learner Store Schema V9 remains completely protected.
+- **Verification Evidence on MF-CYBER-001 Implementation & Review State**:
+  - Core automated test suite: **2,390 passed** in Debug and Release configurations (0 failed, 0 skipped; **+91 net automated test cases** over pre-MF-CYBER-001 baseline 2,299).
+  - Windows compilation: 0 warnings, 0 errors in Debug and Release (`net10.0-windows10.0.19041.0`).
+  - Android compilation: 0 warnings, 0 errors in Debug and Release (`net10.0-android36.0`).
+  - Candidate diff check: `git diff --check` PASS.
+  - Evidence boundary: Implementation, consolidated review, and documentation reconciliation evidence. Formal exact-candidate validation (`FULL_VALIDATION`), remote push, pull request creation, and user merge are pending separate lifecycle steps.
 - **Prior Merged Work**:
+  - **PR #72 (Cyber Defense Roguelite GDD and Implementation Roadmap)**: Merged via PR #72 at merge commit `3d476dd2211e4bc00898bc8162ade4f22312effb` on 2026-10-08 (`docs(p7): finalize Cyber Defense roguelite GDD and implementation roadmap`).
+  - **PR #71 (Post-P8 Merge State Reconciliation)**: Merged via PR #71 at merge commit `4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`.
   - **MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening)**: Merged via PR #70 at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b` (validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_REVIEW_APPROVED`, `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing in Debug and Release [+71 automated test cases], normalized Cobertura coverage 93.93% lines / 82.43% branches, 11 test paths [3 added, 8 modified; 19 total package paths including 8 documentation paths], 0 production code changes).
   - **Post-P6 Merge State Reconciliation**: Merged via PR #69 at merge commit `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`.
   - **P6 (Tester Diagnostics / Telemetry Release Boundary)**: Merged via PR #68 at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02` (validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, 2,228 Core tests).
@@ -79,10 +98,9 @@ This document provides operational context for current repository work.
   - **P1 (Normal Practice Without Deadline Failure)**: Merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`, 1,936 Core tests).
   - **P0 (Zero-Answer / `0 + 0` Core-Flow Freeze Blocker)**: Merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`, 1,917 Core tests).
 - **Downstream Scope**:
-  - **Completed Refinements**: Workstreams P0 through P6 and P8 are complete, fully validated, and merged into `main`.
-  - **No New Development Package Selected**: Following completed P8 integration, no new production or gameplay development package had been selected at the post-P8 baseline. The active package is explicitly authorized documentation maintenance `MF-DOC-009`.
-  - **P7 (Deferred Game Polish)**: Deferred / Post-Core.
-  - Roadmap Step 55 is **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
+  - **Active Sequence**: MF-CYBER-001 is undergoing documentation reconciliation (`DOCUMENT_ONLY`), to be followed by `COMMIT_ONLY`, exact-candidate `FULL_VALIDATION`, `PUSH_ONLY`, and `PR_ONLY`.
+  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (Boundary & Calm Mode) $\to$ MF-CYBER-002 (Domain State Machine) $\to$ MF-CYBER-003 (Gameplay Store & Receipts) $\to$ MF-CYBER-004 (Headless Simulator) $\to$ MF-CYBER-005 (XP Economy & Attack Tree) $\to$ MF-CYBER-006 (Firewall & Beginner Assistance) $\to$ MF-CYBER-007 (Critical Strike & Overdrive) $\to$ MF-CYBER-008 (Combat HUD & Layout Invariant) $\to$ MF-CYBER-009 (Narrative Tutorial & Copy) $\to$ MF-CYBER-010 (Simulation Matrix & Calibration).
+  - Roadmap Step 55 remains **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
 
 ### 1.1 Pre-Step55 Refinement Program Sequence
 
@@ -97,37 +115,36 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b646c0a0c94519fa76b7100346c4f30c6a`)
 9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Merged` — PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-merge docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
 10. **P8**: Test-Coverage Audit & Targeted Hardening (`Merged` — PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`)
-11. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*)
+11. **P7**: Later Game-Design & Game-Polish Program (*Deferred / Post-Core*; GDD & Roadmap merged via PR #72; active implementation in MF-CYBER-001)
 
 ### 1.2 Current Verified Quality State
 
-#### Merged Main Baseline (`main@cc81242177dd75114934c3ad48b830c9ce87c70b` / PR #70 `MF-AUDIT-002 / P8 Baseline`)
-- **Merge Commit**: `cc81242177dd75114934c3ad48b830c9ce87c70b` (PR #70 `Merge pull request #70 from Tachiguro/feat/mf-audit-002-test-coverage-hardening`; validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`).
-- **Post-Merge Baseline**: Complete P0–P6 and P8 delivered baseline on `main`: 2,299 Core tests passing in Debug and Release (+71 automated test cases over pre-P8 2,228), normalized Cobertura coverage 93.93% lines / 82.43% branches (+0.77 pp lines / +1.80 pp branches across four production assemblies), hardened domain invariants, SQLite rollback and corruption fail-closed contracts, ReleaseTool CLI fail-closed parsing, isolated ReleaseCli console test infrastructure (`[Collection("ReleaseCli process console")]`), P6 compile/profile isolation (`MATHFIRST_TESTER_DIAGNOSTICS`), Cyber Defense secondary surface visual alignment, Settings simplification, four-stage cumulative progression ($+ \to + - \to + - \times \to + - \times \div$), monotonic `CurriculumStage` in `learner_progression`, Schema V9 persistence, Schema V8 `is_interrupted`, Telemetry Schema V2, tolerant D01 unlock predicates, aggregate broad weakness gating, Guided G3 soft decoupling, and direct-to-practice startup.
+#### Merged Main Baseline (`main@3d476dd2211e4bc00898bc8162ade4f22312effb` / PR #72 Baseline)
+- **Merge Commit**: `3d476dd2211e4bc00898bc8162ade4f22312effb` (PR #72 `Merge pull request #72 from Tachiguro/docs/p7-cyber-defense-gdd-20261008`).
+- **Post-Merge Baseline**: Complete P0–P6 and P8 delivered baseline on `main` alongside approved Cyber Defense Roguelite GDD and Implementation Roadmap: 2,299 Core tests passing in Debug and Release on `main`, normalized Cobertura coverage 93.93% lines / 82.43% branches, hardened domain invariants, SQLite rollback and corruption fail-closed contracts, ReleaseTool CLI fail-closed parsing, isolated ReleaseCli console test infrastructure (`[Collection("ReleaseCli process console")]`), P6 compile/profile isolation (`MATHFIRST_TESTER_DIAGNOSTICS`), Cyber Defense secondary surface visual alignment, Settings simplification, four-stage cumulative progression ($+ \to + - \to + - \times \to + - \times \div$), monotonic `CurriculumStage` in `learner_progression`, Schema V9 persistence, Schema V8 `is_interrupted`, Telemetry Schema V2, tolerant D01 unlock predicates, aggregate broad weakness gating, Guided G3 soft decoupling, and direct-to-practice startup.
 
-#### Verified MF-AUDIT-002 Quality Evidence (`feat/mf-audit-002-test-coverage-hardening`)
+#### Verified MF-CYBER-001 Quality Evidence (`feat/mf-cyber-001-calm-mode-slice1`)
 - **Implementation State**:
-  - Slice 1 (`76e718006c2adc5953995d99bbfc1451dc8e63c1`): Critical domain invariants (`BroadWeaknessPolicy`, `CurriculumUnlockPolicy`, property tests, scheduler rank).
-  - Slice 2 (`56880b3ff3da2c6e06840226ac236dafedba34bd`): Persistence, recovery, and long-run invariants (SQLite trigger rollback, corrupted stage fail-closed, transient recovery, 4-stage monotonic long-run).
-  - Slice 3 (`3558f8cee7b3aad031459990276ff99d73312379`): ReleaseTool CLI fail-closed boundaries (argument parsing, missing/unknown commands and options, option requirements, positive integer build number validation).
+  - Slice 1 (`506366d83c4f9686745c9cd535138b5006aa5a43`): Calm mode preferences, encounter lifetime, and reset safety (`ICyberDefenseModePreferences`, `MauiPreferenceStore`, `CyberDefenseSessionState`, `AppResetCoordinator`).
+  - Slice 2 (`e871fa4603a515e31adc0995a4f7e01dbce85a63`): Calm Mode UI, localization (`Practice_SolveHeading` in EN/DE/RU), and layout isolation (`.calm-mode` modifier).
+  - Slice 3 (`c8d6e31f95886c2afd487d1412b16a2125b287b9`): Confirmed-attempt combat dispatch (`ConfirmedCombatAttempt`, `CyberDefenseCombatDispatcher`) deferred to post-commit, session `SubmissionId` deduplication, and recovery safety.
+  - Slice 4 (`747c28ea66bdc1371c46c569280daa51bcd33eac`): Mathematical non-interference regressions (120-turn paired simulations in `NonInterferenceRegressionTests`), mode-toggle scenarios A–K (`CalmModeDecouplingContractTests`), and rigid lower math area layout protection (`LowerMathAreaLayoutContractTests`).
+  - Targeted Remediation (`c1ff1635f40bec62d1c41bf1bd64ece93e054824`): Navigation-safe recovery metadata (`PendingCombatContext`) stored in application-scoped `CyberDefenseSessionState` keyed by `SubmissionId`, eliminating disposed component-local fields from `Home.razor`.
 - **Review & Validation Status**:
-  - Consolidated package review: `MF_AUDIT_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 0 Nit; 0 confirmed defects; 0 unresolved P0/P1 gaps).
-  - Validation remediation review: `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production defects).
-  - First formal FULL_VALIDATION attempt on candidate `0e76bf907653cd1d3256854a53e0c77684787ad4` recorded historical failure (`MF_AUDIT_002_FULL_VALIDATION_FAILED`) due to a test-infrastructure Console redirection race, subsequently remediated and review-approved.
-  - Coverage decision: `PRIOR COVERAGE DELTA CORRECTED` (normalized apples-to-apples Cobertura delta adopted).
-  - Core automated test suite: 2,299 passed in Release (0 failed, 0 skipped; +71 automated test cases).
-  - Focused P8 test suite: 155 passed, 0 failed, 0 skipped; remediation 4-suite filter: 156 passed, 0 failed, 0 skipped.
-  - Normalized Cobertura Coverage (coverlet.collector 6.0.4, Release configuration across 4 assemblies):
-    - Lines: 8262/8868 (93.17%) $\to$ 8330/8868 (93.93%), +68 covered (+0.77 percentage points).
-    - Branches: 2918/3619 (80.63%) $\to$ 2983/3619 (82.43%), +65 covered (+1.80 percentage points).
-  - Code scope: 3 added test files, 8 modified test files (11 test paths, 8 documentation paths, 19 total package paths), 0 production source changes, 0 tooling source changes, 0 script changes, 0 configuration changes, 0 schema changes, 0 migrations, 0 runtime behavioral changes.
+  - Consolidated package review completed.
+  - Targeted remediation review verdict: `MF_CYBER_001_FINAL_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 confirmed production defects; 0 unresolved P0/P1 gaps).
+  - Core automated test suite: **2,390 passed** in Debug and Release (0 failed, 0 skipped; **+91 net automated test cases** over 2,299 baseline).
+  - Code scope: 23 files changed across `MathFirst.App`, `MathFirst.Application`, and `MathFirst.Core.Tests` (0 schema migrations, Schema V9 preserved, 0 tooling/script changes).
+  - Windows compilation: 0 warnings, 0 errors in Debug and Release (`net10.0-windows10.0.19041.0`).
+  - Android compilation: 0 warnings, 0 errors in Debug and Release (`net10.0-android36.0`).
   - Candidate whitespace and diff check: `git diff --check` PASS.
-  - Evidence boundary: Implementation, review, and validation remediation evidence only. Formal exact-candidate validation and integration status are determined dynamically from live Git/GitHub state.
+  - Evidence boundary: Implementation, review, and documentation reconciliation evidence only. Formal exact-candidate validation, push, PR, and merge are determined dynamically from live Git/GitHub state in subsequent lifecycle steps.
 
 ---
 
 ## 2. Historical Merged Implementation Packages
 
+- **PR #72 (Cyber Defense Roguelite GDD and Implementation Roadmap)**: Merged via PR #72 at merge commit `3d476dd2211e4bc00898bc8162ade4f22312effb` on 2026-10-08 (`docs(p7): finalize Cyber Defense roguelite GDD and implementation roadmap`). Established the authoritative target game design document (`docs/superpowers/specs/2026-10-08-cyber-defense-roguelite-gdd.md`) and implementation roadmap (`docs/superpowers/plans/2026-10-08-cyber-defense-implementation-roadmap.md`) covering the 10-package Cyber Defense execution sequence.
 - **MF-AUDIT-002 / P8 (Test-Coverage Audit & Targeted Hardening)**: Merged via PR #70 at merge commit `cc81242177dd75114934c3ad48b830c9ce87c70b` (validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_REVIEW_APPROVED`, `MF_AUDIT_002_VALIDATION_REMEDIATION_REVIEW_APPROVED`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing in Debug and Release [+71 automated test cases], normalized Cobertura coverage 93.93% lines / 82.43% branches, 11 test paths [3 added, 8 modified; 19 total package paths including 8 documentation paths], 0 production code changes). Hardened critical domain invariants across `BroadWeaknessPolicy`, `CurriculumUnlockPolicy`, property tests, and scheduler rank; hardened SQLite mid-transaction trigger rollback, corrupted `CurriculumStage` fail-closed rejection, repeated transient recovery, and 4-stage monotonic `CurriculumManaged` long-run simulations; hardened ReleaseTool CLI argument parsing and option validation; and stabilized ReleaseCli console test infrastructure under non-parallel collection isolation.
 - **Post-P6 Merge State Reconciliation**: Merged via PR #69 at merge commit `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`.
 - **P6 (Tester Diagnostics / Telemetry Release Boundary)**: Merged via PR #68 at merge commit `049ec1d5d3859a139f8d5493d6dae7607d321b02` (validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_COMPLETE_REVIEW_APPROVED`, `P6_FULL_VALIDATION_PASSED` with 2,228 Core Debug / 2,228 Core Release tests, 117 focused tests across 11 suites, clean Windows and Android compile matrices, merge tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`). Enforces strict compile/profile boundary isolating Tester diagnostic controls and conditional DI services from non-Tester builds, propagates ReleaseTool build classification and source commit metadata, and maintains profile-wide Full Local Reset cache cleanup.
@@ -168,8 +185,10 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 8. P5 is integrated and merged into `main` via PR #67 (`aeb7bc46e8b425d9da95493a367f99f7ed330871`).
 9. P6 is integrated and merged into `main` via PR #68 (`049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-P6 docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
 10. P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) is integrated and merged into `main` via PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`).
-11. Following P8 completion, no subsequent production or gameplay development package had been selected at the post-P8 baseline. Pre-Step55 refinement sequence (P0–P6, P8) is completed and merged.
-12. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
+11. Cyber Defense Roguelite GDD and Implementation Roadmap are integrated and merged into `main` via PR #72 (`3d476dd2211e4bc00898bc8162ade4f22312effb`).
+12. MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) is completed across 4 implementation slices and 1 targeted navigation-recovery remediation; final review approved (`MF_CYBER_001_FINAL_REVIEW_APPROVED`); in `DOCUMENT_ONLY` mode awaiting `COMMIT_ONLY` and `FULL_VALIDATION`.
+13. Subsequent Cyber Defense roadmap packages (MF-CYBER-002 through MF-CYBER-010) follow sequentially.
+14. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
 > Step 55 is **NOT AUTHORIZED**. Build 4 does not exist yet (not packaged, not signed, not tested). No production packaging, release signing, ADB, or release action is authorized without explicit user dispatch.
