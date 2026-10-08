@@ -1,12 +1,12 @@
 # MathFirst — Cyber Defense Roguelite/RPG
 ## Target Game Design Document (GDD) & Technical Specification
 
-**Date:** 2026-10-08  
-**Status:** Approved Target Game Design Specification — Durable Baseline for Implementation Planning (Not Yet Implemented in Production)  
-**Repository:** `Tachiguro/MathFirst`  
-**Base Commit:** `main@b9ee8a940ea33d893c406071cc966e1f792e01c8` (Verified 0 open PRs at baseline)  
-**Canonical Checkout:** `C:\Dev\MathFirst`  
-**Package Family:** P7 (*Deferred / Post-Core*); Implementation dispatched in bounded downstream slices.  
+**Date:** 2026-10-08\
+**Status:** Approved Target Game Design Specification — Durable Baseline for Implementation Planning (Not Yet Implemented in Production)\
+**Repository:** `Tachiguro/MathFirst`\
+**Base Commit:** `main@b9ee8a940ea33d893c406071cc966e1f792e01c8` (Verified 0 open PRs at baseline)\
+**Canonical Checkout:** `C:\Dev\MathFirst`\
+**Package Family:** P7 (*Deferred / Post-Core*); Implementation dispatched in bounded downstream slices.\
 **Release Boundary:** Roadmap Step 55 is **NOT AUTHORIZED**; Build 4 does **NOT EXIST**.
 
 ---
@@ -83,31 +83,31 @@ flowchart TD
     NextEnemy --> MathPrompt["Math Engine Presents Adaptive Fact"]
     MathPrompt --> LearnerInput["Learner Submits Answer"]
     LearnerInput --> MathEval["Math Engine Validates & Commits Attempt (Schema V9)"]
-    
+
     MathEval --> GameDispatch{"Answer Correct?"}
-    
+
     GameDispatch -- "Yes (Correct)" --> PlayerAttack["Player Attacks Enemy (Base + Skills + Crits)"]
     PlayerAttack --> CheckEnemy{"Enemy HP <= 0?"}
-    
+
     GameDispatch -- "No (Incorrect)" --> EnemyAttack["Enemy Attacks Player (Absorbed by Shield or -HP)"]
     EnemyAttack --> CheckPlayer{"Player HP <= 0?"}
-    
+
     CheckEnemy -- "No" --> RechargeShields["Recharge Firewall (+2 units)"]
     RechargeShields --> MathPrompt
-    
+
     CheckEnemy -- "Yes (Defeated)" --> AwardEnemyXP["Award Enemy Defeat XP & Small Heal"]
     AwardEnemyXP --> IsBossDefeated{"Was Opponent Sector Boss?"}
-    
+
     IsBossDefeated -- "No" --> AdvanceNextEnemy["Advance to Next Opponent in Sector"]
     AdvanceNextEnemy --> NextEnemy
-    
+
     IsBossDefeated -- "Yes" --> BossVictory["1-3s Boss Victory Animation & Sector Recap"]
     BossVictory --> NextSector["Advance to Sector s+1"]
     NextSector --> NextEnemy
-    
+
     CheckPlayer -- "No" --> RechargeShieldsError["Recharge Firewall (+1 unit) & Reset Overdrive Combo"]
     RechargeShieldsError --> MathPrompt
-    
+
     CheckPlayer -- "Yes (Game-Over)" --> SystemOverload["System Overload Animation & Reboot Message"]
     SystemOverload --> ResetRun["Restart at Sector 1 (Retain XP, Levels, SP, Upgrades)"]
     ResetRun --> NextEnemy
@@ -233,9 +233,9 @@ XP is awarded permanently upon confirmed attempt evaluation:
 
 Level progression uses a two-phase polynomial-logarithmic curve to balance rapid early dopamine with sustainable long-term progression up to Level 1000+:
 
-$$\Delta \text{XP}(L) = \begin{cases} 
+$$\Delta \text{XP}(L) = \begin{cases}
 \left\lceil 80 + 24 \cdot (L - 1)^{0.75} \right\rceil & \text{for } 1 \le L \le 100 \\
-\left\lceil 834 + 160 \cdot \log_2\left(\frac{L}{100}\right) \right\rceil & \text{for } L > 100 
+\left\lceil 834 + 160 \cdot \log_2\left(\frac{L}{100}\right) \right\rceil & \text{for } L > 100
 \end{cases}$$
 
 - **Level-Up Award**: Each Player Level gained awards **$+1$ Skill Point (SP)** `[FIXED PRODUCT RULE]`.
