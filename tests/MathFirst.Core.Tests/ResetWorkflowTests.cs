@@ -4,6 +4,7 @@ using MathFirst.Application;
 using MathFirst.Application.Copy;
 using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
 using MathFirst.Application.Telemetry;
 using MathFirst.Domain;
 using Xunit;
@@ -32,12 +33,16 @@ public sealed class ResetWorkflowTests : IDisposable
         }
     }
 
-    private sealed class InMemoryPreferenceStore : IPreferenceStore
+    private sealed class InMemoryPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences
     {
+        private bool? _cyberDefenseEnabled;
         public string Language { get; set; } = "system";
         public ThemePreference Theme { get; set; } = ThemePreference.System;
         public NumericKeypadLayout KeypadLayout { get; set; } = NumericKeypadLayout.Numpad;
         public bool HapticFeedbackEnabled { get; set; } = true;
+
+        public bool GetCyberDefenseEnabled() => _cyberDefenseEnabled ?? true;
+        public void SetCyberDefenseEnabled(bool enabled) => _cyberDefenseEnabled = enabled;
 
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
@@ -78,6 +83,7 @@ public sealed class ResetWorkflowTests : IDisposable
         {
             _operations.Clear();
             _practiceTimeSetting = PracticeTimeSetting.Standard;
+            _cyberDefenseEnabled = null;
         }
 
         public void ResetAllPreferences()
@@ -89,6 +95,7 @@ public sealed class ResetWorkflowTests : IDisposable
             ResetPracticePreferences();
         }
     }
+
 
     [Fact]
     public async Task ResetWorkflow_ResetLearningProgress_PreservesPreferences()
@@ -383,8 +390,9 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.NotNull(idStore.StoredValue);
 
         var cacheCleaner = new SpyTelemetryShareCacheCleaner();
+        var sessionState = new CyberDefenseSessionState(prefs);
 
-        var coordinator = new AppResetCoordinator(session, prefs, idProvider, cacheCleaner);
+        var coordinator = new AppResetCoordinator(session, prefs, idProvider, cacheCleaner, sessionState);
 
         await coordinator.ExecuteFullResetAsync();
 

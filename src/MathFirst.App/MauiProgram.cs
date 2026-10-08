@@ -34,7 +34,12 @@ public static class MauiProgram
 			});
 #endif
 
-		builder.Services.AddSingleton<IPreferenceStore, MauiPreferenceStore>();
+		builder.Services.AddSingleton<MauiPreferenceStore>();
+		builder.Services.AddSingleton<IPreferenceStore>(
+			sp => sp.GetRequiredService<MauiPreferenceStore>());
+		builder.Services.AddSingleton<ICyberDefenseModePreferences>(
+			sp => sp.GetRequiredService<MauiPreferenceStore>());
+		builder.Services.AddSingleton<CyberDefenseSessionState>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
 		builder.Services.AddSingleton<IHapticDriver, MauiHapticDriver>();

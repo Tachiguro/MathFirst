@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using MathFirst.Application;
 using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
 using MathFirst.Application.Telemetry;
 using MathFirst.Domain;
 using MathFirst.Infrastructure.Sqlite;
@@ -48,11 +49,16 @@ public sealed class AppResetCoordinatorTests : IDisposable
         await session.InitializeAsync(startTiming: true);
         spyStore.IsPracticeSurfaceActiveQuery = () => session.IsPracticeSurfaceActive;
 
-        var spyPrefs = new SpyPreferenceStore(recordedEvents);
-        var spyInstallId = new SpyInstallationIdProvider(recordedEvents);
+        var cyberPrefs = new SpyCyberDefensePreferences();
+        var sessionState = new CyberDefenseSessionState(cyberPrefs);
+        var activeEncounter = sessionState.ActiveEncounter;
+        Assert.NotNull(activeEncounter);
+
+        var spyPrefs = new SpyPreferenceStore(recordedEvents, () => sessionState.HasActiveEncounter);
+        var spyInstallId = new SpyInstallationIdProvider(recordedEvents, () => sessionState.HasActiveEncounter);
         var spyCleaner = new SpyTelemetryShareCacheCleaner(recordedEvents);
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -62,6 +68,24 @@ public sealed class AppResetCoordinatorTests : IDisposable
         Assert.Equal("ClearInstallationId", recordedEvents[2]);
         Assert.Equal("PurgeShareCache", recordedEvents[3]);
         Assert.False(spyStore.WasPracticeSurfaceActiveDuringReset);
+        Assert.True(spyPrefs.WasActiveEncounterPresentDuringResetPreferences);
+        Assert.False(spyInstallId.WasActiveEncounterPresentDuringClearInstallationId);
+        Assert.False(sessionState.HasActiveEncounter);
+    }
+
+    [Fact]
+    public void Constructor_RequiresNonNullCyberDefenseSessionState()
+    {
+        var dbPath = Path.Combine(_tempDirectory, "null_cyber.db");
+        using var sqliteStore = new SqliteLearnerStore(dbPath);
+        var session = new TrainingSession(sqliteStore);
+        var spyPrefs = new SpyPreferenceStore();
+        var spyInstallId = new SpyInstallationIdProvider();
+        var spyCleaner = new SpyTelemetryShareCacheCleaner();
+
+        var ex = Assert.Throws<ArgumentNullException>(() =>
+            new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, null!));
+        Assert.Equal("cyberDefenseSessionState", ex.ParamName);
     }
 
     [Fact]
@@ -81,8 +105,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
         var spyCleaner = new SpyTelemetryShareCacheCleaner();
+        var sessionState = new CyberDefenseSessionState(new SpyCyberDefensePreferences());
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         await coordinator.ExecuteFullResetAsync();
 
@@ -103,8 +128,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
         var spyCleaner = new SpyTelemetryShareCacheCleaner();
+        var sessionState = new CyberDefenseSessionState(new SpyCyberDefensePreferences());
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         using var cts = new CancellationTokenSource();
         await coordinator.ExecuteFullResetAsync(cts.Token);
@@ -128,8 +154,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
         {
             ThrowOnPurge = new IOException("Simulated disk I/O failure during purge")
         };
+        var sessionState = new CyberDefenseSessionState(new SpyCyberDefensePreferences());
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         var exception = await Record.ExceptionAsync(() => coordinator.ExecuteFullResetAsync());
 
@@ -154,8 +181,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
         {
             ThrowOnPurge = new UnauthorizedAccessException("Simulated access denied during purge")
         };
+        var sessionState = new CyberDefenseSessionState(new SpyCyberDefensePreferences());
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         var exception = await Record.ExceptionAsync(() => coordinator.ExecuteFullResetAsync());
 
@@ -180,8 +208,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
         {
             ThrowOnPurge = new InvalidOperationException("Unexpected failure during purge")
         };
+        var sessionState = new CyberDefenseSessionState(new SpyCyberDefensePreferences());
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ExecuteFullResetAsync());
         Assert.Equal("Unexpected failure during purge", ex.Message);
@@ -206,8 +235,11 @@ public sealed class AppResetCoordinatorTests : IDisposable
         var spyPrefs = new SpyPreferenceStore();
         var spyInstallId = new SpyInstallationIdProvider();
         var spyCleaner = new SpyTelemetryShareCacheCleaner();
+        var sessionState = new CyberDefenseSessionState(new SpyCyberDefensePreferences());
+        var activeEncounter = sessionState.ActiveEncounter;
+        Assert.NotNull(activeEncounter);
 
-        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner);
+        var coordinator = new AppResetCoordinator(session, spyPrefs, spyInstallId, spyCleaner, sessionState);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ExecuteFullResetAsync());
         Assert.Equal("Store reset simulated failure", ex.Message);
@@ -216,7 +248,9 @@ public sealed class AppResetCoordinatorTests : IDisposable
         Assert.Equal(0, spyPrefs.ResetAllPreferencesCallCount);
         Assert.Equal(0, spyInstallId.ClearCallCount);
         Assert.Equal(0, spyCleaner.PurgeCallCount);
+        Assert.True(sessionState.HasActiveEncounter);
     }
+
 
     private sealed class SpyLearnerStore(ILearnerStore inner, List<string>? events = null) : ILearnerStore
     {
@@ -278,10 +312,18 @@ public sealed class AppResetCoordinatorTests : IDisposable
         public void Dispose() => inner.Dispose();
     }
 
-    private sealed class SpyPreferenceStore(List<string>? events = null) : IPreferenceStore
+    private sealed class SpyCyberDefensePreferences : ICyberDefenseModePreferences
+    {
+        public bool Enabled { get; set; } = true;
+        public bool GetCyberDefenseEnabled() => Enabled;
+        public void SetCyberDefenseEnabled(bool enabled) => Enabled = enabled;
+    }
+
+    private sealed class SpyPreferenceStore(List<string>? events = null, Func<bool>? hasActiveEncounterQuery = null) : IPreferenceStore
     {
         public int ResetAllPreferencesCallCount { get; private set; }
         public int ResetPracticePreferencesCallCount { get; private set; }
+        public bool? WasActiveEncounterPresentDuringResetPreferences { get; private set; }
 
         public ThemePreference GetThemePreference() => ThemePreference.System;
         public void SetThemePreference(ThemePreference preference) { }
@@ -300,16 +342,22 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         public void ResetAllPreferences()
         {
+            if (hasActiveEncounterQuery is not null)
+            {
+                WasActiveEncounterPresentDuringResetPreferences = hasActiveEncounterQuery();
+            }
+
             ResetAllPreferencesCallCount++;
             events?.Add("ResetAllPreferences");
         }
     }
 
-    private sealed class SpyInstallationIdProvider(List<string>? events = null) : IInstallationIdProvider
+    private sealed class SpyInstallationIdProvider(List<string>? events = null, Func<bool>? hasActiveEncounterQuery = null) : IInstallationIdProvider
     {
         public int ClearCallCount { get; private set; }
         public int GetOrCreateCallCount { get; private set; }
         public string InstallationId { get; set; } = Guid.NewGuid().ToString("D");
+        public bool? WasActiveEncounterPresentDuringClearInstallationId { get; private set; }
 
         public string GetOrCreateInstallationId()
         {
@@ -319,6 +367,11 @@ public sealed class AppResetCoordinatorTests : IDisposable
 
         public void ClearInstallationId()
         {
+            if (hasActiveEncounterQuery is not null)
+            {
+                WasActiveEncounterPresentDuringClearInstallationId = hasActiveEncounterQuery();
+            }
+
             ClearCallCount++;
             events?.Add("ClearInstallationId");
         }
