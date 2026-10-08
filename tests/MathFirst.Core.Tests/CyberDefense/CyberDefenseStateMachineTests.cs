@@ -1375,26 +1375,59 @@ public class CyberDefenseStateMachineTests
     }
 
     // =========================================================================
-    // Y. INCORRECT ATTEMPT - FATAL BOUNDARY (SLICE 7 BOUNDARY)
+    // Y. INCORRECT ATTEMPT - FATAL COUNTER-DAMAGE & GAME OVER (SLICE 7)
     // =========================================================================
 
     [Theory]
-    [InlineData(4, 4)] // Exact fatal: Normal Sector 1 deals 4, player HP 4
-    [InlineData(3, 4)] // Overkill fatal: Normal Sector 1 deals 4, player HP 3
-    [InlineData(1, 4)] // Overkill fatal: Normal Sector 1 deals 4, player HP 1
-    public void ApplyAttempt_Incorrect_Normal_FatalCounterDamage_ThrowsNotSupportedExceptionAndPreservesState(
+    [InlineData(4, 4, 4, 0)] // Exact fatal: Normal Sector 1 deals 4, player HP 4
+    [InlineData(3, 4, 3, 1)] // Excess fatal: Normal Sector 1 deals 4, player HP 3
+    [InlineData(1, 4, 1, 3)] // Excess fatal: Normal Sector 1 deals 4, player HP 1
+    public void ApplyAttempt_Incorrect_Normal_FatalCounterDamage_ProducesGameOverAndExactAccounting(
         int playerHp,
-        int enemyDamage)
+        int enemyDamage,
+        int expectedAppliedDamage,
+        int expectedExcessDamage)
     {
         var opponent = new OpponentState(OpponentKind.Normal, 2, 2);
         var run = CyberDefenseRunState.CreateActive(1, 0, playerHp, opponent);
 
         Assert.Equal(enemyDamage, CyberDefenseCombatPolicy.GetEnemyDamage(1, OpponentKind.Normal));
 
-        Assert.Throws<NotSupportedException>(() =>
-            CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 1));
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 1);
 
-        // Verify input immutability
+        Assert.False(result.IsCorrect);
+        Assert.Equal(0, result.RequestedAttackDamage);
+        Assert.Equal(0, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(enemyDamage, result.IncomingEnemyDamage);
+        Assert.Equal(expectedAppliedDamage, result.AppliedPlayerDamage);
+        Assert.Equal(expectedExcessDamage, result.ExcessEnemyDamage);
+        Assert.Equal(0, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing);
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.True(result.IsGameOver);
+
+        // Terminal snapshot captures the defeated run
+        Assert.NotNull(result.TerminalSnapshot);
+        Assert.Equal(1, result.TerminalSnapshot.Sector);
+        Assert.Equal(0, result.TerminalSnapshot.OpponentIndex);
+        Assert.Equal(OpponentKind.Normal, result.TerminalSnapshot.Kind);
+        Assert.Equal(2, result.TerminalSnapshot.OpponentCurrentHp);
+        Assert.Equal(2, result.TerminalSnapshot.OpponentMaxHp);
+        Assert.Equal(0, result.TerminalSnapshot.PlayerCurrentHp);
+
+        // NextState is automatically rebooted to fresh Sector 1 InitialRun
+        Assert.NotNull(result.NextState);
+        Assert.Equal(1, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(2, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+        Assert.NotSame(run, result.NextState);
+
+        // Input immutability
         Assert.Equal(playerHp, run.PlayerCurrentHp);
         Assert.Equal(1, run.Sector);
         Assert.Equal(0, run.OpponentIndex);
@@ -1402,12 +1435,15 @@ public class CyberDefenseStateMachineTests
     }
 
     [Theory]
-    [InlineData(6, 6)] // Exact fatal: Boss Sector 1 deals 6, player HP 6
-    [InlineData(5, 6)] // Overkill fatal: Boss Sector 1 deals 6, player HP 5
-    [InlineData(1, 6)] // Overkill fatal: Boss Sector 1 deals 6, player HP 1
-    public void ApplyAttempt_Incorrect_Boss_FatalCounterDamage_ThrowsNotSupportedExceptionAndPreservesState(
+    [InlineData(6, 6, 6, 0)] // Exact fatal: Boss Sector 1 deals 6, player HP 6
+    [InlineData(5, 6, 5, 1)] // Excess fatal: Boss Sector 1 deals 6, player HP 5
+    [InlineData(3, 6, 3, 3)] // Excess fatal: Boss Sector 1 deals 6, player HP 3
+    [InlineData(1, 6, 1, 5)] // Excess fatal: Boss Sector 1 deals 6, player HP 1
+    public void ApplyAttempt_Incorrect_Boss_FatalCounterDamage_ProducesGameOverAndExactAccounting(
         int playerHp,
-        int enemyDamage)
+        int enemyDamage,
+        int expectedAppliedDamage,
+        int expectedExcessDamage)
     {
         int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
         var boss = new OpponentState(OpponentKind.Boss, 12, 12);
@@ -1415,10 +1451,41 @@ public class CyberDefenseStateMachineTests
 
         Assert.Equal(enemyDamage, CyberDefenseCombatPolicy.GetEnemyDamage(1, OpponentKind.Boss));
 
-        Assert.Throws<NotSupportedException>(() =>
-            CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 1));
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 1);
 
-        // Verify input immutability
+        Assert.False(result.IsCorrect);
+        Assert.Equal(0, result.RequestedAttackDamage);
+        Assert.Equal(0, result.AppliedOpponentDamage);
+        Assert.Equal(0, result.ExcessOpponentDamage);
+        Assert.Equal(enemyDamage, result.IncomingEnemyDamage);
+        Assert.Equal(expectedAppliedDamage, result.AppliedPlayerDamage);
+        Assert.Equal(expectedExcessDamage, result.ExcessEnemyDamage);
+        Assert.Equal(0, result.PotentialHealing);
+        Assert.Equal(0, result.AppliedHealing);
+        Assert.False(result.IsOpponentDefeated);
+        Assert.False(result.IsSectorCompleted);
+        Assert.True(result.IsGameOver);
+
+        // Terminal snapshot
+        Assert.NotNull(result.TerminalSnapshot);
+        Assert.Equal(1, result.TerminalSnapshot.Sector);
+        Assert.Equal(bossIndex, result.TerminalSnapshot.OpponentIndex);
+        Assert.Equal(OpponentKind.Boss, result.TerminalSnapshot.Kind);
+        Assert.Equal(12, result.TerminalSnapshot.OpponentCurrentHp);
+        Assert.Equal(12, result.TerminalSnapshot.OpponentMaxHp);
+        Assert.Equal(0, result.TerminalSnapshot.PlayerCurrentHp);
+
+        // NextState is rebooted
+        Assert.NotNull(result.NextState);
+        Assert.Equal(1, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(2, result.NextState.CurrentOpponent.MaxHp);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+        Assert.NotSame(run, result.NextState);
+
+        // Input immutability
         Assert.Equal(playerHp, run.PlayerCurrentHp);
         Assert.Equal(1, run.Sector);
         Assert.Equal(bossIndex, run.OpponentIndex);
@@ -1426,23 +1493,316 @@ public class CyberDefenseStateMachineTests
     }
 
     [Fact]
-    public void ApplyAttempt_Incorrect_HighSector_FatalCounterDamage_ThrowsNotSupportedException()
+    public void ApplyAttempt_Incorrect_PartiallyDamagedBoss_Fatal_PreservesBossCurrentHpInSnapshot()
+    {
+        int sector = 1;
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
+        // Boss max HP 12, currently at 5 HP. Player has 4 HP. Incoming damage is 6.
+        var boss = new OpponentState(OpponentKind.Boss, 12, 5);
+        var run = CyberDefenseRunState.CreateActive(sector, bossIndex, 4, boss);
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 10);
+
+        Assert.True(result.IsGameOver);
+        Assert.NotNull(result.TerminalSnapshot);
+        Assert.Equal(sector, result.TerminalSnapshot.Sector);
+        Assert.Equal(bossIndex, result.TerminalSnapshot.OpponentIndex);
+        Assert.Equal(OpponentKind.Boss, result.TerminalSnapshot.Kind);
+        Assert.Equal(12, result.TerminalSnapshot.OpponentMaxHp);
+        Assert.Equal(5, result.TerminalSnapshot.OpponentCurrentHp);
+        Assert.Equal(0, result.TerminalSnapshot.PlayerCurrentHp);
+
+        // NextState rebooted
+        Assert.Equal(1, result.NextState.Sector);
+        Assert.Equal(0, result.NextState.OpponentIndex);
+        Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        Assert.Equal(OpponentKind.Normal, result.NextState.CurrentOpponent.Kind);
+        Assert.Equal(2, result.NextState.CurrentOpponent.CurrentHp);
+    }
+
+    // =========================================================================
+    // Z. NONLETHAL / FATAL THRESHOLD TRANSITIONS
+    // =========================================================================
+
+    [Theory]
+    [InlineData(1, OpponentKind.Normal, 5, 4, false, 1, 4, 4, 0)]  // H = D + 1: Nonlethal
+    [InlineData(1, OpponentKind.Normal, 4, 4, true, 100, 4, 4, 0)] // H = D: Exact Fatal
+    [InlineData(1, OpponentKind.Normal, 3, 4, true, 100, 4, 3, 1)] // H = D - 1: Excess Fatal
+    [InlineData(1, OpponentKind.Boss, 7, 6, false, 1, 6, 6, 0)]    // H = D + 1: Nonlethal
+    [InlineData(1, OpponentKind.Boss, 6, 6, true, 100, 6, 6, 0)]   // H = D: Exact Fatal
+    [InlineData(1, OpponentKind.Boss, 5, 6, true, 100, 6, 5, 1)]   // H = D - 1: Excess Fatal
+    public void ApplyAttempt_Incorrect_Threshold_CorrectlyDifferentiatesNonlethalAndFatal(
+        int sector,
+        OpponentKind kind,
+        int playerHp,
+        int enemyDamage,
+        bool expectedGameOver,
+        int expectedNextHp,
+        int expectedIncoming,
+        int expectedApplied,
+        int expectedExcess)
+    {
+        int opponentIndex = kind == OpponentKind.Boss ? CyberDefenseScalingPolicy.GetBossIndex(sector) : 0;
+        int maxHp = CyberDefenseScalingPolicy.GetOpponentMaxHp(sector, opponentIndex);
+        var opponent = new OpponentState(kind, maxHp, maxHp);
+        var run = CyberDefenseRunState.CreateActive(sector, opponentIndex, playerHp, opponent);
+
+        Assert.Equal(enemyDamage, CyberDefenseCombatPolicy.GetEnemyDamage(sector, kind));
+
+        var result = CyberDefenseStateMachine.ApplyAttempt(run, isCorrect: false, effectiveAttackDamage: 1);
+
+        Assert.Equal(expectedGameOver, result.IsGameOver);
+        Assert.Equal(expectedIncoming, result.IncomingEnemyDamage);
+        Assert.Equal(expectedApplied, result.AppliedPlayerDamage);
+        Assert.Equal(expectedExcess, result.ExcessEnemyDamage);
+        Assert.Equal(expectedNextHp, result.NextState.PlayerCurrentHp);
+
+        if (expectedGameOver)
+        {
+            Assert.NotNull(result.TerminalSnapshot);
+            Assert.Equal(sector, result.TerminalSnapshot.Sector);
+            Assert.Equal(opponentIndex, result.TerminalSnapshot.OpponentIndex);
+            Assert.Equal(kind, result.TerminalSnapshot.Kind);
+            Assert.Equal(maxHp, result.TerminalSnapshot.OpponentCurrentHp);
+            Assert.Equal(0, result.TerminalSnapshot.PlayerCurrentHp);
+
+            // Rebooted state
+            Assert.Equal(1, result.NextState.Sector);
+            Assert.Equal(0, result.NextState.OpponentIndex);
+            Assert.Equal(100, result.NextState.PlayerCurrentHp);
+        }
+        else
+        {
+            Assert.Null(result.TerminalSnapshot);
+            Assert.Equal(sector, result.NextState.Sector);
+            Assert.Equal(opponentIndex, result.NextState.OpponentIndex);
+        }
+    }
+
+    // =========================================================================
+    // AA. HIGH-SECTOR OVERFLOW-SAFE FATAL TRANSITIONS
+    // =========================================================================
+
+    [Fact]
+    public void ApplyAttempt_Incorrect_HighSector_FatalCounterDamage_ResolvesCleanly()
     {
         // Sector 50 Normal deals 5 damage. Player HP 5 is exact fatal.
         var opponent50 = new OpponentState(OpponentKind.Normal, 6, 6);
         var run50 = CyberDefenseRunState.CreateActive(50, 0, 5, opponent50);
 
-        Assert.Throws<NotSupportedException>(() =>
-            CyberDefenseStateMachine.ApplyAttempt(run50, isCorrect: false, effectiveAttackDamage: 1));
+        var res50 = CyberDefenseStateMachine.ApplyAttempt(run50, isCorrect: false, effectiveAttackDamage: 1);
+        Assert.True(res50.IsGameOver);
+        Assert.NotNull(res50.TerminalSnapshot);
+        Assert.Equal(50, res50.TerminalSnapshot.Sector);
+        Assert.Equal(5, res50.IncomingEnemyDamage);
+        Assert.Equal(5, res50.AppliedPlayerDamage);
+        Assert.Equal(0, res50.ExcessEnemyDamage);
+        Assert.Equal(1, res50.NextState.Sector);
+        Assert.Equal(100, res50.NextState.PlayerCurrentHp);
 
-        // Sector int.MaxValue deals 42,949,676 damage. Player HP 100 is fatal.
+        // Sector 100 Boss deals 8 damage. Player HP 3 is excess fatal.
+        int boss100Index = CyberDefenseScalingPolicy.GetBossIndex(100);
+        int boss100MaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(100);
+        var boss100 = new OpponentState(OpponentKind.Boss, boss100MaxHp, boss100MaxHp);
+        var run100 = CyberDefenseRunState.CreateActive(100, boss100Index, 3, boss100);
+
+        var res100 = CyberDefenseStateMachine.ApplyAttempt(run100, isCorrect: false, effectiveAttackDamage: 1);
+        Assert.True(res100.IsGameOver);
+        Assert.NotNull(res100.TerminalSnapshot);
+        Assert.Equal(100, res100.TerminalSnapshot.Sector);
+        Assert.Equal(8, res100.IncomingEnemyDamage);
+        Assert.Equal(3, res100.AppliedPlayerDamage);
+        Assert.Equal(5, res100.ExcessEnemyDamage);
+        Assert.Equal(1, res100.NextState.Sector);
+        Assert.Equal(100, res100.NextState.PlayerCurrentHp);
+
+        // Sector int.MaxValue Normal deals 42,949,676 damage. Player HP 100 is fatal.
         int maxSector = int.MaxValue;
+        int normalMaxHp = CyberDefenseScalingPolicy.GetNormalMaxHp(maxSector);
+        var opponentMax = new OpponentState(OpponentKind.Normal, normalMaxHp, normalMaxHp);
+        var runMaxNormal = CyberDefenseRunState.CreateActive(maxSector, 0, 100, opponentMax);
+
+        var resMaxNormal = CyberDefenseStateMachine.ApplyAttempt(runMaxNormal, isCorrect: false, effectiveAttackDamage: 1);
+        Assert.True(resMaxNormal.IsGameOver);
+        Assert.NotNull(resMaxNormal.TerminalSnapshot);
+        Assert.Equal(maxSector, resMaxNormal.TerminalSnapshot.Sector);
+        Assert.Equal(42_949_676, resMaxNormal.IncomingEnemyDamage);
+        Assert.Equal(100, resMaxNormal.AppliedPlayerDamage);
+        Assert.Equal(42_949_576, resMaxNormal.ExcessEnemyDamage);
+        Assert.Equal(1, resMaxNormal.NextState.Sector);
+        Assert.Equal(100, resMaxNormal.NextState.PlayerCurrentHp);
+
+        // Sector int.MaxValue Boss deals 42,949,678 damage. Player HP 100 is fatal.
         int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(maxSector);
         int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(maxSector);
         var bossMax = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
-        var runMax = CyberDefenseRunState.CreateActive(maxSector, bossIndex, 100, bossMax);
+        var runMaxBoss = CyberDefenseRunState.CreateActive(maxSector, bossIndex, 100, bossMax);
 
-        Assert.Throws<NotSupportedException>(() =>
-            CyberDefenseStateMachine.ApplyAttempt(runMax, isCorrect: false, effectiveAttackDamage: 1));
+        var resMaxBoss = CyberDefenseStateMachine.ApplyAttempt(runMaxBoss, isCorrect: false, effectiveAttackDamage: int.MaxValue);
+        Assert.True(resMaxBoss.IsGameOver);
+        Assert.NotNull(resMaxBoss.TerminalSnapshot);
+        Assert.Equal(maxSector, resMaxBoss.TerminalSnapshot.Sector);
+        Assert.Equal(42_949_678, resMaxBoss.IncomingEnemyDamage);
+        Assert.Equal(100, resMaxBoss.AppliedPlayerDamage);
+        Assert.Equal(42_949_578, resMaxBoss.ExcessEnemyDamage);
+        Assert.Equal(0, resMaxBoss.RequestedAttackDamage);
+        Assert.Equal(0, resMaxBoss.AppliedOpponentDamage);
+        Assert.Equal(0, resMaxBoss.ExcessOpponentDamage);
+        Assert.Equal(1, resMaxBoss.NextState.Sector);
+        Assert.Equal(100, resMaxBoss.NextState.PlayerCurrentHp);
+    }
+
+    // =========================================================================
+    // AB. CYBER DEFENSE COMBAT TRANSITION RESULT CONSTRUCTOR INVARIANTS
+    // =========================================================================
+
+    [Fact]
+    public void CombatTransitionResult_ThrowsWhenGameOverIsTrueButTerminalSnapshotIsNull()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        Assert.Throws<ArgumentException>(() =>
+            new CyberDefenseCombatTransitionResult(
+                isCorrect: false,
+                requestedAttackDamage: 0,
+                appliedOpponentDamage: 0,
+                excessOpponentDamage: 0,
+                incomingEnemyDamage: 4,
+                appliedPlayerDamage: 4,
+                excessEnemyDamage: 0,
+                potentialHealing: 0,
+                appliedHealing: 0,
+                isOpponentDefeated: false,
+                isSectorCompleted: false,
+                isGameOver: true,
+                nextState: run,
+                terminalSnapshot: null));
+    }
+
+    [Fact]
+    public void CombatTransitionResult_ThrowsWhenGameOverIsFalseButTerminalSnapshotIsNotNull()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        var snapshot = new CyberDefenseTerminalRunSnapshot(1, 0, OpponentKind.Normal, 2, 2, 0);
+        Assert.Throws<ArgumentException>(() =>
+            new CyberDefenseCombatTransitionResult(
+                isCorrect: false,
+                requestedAttackDamage: 0,
+                appliedOpponentDamage: 0,
+                excessOpponentDamage: 0,
+                incomingEnemyDamage: 4,
+                appliedPlayerDamage: 4,
+                excessEnemyDamage: 0,
+                potentialHealing: 0,
+                appliedHealing: 0,
+                isOpponentDefeated: false,
+                isSectorCompleted: false,
+                isGameOver: false,
+                nextState: run,
+                terminalSnapshot: snapshot));
+    }
+
+    [Fact]
+    public void CombatTransitionResult_AcceptsValidFatalResult()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        var snapshot = new CyberDefenseTerminalRunSnapshot(1, 0, OpponentKind.Normal, 2, 2, 0);
+        var result = new CyberDefenseCombatTransitionResult(
+            isCorrect: false,
+            requestedAttackDamage: 0,
+            appliedOpponentDamage: 0,
+            excessOpponentDamage: 0,
+            incomingEnemyDamage: 4,
+            appliedPlayerDamage: 4,
+            excessEnemyDamage: 0,
+            potentialHealing: 0,
+            appliedHealing: 0,
+            isOpponentDefeated: false,
+            isSectorCompleted: false,
+            isGameOver: true,
+            nextState: run,
+            terminalSnapshot: snapshot);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsGameOver);
+        Assert.NotNull(result.TerminalSnapshot);
+    }
+
+    [Fact]
+    public void CombatTransitionResult_AcceptsValidNonlethalResult()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        var result = new CyberDefenseCombatTransitionResult(
+            isCorrect: false,
+            requestedAttackDamage: 0,
+            appliedOpponentDamage: 0,
+            excessOpponentDamage: 0,
+            incomingEnemyDamage: 4,
+            appliedPlayerDamage: 4,
+            excessEnemyDamage: 0,
+            potentialHealing: 0,
+            appliedHealing: 0,
+            isOpponentDefeated: false,
+            isSectorCompleted: false,
+            isGameOver: false,
+            nextState: run,
+            terminalSnapshot: null);
+
+        Assert.NotNull(result);
+        Assert.False(result.IsGameOver);
+        Assert.Null(result.TerminalSnapshot);
+    }
+
+    [Fact]
+    public void CombatTransitionResult_AcceptsValidCorrectAnswerResult()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        var result = new CyberDefenseCombatTransitionResult(
+            isCorrect: true,
+            requestedAttackDamage: 2,
+            appliedOpponentDamage: 2,
+            excessOpponentDamage: 0,
+            incomingEnemyDamage: 0,
+            appliedPlayerDamage: 0,
+            excessEnemyDamage: 0,
+            potentialHealing: 2,
+            appliedHealing: 0,
+            isOpponentDefeated: true,
+            isSectorCompleted: false,
+            isGameOver: false,
+            nextState: run,
+            terminalSnapshot: null);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsCorrect);
+        Assert.True(result.IsOpponentDefeated);
+    }
+
+    // =========================================================================
+    // AC. TYPE IMMUTABILITY & SHAPE INVARIANTS
+    // =========================================================================
+
+    [Theory]
+    [InlineData(typeof(CyberDefenseCombatTransitionResult))]
+    [InlineData(typeof(CyberDefenseTerminalRunSnapshot))]
+    [InlineData(typeof(CyberDefenseRunState))]
+    [InlineData(typeof(OpponentState))]
+    public void DomainTypes_HaveOnlyGetOnlyProperties(Type type)
+    {
+        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        Assert.NotEmpty(properties);
+
+        foreach (var property in properties)
+        {
+            Assert.True(property.CanRead, $"{property.Name} must be readable.");
+            var setMethod = property.GetSetMethod(nonPublic: true);
+            if (setMethod != null)
+            {
+                var isInitOnly = setMethod.ReturnParameter
+                    .GetRequiredCustomModifiers()
+                    .Contains(typeof(IsExternalInit));
+                Assert.False(isInitOnly, $"{property.Name} should not have init-only setter.");
+                Assert.False(property.CanWrite, $"{property.Name} should not have setter.");
+            }
+        }
     }
 }

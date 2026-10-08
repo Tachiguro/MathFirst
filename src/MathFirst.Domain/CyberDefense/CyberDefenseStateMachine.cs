@@ -20,7 +20,34 @@ public static class CyberDefenseStateMachine
             int incomingEnemyDamage = CyberDefenseCombatPolicy.GetEnemyDamage(run.Sector, run.CurrentOpponent.Kind);
             if (run.PlayerCurrentHp <= incomingEnemyDamage)
             {
-                throw new NotSupportedException("Fatal counter-damage and game-over transitions are reserved for Slice 7.");
+                int appliedPlayerDamage = run.PlayerCurrentHp;
+                int excessEnemyDamage = checked(incomingEnemyDamage - appliedPlayerDamage);
+
+                var terminalSnapshot = new CyberDefenseTerminalRunSnapshot(
+                    run.Sector,
+                    run.OpponentIndex,
+                    run.CurrentOpponent.Kind,
+                    run.CurrentOpponent.CurrentHp,
+                    run.CurrentOpponent.MaxHp,
+                    playerCurrentHp: 0);
+
+                var rebootedNextState = CyberDefenseRunState.InitialRun();
+
+                return new CyberDefenseCombatTransitionResult(
+                    isCorrect: false,
+                    requestedAttackDamage: 0,
+                    appliedOpponentDamage: 0,
+                    excessOpponentDamage: 0,
+                    incomingEnemyDamage: incomingEnemyDamage,
+                    appliedPlayerDamage: appliedPlayerDamage,
+                    excessEnemyDamage: excessEnemyDamage,
+                    potentialHealing: 0,
+                    appliedHealing: 0,
+                    isOpponentDefeated: false,
+                    isSectorCompleted: false,
+                    isGameOver: true,
+                    nextState: rebootedNextState,
+                    terminalSnapshot: terminalSnapshot);
             }
 
             int nextPlayerHp = checked(run.PlayerCurrentHp - incomingEnemyDamage);
@@ -55,9 +82,6 @@ public static class CyberDefenseStateMachine
         int excessOpponentDamage = checked(requestedAttackDamage - appliedOpponentDamage);
         int remainingOpponentHp = checked(currentOpponentHp - appliedOpponentDamage);
 
-        const bool isGameOver = false;
-        const CyberDefenseTerminalRunSnapshot? terminalSnapshot = null;
-
         if (remainingOpponentHp > 0)
         {
             var nextOpponent = new OpponentState(
@@ -83,9 +107,9 @@ public static class CyberDefenseStateMachine
                 appliedHealing: 0,
                 isOpponentDefeated: false,
                 isSectorCompleted: false,
-                isGameOver: isGameOver,
+                isGameOver: false,
                 nextState: nextState,
-                terminalSnapshot: terminalSnapshot);
+                terminalSnapshot: null);
         }
         else
         {
@@ -138,9 +162,9 @@ public static class CyberDefenseStateMachine
                 appliedHealing: appliedHealing,
                 isOpponentDefeated: true,
                 isSectorCompleted: isSectorCompleted,
-                isGameOver: isGameOver,
+                isGameOver: false,
                 nextState: nextState,
-                terminalSnapshot: terminalSnapshot);
+                terminalSnapshot: null);
         }
     }
 }
