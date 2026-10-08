@@ -828,6 +828,20 @@ select:disabled {
     }
 }
 
+/* Calm Mode Layout Isolation & Modifiers (MF-CYBER-001 Slice 2) */
+.training-host.active-gameplay.calm-mode .training-card,
+.training-card.active-gameplay.calm-mode {
+    grid-template-rows: minmax(0, 1fr);
+}
+
+.training-host.active-gameplay.calm-mode .practice-layout {
+    min-height: 0;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
 .mathfirst-container {
     width: 100%;
     max-width: min(48rem, 100%);
@@ -954,6 +968,46 @@ select:disabled {
     min-width: 0;
     align-items: center;
     gap: clamp(0.35rem, 1vw, 0.6rem);
+}
+
+.mode-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: clamp(1.85rem, 3vh, 2.2rem);
+    padding: 0.2rem clamp(0.45rem, 1.2vw, 0.65rem);
+    font-size: clamp(0.75rem, 1.1vw, 0.85rem);
+    font-weight: 700;
+    line-height: 1;
+    border-radius: var(--radius-sm);
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+.mode-toggle-btn.mode-cyber {
+    border-color: rgba(27, 227, 169, 0.4);
+    color: var(--color-primary);
+}
+
+.mode-toggle-btn.mode-calm {
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.mode-toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+    .mode-toggle-btn .mode-toggle-text {
+        display: none;
+    }
+    .mode-toggle-btn {
+        padding: 0.35rem 0.55rem;
+    }
 }
 
 .pause-practice-btn {
@@ -1465,6 +1519,45 @@ select:disabled {
     background: linear-gradient(180deg, rgba(8, 22, 19, 0.92) 0%, rgba(5, 15, 13, 0.96) 100%);
     border-color: rgba(27, 227, 169, 0.3);
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), inset 0 0 14px rgba(27, 227, 169, 0.05);
+}
+
+.solve-to-attack-panel.calm-mode {
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+}
+
+.app-theme-root[data-theme="dark"] .solve-to-attack-panel.calm-mode {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.calm-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    height: 1.55rem;
+    min-height: 1.55rem;
+    max-height: 1.55rem;
+    box-sizing: border-box;
+}
+
+.calm-panel-tag {
+    display: flex;
+    align-items: center;
+    color: var(--color-text-secondary);
+    font-size: clamp(0.7rem, 1.1vw, 0.78rem);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.app-theme-root[data-theme="dark"] .calm-panel-tag {
+    color: var(--color-text-secondary);
+    text-shadow: none;
 }
 
 .solve-corner {

@@ -147,8 +147,8 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(File.Exists(homePath));
         var home = File.ReadAllText(homePath);
 
-        // Transient state instance
-        Assert.Contains("CyberDefenseEncounterState", home, StringComparison.Ordinal);
+        // Application-scoped state holder instance
+        Assert.Contains("CyberDefenseSessionState", home, StringComparison.Ordinal);
         Assert.Contains("<CyberDefenseHud", home, StringComparison.Ordinal);
 
         // Wired reactions on accepted answer outcomes
@@ -517,8 +517,8 @@ public sealed class CyberDefenseUiContractTests
 
         // Feedback triggers only after Session.SubmitAnswer
         var evalIdx = home.IndexOf("Session.SubmitAnswer", StringComparison.Ordinal);
-        var correctRecordIdx = home.IndexOf("_cyberDefenseState.RecordCorrectAnswer()", StringComparison.Ordinal);
-        var incorrectRecordIdx = home.IndexOf("_cyberDefenseState.RecordIncorrectAnswer()", StringComparison.Ordinal);
+        var correctRecordIdx = home.IndexOf("CyberDefenseState.ActiveEncounter?.RecordCorrectAnswer()", StringComparison.Ordinal);
+        var incorrectRecordIdx = home.IndexOf("CyberDefenseState.ActiveEncounter?.RecordIncorrectAnswer()", StringComparison.Ordinal);
 
         Assert.True(evalIdx > 0, "SubmitAnswer must be called.");
         Assert.True(correctRecordIdx > evalIdx, "RecordCorrectAnswer must occur AFTER evaluation.");
@@ -1065,6 +1065,311 @@ public sealed class CyberDefenseUiContractTests
                 Regex.IsMatch(reducedMotionBlock, tierRulePattern),
                 $"Reduced motion must enforce scale({scaleStr}) !important for {tierClass}");
         }
+    }
+
+    // =========================================================================
+    // SLICE 2: CALM MODE UI, LOCALIZATION & LAYOUT ISOLATION (T2.1 - T2.12)
+    // =========================================================================
+
+    [Fact]
+    public void T2_1_Settings_ContainsPersistedAccessibleCyberDefenseAndCalmModeSelector()
+    {
+        var settingsPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor");
+        Assert.True(File.Exists(settingsPath));
+        var content = File.ReadAllText(settingsPath);
+
+        // Uses ICyberDefenseModePreferences
+        Assert.Contains("ICyberDefenseModePreferences", content, StringComparison.Ordinal);
+
+        // Section header and localized title/help
+        Assert.Contains("settings-cyber-mode-title", content, StringComparison.Ordinal);
+        Assert.Contains("Settings_CyberDefenseModeTitle", content, StringComparison.Ordinal);
+        Assert.Contains("Settings_CyberDefenseModeHelp", content, StringComparison.Ordinal);
+
+        // Both mode options offered with accessible aria-pressed semantics and button controls
+        Assert.Contains("CyberDefense_Mode_CyberDefense", content, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_Mode_Calm", content, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"@CyberDefensePreferences.GetCyberDefenseEnabled()\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"@(!CyberDefensePreferences.GetCyberDefenseEnabled())\"", content, StringComparison.Ordinal);
+
+        // Keyboard-accessible choice-button elements
+        Assert.Contains("class=\"choice-button", content, StringComparison.Ordinal);
+
+        // Immediate persistence method and feedback
+        Assert.Contains("SetCyberDefenseMode", content, StringComparison.Ordinal);
+        Assert.Contains("Settings_CyberDefenseModeChangedTo", content, StringComparison.Ordinal);
+
+        // Does NOT instantiate or query CyberDefenseSessionState.ActiveEncounter merely by displaying Settings
+        Assert.DoesNotContain("CyberDefenseSessionState", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActiveEncounter", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void T2_2_Practice_ContainsQuickModeToggleUsingPreferences()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var content = File.ReadAllText(homePath);
+
+        // Quick toggle button near practice header controls
+        Assert.Contains("mode-toggle-btn", content, StringComparison.Ordinal);
+        Assert.Contains("ToggleCyberDefenseMode", content, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"@_isSubmitting\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"@IsCyberDefenseActive\"", content, StringComparison.Ordinal);
+
+        // Uses ICyberDefenseModePreferences and CyberDefenseSessionState
+        Assert.Contains("ICyberDefenseModePreferences", content, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseSessionState", content, StringComparison.Ordinal);
+
+        // Accessible labels and tooltips for both states
+        Assert.Contains("CalmMode_SwitchAction", content, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_EnableAction", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void T2_3_CalmMode_ConditionallyOmitsCyberDefenseHudAndCombatVisuals()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var content = File.ReadAllText(homePath);
+
+        // CyberDefenseHud is rendered conditionally based on enabled state
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive[^)]*\)[\s\S]*?<CyberDefenseHud", content);
+
+        // Combat region / HUD top region is conditionally omitted
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive[^)]*\)[\s\S]*?training-top-region", content);
+
+        // Solve-to-attack panel applies calm-mode modifier and omits combat reticle/combo in Calm Mode
+        Assert.Contains("calm-mode", content, StringComparison.Ordinal);
+        Assert.Contains("Practice_SolveHeading", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void T2_4_CalmMode_DoesNotCreateOrMutateEncounter()
+    {
+        var prefStore = new FakeCyberDefenseModePreferences { CyberDefenseEnabled = false };
+        var factoryCallCount = 0;
+        var sessionState = new CyberDefenseSessionState(prefStore, () =>
+        {
+            factoryCallCount++;
+            return new CyberDefenseEncounterState();
+        });
+
+        // In Calm Mode (disabled), ActiveEncounter is null and factory is never called
+        Assert.False(sessionState.IsCyberDefenseEnabled);
+        Assert.Null(sessionState.ActiveEncounter);
+        Assert.False(sessionState.HasActiveEncounter);
+        Assert.Equal(0, factoryCallCount);
+    }
+
+    [Fact]
+    public void T2_5_CalmMode_GuardsCombatMutationDispatchesOnAnswerSubmission()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var content = File.ReadAllText(homePath);
+
+        // Combat mutations are guarded against Calm Mode
+        Assert.Matches(@"if\s*\(\s*IsCyberDefenseActive\s*\)[\s\S]*?RecordCorrectAnswer", content);
+        Assert.Matches(@"if\s*\(\s*IsCyberDefenseActive\s*\)[\s\S]*?RecordCriticalHit", content);
+        Assert.Matches(@"if\s*\(\s*IsCyberDefenseActive\s*\)[\s\S]*?RecordIncorrectAnswer", content);
+    }
+
+    [Fact]
+    public void T2_6_SwitchingFromCalmToCyberDefense_ResumesIdenticalPreservedEncounter()
+    {
+        var prefStore = new FakeCyberDefenseModePreferences { CyberDefenseEnabled = true };
+        var factoryCallCount = 0;
+        var sessionState = new CyberDefenseSessionState(prefStore, () =>
+        {
+            factoryCallCount++;
+            return new CyberDefenseEncounterState();
+        });
+
+        // 1. Encounter allocated in Cyber Defense mode
+        var encounter1 = sessionState.ActiveEncounter;
+        Assert.NotNull(encounter1);
+        Assert.Equal(1, factoryCallCount);
+
+        // Mutate encounter slightly (damage enemy)
+        encounter1.RecordCorrectAnswer();
+        var enemyHp = encounter1.EnemyHitPoints;
+
+        // 2. Toggle to Calm Mode: ActiveEncounter becomes null, state is frozen
+        prefStore.CyberDefenseEnabled = false;
+        Assert.Null(sessionState.ActiveEncounter);
+        Assert.True(sessionState.HasActiveEncounter);
+
+        // 3. Toggle back to Cyber Defense: returns identical instance with exact preserved HP
+        prefStore.CyberDefenseEnabled = true;
+        var resumedEncounter = sessionState.ActiveEncounter;
+        Assert.NotNull(resumedEncounter);
+        Assert.Same(encounter1, resumedEncounter);
+        Assert.Equal(enemyHp, resumedEncounter.EnemyHitPoints);
+        Assert.Equal(1, factoryCallCount); // No second factory call
+    }
+
+    [Fact]
+    public async Task T2_7_SwitchingMode_DoesNotChangeMathProgressionAnswerSelectionOrTiming()
+    {
+        var tempDb = Path.Combine(Path.GetTempPath(), $"t2_7_{Guid.NewGuid():N}.db");
+        try
+        {
+            using var store = new SqliteLearnerStore(tempDb);
+            var prefStore = new FakeCyberDefenseModePreferences { CyberDefenseEnabled = true };
+            var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
+            await session.InitializeAsync(startTiming: true);
+
+            var initialFact = session.CurrentFact;
+            Assert.NotNull(initialFact);
+            var initialPosition = session.Progression.PracticePosition;
+            var initialStage = session.Progression.CurriculumStage;
+            session.SetCurrentAnswerInput("42");
+
+            // Toggle mode via preferences
+            prefStore.CyberDefenseEnabled = false;
+
+            // Mathematical session state is completely unaffected
+            Assert.Same(initialFact, session.CurrentFact);
+            Assert.Equal(initialPosition, session.Progression.PracticePosition);
+            Assert.Equal(initialStage, session.Progression.CurriculumStage);
+            Assert.Equal("42", session.CurrentAnswerInput);
+            Assert.True(session.IsTimingActive);
+            Assert.Equal(0, session.SessionTotalCount);
+
+            await store.CloseAsync();
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempDb)) File.Delete(tempDb);
+            }
+            catch
+            {
+                // Best-effort cleanup
+            }
+        }
+    }
+
+    [Fact]
+    public void T2_8_AllNewlyRequiredLocalizationKeys_ExistAcrossAllSupportedLanguages()
+    {
+        var service = new LocalizationService();
+
+        string[] requiredKeys =
+        [
+            "Settings_CyberDefenseModeTitle",
+            "Settings_CyberDefenseModeHelp",
+            "CyberDefense_Mode_CyberDefense",
+            "CyberDefense_Mode_Calm",
+            "CyberDefense_EnableAction",
+            "CalmMode_SwitchAction",
+            "CalmMode_Description",
+            "Settings_CyberDefenseModeChangedTo",
+            "Practice_SolveHeading",
+            "Practice_Header_Subtitle_Calm"
+        ];
+
+        string[] languages = ["en", "de", "ru"];
+
+        foreach (var lang in languages)
+        {
+            service.ApplyLanguagePreference(lang);
+            foreach (var key in requiredKeys)
+            {
+                var localized = service[key];
+                Assert.NotEqual(key, localized);
+                Assert.False(string.IsNullOrWhiteSpace(localized), $"Key {key} for lang {lang} was empty.");
+            }
+        }
+    }
+
+    [Fact]
+    public void T2_9_ExistingActiveGameplayStabilitySelectors_RemainEffectiveInCalmMode()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(cssPath));
+        Assert.True(File.Exists(homePath));
+
+        var css = File.ReadAllText(cssPath);
+        var home = File.ReadAllText(homePath);
+
+        // Host preserves active-gameplay and adds calm-mode modifier
+        Assert.Contains("active-gameplay", home, StringComparison.Ordinal);
+        Assert.Contains("calm-mode", home, StringComparison.Ordinal);
+
+        // Core layout selectors in CSS are preserved
+        Assert.Contains(".training-host.active-gameplay", css, StringComparison.Ordinal);
+        Assert.Contains(".training-host.active-gameplay .mathfirst-container", css, StringComparison.Ordinal);
+        Assert.Contains(".training-host.active-gameplay .training-card", css, StringComparison.Ordinal);
+        Assert.Contains(".training-host.active-gameplay .practice-layout", css, StringComparison.Ordinal);
+
+        // Calm mode rules in CSS
+        Assert.Contains(".calm-mode", css, StringComparison.Ordinal);
+        Assert.Contains(".solve-to-attack-panel.calm-mode", css, StringComparison.Ordinal);
+
+        // Protected geometry selectors remain
+        Assert.Contains(".expression-row", css, StringComparison.Ordinal);
+        Assert.Contains(".answer-input", css, StringComparison.Ordinal);
+        Assert.Contains(".numeric-keypad", css, StringComparison.Ordinal);
+        Assert.Contains(".numeric-keypad-button", css, StringComparison.Ordinal);
+        Assert.Contains(".operation-progress-hud", css, StringComparison.Ordinal);
+        Assert.Contains(".operation-unlock-area", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void T2_10_CombatVisualElements_AreAbsentOrNeutralizedInCalmMode()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var home = File.ReadAllText(homePath);
+
+        // When Calm Mode is active, combat-only elements are branch-isolated
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive[^)]*\)[\s\S]*?<CyberDefenseHud", home);
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive[^)]*\)[\s\S]*?cyber-combo-slot", home);
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive[^)]*\)[\s\S]*?solve-corner", home);
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive[^)]*\)[\s\S]*?CyberDefense_SolveToAttack", home);
+
+        // Neutral alternative is rendered when not in Cyber Defense mode
+        Assert.Contains("Practice_SolveHeading", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void T2_11_CalmModeThemeSelectors_RemainCompatibleWithLightAndDark()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "wwwroot", "app.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // CSS defines calm-mode theme styles
+        Assert.Contains(".solve-to-attack-panel.calm-mode", css, StringComparison.Ordinal);
+        Assert.Contains(".app-theme-root[data-theme=\"dark\"] .solve-to-attack-panel.calm-mode", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void T2_12_ExistingCyberDefensePresentation_RemainsFunctionalWhenModeIsEnabled()
+    {
+        var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
+        Assert.True(File.Exists(homePath));
+        var home = File.ReadAllText(homePath);
+
+        // Cyber Defense elements remain in the enabled branch
+        Assert.Contains("<CyberDefenseHud State=\"CyberDefenseState.ActiveEncounter\"", home, StringComparison.Ordinal);
+        Assert.Contains("CyberDefense_SolveToAttack", home, StringComparison.Ordinal);
+        Assert.Contains("cyber-combo-slot", home, StringComparison.Ordinal);
+        Assert.Contains("solve-corner", home, StringComparison.Ordinal);
+        Assert.Contains("RecordCorrectAnswer()", home, StringComparison.Ordinal);
+        Assert.Contains("RecordCriticalHit()", home, StringComparison.Ordinal);
+        Assert.Contains("RecordIncorrectAnswer()", home, StringComparison.Ordinal);
+    }
+
+    private sealed class FakeCyberDefenseModePreferences : ICyberDefenseModePreferences
+    {
+        public bool CyberDefenseEnabled { get; set; } = true;
+        public bool GetCyberDefenseEnabled() => CyberDefenseEnabled;
+        public void SetCyberDefenseEnabled(bool enabled) => CyberDefenseEnabled = enabled;
     }
 
     private static string ExtractKeyframeBlock(string css, string animationName)

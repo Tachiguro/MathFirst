@@ -11,10 +11,12 @@
 @inject TrainingSession Session
 @inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
+@inject ICyberDefenseModePreferences CyberDefensePreferences
+@inject CyberDefenseSessionState CyberDefenseState
 @inject IJSRuntime JSRuntime
 @inject IHapticFeedbackService HapticService
 
-<div class="training-host @(IsActiveGameplay ? "active-gameplay" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
+<div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
         <header class="mathfirst-header">
             <div class="mathfirst-title-group">
@@ -26,10 +28,34 @@
                 </div>
                 <div class="brand-text-column">
                     <h1 class="mathfirst-title">@Localizer["App_Title"]</h1>
-                    <span class="brand-subtitle">@Localizer["CyberDefense_Header_Subtitle"]</span>
+                    <span class="brand-subtitle">@(IsCyberDefenseActive ? Localizer["CyberDefense_Header_Subtitle"] : Localizer["Practice_Header_Subtitle_Calm"])</span>
                 </div>
             </div>
             <div class="practice-header-actions">
+                <button type="button"
+                        class="button button-secondary mode-toggle-btn @(IsCyberDefenseActive ? "mode-cyber" : "mode-calm")"
+                        disabled="@_isSubmitting"
+                        aria-label="@(IsCyberDefenseActive ? Localizer["CalmMode_SwitchAction"] : Localizer["CyberDefense_EnableAction"])"
+                        title="@(IsCyberDefenseActive ? Localizer["CalmMode_SwitchAction"] : Localizer["CyberDefense_EnableAction"])"
+                        aria-pressed="@IsCyberDefenseActive"
+                        @onclick="ToggleCyberDefenseMode">
+                    <span class="mode-toggle-icon" aria-hidden="true">
+                        @if (IsCyberDefenseActive)
+                        {
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                                <path d="M8 0.5l6 2.5v5c0 4-3 6.5-6 7.5-3-1-6-3.5-6-7.5v-5l6-2.5z" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none" />
+                                <circle cx="8" cy="8" r="3" fill="currentColor" />
+                            </svg>
+                        }
+                    </span>
+                    <span class="mode-toggle-text">@(IsCyberDefenseActive ? Localizer["CyberDefense_Mode_CyberDefense"] : Localizer["CyberDefense_Mode_Calm"])</span>
+                </button>
                 @if (CanPausePractice)
                 {
                     <button type="button"
@@ -81,7 +107,7 @@
         }
         else
         {
-            <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "")">
+            <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")">
                 @if (Session.PracticeGate != PracticeGateState.Running)
                 {
                     <section class="practice-overlay practice-gate-overlay"
@@ -254,44 +280,64 @@
                 }
                 else
                 {
-                    <div class="training-top-region">
-                        <CyberDefenseHud State="_cyberDefenseState"
-                                         CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
-                                         ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
-                                         TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
+                    @if (IsCyberDefenseActive && CyberDefenseState.ActiveEncounter is not null)
+                    {
+                        <div class="training-top-region">
+                            <CyberDefenseHud State="CyberDefenseState.ActiveEncounter"
+                                             CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
+                                             ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
+                                             TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
 
+                            <PracticeCountdownTimer Session="Session"
+                                                    IsVisible="false"
+                                                    AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])' />
+                        </div>
+                    }
+                    else
+                    {
                         <PracticeCountdownTimer Session="Session"
                                                 IsVisible="false"
                                                 AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])' />
-                    </div>
+                    }
 
                     <div class="practice-layout">
                         <div class="practice-interaction-column">
-                            <div class="solve-to-attack-panel">
-                                <span class="solve-corner corner-top-left" aria-hidden="true"></span>
-                                <span class="solve-corner corner-top-right" aria-hidden="true"></span>
-                                <span class="solve-corner corner-bottom-left" aria-hidden="true"></span>
-                                <span class="solve-corner corner-bottom-right" aria-hidden="true"></span>
-                                <div class="solve-panel-header">
-                                    <div class="solve-panel-tag">
-                                        <svg class="reticle-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
-                                            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" />
-                                            <circle cx="8" cy="8" r="2" fill="currentColor" />
-                                            <line x1="8" y1="0" x2="8" y2="4" stroke="currentColor" stroke-width="1.5" />
-                                            <line x1="8" y1="12" x2="8" y2="16" stroke="currentColor" stroke-width="1.5" />
-                                            <line x1="0" y1="8" x2="4" y2="8" stroke="currentColor" stroke-width="1.5" />
-                                            <line x1="12" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1.5" />
-                                        </svg>
-                                        <span class="solve-panel-title">@Localizer["CyberDefense_SolveToAttack"]</span>
+                            <div class="solve-to-attack-panel @(IsCalmMode ? "calm-mode" : "")">
+                                @if (IsCyberDefenseActive)
+                                {
+                                    <span class="solve-corner corner-top-left" aria-hidden="true"></span>
+                                    <span class="solve-corner corner-top-right" aria-hidden="true"></span>
+                                    <span class="solve-corner corner-bottom-left" aria-hidden="true"></span>
+                                    <span class="solve-corner corner-bottom-right" aria-hidden="true"></span>
+                                    <div class="solve-panel-header">
+                                        <div class="solve-panel-tag">
+                                            <svg class="reticle-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                                                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" />
+                                                <circle cx="8" cy="8" r="2" fill="currentColor" />
+                                                <line x1="8" y1="0" x2="8" y2="4" stroke="currentColor" stroke-width="1.5" />
+                                                <line x1="8" y1="12" x2="8" y2="16" stroke="currentColor" stroke-width="1.5" />
+                                                <line x1="0" y1="8" x2="4" y2="8" stroke="currentColor" stroke-width="1.5" />
+                                                <line x1="12" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1.5" />
+                                            </svg>
+                                            <span class="solve-panel-title">@Localizer["CyberDefense_SolveToAttack"]</span>
+                                        </div>
+                                        <div class="cyber-combo-slot" aria-hidden="@(Session.CurrentCorrectStreak < 3 ? "true" : null)">
+                                            <span class="cyber-combo-badge practice-streak-badge @(Session.CurrentCorrectStreak >= 3 ? "combo-active" : "combo-inactive")"
+                                                  role="@(Session.CurrentCorrectStreak >= 3 ? "status" : null)"
+                                                  aria-label="@(Session.CurrentCorrectStreak >= 3 ? Localizer["CyberDefense_ComboAriaLabel", Session.CurrentCorrectStreak] : null)">
+                                                @(Session.CurrentCorrectStreak >= 3 ? Localizer["CyberDefense_Combo", Session.CurrentCorrectStreak] : "—")
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div class="cyber-combo-slot" aria-hidden="@(Session.CurrentCorrectStreak < 3 ? "true" : null)">
-                                        <span class="cyber-combo-badge practice-streak-badge @(Session.CurrentCorrectStreak >= 3 ? "combo-active" : "combo-inactive")"
-                                              role="@(Session.CurrentCorrectStreak >= 3 ? "status" : null)"
-                                              aria-label="@(Session.CurrentCorrectStreak >= 3 ? Localizer["CyberDefense_ComboAriaLabel", Session.CurrentCorrectStreak] : null)">
-                                            @(Session.CurrentCorrectStreak >= 3 ? Localizer["CyberDefense_Combo", Session.CurrentCorrectStreak] : "—")
-                                        </span>
+                                }
+                                else
+                                {
+                                    <div class="solve-panel-header calm-panel-header">
+                                        <div class="solve-panel-tag calm-panel-tag">
+                                            <span class="solve-panel-title calm-panel-title">@Localizer["Practice_SolveHeading"]</span>
+                                        </div>
                                     </div>
-                                </div>
+                                }
 
                                 <div class="practice-middle-region">
                                     <div class="expression-row @GetExpressionSizeClass()">
@@ -406,7 +452,23 @@
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
     private HashSet<ArithmeticOperation>? _enabledOperations;
-    private readonly CyberDefenseEncounterState _cyberDefenseState = new();
+    private bool IsCyberDefenseActive => CyberDefensePreferences.GetCyberDefenseEnabled();
+    private bool IsCalmMode => !IsCyberDefenseActive;
+
+    private void ToggleCyberDefenseMode()
+    {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
+        var newMode = !CyberDefensePreferences.GetCyberDefenseEnabled();
+        CyberDefensePreferences.SetCyberDefenseEnabled(newMode);
+        if (IsAnswerEntryVisible)
+        {
+            _shouldFocusInput = true;
+        }
+    }
     private bool IsActiveGameplay =>
         !_startupFailed &&
         Session.IsInitialized &&
@@ -768,22 +830,28 @@
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 if (eval.IsCorrect)
                 {
-                    var isCritical =
-                        Session.IsPaceCalibrationReady
-                        && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
-                    if (isCritical)
+                    if (IsCyberDefenseActive)
                     {
-                        _cyberDefenseState.RecordCriticalHit();
-                    }
-                    else
-                    {
-                        _cyberDefenseState.RecordCorrectAnswer();
+                        var isCritical =
+                            Session.IsPaceCalibrationReady
+                            && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
+                        if (isCritical)
+                        {
+                            CyberDefenseState.ActiveEncounter?.RecordCriticalHit();
+                        }
+                        else
+                        {
+                            CyberDefenseState.ActiveEncounter?.RecordCorrectAnswer();
+                        }
                     }
                     HapticService.PerformCue(HapticFeedbackCue.Correct);
                 }
                 else
                 {
-                    _cyberDefenseState.RecordIncorrectAnswer();
+                    if (IsCyberDefenseActive)
+                    {
+                        CyberDefenseState.ActiveEncounter?.RecordIncorrectAnswer();
+                    }
                     HapticService.PerformCue(HapticFeedbackCue.Incorrect);
                 }
                 var persistence = await Session.CommitCurrentEvaluationAsync();

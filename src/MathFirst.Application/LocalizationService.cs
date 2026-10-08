@@ -292,7 +292,17 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_BossBattle"] = "BOSS",
         ["CyberDefense_SectorBossBattle"] = "SECTOR BOSS",
         ["CyberDefense_SectorDisplay"] = "SECTOR {0}",
-        ["CyberDefense_CriticalWindow"] = "Critical Window"
+        ["CyberDefense_CriticalWindow"] = "Critical Window",
+        ["Settings_CyberDefenseModeTitle"] = "Training Mode",
+        ["Settings_CyberDefenseModeHelp"] = "Choose between interactive Cyber Defense gameplay and distraction-free Calm Mode.",
+        ["CyberDefense_Mode_CyberDefense"] = "Cyber Defense",
+        ["CyberDefense_Mode_Calm"] = "Calm Mode",
+        ["CyberDefense_EnableAction"] = "Enable Cyber Defense",
+        ["CalmMode_SwitchAction"] = "Switch to Calm Mode",
+        ["CalmMode_Description"] = "Distraction-free mental arithmetic practice without combat elements, timer pressure, or gameplay animations.",
+        ["Settings_CyberDefenseModeChangedTo"] = "Training mode changed to {0}.",
+        ["Practice_SolveHeading"] = "SOLVE PROBLEM",
+        ["Practice_Header_Subtitle_Calm"] = "PRACTICE > PROGRESS > FOCUS"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -472,7 +482,17 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_BossBattle"] = "BOSS",
         ["CyberDefense_SectorBossBattle"] = "SEKTOR-BOSS",
         ["CyberDefense_SectorDisplay"] = "SEKTOR {0}",
-        ["CyberDefense_CriticalWindow"] = "Kritisches Fenster"
+        ["CyberDefense_CriticalWindow"] = "Kritisches Fenster",
+        ["Settings_CyberDefenseModeTitle"] = "Trainingsmodus",
+        ["Settings_CyberDefenseModeHelp"] = "Wähle zwischen interaktiver Cyber-Defense und dem ablenkungsfreien Ruhemodus.",
+        ["CyberDefense_Mode_CyberDefense"] = "Cyber-Defense",
+        ["CyberDefense_Mode_Calm"] = "Ruhemodus",
+        ["CyberDefense_EnableAction"] = "Cyber-Defense aktivieren",
+        ["CalmMode_SwitchAction"] = "In den Ruhemodus wechseln",
+        ["CalmMode_Description"] = "Ablenkungsfreies Kopfrechentraining ohne Kampfelemente, Zeitdruck oder Spielanimationen.",
+        ["Settings_CyberDefenseModeChangedTo"] = "Trainingsmodus geändert zu {0}.",
+        ["Practice_SolveHeading"] = "AUFGABE LÖSEN",
+        ["Practice_Header_Subtitle_Calm"] = "ÜBUNG > FORTSCHRITT > FOKUS"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -652,6 +672,16 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_BossBattle"] = "БОСС",
         ["CyberDefense_SectorBossBattle"] = "БОСС СЕКТОРА",
         ["CyberDefense_SectorDisplay"] = "СЕКТОР {0}",
-        ["CyberDefense_CriticalWindow"] = "Критическое окно"
+        ["CyberDefense_CriticalWindow"] = "Критическое окно",
+        ["Settings_CyberDefenseModeTitle"] = "Режим тренировки",
+        ["Settings_CyberDefenseModeHelp"] = "Выберите между интерактивной киберзащитой и спокойным режимом без отвлечений.",
+        ["CyberDefense_Mode_CyberDefense"] = "Киберзащита",
+        ["CyberDefense_Mode_Calm"] = "Спокойный режим",
+        ["CyberDefense_EnableAction"] = "Включить киберзащиту",
+        ["CalmMode_SwitchAction"] = "Перейти в спокойный режим",
+        ["CalmMode_Description"] = "Тренировка устного счёта без боевых элементов, таймера и игровых анимаций.",
+        ["Settings_CyberDefenseModeChangedTo"] = "Режим тренировки изменен на {0}.",
+        ["Practice_SolveHeading"] = "РЕШИТЕ ЗАДАЧУ",
+        ["Practice_Header_Subtitle_Calm"] = "ПРАКТИКА > ПРОГРЕСС > ФОКУС"
     };
 }

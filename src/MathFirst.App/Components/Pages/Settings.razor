@@ -4,6 +4,7 @@
 @using MathFirst.Application
 @using MathFirst.Application.Lifecycle
 @using MathFirst.Application.Navigation
+@using MathFirst.Application.Practice
 @using MathFirst.Application.Telemetry
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
@@ -11,6 +12,7 @@
 @inject IThemeService ThemeService
 @inject AppBuildInfo BuildInfo
 @inject IPreferenceStore PreferenceStore
+@inject ICyberDefenseModePreferences CyberDefensePreferences
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
@@ -81,7 +83,33 @@
             }
         </section>
 
-        <!-- 3. PRACTICE -->
+        <!-- 3. TRAINING MODE (CYBER DEFENSE / CALM MODE) -->
+        <section class="settings-card cyber-mode-settings-card" aria-labelledby="settings-cyber-mode-title">
+            <h2 id="settings-cyber-mode-title" class="settings-section-title">@Localizer["Settings_CyberDefenseModeTitle"]</h2>
+            <p class="setting-help">@Localizer["Settings_CyberDefenseModeHelp"]</p>
+            <div class="choice-grid choice-grid-two">
+                <button type="button"
+                        class="choice-button @(CyberDefensePreferences.GetCyberDefenseEnabled() ? "active" : null)"
+                        aria-pressed="@CyberDefensePreferences.GetCyberDefenseEnabled()"
+                        @onclick="() => SetCyberDefenseMode(true)">
+                    @Localizer["CyberDefense_Mode_CyberDefense"]
+                </button>
+                <button type="button"
+                        class="choice-button @(!CyberDefensePreferences.GetCyberDefenseEnabled() ? "active" : null)"
+                        aria-pressed="@(!CyberDefensePreferences.GetCyberDefenseEnabled())"
+                        @onclick="() => SetCyberDefenseMode(false)">
+                    @Localizer["CyberDefense_Mode_Calm"]
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_cyberDefenseMessage))
+            {
+                <p class="setting-feedback setting-feedback-success" role="status">
+                    @_cyberDefenseMessage
+                </p>
+            }
+        </section>
+
+        <!-- 4. PRACTICE -->
         <section class="settings-card practice-settings-card" aria-labelledby="settings-practice-title">
             <h2 id="settings-practice-title" class="settings-section-title">@Localizer["Settings_PracticeSectionTitle"]</h2>
 
@@ -274,6 +302,7 @@
 
     private string? _languageMessage;
     private string? _appearanceMessage;
+    private string? _cyberDefenseMessage;
     private string? _keypadMessage;
     private string? _hapticMessage;
     private string? _resetFeedbackMessage;
@@ -343,6 +372,7 @@
         };
         _languageMessage = Localizer["Settings_LanguageChangedTo", displayName];
         _appearanceMessage = null;
+        _cyberDefenseMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
@@ -359,6 +389,21 @@
         };
         _appearanceMessage = Localizer["Settings_AppearanceChangedTo", displayName];
         _languageMessage = null;
+        _cyberDefenseMessage = null;
+        _keypadMessage = null;
+        _hapticMessage = null;
+        _resetFeedbackMessage = null;
+    }
+
+    private void SetCyberDefenseMode(bool enabled)
+    {
+        CyberDefensePreferences.SetCyberDefenseEnabled(enabled);
+        var displayName = enabled
+            ? Localizer["CyberDefense_Mode_CyberDefense"]
+            : Localizer["CyberDefense_Mode_Calm"];
+        _cyberDefenseMessage = Localizer["Settings_CyberDefenseModeChangedTo", displayName];
+        _languageMessage = null;
+        _appearanceMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
@@ -392,6 +437,7 @@
         _keypadMessage = Localizer["Keypad_ChangedTo", displayName];
         _languageMessage = null;
         _appearanceMessage = null;
+        _cyberDefenseMessage = null;
         _hapticMessage = null;
         _resetFeedbackMessage = null;
     }
@@ -408,6 +454,7 @@
         _hapticMessage = Localizer["Settings_HapticFeedbackChangedTo", stateDisplay];
         _languageMessage = null;
         _appearanceMessage = null;
+        _cyberDefenseMessage = null;
         _keypadMessage = null;
         _resetFeedbackMessage = null;
     }
@@ -432,6 +479,7 @@
         _resetFeedbackMessage = Localizer["Reset_LearningProgress_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
+        _cyberDefenseMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
     }
@@ -452,6 +500,7 @@
         _resetFeedbackMessage = Localizer["Reset_UiPreferences_Success"];
         _languageMessage = null;
         _appearanceMessage = null;
+        _cyberDefenseMessage = null;
         _keypadMessage = null;
         _hapticMessage = null;
 
