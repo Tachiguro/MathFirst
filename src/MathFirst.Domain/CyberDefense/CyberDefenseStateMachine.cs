@@ -10,14 +10,42 @@ public static class CyberDefenseStateMachine
         ArgumentNullException.ThrowIfNull(run);
         CyberDefenseCombatPolicy.ValidateAttackDamage(effectiveAttackDamage);
 
-        if (!isCorrect)
-        {
-            throw new NotSupportedException("Incorrect answer transitions are not supported in Slice 5.");
-        }
-
         if (run.CurrentOpponent.Kind != OpponentKind.Normal && run.CurrentOpponent.Kind != OpponentKind.Boss)
         {
-            throw new NotSupportedException($"Combat against opponent kind '{run.CurrentOpponent.Kind}' is not supported in Slice 5.");
+            throw new NotSupportedException($"Combat against opponent kind '{run.CurrentOpponent.Kind}' is not supported.");
+        }
+
+        if (!isCorrect)
+        {
+            int incomingEnemyDamage = CyberDefenseCombatPolicy.GetEnemyDamage(run.Sector, run.CurrentOpponent.Kind);
+            if (run.PlayerCurrentHp <= incomingEnemyDamage)
+            {
+                throw new NotSupportedException("Fatal counter-damage and game-over transitions are reserved for Slice 7.");
+            }
+
+            int nextPlayerHp = checked(run.PlayerCurrentHp - incomingEnemyDamage);
+
+            var nextState = CyberDefenseRunState.CreateActive(
+                run.Sector,
+                run.OpponentIndex,
+                nextPlayerHp,
+                run.CurrentOpponent);
+
+            return new CyberDefenseCombatTransitionResult(
+                isCorrect: false,
+                requestedAttackDamage: 0,
+                appliedOpponentDamage: 0,
+                excessOpponentDamage: 0,
+                incomingEnemyDamage: incomingEnemyDamage,
+                appliedPlayerDamage: incomingEnemyDamage,
+                excessEnemyDamage: 0,
+                potentialHealing: 0,
+                appliedHealing: 0,
+                isOpponentDefeated: false,
+                isSectorCompleted: false,
+                isGameOver: false,
+                nextState: nextState,
+                terminalSnapshot: null);
         }
 
         int requestedAttackDamage = effectiveAttackDamage;
@@ -27,9 +55,6 @@ public static class CyberDefenseStateMachine
         int excessOpponentDamage = checked(requestedAttackDamage - appliedOpponentDamage);
         int remainingOpponentHp = checked(currentOpponentHp - appliedOpponentDamage);
 
-        const int incomingEnemyDamage = 0;
-        const int appliedPlayerDamage = 0;
-        const int excessEnemyDamage = 0;
         const bool isGameOver = false;
         const CyberDefenseTerminalRunSnapshot? terminalSnapshot = null;
 
@@ -51,9 +76,9 @@ public static class CyberDefenseStateMachine
                 requestedAttackDamage: requestedAttackDamage,
                 appliedOpponentDamage: appliedOpponentDamage,
                 excessOpponentDamage: excessOpponentDamage,
-                incomingEnemyDamage: incomingEnemyDamage,
-                appliedPlayerDamage: appliedPlayerDamage,
-                excessEnemyDamage: excessEnemyDamage,
+                incomingEnemyDamage: 0,
+                appliedPlayerDamage: 0,
+                excessEnemyDamage: 0,
                 potentialHealing: 0,
                 appliedHealing: 0,
                 isOpponentDefeated: false,
@@ -106,9 +131,9 @@ public static class CyberDefenseStateMachine
                 requestedAttackDamage: requestedAttackDamage,
                 appliedOpponentDamage: appliedOpponentDamage,
                 excessOpponentDamage: excessOpponentDamage,
-                incomingEnemyDamage: incomingEnemyDamage,
-                appliedPlayerDamage: appliedPlayerDamage,
-                excessEnemyDamage: excessEnemyDamage,
+                incomingEnemyDamage: 0,
+                appliedPlayerDamage: 0,
+                excessEnemyDamage: 0,
                 potentialHealing: potentialHealing,
                 appliedHealing: appliedHealing,
                 isOpponentDefeated: true,
