@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MathFirst.Application;
 using MathFirst.Application.Copy;
+using MathFirst.Application.Gameplay;
 using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Navigation;
 using MathFirst.Application.Persistence;
@@ -41,6 +42,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ICyberDefenseModePreferences>(
 			sp => sp.GetRequiredService<MauiPreferenceStore>());
 		builder.Services.AddSingleton<CyberDefenseSessionState>();
+		builder.Services.AddSingleton<ICyberDefenseSubmissionConsumer, CyberDefenseSubmissionConsumer>();
+		builder.Services.AddSingleton<CyberDefenseSubmissionConsumer>();
+		builder.Services.AddSingleton<ICyberDefenseCombatCoordinator, CyberDefenseCombatCoordinator>();
+		builder.Services.AddSingleton<CyberDefenseCombatCoordinator>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
 		builder.Services.AddSingleton<IHapticDriver, MauiHapticDriver>();

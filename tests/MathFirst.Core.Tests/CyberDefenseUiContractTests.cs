@@ -18,10 +18,10 @@ public sealed class CyberDefenseUiContractTests
         var content = File.ReadAllText(componentPath);
 
         // Parameter acceptance
-        Assert.Matches(@"\[Parameter[^\]]*\]\s*public\s+CyberDefenseEncounterState\s+State\s*\{\s*get;\s*set;\s*\}", content);
+        Assert.Matches(@"\[Parameter[^\]]*\]\s*public\s+CyberDefenseHudViewModel\??\s+ViewModel\s*\{\s*get;\s*set;\s*\}", content);
 
-        // Opponent asset path resolved via encounter state
-        Assert.Contains("State.CurrentEnemy.AssetPath", content, StringComparison.Ordinal);
+        // Opponent asset path resolved via effective model
+        Assert.Contains("EffectiveModel.OpponentAssetPath", content, StringComparison.Ordinal);
 
         // Accessible labels / progress semantics for HP and Shield
         Assert.Contains("role=\"progressbar\"", content, StringComparison.Ordinal);
@@ -141,17 +141,17 @@ public sealed class CyberDefenseUiContractTests
     }
 
     [Fact]
-    public void HomeTrainingShell_IntegratesCyberDefenseHud_WithTransientEncounterState()
+    public void HomeTrainingShell_IntegratesCyberDefenseHud_WithAuthoritativeCombatCoordinator()
     {
         var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
         Assert.True(File.Exists(homePath));
         var home = File.ReadAllText(homePath);
 
         // Application-scoped state holder instance and confirmed post-commit dispatch
-        Assert.Contains("CyberDefenseSessionState", home, StringComparison.Ordinal);
+        Assert.Contains("CombatCoordinator", home, StringComparison.Ordinal);
         Assert.Contains("<CyberDefenseHud", home, StringComparison.Ordinal);
-        Assert.Contains("CyberDefenseState.DispatchAttempt", home, StringComparison.Ordinal);
-        Assert.Contains("ConfirmedCombatAttempt", home, StringComparison.Ordinal);
+        Assert.Contains("CombatCoordinator.ConsumeCommittedAttemptAsync", home, StringComparison.Ordinal);
+        Assert.Contains("PendingCombatContext", home, StringComparison.Ordinal);
 
         // Settings access preserved
         Assert.Contains("href=\"settings\"", home, StringComparison.Ordinal);
@@ -264,11 +264,11 @@ public sealed class CyberDefenseUiContractTests
         var hud = File.ReadAllText(hudPath);
         var css = File.ReadAllText(cssPath);
 
-        // Explicit shield badges and count
+        // Explicit player HP panel and health cluster
         Assert.Contains("player-shield-panel", hud, StringComparison.Ordinal);
-        Assert.Contains("shield-badges-row", hud, StringComparison.Ordinal);
-        Assert.Contains("shield-badge", hud, StringComparison.Ordinal);
-        Assert.Contains("shield-icon", hud, StringComparison.Ordinal);
+        Assert.Contains("player-hp-cluster", hud, StringComparison.Ordinal);
+        Assert.Contains("player-hp-bar", hud, StringComparison.Ordinal);
+        Assert.Contains("player-hp-value", hud, StringComparison.Ordinal);
 
         // Tactical radar & telemetry
         Assert.Contains("tactical-radar-widget", hud, StringComparison.Ordinal);
@@ -277,10 +277,8 @@ public sealed class CyberDefenseUiContractTests
         // Reserved boss timer hook
         Assert.Contains("boss-timer-slot", hud, StringComparison.Ordinal);
 
-        // CSS contains badge and radar styles
+        // CSS contains panel and radar styles
         Assert.Contains(".player-shield-panel", css, StringComparison.Ordinal);
-        Assert.Contains(".shield-intact", css, StringComparison.Ordinal);
-        Assert.Contains(".shield-broken", css, StringComparison.Ordinal);
         Assert.Contains(".tactical-radar-widget", css, StringComparison.Ordinal);
     }
 
@@ -516,11 +514,11 @@ public sealed class CyberDefenseUiContractTests
         // Feedback and combat mutations trigger only after Session.SubmitAnswer and Session.CommitCurrentEvaluationAsync
         var evalIdx = home.IndexOf("Session.SubmitAnswer", StringComparison.Ordinal);
         var commitIdx = home.IndexOf("Session.CommitCurrentEvaluationAsync", StringComparison.Ordinal);
-        var dispatchIdx = home.IndexOf("CyberDefenseState.DispatchAttempt", StringComparison.Ordinal);
+        var dispatchIdx = home.IndexOf("CombatCoordinator.ConsumeCommittedAttemptAsync", StringComparison.Ordinal);
 
         Assert.True(evalIdx > 0, "SubmitAnswer must be called.");
         Assert.True(commitIdx > evalIdx, "CommitCurrentEvaluationAsync must occur AFTER SubmitAnswer.");
-        Assert.True(dispatchIdx > commitIdx, "DispatchAttempt must occur strictly AFTER CommitCurrentEvaluationAsync.");
+        Assert.True(dispatchIdx > commitIdx, "ConsumeCommittedAttemptAsync must occur strictly AFTER CommitCurrentEvaluationAsync.");
 
         // Feedback overlays in HUD
         Assert.Contains("hit-feedback-overlay", hud, StringComparison.Ordinal);
@@ -1167,10 +1165,10 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(File.Exists(homePath));
         var content = File.ReadAllText(homePath);
 
-        // Combat mutations are dispatched only after commit with mode eligibility flags
-        Assert.Contains("CyberDefenseState.DispatchAttempt", content, StringComparison.Ordinal);
-        Assert.Contains("wasEligibleAtSubmission: wasEligible", content, StringComparison.Ordinal);
-        Assert.Contains("isCommitted: true", content, StringComparison.Ordinal);
+        // Combat mutations are staged and consumed only after commit with mode eligibility flags
+        Assert.Contains("CombatCoordinator.StageIntentAsync", content, StringComparison.Ordinal);
+        Assert.Contains("isEligibleAtSubmission: wasEligibleAtSubmission", content, StringComparison.Ordinal);
+        Assert.Contains("CombatCoordinator.ConsumeCommittedAttemptAsync", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1354,12 +1352,11 @@ public sealed class CyberDefenseUiContractTests
         var home = File.ReadAllText(homePath);
 
         // Cyber Defense elements remain in the enabled branch
-        Assert.Contains("<CyberDefenseHud State=\"CyberDefenseState.ActiveEncounter\"", home, StringComparison.Ordinal);
+        Assert.Contains("<CyberDefenseHud ViewModel=\"CombatCoordinator.CurrentViewModel\"", home, StringComparison.Ordinal);
         Assert.Contains("CyberDefense_SolveToAttack", home, StringComparison.Ordinal);
         Assert.Contains("cyber-combo-slot", home, StringComparison.Ordinal);
         Assert.Contains("solve-corner", home, StringComparison.Ordinal);
-        Assert.Contains("CyberDefenseState.DispatchAttempt", home, StringComparison.Ordinal);
-        Assert.Contains("ConfirmedCombatAttempt", home, StringComparison.Ordinal);
+        Assert.Contains("CombatCoordinator.ConsumeCommittedAttemptAsync", home, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1369,9 +1366,9 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(File.Exists(homePath));
         var home = File.ReadAllText(homePath);
 
-        // Home registers and retrieves pending combat context via CyberDefenseState
+        // Home registers and stages pending combat context via CyberDefenseState / CombatCoordinator
         Assert.Contains("CyberDefenseState.RegisterPendingContext", home, StringComparison.Ordinal);
-        Assert.Contains("CyberDefenseState.GetPendingContext", home, StringComparison.Ordinal);
+        Assert.Contains("CombatCoordinator.StageIntentAsync", home, StringComparison.Ordinal);
         Assert.Contains("CyberDefenseState.ClearPendingContext", home, StringComparison.Ordinal);
         Assert.Contains("new PendingCombatContext", home, StringComparison.Ordinal);
     }

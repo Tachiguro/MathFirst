@@ -1,10 +1,11 @@
 @using MathFirst.Application
+@using MathFirst.Application.Gameplay
 @using MathFirst.Application.Practice
 @inject ILocalizationService Localizer
 
-<div class="cyber-defense-hud @(State.IsBoss ? "hud-boss-active" : "")" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
+<div class="cyber-defense-hud @(EffectiveModel.IsBoss ? "hud-boss-active" : "")" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
     <!-- ENEMY BATTLE SCENE -->
-    <section class="enemy-battle-scene @(State.IsBoss ? "scene-boss" : "")" aria-label="@OpponentName">
+    <section class="enemy-battle-scene @(EffectiveModel.IsBoss ? "scene-boss" : "")" aria-label="@OpponentName">
         <!-- Tech Top Header Bar -->
         <div class="scene-top-bar">
             <div class="scene-category-tag">
@@ -17,26 +18,26 @@
                     <line x1="12" y1="8" x2="16" y2="8" stroke="currentColor" stroke-width="1.5" />
                 </svg>
                 <span class="scene-category-text">@Localizer["CyberDefense_Title"]</span>
-                <span class="scene-sector-tag">@Localizer["CyberDefense_SectorDisplay", State.SectorNumber]</span>
+                <span class="scene-sector-tag">@Localizer["CyberDefense_SectorDisplay", EffectiveModel.SectorNumber]</span>
             </div>
-            <div class="scene-wave-tag @(State.IsBoss ? "wave-boss-active" : "")">
-                @if (State.IsSectorBoss)
+            <div class="scene-wave-tag @(EffectiveModel.IsBoss ? "wave-boss-active" : "")">
+                @if (EffectiveModel.IsSectorBoss)
                 {
                     <span class="boss-wave-text">@Localizer["CyberDefense_SectorBossLabel"]</span>
                 }
-                else if (State.IsBoss)
+                else if (EffectiveModel.IsBoss)
                 {
                     <span class="boss-wave-text">@Localizer["CyberDefense_BossLabel"]</span>
                 }
                 else
                 {
-                    @Localizer["CyberDefense_WaveDisplay", State.EnemyIndex + 1, CyberDefenseEncounterState.PrototypeEnemyCount]
+                    @Localizer["CyberDefense_WaveDisplay", EffectiveModel.WaveNumber, EffectiveModel.TotalOpponentCount]
                 }
             </div>
         </div>
 
         <!-- Atmospheric Scene Interior -->
-        <div class="scene-stage @(State.IsBoss ? "scene-stage-boss" : "")">
+        <div class="scene-stage @(EffectiveModel.IsBoss ? "scene-stage-boss" : "")">
             <!-- Atmospheric Cyber Layers -->
             <div class="scene-skyline" aria-hidden="true"></div>
             <div class="scene-grid-floor" aria-hidden="true"></div>
@@ -50,97 +51,83 @@
             <!-- Left: Opponent Intel -->
             <div class="scene-intel">
                 <div class="scene-enemy-header">
-                    @if (State.IsSectorBoss)
+                    @if (EffectiveModel.IsSectorBoss)
                     {
                         <span class="boss-intel-badge sector-boss-badge" aria-label="@Localizer["CyberDefense_SectorBossLabel"]">@Localizer["CyberDefense_SectorBossLabel"]</span>
                     }
-                    else if (State.IsBoss)
+                    else if (EffectiveModel.IsBoss)
                     {
                         <span class="boss-intel-badge" aria-label="@Localizer["CyberDefense_BossLabel"]">@Localizer["CyberDefense_BossLabel"]</span>
                     }
-                    <h2 class="scene-enemy-name @(State.IsBoss ? "boss-enemy-name" : "")">@OpponentName</h2>
+                    <h2 class="scene-enemy-name @(EffectiveModel.IsBoss ? "boss-enemy-name" : "")">@OpponentName</h2>
                 </div>
 
                 <div class="enemy-hp-cluster">
-                    <div class="meter-bar enemy-hp-bar @(State.IsBoss ? "boss-hp-bar" : "")"
+                    <div class="meter-bar enemy-hp-bar @(EffectiveModel.IsBoss ? "boss-hp-bar" : "")"
                          role="progressbar"
                          aria-label='@Localizer["CyberDefense_EnemyHpLabel"]'
-                         aria-valuenow="@State.EnemyHitPoints"
+                         aria-valuenow="@EffectiveModel.OpponentCurrentHp"
                          aria-valuemin="0"
-                         aria-valuemax="@State.EnemyMaxHitPoints">
-                        <div class="meter-fill hp-fill @(State.IsBoss ? "boss-hp-fill" : "")" style="width: @(EnemyHpPercentage)%"></div>
+                         aria-valuemax="@EffectiveModel.OpponentMaxHp">
+                        <div class="meter-fill hp-fill @(EffectiveModel.IsBoss ? "boss-hp-fill" : "")" style="width: @(EffectiveModel.OpponentHpPercentage)%"></div>
                     </div>
-                    <span class="enemy-hp-value @(State.IsBoss ? "boss-hp-value" : "")">@(EnemyHpPercentage)% HP</span>
+                    <span class="enemy-hp-value @(EffectiveModel.IsBoss ? "boss-hp-value" : "")">@(EffectiveModel.OpponentHpPercentage)% HP</span>
                 </div>
 
                 <p class="scene-enemy-desc">@OpponentDescription</p>
             </div>
 
             <!-- Right: Large Opponent Artwork -->
-            <div class="scene-artwork-wrapper @(State.IsBoss ? "is-boss" : "") @OpponentScaleClass @ArtworkFeedbackClass" @key="@($"opponent-{State.FeedbackRevision}")">
-                <img src="@OpponentAssetPath"
+            <div class="scene-artwork-wrapper @(EffectiveModel.IsBoss ? "is-boss" : "") @OpponentScaleClass @ArtworkFeedbackClass" @key="@($"opponent-{EffectiveModel.FeedbackRevision}")">
+                <img src="@EffectiveModel.OpponentAssetPath"
                      alt="@OpponentName"
                      class="scene-opponent-image @OpponentFeedbackClass" />
-                <div class="scene-enemy-floor-glow @(State.IsBoss ? "boss-floor-glow" : "")" aria-hidden="true"></div>
-                @if (State.LastFeedback == CyberDefenseFeedbackKind.CriticalHit)
-                {
-                    <div class="battle-feedback-overlay hit-feedback-overlay crit-feedback-overlay" aria-hidden="true">
-                        <div class="feedback-badge-group">
-                            <span class="battle-feedback-badge badge-crit">@Localizer["CyberDefense_Feedback_CriticalHit"]</span>
-                            <span class="damage-number crit-damage">-@State.LastDamageDealt HP</span>
-                        </div>
-                    </div>
-                }
-                else if (State.LastFeedback == CyberDefenseFeedbackKind.Hit)
+                <div class="scene-enemy-floor-glow @(EffectiveModel.IsBoss ? "boss-floor-glow" : "")" aria-hidden="true"></div>
+                @if (EffectiveModel.LastFeedback == CyberDefenseFeedbackKind.Hit)
                 {
                     <div class="battle-feedback-overlay hit-feedback-overlay" aria-hidden="true">
                         <div class="feedback-badge-group">
                             <span class="battle-feedback-badge badge-hit">@Localizer["CyberDefense_Feedback_Hit"]</span>
-                            <span class="damage-number normal-damage">-@State.LastDamageDealt HP</span>
+                            <span class="damage-number normal-damage">-@EffectiveModel.LastAppliedOpponentDamage HP</span>
                         </div>
                     </div>
                 }
-                else if (State.LastFeedback == CyberDefenseFeedbackKind.Blocked)
+                else if (EffectiveModel.LastFeedback == CyberDefenseFeedbackKind.CriticalHit)
+                {
+                    <div class="battle-feedback-overlay crit-feedback-overlay" aria-hidden="true">
+                        <div class="feedback-badge-group">
+                            <span class="battle-feedback-badge badge-crit">@Localizer["CyberDefense_Feedback_Crit"]</span>
+                            <span class="damage-number crit-damage">-@EffectiveModel.LastAppliedOpponentDamage HP</span>
+                        </div>
+                    </div>
+                }
+                else if (EffectiveModel.LastFeedback == CyberDefenseFeedbackKind.Blocked)
                 {
                     <div class="battle-feedback-overlay blocked-feedback-overlay" aria-hidden="true">
-                        <span class="battle-feedback-badge badge-blocked">@Localizer["CyberDefense_Feedback_Blocked"]</span>
+                        <div class="feedback-badge-group">
+                            <span class="battle-feedback-badge badge-blocked">@Localizer["CyberDefense_Feedback_Blocked"]</span>
+                        </div>
                     </div>
                 }
             </div>
         </div>
     </section>
 
-    <!-- PLAYER SHIELD & TACTICAL INTEGRITY AREA -->
-    <section class="player-shield-panel" aria-label='@Localizer["CyberDefense_YourShield"]'>
-        <!-- Left: Shield Segment Status -->
+    <!-- PLAYER HP & TACTICAL INTEGRITY AREA -->
+    <section class="player-shield-panel" aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'>
+        <!-- Left: Player HP Status -->
         <div class="shield-status-column">
-            <span class="shield-section-title">@Localizer["CyberDefense_YourShield"]</span>
-            <div class="shield-badges-row @ShieldFeedbackClass"
-                 @key="@($"shields-{State.FeedbackRevision}")"
-                 role="group"
-                 aria-label='@Localizer["CyberDefense_ShieldDisplay", State.ShieldSegments, CyberDefenseEncounterState.PrototypeShieldSegments]'>
-                @for (var i = 0; i < CyberDefenseEncounterState.PrototypeShieldSegments; i++)
-                {
-                    var isIntact = i < State.ShieldSegments;
-                    <div class="shield-badge @(isIntact ? "shield-intact" : "shield-broken")"
-                         aria-hidden="true">
-                        <svg class="shield-icon" viewBox="0 0 24 28" width="22" height="26" fill="none">
-                            <path d="M12 2 L22 6 L22 15 C22 21 12 26 12 26 C12 26 2 21 2 15 L2 6 Z"
-                                  class="shield-bg" />
-                            <path d="M12 2 L22 6 L22 15 C22 21 12 26 12 26 C12 26 2 21 2 15 L2 6 Z"
-                                  class="shield-outline" />
-                            @if (isIntact)
-                            {
-                                <path d="M12 6 L18 9 L18 14 C18 18 12 22 12 22 C12 22 6 18 6 14 L6 9 Z"
-                                      class="shield-core" />
-                            }
-                        </svg>
-                    </div>
-                }
-                <div class="shield-count-group">
-                    <span class="shield-fraction-number">@State.ShieldSegments / @CyberDefenseEncounterState.PrototypeShieldSegments</span>
-                    <span class="shield-sublabel-text">@Localizer["CyberDefense_Integrity"]</span>
+            <span class="shield-section-title">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
+            <div class="player-hp-cluster">
+                <div class="meter-bar player-hp-bar"
+                     role="progressbar"
+                     aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'
+                     aria-valuenow="@EffectiveModel.PlayerCurrentHp"
+                     aria-valuemin="0"
+                     aria-valuemax="@EffectiveModel.PlayerMaxHp">
+                    <div class="meter-fill player-hp-fill" style="width: @(EffectiveModel.PlayerHpPercentage)%"></div>
                 </div>
+                <span class="player-hp-value">@EffectiveModel.PlayerCurrentHp / @EffectiveModel.PlayerMaxHp HP</span>
             </div>
         </div>
 
@@ -166,13 +153,13 @@
                 </svg>
             </div>
             <div class="tactical-telemetry-list" aria-hidden="true">
-                @if (State.IsSectorBoss)
+                @if (EffectiveModel.IsSectorBoss)
                 {
                     <span class="telemetry-item boss-telemetry"><span class="telemetry-bullet boss-bullet"></span>@Localizer["CyberDefense_SectorBossLabel"]: THREAT HIGH</span>
                     <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
                     <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Progress"]</span>
                 }
-                else if (State.IsBoss)
+                else if (EffectiveModel.IsBoss)
                 {
                     <span class="telemetry-item boss-telemetry"><span class="telemetry-bullet boss-bullet"></span>@Localizer["CyberDefense_BossLabel"]: THREAT HIGH</span>
                     <span class="telemetry-item"><span class="telemetry-bullet"></span>@Localizer["CyberDefense_Telemetry_Defend"]</span>
@@ -193,8 +180,11 @@
 </div>
 
 @code {
-    [Parameter, EditorRequired]
-    public CyberDefenseEncounterState State { get; set; } = default!;
+    [Parameter]
+    public CyberDefenseHudViewModel? ViewModel { get; set; }
+
+    [Parameter]
+    public CyberDefenseEncounterState? State { get; set; }
 
     [Parameter]
     public long CriticalWindowMs { get; set; } = 2500;
@@ -205,51 +195,33 @@
     [Parameter]
     public string? TaskKey { get; set; }
 
+    private CyberDefenseHudViewModel EffectiveModel =>
+        ViewModel ?? (State != null ? CyberDefenseHudViewModel.FromEncounterState(State) : CyberDefenseHudViewModel.Initial());
+
     private CyberDefenseRadarTimingState RadarTiming =>
         CyberDefenseRadarTimingPolicy.CalculateTimingState(CriticalWindowMs, ActiveElapsedMs);
 
-    private string OpponentName => Localizer[State.CurrentEnemy.NameKey];
+    private string OpponentName => Localizer[EffectiveModel.OpponentNameKey];
 
-    private string OpponentDescription => Localizer[State.CurrentEnemy.DescKey];
+    private string OpponentDescription => Localizer[EffectiveModel.OpponentDescKey];
 
-    private string OpponentAssetPath => State.CurrentEnemy.AssetPath;
+    private string OpponentScaleClass => EffectiveModel.OpponentScaleClass ??
+        CyberDefenseOpponentScalePolicy.GetScaleClass(EffectiveModel.OpponentIndex, EffectiveModel.NormalOpponentCount, EffectiveModel.IsSectorBoss, EffectiveModel.IsBoss);
 
-    private string OpponentScaleClass =>
-        CyberDefenseOpponentScalePolicy.GetScaleClass(State.CurrentEnemy, State.EnemyIndex);
-
-    private int EnemyHpPercentage =>
-        (int)Math.Round((double)Math.Clamp(State.EnemyHitPoints, 0, State.EnemyMaxHitPoints)
-            / State.EnemyMaxHitPoints * 100);
-
-    private int ShieldPercentage =>
-        (int)Math.Round((double)Math.Clamp(State.ShieldSegments, 0, CyberDefenseEncounterState.PrototypeShieldSegments)
-            / CyberDefenseEncounterState.PrototypeShieldSegments * 100);
-
-    private string ArtworkFeedbackClass => State.LastFeedback switch
+    private string ArtworkFeedbackClass => EffectiveModel.LastFeedback switch
     {
-        CyberDefenseFeedbackKind.CriticalHit => "feedback-crit-active",
         CyberDefenseFeedbackKind.Hit => "feedback-hit-active",
-        CyberDefenseFeedbackKind.Blocked => "feedback-blocked-active",
         _ => string.Empty
     };
 
-    private string OpponentFeedbackClass => State.LastFeedback switch
+    private string OpponentFeedbackClass => EffectiveModel.LastFeedback switch
     {
-        CyberDefenseFeedbackKind.CriticalHit => "opponent-crit-recoil",
         CyberDefenseFeedbackKind.Hit => "opponent-hit-recoil",
-        CyberDefenseFeedbackKind.Blocked => "opponent-block-deflect",
         _ => string.Empty
     };
 
-    private string ShieldFeedbackClass => State.LastFeedback switch
+    private string RadarFeedbackClass => EffectiveModel.LastFeedback switch
     {
-        CyberDefenseFeedbackKind.Blocked => "shield-damage-pulse",
-        _ => string.Empty
-    };
-
-    private string RadarFeedbackClass => State.LastFeedback switch
-    {
-        CyberDefenseFeedbackKind.CriticalHit => "radar-crit-burst",
         CyberDefenseFeedbackKind.Hit => "radar-hit-burst",
         _ => string.Empty
     };

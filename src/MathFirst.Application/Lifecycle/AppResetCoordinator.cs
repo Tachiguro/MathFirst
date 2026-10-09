@@ -18,6 +18,7 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
     private readonly ITelemetryShareCacheCleaner _cacheCleaner;
     private readonly CyberDefenseSessionState _cyberDefenseSessionState;
     private readonly IGameplayStore? _gameplayStore;
+    private readonly MathFirst.Application.Gameplay.ICyberDefenseCombatCoordinator? _combatCoordinator;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public AppResetCoordinator(
@@ -26,7 +27,8 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
         IInstallationIdProvider installationIdProvider,
         ITelemetryShareCacheCleaner cacheCleaner,
         CyberDefenseSessionState cyberDefenseSessionState,
-        IGameplayStore? gameplayStore = null)
+        IGameplayStore? gameplayStore = null,
+        MathFirst.Application.Gameplay.ICyberDefenseCombatCoordinator? combatCoordinator = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _preferenceStore = preferenceStore ?? throw new ArgumentNullException(nameof(preferenceStore));
@@ -34,6 +36,7 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
         _cacheCleaner = cacheCleaner ?? throw new ArgumentNullException(nameof(cacheCleaner));
         _cyberDefenseSessionState = cyberDefenseSessionState ?? throw new ArgumentNullException(nameof(cyberDefenseSessionState));
         _gameplayStore = gameplayStore;
+        _combatCoordinator = combatCoordinator;
     }
 
     public async Task ExecuteFullResetAsync(CancellationToken cancellationToken = default)
@@ -65,6 +68,7 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
 
             _preferenceStore.ResetAllPreferences();
 
+            _combatCoordinator?.InvalidateState();
             _cyberDefenseSessionState.ClearEncounter();
 
             _installationIdProvider.ClearInstallationId();
@@ -125,6 +129,7 @@ public sealed class AppResetCoordinator : IAppResetCoordinator
 
             _preferenceStore.ResetAllPreferences();
 
+            _combatCoordinator?.InvalidateState();
             _cyberDefenseSessionState.ClearEncounter();
 
             _installationIdProvider.ClearInstallationId();

@@ -50,8 +50,8 @@ public sealed class LowerMathAreaLayoutContractTests
         Assert.True(File.Exists(homePath), "Home.razor must exist.");
         var homeContent = File.ReadAllText(homePath);
 
-        // .training-top-region is ONLY rendered when Cyber Defense is active and encounter is not null
-        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive\s*&&\s*CyberDefenseState\.ActiveEncounter\s*is\s*not\s*null[^)]*\)[\s\S]*?class=""training-top-region""", homeContent);
+        // .training-top-region is ONLY rendered when Cyber Defense is active and ViewModel is not null
+        Assert.Matches(@"@if\s*\([^)]*IsCyberDefenseActive\s*&&\s*CombatCoordinator\.CurrentViewModel\s*is\s*not\s*null[^)]*\)[\s\S]*?class=""training-top-region""", homeContent);
 
         // In the @else branch (Calm Mode or null encounter), only invisible PracticeCountdownTimer is placed
         Assert.DoesNotMatch(@"@else[\s\S]*?class=""training-top-region""", homeContent);
