@@ -132,14 +132,14 @@ Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
-### Historical Reference Delivery Baseline (Snapshot as of 2026-10-07; Extended Post-PR-70 on 2026-10-08)
+### Historical Reference Delivery Baseline (Snapshot as of 2026-10-07; Extended Post-PR-73 on 2026-10-08)
 - **Historical Testing Verification (Roadmap Steps 51–54)**:
   - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
   - Step 52: Fresh Tester APK packaged and validated offline (`STEP_52_TESTER_APK_PASS`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`).
   - Step 53: Installed on physical Samsung Galaxy S26 Ultra (`STEP_53_INSTALL_PASS`).
   - Step 54: Manual physical-device tester validation completed (`STEP_54_MANUAL_VALIDATION_PASS`).
 - **Roadmap Step 55 Status**: **NOT EXECUTED / NOT AUTHORIZED** (explicitly declined by user after Step 54).
-- **Pre-Step55 V1 Refinement Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) covering P0 through P8:
+- **Pre-Step55 V1 Refinement Program & Cyber Defense Program**: Formalized in [docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1_PRE_STEP55_REFINEMENT_PLAN.md) and [docs/superpowers/plans/2026-10-08-cyber-defense-implementation-roadmap.md](superpowers/plans/2026-10-08-cyber-defense-implementation-roadmap.md):
   - P0 (Zero-Answer / `0 + 0` Core-Flow Freeze): Delivered & Merged (PR #60).
   - P1 (Normal Practice Without Deadline Failure): Delivered & Merged (PR #61).
   - P1b (Active Thinking Time / Interruption Safety): Delivered & Merged (PR #62, `a7b579b4ef2ebdb5f1fe7e059b6bbfb33fb6a912`).
@@ -149,10 +149,16 @@ Worktrees: Exactly one normal worktree by default
   - P4 (Settings Simplification): Delivered & Merged (PR #66 at `8400151ff080caecf024a418a9b6b8ada4873c2d`, validated candidate `edcc150039f369b8f809982499a5e1b2714e064c`, `FULL_VALIDATION_PASS`, 2,204 Core tests passed, Schema V9 preserved).
   - P5 (Cyber Defense Visual Consistency): Delivered & Merged (PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, validated candidate `80f08e4ad2eb33c5e884e869766bb765bbf1277a`, `FULL_VALIDATION_PASS`, 2,222 Core tests passed, 18 contract tests across 3 suites).
   - P6 (Tester Diagnostics / Telemetry Release Boundary): Delivered & Merged (PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`, 117 permanent focused P6 tests across 11 suites, 2,228 Core Debug and Release tests in formal validation; post-P6 merge state reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`).
-  - P8 (MF-AUDIT-002: Test-Coverage Audit & Targeted Hardening): Delivered & Merged (PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing, +71 net automated test cases, normalized Cobertura line coverage 93.93%, branch coverage 82.43%).
+  - P8 (MF-AUDIT-002: Test-Coverage Audit & Targeted Hardening): Delivered & Merged (PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing, +71 net automated test cases, normalized Cobertura line coverage 93.93%, branch coverage 82.43%; post-merge reconciled via PR #71 at `4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`).
+  - Cyber Defense GDD & Implementation Roadmap: Delivered & Merged (PR #72 at `3d476dd2211e4bc00898bc8162ade4f22312effb`).
+  - MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling): Delivered & Merged (PR #73 at `ef120433a06df9244066677441f22d82649fa6b7`, 2,390 Core tests on `main`).
+  - MF-CYBER-002 (Core Domain State Machine & Sector/Run Engine): Active local candidate on `feat/mf-cyber-002-domain-state-machine` (HEAD `48c9aef5fa60c9c3b1b33f4ce1ceeb41818a0a48`, review `MF_CYBER_002_REVIEW_APPROVED`, in `DOCUMENT_ONLY` mode).
   - P7: Deferred / Post-Core.
   - Step 55: Unauthorized.
-- **Delivered Pre-Step55 Packages & Merged PRs**:
+- **Delivered Pre-Step55 & Cyber Defense Packages & Merged PRs**:
+  - PR #73 (`ef120433a06df9244066677441f22d82649fa6b7`): `feat(cyber): MF-CYBER-001 Calm Mode and math decoupling`
+  - PR #72 (`3d476dd2211e4bc00898bc8162ade4f22312effb`): `docs(p7): finalize Cyber Defense roguelite GDD and implementation roadmap`
+  - PR #71 (`4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`): `docs: reconcile post-P8 merge state`
   - PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`): `test: MF-AUDIT-002 / P8 coverage and regression hardening`
   - PR #69 (`4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`): `docs: reconcile post-P6 merge state`
   - PR #68 (`049ec1d5d3859a139f8d5493d6dae7607d321b02`): `P6: isolate tester diagnostics from production builds`
@@ -188,6 +194,9 @@ When initializing a new session:
 5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as Step 55 or a newly proposed development package). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **MF-CYBER-001 Architectural Boundary, Calm Mode & Math Decoupling** (PR #73, merge `ef120433a06df9244066677441f22d82649fa6b7`, candidate `c1ff1635f40bec62d1c41bf1bd64ece93e054824`): Delivered user-selectable Calm Mode with layout isolation (`.calm-mode`), confirmed-attempt combat dispatch with `SubmissionId` deduplication, `PendingCombatContext` navigation safety, and mathematical non-interference regressions with 2,390 Core tests on `main`.
+- **Cyber Defense Roguelite GDD and Implementation Roadmap** (PR #72, merge `3d476dd2211e4bc00898bc8162ade4f22312effb`): Established authoritative GDD and 10-package roadmap for Cyber Defense execution.
+- **Post-P8 Merge State Reconciliation** (PR #71, merge `4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`): Reconciled baseline documentation following P8 integration.
 - **P8 Test-Coverage Audit & Targeted Hardening (MF-AUDIT-002)** (PR #70, merge `cc81242177dd75114934c3ad48b830c9ce87c70b`, candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`): Delivered comprehensive test-coverage audit, targeted regression suites across core domain, adaptive curriculum, and telemetry persistence boundaries, and isolated process-console test execution collection (`MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing in Debug and Release, +71 net automated test cases, normalized Cobertura line coverage 93.93% [+0.77 pp], branch coverage 82.43% [+1.80 pp], merge tree `7f30fd950e21098a5376ac7251e906d29db78879`).
 - **Post-P6 Merge State Reconciliation** (PR #69, merge `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`): Reconciled baseline documentation following P6 integration.
 - **P6 Tester Diagnostics / Telemetry Release Boundary** (PR #68, merge `049ec1d5d3859a139f8d5493d6dae7607d321b02`, candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`): Enforced compile/profile isolation for tester diagnostics, dedicated `TesterDiagnosticsSection` component, conditional DI registrations, ReleaseTool build metadata propagation, and profile-wide Full Local Reset cache cleanup (`P6_FULL_VALIDATION_PASSED`, 2,228 Core tests passing in Debug and Release, 117 permanent P6 contract/regression tests across 11 suites, merge tree `817ee7b250c5bed555f4c4bce8852dce5d8dbf68`).
@@ -207,6 +216,7 @@ When initializing a new session:
 
 ### Downstream Roadmap Stages
 - **Pre-Step55 V1 Refinement Program**: Workstreams P0 through P6 and P8 are completed and merged; P7 remains deferred post-Core.
+- **Cyber Defense Roguelite Program**: GDD/Roadmap (PR #72) and MF-CYBER-001 (PR #73) merged; active package is MF-CYBER-002 (Domain State Machine, `MF_CYBER_002_REVIEW_APPROVED`), to be followed by MF-CYBER-003 through MF-CYBER-010.
 - **Release Verification & Distribution**: Production packaging (Step 55, `versionCode >= 4`, `Distributable` profile), Step 56 smoke, Step 57 device verification, and Step 58 Google Play publication remain explicitly deferred and unauthorized until separate user authorization is granted.
 
 This historical reference baseline is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.

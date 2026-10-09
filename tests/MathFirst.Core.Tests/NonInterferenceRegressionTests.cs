@@ -14,6 +14,7 @@ using MathFirst.Application.Progression;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
+using MathFirst.Domain.CyberDefense;
 using MathFirst.Infrastructure.Sqlite;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -402,37 +403,434 @@ public sealed class NonInterferenceRegressionTests : IDisposable
     // 2. ARCHITECTURAL & DOMAIN DEPENDENCY BOUNDARY INVARIANTS
     // =========================================================================
 
-    [Fact]
-    public void NonInterference_DomainAssembly_HasNoDependencyOnCyberDefenseOrPresentation()
+    private static readonly string[] ForbiddenDomainAssemblyReferences =
+    [
+        "MathFirst.App",
+        "MathFirst.Application",
+        "MathFirst.Infrastructure.Sqlite",
+        "Microsoft.AspNetCore.Components",
+        "Microsoft.Maui",
+        "Microsoft.Data.Sqlite"
+    ];
+
+    private static readonly string[] ForbiddenPresentationOrInfrastructureTokens =
+    [
+        "MathFirst.App",
+        "MathFirst.Application",
+        "MathFirst.Infrastructure",
+        "Microsoft.AspNetCore",
+        "Microsoft.Maui",
+        "Microsoft.Data.Sqlite"
+    ];
+
+    private static bool IsCyberDefenseNamespace(Type type)
     {
-        var domainAssembly = typeof(ArithmeticCurriculum).Assembly;
-        var referencedAssemblies = domainAssembly.GetReferencedAssemblies();
+        var ns = type.Namespace;
+        return ns is not null && (ns == "MathFirst.Domain.CyberDefense" || ns.StartsWith("MathFirst.Domain.CyberDefense.", StringComparison.Ordinal));
+    }
 
-        var forbiddenAssemblyNames = new[]
-        {
-            "MathFirst.App",
-            "MathFirst.Application",
-            "Microsoft.AspNetCore.Components",
-            "Microsoft.Maui",
-            "CyberDefense"
-        };
+    private static bool IsMathematicalCoreNamespace(Type type)
+    {
+        var ns = type.Namespace;
+        if (ns is null) return false;
+        return (ns == "MathFirst.Domain" || ns.StartsWith("MathFirst.Domain.", StringComparison.Ordinal))
+               && !IsCyberDefenseNamespace(type);
+    }
 
-        foreach (var refName in referencedAssemblies)
+    private static bool IsCompilerGenerated(Type type)
+    {
+        return type.Name.StartsWith('<') || type.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false);
+    }
+
+    private static IEnumerable<Type> FlattenType(Type? type)
+    {
+        if (type is null)
         {
-            foreach (var forbidden in forbiddenAssemblyNames)
+            yield break;
+        }
+
+        if (type.IsByRef || type.IsPointer || type.IsArray)
+        {
+            var elem = type.GetElementType();
+            if (elem is not null)
             {
-                Assert.DoesNotContain(forbidden, refName.Name, StringComparison.OrdinalIgnoreCase);
+                foreach (var t in FlattenType(elem))
+                {
+                    yield return t;
+                }
+            }
+            yield return type;
+            yield break;
+        }
+
+        var underlyingNullable = Nullable.GetUnderlyingType(type);
+        if (underlyingNullable is not null)
+        {
+            foreach (var t in FlattenType(underlyingNullable))
+            {
+                yield return t;
+            }
+            yield return type;
+            yield break;
+        }
+
+        if (type.IsGenericType)
+        {
+            foreach (var genArg in type.GetGenericArguments())
+            {
+                foreach (var t in FlattenType(genArg))
+                {
+                    yield return t;
+                }
+            }
+            yield return type.GetGenericTypeDefinition();
+        }
+
+        yield return type;
+    }
+
+    private static IEnumerable<Type> GetAllReferencedTypes(Type type)
+    {
+        const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        if (type.BaseType is not null)
+        {
+            foreach (var t in FlattenType(type.BaseType))
+            {
+                yield return t;
             }
         }
 
-        // Domain types must not declare any gameplay methods or properties
-        var allDomainTypes = domainAssembly.GetTypes();
-        foreach (var type in allDomainTypes)
+        foreach (var iface in type.GetInterfaces())
         {
-            Assert.DoesNotContain("Cyber", type.Name, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Encounter", type.Name, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Combat", type.Name, StringComparison.OrdinalIgnoreCase);
+            foreach (var t in FlattenType(iface))
+            {
+                yield return t;
+            }
         }
+
+        foreach (var field in type.GetFields(bindingFlags))
+        {
+            foreach (var t in FlattenType(field.FieldType))
+            {
+                yield return t;
+            }
+        }
+
+        foreach (var prop in type.GetProperties(bindingFlags))
+        {
+            foreach (var t in FlattenType(prop.PropertyType))
+            {
+                yield return t;
+            }
+        }
+
+        foreach (var ctor in type.GetConstructors(bindingFlags))
+        {
+            foreach (var param in ctor.GetParameters())
+            {
+                foreach (var t in FlattenType(param.ParameterType))
+                {
+                    yield return t;
+                }
+            }
+        }
+
+        foreach (var method in type.GetMethods(bindingFlags))
+        {
+            foreach (var t in FlattenType(method.ReturnType))
+            {
+                yield return t;
+            }
+
+            foreach (var param in method.GetParameters())
+            {
+                foreach (var t in FlattenType(param.ParameterType))
+                {
+                    yield return t;
+                }
+            }
+
+            if (method.IsGenericMethod)
+            {
+                foreach (var genArg in method.GetGenericArguments())
+                {
+                    foreach (var constraint in genArg.GetGenericParameterConstraints())
+                    {
+                        foreach (var t in FlattenType(constraint))
+                        {
+                            yield return t;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var evt in type.GetEvents(bindingFlags))
+        {
+            if (evt.EventHandlerType is not null)
+            {
+                foreach (var t in FlattenType(evt.EventHandlerType))
+                {
+                    yield return t;
+                }
+            }
+        }
+    }
+
+    private static void ValidateDomainAssemblyReferences(Assembly assembly, IEnumerable<string> forbiddenNames)
+    {
+        var referencedAssemblies = assembly.GetReferencedAssemblies();
+        foreach (var refAssembly in referencedAssemblies)
+        {
+            foreach (var forbidden in forbiddenNames)
+            {
+                if (string.Equals(refAssembly.Name, forbidden, StringComparison.OrdinalIgnoreCase) ||
+                    (refAssembly.Name != null && refAssembly.Name.StartsWith(forbidden + ".", StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidOperationException(
+                        $"Domain assembly '{assembly.GetName().Name}' illegally references forbidden assembly '{refAssembly.Name}'.");
+                }
+            }
+        }
+    }
+
+    private static void ValidateMathematicalCoreTypeIsolation(Type type)
+    {
+        // 1. Naming safeguard: non-Cyber types should not be gameplay types declared in core namespace
+        var strayGameplayTokens = new[] { "Cyber", "Encounter", "Opponent", "Boss", "CombatPolicy" };
+        foreach (var token in strayGameplayTokens)
+        {
+            if (type.Name.Contains(token, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Mathematical core type '{type.FullName}' contains gameplay token '{token}' in its name.");
+            }
+        }
+
+        // 2. Member signature dependency inspection (Note: Reflection over signatures inspects API/field contracts; method body calls are decoupled by architecture)
+        foreach (var refType in GetAllReferencedTypes(type))
+        {
+            if (IsCyberDefenseNamespace(refType))
+            {
+                throw new InvalidOperationException(
+                    $"Mathematical core type '{type.FullName}' illegally references Cyber Defense type '{refType.FullName}'.");
+            }
+        }
+    }
+
+    private static void ValidateCyberDefenseDomainPurity(Type type)
+    {
+        if (!IsCyberDefenseNamespace(type))
+        {
+            throw new InvalidOperationException(
+                $"Type '{type.FullName}' is not in the approved Cyber Defense domain namespace.");
+        }
+
+        ValidateCyberDefenseTypeDependencies(type);
+    }
+
+    private static void ValidateCyberDefenseTypeDependencies(Type type)
+    {
+        foreach (var refType in GetAllReferencedTypes(type))
+        {
+            var refNs = refType.Namespace ?? string.Empty;
+            var refAssemblyName = refType.Assembly.GetName().Name ?? string.Empty;
+
+            foreach (var forbidden in ForbiddenPresentationOrInfrastructureTokens)
+            {
+                if (refNs.StartsWith(forbidden, StringComparison.OrdinalIgnoreCase) ||
+                    refAssemblyName.StartsWith(forbidden, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Cyber Defense domain type '{type.FullName}' illegally references presentation/infrastructure type '{refType.FullName}'.");
+                }
+            }
+
+            if (IsMathematicalCoreNamespace(refType))
+            {
+                throw new InvalidOperationException(
+                    $"Cyber Defense domain type '{type.FullName}' illegally references mathematical learning core type '{refType.FullName}'.");
+            }
+        }
+    }
+
+    [Fact]
+    public void NonInterference_ContractA_DomainAssembly_HasNoForbiddenAssemblyReferences()
+    {
+        var domainAssembly = typeof(ArithmeticCurriculum).Assembly;
+        ValidateDomainAssemblyReferences(domainAssembly, ForbiddenDomainAssemblyReferences);
+    }
+
+    [Fact]
+    public void NonInterference_ContractB_MathematicalLearningCore_HasNoDependencyOnCyberDefense()
+    {
+        var domainAssembly = typeof(ArithmeticCurriculum).Assembly;
+        var mathCoreTypes = domainAssembly.GetTypes()
+            .Where(t => !IsCompilerGenerated(t) && IsMathematicalCoreNamespace(t))
+            .ToList();
+
+        Assert.NotEmpty(mathCoreTypes);
+
+        foreach (var type in mathCoreTypes)
+        {
+            ValidateMathematicalCoreTypeIsolation(type);
+        }
+    }
+
+    [Fact]
+    public void NonInterference_ContractC_CyberDefenseDomain_IsPureAndIndependentOfPresentationInfrastructureAndMathCore()
+    {
+        var domainAssembly = typeof(ArithmeticCurriculum).Assembly;
+        var cyberTypes = domainAssembly.GetTypes()
+            .Where(t => !IsCompilerGenerated(t) && IsCyberDefenseNamespace(t))
+            .ToList();
+
+        Assert.NotEmpty(cyberTypes);
+
+        var expectedTypeNames = new[]
+        {
+            nameof(OpponentKind),
+            nameof(CyberDefenseScalingPolicy),
+            nameof(CyberDefenseCombatPolicy),
+            nameof(OpponentState),
+            nameof(CyberDefenseRunState),
+            nameof(CyberDefenseTerminalRunSnapshot)
+        };
+
+        foreach (var expectedName in expectedTypeNames)
+        {
+            Assert.Contains(cyberTypes, t => t.Name == expectedName);
+        }
+
+        foreach (var type in cyberTypes)
+        {
+            ValidateCyberDefenseDomainPurity(type);
+        }
+    }
+
+    // =========================================================================
+    // SYNTHETIC NEGATIVE FIXTURES (Deterministic Negative Contract Tests)
+    // =========================================================================
+
+    private sealed class SyntheticMathTypeWithInvalidField
+    {
+        public OpponentKind Field = OpponentKind.Normal;
+    }
+
+    private sealed class SyntheticMathTypeWithInvalidProperty
+    {
+        public OpponentState? Opponent { get; set; }
+    }
+
+    private sealed class SyntheticMathTypeWithInvalidMethodParam
+    {
+        public int Execute(CyberDefenseRunState state) => state.Sector;
+    }
+
+    private sealed class SyntheticMathTypeWithInvalidGenericReturn
+    {
+        public List<CyberDefenseTerminalRunSnapshot> GetSnapshots() => [];
+    }
+
+    private sealed class SyntheticMathTypeWithInvalidConstructor
+    {
+        public CyberDefenseRunState State { get; }
+        public SyntheticMathTypeWithInvalidConstructor(CyberDefenseRunState state)
+        {
+            State = state;
+        }
+    }
+
+    private sealed class SyntheticMathTypeWithInvalidInterface : IEquatable<OpponentState>
+    {
+        public bool Equals(OpponentState? other) => false;
+    }
+
+    private sealed class SyntheticOpponentCurriculum
+    {
+        public int Level { get; set; }
+    }
+
+    private sealed class SyntheticCyberTypeReferencingMathCore
+    {
+        public ArithmeticFact? Fact { get; set; }
+    }
+
+    private sealed class SyntheticCyberTypeReferencingApplication
+    {
+        public TrainingSession? Session { get; set; }
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsMathematicalType_WithCyberFieldOrProperty()
+    {
+        var exField = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticMathTypeWithInvalidField)));
+        Assert.Contains("illegally references Cyber Defense type", exField.Message);
+
+        var exProp = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticMathTypeWithInvalidProperty)));
+        Assert.Contains("illegally references Cyber Defense type", exProp.Message);
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsMathematicalType_WithCyberMethodOrConstructorParameter()
+    {
+        var exMethod = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticMathTypeWithInvalidMethodParam)));
+        Assert.Contains("illegally references Cyber Defense type", exMethod.Message);
+
+        var exCtor = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticMathTypeWithInvalidConstructor)));
+        Assert.Contains("illegally references Cyber Defense type", exCtor.Message);
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsMathematicalType_WithCyberGenericReturn()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticMathTypeWithInvalidGenericReturn)));
+        Assert.Contains("illegally references Cyber Defense type", ex.Message);
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsMathematicalType_ImplementingGameplayInterface()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticMathTypeWithInvalidInterface)));
+        Assert.Contains("illegally references Cyber Defense type", ex.Message);
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsGameplayType_DeclaredInMathematicalCoreNamespace()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            ValidateMathematicalCoreTypeIsolation(typeof(SyntheticOpponentCurriculum)));
+        Assert.Contains("contains gameplay token 'Opponent' in its name", ex.Message);
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsCyberDefenseType_ReferencingMathCoreOrApplication()
+    {
+        var exMath = Assert.Throws<InvalidOperationException>(() =>
+            ValidateCyberDefenseTypeDependencies(typeof(SyntheticCyberTypeReferencingMathCore)));
+        Assert.Contains("illegally references mathematical learning core type", exMath.Message);
+
+        var exApp = Assert.Throws<InvalidOperationException>(() =>
+            ValidateCyberDefenseTypeDependencies(typeof(SyntheticCyberTypeReferencingApplication)));
+        Assert.Contains("illegally references presentation/infrastructure type", exApp.Message);
+    }
+
+    [Fact]
+    public void NonInterference_NegativeContract_RejectsForbiddenAssemblyReference()
+    {
+        var forbiddenList = new[] { "MathFirst.Application" };
+        var testAssembly = typeof(NonInterferenceRegressionTests).Assembly;
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            ValidateDomainAssemblyReferences(testAssembly, forbiddenList));
+        Assert.Contains("illegally references forbidden assembly", ex.Message);
     }
 
     [Fact]
