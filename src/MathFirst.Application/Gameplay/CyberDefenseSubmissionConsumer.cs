@@ -33,6 +33,12 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
             throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
         }
 
+        var resetIntent = await _gameplayStore.GetResetIntentAsync(cancellationToken).ConfigureAwait(false);
+        if (resetIntent.IsPending)
+        {
+            throw new InvalidOperationException("Gameplay consumption is rejected while a reset intent is pending.");
+        }
+
         var existingReceipt = await _gameplayStore.GetReceiptAsync(submissionId, cancellationToken).ConfigureAwait(false);
         if (existingReceipt is not null)
         {
@@ -72,8 +78,15 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
 
     public async Task<CyberDefenseRecoveryResult> RecoverPendingIntentsAsync(CancellationToken cancellationToken = default)
     {
+        var resetIntent = await _gameplayStore.GetResetIntentAsync(cancellationToken).ConfigureAwait(false);
+        if (resetIntent.IsPending)
+        {
+            throw new InvalidOperationException("Pending intent recovery cannot proceed while a reset intent is pending.");
+        }
+
         var currentEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
         var pendingIntents = await _gameplayStore.GetPendingIntentsAsync(currentEpoch, cancellationToken).ConfigureAwait(false);
+
 
         if (pendingIntents.Count == 0)
         {

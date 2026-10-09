@@ -75,9 +75,18 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         public Task ClearPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<CyberDefenseReceiptRecord> ApplyAttemptTransactionAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Simulated gameplay storage failure during commit.");
+        public Task<GameplayResetIntentRecord> GetResetIntentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GameplayResetIntentRecord(false, 0, 0, null, DateTimeOffset.UtcNow));
+        public Task<GameplayResetIntentRecord> BeginOrGetResetIntentAsync(CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Simulated gameplay storage failure during reset intent.");
+        public Task ResetGameplayStateAsync(long targetEpoch, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Simulated gameplay storage failure during reset execution.");
+        public Task ClearResetIntentAsync(long targetEpoch, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Simulated gameplay storage failure during clear reset intent.");
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public void Dispose() { }
     }
+
 
     private sealed class FailingLearnerStore : ILearnerStore
     {

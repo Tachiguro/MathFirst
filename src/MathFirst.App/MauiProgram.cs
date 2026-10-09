@@ -8,6 +8,7 @@ using MathFirst.Application.Practice;
 using MathFirst.Application.Telemetry;
 using MathFirst.App.Services;
 using MathFirst.Infrastructure.Sqlite;
+using MathFirst.Infrastructure.Sqlite.Gameplay;
 
 namespace MathFirst.App;
 
@@ -65,6 +66,8 @@ public static class MauiProgram
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));
+		var gameplayDbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_gameplay.db");
+		builder.Services.AddSingleton<IGameplayStore>(_ => new SqliteGameplayStore(gameplayDbPath));
 		builder.Services.AddSingleton<IClock>(_ => MonotonicClock.Instance);
 		builder.Services.AddSingleton<AdaptivePracticeSelector>();
 		builder.Services.AddSingleton<TrainingSession>();

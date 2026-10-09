@@ -3,12 +3,14 @@
 @using MathFirst.Application
 @using MathFirst.Application.Copy
 @using MathFirst.Application.Diagnostics
+@using MathFirst.Application.Lifecycle
 @using MathFirst.Application.Practice
 @using MathFirst.App.Components.Training
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
+@inject IAppResetCoordinator ResetCoordinator
 @inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
@@ -520,6 +522,7 @@
             _isInitializing = true;
             try
             {
+                await ResetCoordinator.ReconcileStartupResetStateAsync();
                 await Session.InitializeAsync(startTiming: false);
                 Session.ShowInitialReadyGate();
                 Session.SetPracticeSurfaceActive(true);
@@ -759,6 +762,7 @@
         _startupFailed = false;
         try
         {
+            await ResetCoordinator.ReconcileStartupResetStateAsync();
             await Session.InitializeAsync(startTiming: false);
             Session.ShowInitialReadyGate();
             Session.SetPracticeSurfaceActive(true);

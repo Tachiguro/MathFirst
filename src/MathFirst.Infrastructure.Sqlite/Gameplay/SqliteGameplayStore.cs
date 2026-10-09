@@ -799,6 +799,36 @@ public sealed class SqliteGameplayStore : IGameplayStore
         using var transaction = _connection!.BeginTransaction();
         try
         {
+            using (var guardCmd = _connection.CreateCommand())
+            {
+                guardCmd.Transaction = transaction;
+                guardCmd.CommandText = @"
+                    SELECT r.is_pending, p.reset_epoch
+                    FROM gameplay_reset_intent r
+                    JOIN gameplay_progression p ON p.id = 1
+                    WHERE r.id = 1;
+                ";
+                using var guardReader = await guardCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await guardReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing gameplay_reset_intent or gameplay_progression row.");
+                }
+                bool isResetPending = guardReader.GetInt32(0) == 1;
+                long currentEpoch = guardReader.GetInt64(1);
+                guardReader.Close();
+
+                if (isResetPending)
+                {
+                    throw new InvalidOperationException("Cannot stage pending intent while a reset is pending.");
+                }
+
+                if (intent.ResetEpoch != currentEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Pending intent reset epoch {intent.ResetEpoch} does not match current store reset epoch {currentEpoch}.");
+                }
+            }
+
             using (var selectCmd = _connection.CreateCommand())
             {
                 selectCmd.Transaction = transaction;
@@ -831,6 +861,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     return;
                 }
             }
+
 
             using (var insertCmd = _connection.CreateCommand())
             {
@@ -934,10 +965,30 @@ public sealed class SqliteGameplayStore : IGameplayStore
         using var transaction = _connection!.BeginTransaction();
         try
         {
+            // 0. Check reset intent
+            using (var guardCmd = _connection.CreateCommand())
+            {
+                guardCmd.Transaction = transaction;
+                guardCmd.CommandText = "SELECT is_pending FROM gameplay_reset_intent WHERE id = 1;";
+                using var guardReader = await guardCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await guardReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing gameplay_reset_intent row.");
+                }
+                bool isResetPending = guardReader.GetInt32(0) == 1;
+                guardReader.Close();
+
+                if (isResetPending)
+                {
+                    throw new InvalidOperationException("Cannot apply attempt transaction while a reset is pending.");
+                }
+            }
+
             // 1. Check existing receipt in ledger
             using (var checkCmd = _connection.CreateCommand())
             {
                 checkCmd.Transaction = transaction;
+
                 checkCmd.CommandText = @"
                     SELECT submission_id, receipt_kind, fact_id, is_correct, is_eligible,
                            response_latency_ms, reset_epoch, processed_at,
@@ -1145,7 +1196,307 @@ public sealed class SqliteGameplayStore : IGameplayStore
             subId, factId, isCorrect, isEligible, latency, epoch, createdAt);
     }
 
+    public async Task<GameplayResetIntentRecord> GetResetIntentAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "SELECT is_pending, current_epoch, target_epoch, created_at, updated_at FROM gameplay_reset_intent WHERE id = 1;";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return ReadResetIntent(reader);
+        }
+
+        throw new InvalidOperationException("No reset intent row found in 'gameplay_reset_intent'.");
+    }
+
+    public async Task<GameplayResetIntentRecord> BeginOrGetResetIntentAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using (var pragmaCmd = _connection!.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA synchronous = FULL;";
+            await pragmaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        using var transaction = _connection.BeginTransaction();
+        try
+        {
+            long currentEpoch;
+            long targetEpoch;
+            bool isPending;
+            DateTimeOffset? createdAt = null;
+
+            using (var selectCmd = _connection.CreateCommand())
+            {
+                selectCmd.Transaction = transaction;
+                selectCmd.CommandText = "SELECT is_pending, current_epoch, target_epoch, created_at, updated_at FROM gameplay_reset_intent WHERE id = 1;";
+                using var reader = await selectCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing reset intent row in 'gameplay_reset_intent'.");
+                }
+                isPending = reader.GetInt32(0) == 1;
+                currentEpoch = reader.GetInt64(1);
+                targetEpoch = reader.GetInt64(2);
+                var createdStr = reader.IsDBNull(3) ? null : reader.GetString(3);
+                if (!string.IsNullOrEmpty(createdStr) && DateTimeOffset.TryParse(createdStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedCreated))
+                {
+                    createdAt = parsedCreated;
+                }
+            }
+
+            if (isPending)
+            {
+                transaction.Commit();
+                using (var restoreCmd = _connection.CreateCommand())
+                {
+                    restoreCmd.CommandText = "PRAGMA synchronous = NORMAL;";
+                    await restoreCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+                return new GameplayResetIntentRecord(true, currentEpoch, targetEpoch, createdAt, DateTimeOffset.UtcNow);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            targetEpoch = currentEpoch + 1;
+
+            using (var updateCmd = _connection.CreateCommand())
+            {
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = @"
+                    UPDATE gameplay_reset_intent
+                    SET is_pending = 1,
+                        target_epoch = @targetEpoch,
+                        created_at = @now,
+                        updated_at = @now
+                    WHERE id = 1;
+                ";
+                updateCmd.Parameters.AddWithValue("@targetEpoch", targetEpoch);
+                updateCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                await updateCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+
+            using (var restoreCmd = _connection.CreateCommand())
+            {
+                restoreCmd.CommandText = "PRAGMA synchronous = NORMAL;";
+                await restoreCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return new GameplayResetIntentRecord(true, currentEpoch, targetEpoch, now, now);
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            try
+            {
+                using var restoreCmd = _connection.CreateCommand();
+                restoreCmd.CommandText = "PRAGMA synchronous = NORMAL;";
+                restoreCmd.ExecuteNonQuery();
+            }
+            catch { }
+            throw;
+        }
+    }
+
+    public async Task ResetGameplayStateAsync(long targetEpoch, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(targetEpoch);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var transaction = _connection!.BeginTransaction();
+        try
+        {
+            using (var checkCmd = _connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = "SELECT is_pending, target_epoch FROM gameplay_reset_intent WHERE id = 1;";
+                using var reader = await checkCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing reset intent row in 'gameplay_reset_intent'.");
+                }
+                bool isPending = reader.GetInt32(0) == 1;
+                long storedTargetEpoch = reader.GetInt64(1);
+                if (!isPending || storedTargetEpoch != targetEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot reset gameplay state to epoch {targetEpoch}. Active pending reset intent target is {storedTargetEpoch} (is_pending={isPending}).");
+                }
+            }
+
+            var now = DateTimeOffset.UtcNow.ToString("O");
+            var initialRun = CyberDefenseRunState.InitialRun();
+
+            using (var resetCmd = _connection.CreateCommand())
+            {
+                resetCmd.Transaction = transaction;
+                resetCmd.CommandText = @"
+                    DELETE FROM gameplay_pending_intent;
+                    DELETE FROM gameplay_receipt_ledger;
+
+                    UPDATE gameplay_run_state
+                    SET sector = @sector,
+                        opponent_index = @opponentIndex,
+                        opponent_current_hp = @opponentHp,
+                        player_current_hp = @playerHp,
+                        reset_epoch = @targetEpoch,
+                        updated_at = @now
+                    WHERE id = 1;
+
+                    UPDATE gameplay_progression
+                    SET store_revision = 1,
+                        reset_epoch = @targetEpoch,
+                        updated_at = @now
+                    WHERE id = 1;
+
+                    UPDATE gameplay_schema_info
+                    SET value = '1'
+                    WHERE key = 'store_revision';
+
+                    UPDATE gameplay_schema_info
+                    SET value = @targetEpochStr
+                    WHERE key = 'reset_epoch';
+                ";
+                resetCmd.Parameters.AddWithValue("@sector", initialRun.Sector);
+                resetCmd.Parameters.AddWithValue("@opponentIndex", initialRun.OpponentIndex);
+                resetCmd.Parameters.AddWithValue("@opponentHp", initialRun.CurrentOpponent.CurrentHp);
+                resetCmd.Parameters.AddWithValue("@playerHp", initialRun.PlayerCurrentHp);
+                resetCmd.Parameters.AddWithValue("@targetEpoch", targetEpoch);
+                resetCmd.Parameters.AddWithValue("@targetEpochStr", targetEpoch.ToString(CultureInfo.InvariantCulture));
+                resetCmd.Parameters.AddWithValue("@now", now);
+                await resetCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    public async Task ClearResetIntentAsync(long targetEpoch, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(targetEpoch);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using (var pragmaCmd = _connection!.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA synchronous = FULL;";
+            await pragmaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        using var transaction = _connection.BeginTransaction();
+        try
+        {
+            using (var checkCmd = _connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = @"
+                    SELECT r.is_pending, r.target_epoch, p.reset_epoch, rs.reset_epoch
+                    FROM gameplay_reset_intent r
+                    JOIN gameplay_progression p ON p.id = 1
+                    JOIN gameplay_run_state rs ON rs.id = 1
+                    WHERE r.id = 1;
+                ";
+                using var reader = await checkCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing reset intent or progression row.");
+                }
+                bool isPending = reader.GetInt32(0) == 1;
+                long storedTargetEpoch = reader.GetInt64(1);
+                long progressionEpoch = reader.GetInt64(2);
+                long runStateEpoch = reader.GetInt64(3);
+
+                if (!isPending || storedTargetEpoch != targetEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot clear reset intent for epoch {targetEpoch}. Active pending target is {storedTargetEpoch} (is_pending={isPending}).");
+                }
+
+                if (progressionEpoch != targetEpoch || runStateEpoch != targetEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot clear reset intent before gameplay state has been reset to target epoch {targetEpoch} (progression={progressionEpoch}, runState={runStateEpoch}).");
+                }
+            }
+
+            var now = DateTimeOffset.UtcNow.ToString("O");
+
+            using (var updateCmd = _connection.CreateCommand())
+            {
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = @"
+                    UPDATE gameplay_reset_intent
+                    SET is_pending = 0,
+                        current_epoch = @targetEpoch,
+                        target_epoch = @targetEpoch,
+                        created_at = NULL,
+                        updated_at = @now
+                    WHERE id = 1;
+                ";
+                updateCmd.Parameters.AddWithValue("@targetEpoch", targetEpoch);
+                updateCmd.Parameters.AddWithValue("@now", now);
+                await updateCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+
+            using (var restoreCmd = _connection.CreateCommand())
+            {
+                restoreCmd.CommandText = "PRAGMA synchronous = NORMAL;";
+                await restoreCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            try
+            {
+                using var restoreCmd = _connection.CreateCommand();
+                restoreCmd.CommandText = "PRAGMA synchronous = NORMAL;";
+                restoreCmd.ExecuteNonQuery();
+            }
+            catch { }
+            throw;
+        }
+    }
+
+    public static GameplayResetIntentRecord ReadResetIntent(SqliteDataReader reader)
+    {
+        bool isPending = reader.GetInt32(0) == 1;
+        long currentEpoch = reader.GetInt64(1);
+        long targetEpoch = reader.GetInt64(2);
+        string? createdAtStr = reader.IsDBNull(3) ? null : reader.GetString(3);
+        string updatedAtStr = reader.GetString(4);
+
+        DateTimeOffset? createdAt = null;
+        if (!string.IsNullOrEmpty(createdAtStr))
+        {
+            if (!DateTimeOffset.TryParse(createdAtStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedCreated))
+            {
+                throw new InvalidOperationException($"Invalid created_at timestamp '{createdAtStr}' in reset intent table.");
+            }
+            createdAt = parsedCreated;
+        }
+
+        if (!DateTimeOffset.TryParse(updatedAtStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedUpdated))
+        {
+            throw new InvalidOperationException($"Invalid updated_at timestamp '{updatedAtStr}' in reset intent table.");
+        }
+
+        return new GameplayResetIntentRecord(isPending, currentEpoch, targetEpoch, createdAt, parsedUpdated);
+    }
+
+
     public Task CloseAsync(CancellationToken cancellationToken = default)
+
     {
         lock (_lock)
         {

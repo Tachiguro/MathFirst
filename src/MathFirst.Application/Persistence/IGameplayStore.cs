@@ -16,5 +16,9 @@ public interface IGameplayStore : IDisposable
     Task<IReadOnlyList<CyberDefensePendingIntentRecord>> GetPendingIntentsAsync(long resetEpoch, CancellationToken cancellationToken = default);
     Task ClearPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default);
     Task<CyberDefenseReceiptRecord> ApplyAttemptTransactionAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default);
+    Task<GameplayResetIntentRecord> GetResetIntentAsync(CancellationToken cancellationToken = default);
+    Task<GameplayResetIntentRecord> BeginOrGetResetIntentAsync(CancellationToken cancellationToken = default);
+    Task ResetGameplayStateAsync(long targetEpoch, CancellationToken cancellationToken = default);
+    Task ClearResetIntentAsync(long targetEpoch, CancellationToken cancellationToken = default);
     Task CloseAsync(CancellationToken cancellationToken = default);
 }
