@@ -403,20 +403,37 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             await setupStore.CloseAsync();
         }
 
-        // Copy DB so two independent stores open identical durable state
+        // Copy DB via SQLite backup so two independent stores open identical durable state
         var dbPath2 = GetDatabasePath("next_selection_copy");
-        File.Copy(dbPath1, dbPath2, overwrite: true);
+        await SnapshotDatabaseAsync(dbPath1, dbPath2);
 
         // Reopen Session A on DB 1
         ArithmeticFact factA;
         ArithmeticOperation scheduledOpA;
         PracticeSelectionRole requestedRoleA;
+        long practicePositionA;
+        long revisionA;
+        int positionedCorrectCountA;
+        int itemStatesCountA;
+        Dictionary<ArithmeticOperation, long> opAttemptCountsA;
+        Dictionary<ArithmeticOperation, int> bandIndicesA;
+
         using (var storeA = new SqliteLearnerStore(dbPath1))
         {
             var preferencesA = new TestPreferenceStore();
             preferencesA.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
             var sessionA = new TrainingSession(storeA, new FixedClock(TimeSpan.FromMilliseconds(800)), preferenceStore: preferencesA, practiceMode: PracticeMode.Custom);
             await sessionA.InitializeAsync(startTiming: false);
+
+            practicePositionA = sessionA.Progression.PracticePosition;
+            revisionA = sessionA.Progression.StoreRevision;
+            positionedCorrectCountA = sessionA.PositionedCorrectAttemptCount;
+            itemStatesCountA = sessionA.ItemStates.Count;
+
+            opAttemptCountsA = PracticeOperationPreferencePolicy.AllOperations
+                .ToDictionary(op => op, op => sessionA.GetOperationAcceptedAttemptCount(op));
+            bandIndicesA = PracticeOperationPreferencePolicy.AllOperations
+                .ToDictionary(op => op, op => sessionA.Progression.OperationProgressions[op].BandIndex);
 
             factA = sessionA.CurrentFact;
             scheduledOpA = factA.Operation;
@@ -429,12 +446,29 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         ArithmeticFact factB;
         ArithmeticOperation scheduledOpB;
         PracticeSelectionRole requestedRoleB;
+        long practicePositionB;
+        long revisionB;
+        int positionedCorrectCountB;
+        int itemStatesCountB;
+        Dictionary<ArithmeticOperation, long> opAttemptCountsB;
+        Dictionary<ArithmeticOperation, int> bandIndicesB;
+
         using (var storeB = new SqliteLearnerStore(dbPath2))
         {
             var preferencesB = new TestPreferenceStore();
             preferencesB.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
             var sessionB = new TrainingSession(storeB, new FixedClock(TimeSpan.FromMilliseconds(800)), preferenceStore: preferencesB, practiceMode: PracticeMode.Custom);
             await sessionB.InitializeAsync(startTiming: false);
+
+            practicePositionB = sessionB.Progression.PracticePosition;
+            revisionB = sessionB.Progression.StoreRevision;
+            positionedCorrectCountB = sessionB.PositionedCorrectAttemptCount;
+            itemStatesCountB = sessionB.ItemStates.Count;
+
+            opAttemptCountsB = PracticeOperationPreferencePolicy.AllOperations
+                .ToDictionary(op => op, op => sessionB.GetOperationAcceptedAttemptCount(op));
+            bandIndicesB = PracticeOperationPreferencePolicy.AllOperations
+                .ToDictionary(op => op, op => sessionB.Progression.OperationProgressions[op].BandIndex);
 
             factB = sessionB.CurrentFact;
             scheduledOpB = factB.Operation;
@@ -443,12 +477,100 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             await storeB.CloseAsync();
         }
 
+        // Assert durable state equivalence across cold restart
+        Assert.Equal(50, practicePositionA);
+        Assert.Equal(practicePositionA, practicePositionB);
+        Assert.Equal(revisionA, revisionB);
+        Assert.True(revisionA > 1, "Persistent revision must advance past initial baseline after 50 committed attempts.");
+
+        foreach (var op in PracticeOperationPreferencePolicy.AllOperations)
+        {
+            Assert.Equal(opAttemptCountsA[op], opAttemptCountsB[op]);
+            Assert.Equal(bandIndicesA[op], bandIndicesB[op]);
+        }
+
+        Assert.Equal(positionedCorrectCountA, positionedCorrectCountB);
+        Assert.Equal(itemStatesCountA, itemStatesCountB);
+
         // Verify exact next-selection identity
         Assert.Equal(scheduledOpA, scheduledOpB);
         Assert.Equal(factA.Id, factB.Id);
         Assert.Equal(factA.LeftOperand, factB.LeftOperand);
         Assert.Equal(factA.RightOperand, factB.RightOperand);
         Assert.Equal(requestedRoleA, requestedRoleB);
+    }
+
+    // ===========================================================================
+    // TEST 9B: SQLITE WAL DATABASE SNAPSHOT ROW PRESERVATION (TDD RED / GREEN)
+    // ===========================================================================
+    [Fact]
+    public async Task SqliteDatabaseSnapshot_PreservesCommittedRows_WhenSourceHasUncheckpointedWal()
+    {
+        var sourceDbPath = GetDatabasePath("wal_snapshot_source");
+        var destinationDbPath = GetDatabasePath("wal_snapshot_dest");
+        const int expectedRowCount = 10;
+
+        // 1. Create source database with WAL mode and schema checkpointed into primary file
+        await using (var setupConn = new SqliteConnection($"Data Source={sourceDbPath}"))
+        {
+            await setupConn.OpenAsync();
+            using (var cmd = setupConn.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    PRAGMA journal_mode = WAL;
+                    CREATE TABLE fixture_items (
+                        id INTEGER PRIMARY KEY,
+                        value TEXT NOT NULL
+                    );
+                    PRAGMA wal_checkpoint(TRUNCATE);
+                ";
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // 2. Open active source connection, disable automatic WAL checkpointing, and commit fixture rows
+        await using var activeSourceConn = new SqliteConnection($"Data Source={sourceDbPath}");
+        await activeSourceConn.OpenAsync();
+
+        using (var disableCheckpointCmd = activeSourceConn.CreateCommand())
+        {
+            disableCheckpointCmd.CommandText = "PRAGMA wal_autocheckpoint = 0;";
+            await disableCheckpointCmd.ExecuteNonQueryAsync();
+        }
+
+        for (var i = 1; i <= expectedRowCount; i++)
+        {
+            using var insertCmd = activeSourceConn.CreateCommand();
+            insertCmd.CommandText = "INSERT INTO fixture_items (id, value) VALUES (@id, @value);";
+            insertCmd.Parameters.AddWithValue("@id", i);
+            insertCmd.Parameters.AddWithValue("@value", $"fixture_value_{i}");
+            await insertCmd.ExecuteNonQueryAsync();
+        }
+
+        // 3. Verify source sees all committed rows while WAL is active
+        long sourceRowCount;
+        using (var countCmd = activeSourceConn.CreateCommand())
+        {
+            countCmd.CommandText = "SELECT COUNT(*) FROM fixture_items;";
+            sourceRowCount = (long)(await countCmd.ExecuteScalarAsync())!;
+        }
+        Assert.Equal(expectedRowCount, sourceRowCount);
+
+        // 4. Snapshot source to destination database using the snapshot mechanism
+        await SnapshotDatabaseAsync(sourceDbPath, destinationDbPath);
+
+        // 5. Open destination snapshot and assert all committed fixture rows are preserved
+        await using var destConn = new SqliteConnection($"Data Source={destinationDbPath}");
+        await destConn.OpenAsync();
+
+        long copiedRowCount;
+        using (var destCountCmd = destConn.CreateCommand())
+        {
+            destCountCmd.CommandText = "SELECT COUNT(*) FROM fixture_items;";
+            copiedRowCount = (long)(await destCountCmd.ExecuteScalarAsync())!;
+        }
+
+        Assert.Equal(expectedRowCount, copiedRowCount);
     }
 
     // ===========================================================================
@@ -871,6 +993,15 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             await currentStore.CloseAsync();
             currentStore.Dispose();
         }
+    }
+
+    private static async Task SnapshotDatabaseAsync(string sourcePath, string destinationPath)
+    {
+        await using var source = new SqliteConnection($"Data Source={sourcePath}");
+        await source.OpenAsync();
+        await using var destination = new SqliteConnection($"Data Source={destinationPath}");
+        await destination.OpenAsync();
+        source.BackupDatabase(destination);
     }
 
     private static async Task<HashSet<string>> GetTableColumnsAsync(SqliteConnection conn, string tableName)
