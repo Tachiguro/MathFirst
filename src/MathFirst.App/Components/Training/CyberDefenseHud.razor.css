@@ -677,6 +677,8 @@
     letter-spacing: 0.08em;
     color: var(--color-primary);
     text-transform: uppercase;
+}
+
 .player-hp-cluster {
     display: flex;
     align-items: center;

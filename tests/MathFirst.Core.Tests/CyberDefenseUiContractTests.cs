@@ -283,6 +283,22 @@ public sealed class CyberDefenseUiContractTests
     }
 
     [Fact]
+    public void CyberDefenseHudCss_ShieldSectionTitleAndPlayerHpCluster_AreProperlyClosedAndNotNested()
+    {
+        var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
+        Assert.True(File.Exists(cssPath));
+        var css = File.ReadAllText(cssPath);
+
+        // .shield-section-title must have its own closing brace before .player-hp-cluster
+        var match = Regex.Match(css, @"\.shield-section-title\s*\{(?<content>[^}]+)\}", RegexOptions.Singleline);
+        Assert.True(match.Success, ".shield-section-title must be closed with a closing brace.");
+        Assert.DoesNotContain(".player-hp-cluster", match.Groups["content"].Value, StringComparison.Ordinal);
+
+        // .player-hp-cluster must also be its own block
+        Assert.Matches(@"\.player-hp-cluster\s*\{[^}]*display:\s*flex;", css);
+    }
+
+    [Fact]
     public void CyberDefenseSolveToAttackAndOperationRow_ExistInTrainingShell()
     {
         var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
@@ -1113,9 +1129,9 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("disabled=\"@_isSubmitting\"", content, StringComparison.Ordinal);
         Assert.Contains("aria-pressed=\"@IsCyberDefenseActive\"", content, StringComparison.Ordinal);
 
-        // Uses ICyberDefenseModePreferences and CyberDefenseSessionState
+        // Uses ICyberDefenseModePreferences and ICyberDefenseCombatCoordinator
         Assert.Contains("ICyberDefenseModePreferences", content, StringComparison.Ordinal);
-        Assert.Contains("CyberDefenseSessionState", content, StringComparison.Ordinal);
+        Assert.Contains("ICyberDefenseCombatCoordinator", content, StringComparison.Ordinal);
 
         // Accessible labels and tooltips for both states
         Assert.Contains("CalmMode_SwitchAction", content, StringComparison.Ordinal);
@@ -1360,17 +1376,18 @@ public sealed class CyberDefenseUiContractTests
     }
 
     [Fact]
-    public void PendingCombatContext_SourceContract_HomeUsesApplicationScopedPendingContext()
+    public void PendingCombatIntent_SourceContract_HomeUsesAuthoritativeCombatCoordinator()
     {
         var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
         Assert.True(File.Exists(homePath));
         var home = File.ReadAllText(homePath);
 
-        // Home registers and stages pending combat context via CyberDefenseState / CombatCoordinator
-        Assert.Contains("CyberDefenseState.RegisterPendingContext", home, StringComparison.Ordinal);
+        // Home stages and consumes pending combat intents via CombatCoordinator
         Assert.Contains("CombatCoordinator.StageIntentAsync", home, StringComparison.Ordinal);
-        Assert.Contains("CyberDefenseState.ClearPendingContext", home, StringComparison.Ordinal);
-        Assert.Contains("new PendingCombatContext", home, StringComparison.Ordinal);
+        Assert.Contains("CombatCoordinator.ConsumeCommittedAttemptAsync", home, StringComparison.Ordinal);
+        // Does not retain obsolete prototype registration
+        Assert.DoesNotContain("CyberDefenseState.RegisterPendingContext", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("CyberDefenseCombatDispatcher", home, StringComparison.Ordinal);
     }
 
     [Fact]

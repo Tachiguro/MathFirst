@@ -17,6 +17,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     private readonly IGameplayStore? _gameplayStore;
     private readonly ICyberDefenseSubmissionConsumer? _consumer;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _stateLock = new();
     private CyberDefenseHudViewModel _currentViewModel = CyberDefenseHudViewModel.Initial();
     private long _feedbackRevision;
 
@@ -32,7 +33,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     {
         get
         {
-            lock (_gate)
+            lock (_stateLock)
             {
                 return _currentViewModel;
             }
@@ -43,7 +44,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     {
         if (_gameplayStore == null || _consumer == null)
         {
-            lock (_gate)
+            lock (_stateLock)
             {
                 _currentViewModel = CyberDefenseHudViewModel.Initial();
             }
@@ -61,16 +62,26 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             if (recoveryResult.Receipts.Count > 0)
             {
                 latestReceipt = recoveryResult.Receipts[^1];
-                _feedbackRevision++;
             }
 
-            _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, latestReceipt, _feedbackRevision);
+            lock (_stateLock)
+            {
+                if (latestReceipt != null)
+                {
+                    _feedbackRevision++;
+                }
+
+                _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, latestReceipt, _feedbackRevision);
+            }
         }
         catch
         {
             // Learning-first failure isolation: If gameplay store is unavailable or reset is pending,
             // fall back to default run view without blocking application initialization.
-            _currentViewModel = CyberDefenseHudViewModel.Initial();
+            lock (_stateLock)
+            {
+                _currentViewModel = CyberDefenseHudViewModel.Initial();
+            }
         }
         finally
         {
@@ -127,13 +138,19 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             if (result.Status == CyberDefenseConsumptionStatus.Success && result.Receipt != null)
             {
                 var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
-                _feedbackRevision++;
-                _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, result.Receipt, _feedbackRevision);
+                lock (_stateLock)
+                {
+                    _feedbackRevision++;
+                    _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, result.Receipt, _feedbackRevision);
+                }
             }
             else if (result.Status == CyberDefenseConsumptionStatus.AlreadyConsumed && result.Receipt != null)
             {
                 var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
-                _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
+                lock (_stateLock)
+                {
+                    _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
+                }
             }
             return result;
         }
@@ -152,7 +169,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     {
         if (_gameplayStore == null)
         {
-            lock (_gate)
+            lock (_stateLock)
             {
                 _currentViewModel = CyberDefenseHudViewModel.Initial();
             }
@@ -163,11 +180,17 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         try
         {
             var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
-            _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
+            lock (_stateLock)
+            {
+                _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
+            }
         }
         catch
         {
-            _currentViewModel = CyberDefenseHudViewModel.Initial();
+            lock (_stateLock)
+            {
+                _currentViewModel = CyberDefenseHudViewModel.Initial();
+            }
         }
         finally
         {
@@ -177,7 +200,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
 
     public void InvalidateState()
     {
-        lock (_gate)
+        lock (_stateLock)
         {
             _feedbackRevision = 0;
             _currentViewModel = CyberDefenseHudViewModel.Initial();
