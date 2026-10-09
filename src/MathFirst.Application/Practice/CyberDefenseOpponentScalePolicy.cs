@@ -60,6 +60,39 @@ public static class CyberDefenseOpponentScalePolicy
             _ => MediumClass
         };
 
+    public static CyberDefenseOpponentScaleTier GetScaleTier(int opponentIndex, int normalOpponentCount, bool isSectorBoss, bool isBoss)
+    {
+        if (isSectorBoss)
+        {
+            return CyberDefenseOpponentScaleTier.SectorBoss;
+        }
+
+        if (isBoss)
+        {
+            return CyberDefenseOpponentScaleTier.Boss;
+        }
+
+        return opponentIndex switch
+        {
+            <= 1 => CyberDefenseOpponentScaleTier.Small,
+            <= 3 => CyberDefenseOpponentScaleTier.MediumSmall,
+            <= 5 => CyberDefenseOpponentScaleTier.Medium,
+            _ => CyberDefenseOpponentScaleTier.Large
+        };
+    }
+
+    public static string GetScaleClass(int opponentIndex, int normalOpponentCount, bool isSectorBoss, bool isBoss) =>
+        GetScaleTier(opponentIndex, normalOpponentCount, isSectorBoss, isBoss) switch
+        {
+            CyberDefenseOpponentScaleTier.Small => SmallClass,
+            CyberDefenseOpponentScaleTier.MediumSmall => MediumSmallClass,
+            CyberDefenseOpponentScaleTier.Medium => MediumClass,
+            CyberDefenseOpponentScaleTier.Large => LargeClass,
+            CyberDefenseOpponentScaleTier.Boss => BossClass,
+            CyberDefenseOpponentScaleTier.SectorBoss => SectorBossClass,
+            _ => MediumClass
+        };
+
     public static double GetBaseScaleFactor(CyberDefenseOpponentScaleTier tier) => tier switch
     {
         CyberDefenseOpponentScaleTier.Small => 0.65,

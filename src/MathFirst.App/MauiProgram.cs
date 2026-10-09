@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MathFirst.Application;
 using MathFirst.Application.Copy;
+using MathFirst.Application.Gameplay;
 using MathFirst.Application.Lifecycle;
 using MathFirst.Application.Navigation;
 using MathFirst.Application.Persistence;
@@ -8,6 +9,7 @@ using MathFirst.Application.Practice;
 using MathFirst.Application.Telemetry;
 using MathFirst.App.Services;
 using MathFirst.Infrastructure.Sqlite;
+using MathFirst.Infrastructure.Sqlite.Gameplay;
 
 namespace MathFirst.App;
 
@@ -40,6 +42,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ICyberDefenseModePreferences>(
 			sp => sp.GetRequiredService<MauiPreferenceStore>());
 		builder.Services.AddSingleton<CyberDefenseSessionState>();
+		builder.Services.AddSingleton<ICyberDefenseSubmissionConsumer, CyberDefenseSubmissionConsumer>();
+		builder.Services.AddSingleton<CyberDefenseSubmissionConsumer>();
+		builder.Services.AddSingleton<ICyberDefenseCombatCoordinator, CyberDefenseCombatCoordinator>();
+		builder.Services.AddSingleton<CyberDefenseCombatCoordinator>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
 		builder.Services.AddSingleton<IHapticDriver, MauiHapticDriver>();
@@ -65,6 +71,8 @@ public static class MauiProgram
 
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_learner.db");
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));
+		var gameplayDbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_gameplay.db");
+		builder.Services.AddSingleton<IGameplayStore>(_ => new SqliteGameplayStore(gameplayDbPath));
 		builder.Services.AddSingleton<IClock>(_ => MonotonicClock.Instance);
 		builder.Services.AddSingleton<AdaptivePracticeSelector>();
 		builder.Services.AddSingleton<TrainingSession>();

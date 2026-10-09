@@ -25,6 +25,8 @@ public interface ILearnerStore : IDisposable
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Complete attempt telemetry query requires explicit store support.");
     Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default);
+    Task<CommittedLearnerAttemptEvidence?> GetCommittedAttemptEvidenceAsync(string submissionId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Committed learner attempt evidence query requires explicit store support.");
     Task ResetLearningProgressAsync(CancellationToken cancellationToken = default);
     Task CloseAsync(CancellationToken cancellationToken = default);
 }

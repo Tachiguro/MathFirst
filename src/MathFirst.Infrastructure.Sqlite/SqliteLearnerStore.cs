@@ -906,6 +906,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
         using var transaction = _connection.BeginTransaction();
         try
         {
+            var (_, revision) = await ReadSchemaInfoInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
+            var nextRevision = checked(revision + 1);
+
             using var cmd = _connection.CreateCommand();
             cmd.Transaction = transaction;
             cmd.CommandText = @"
@@ -914,8 +917,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 DELETE FROM fsrs_card_state;
                 DELETE FROM operation_progression;
                 DELETE FROM learner_progression;
-                UPDATE schema_info SET value = '1' WHERE key = 'store_revision';
+                UPDATE schema_info SET value = @value WHERE key = 'store_revision';
             ";
+            cmd.Parameters.AddWithValue("@value", nextRevision.ToString(CultureInfo.InvariantCulture));
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
             var fresh = LearnerProgression.CreateFresh();
@@ -947,6 +951,50 @@ public sealed class SqliteLearnerStore : ILearnerStore
             try { transaction.Rollback(); } catch { }
             throw;
         }
+    }
+
+    public async Task<CommittedLearnerAttemptEvidence?> GetCommittedAttemptEvidenceAsync(string submissionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_connection is null)
+        {
+            return null;
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT submission_id, fact_id, is_correct, response_latency_ms, practice_position, timestamp
+            FROM attempt_history
+            WHERE submission_id = @id;
+        ";
+        cmd.Parameters.AddWithValue("@id", submissionId);
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        string subId = reader.GetString(0);
+        string factId = reader.GetString(1);
+        bool isCorrect = reader.GetInt32(2) == 1;
+        long responseLatencyMs = reader.GetInt64(3);
+        long? practicePosition = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+        string timestampStr = reader.GetString(5);
+
+        if (!DateTimeOffset.TryParse(timestampStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp))
+        {
+            throw new InvalidOperationException($"Invalid timestamp '{timestampStr}' in attempt_history.");
+        }
+
+        return new CommittedLearnerAttemptEvidence(
+            subId, factId, isCorrect, responseLatencyMs, practicePosition, timestamp);
     }
 
     public Task CloseAsync(CancellationToken cancellationToken = default)

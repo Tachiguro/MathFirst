@@ -3,16 +3,19 @@
 @using MathFirst.Application
 @using MathFirst.Application.Copy
 @using MathFirst.Application.Diagnostics
+@using MathFirst.Application.Gameplay
+@using MathFirst.Application.Lifecycle
 @using MathFirst.Application.Practice
 @using MathFirst.App.Components.Training
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
+@inject IAppResetCoordinator ResetCoordinator
 @inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
-@inject CyberDefenseSessionState CyberDefenseState
+@inject ICyberDefenseCombatCoordinator CombatCoordinator
 @inject IJSRuntime JSRuntime
 @inject IHapticFeedbackService HapticService
 
@@ -280,10 +283,10 @@
                 }
                 else
                 {
-                    @if (IsCyberDefenseActive && CyberDefenseState.ActiveEncounter is not null)
+                    @if (IsCyberDefenseActive && CombatCoordinator.CurrentViewModel is not null)
                     {
                         <div class="training-top-region">
-                            <CyberDefenseHud State="CyberDefenseState.ActiveEncounter"
+                            <CyberDefenseHud ViewModel="CombatCoordinator.CurrentViewModel"
                                              CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                              ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
                                              TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
@@ -464,6 +467,10 @@
 
         var newMode = !CyberDefensePreferences.GetCyberDefenseEnabled();
         CyberDefensePreferences.SetCyberDefenseEnabled(newMode);
+        if (newMode)
+        {
+            _ = CombatCoordinator.RefreshStateAsync();
+        }
         if (IsAnswerEntryVisible)
         {
             _shouldFocusInput = true;
@@ -520,6 +527,8 @@
             _isInitializing = true;
             try
             {
+                await ResetCoordinator.ReconcileStartupResetStateAsync();
+                await CombatCoordinator.InitializeAsync();
                 await Session.InitializeAsync(startTiming: false);
                 Session.ShowInitialReadyGate();
                 Session.SetPracticeSurfaceActive(true);
@@ -759,6 +768,8 @@
         _startupFailed = false;
         try
         {
+            await ResetCoordinator.ReconcileStartupResetStateAsync();
+            await CombatCoordinator.InitializeAsync();
             await Session.InitializeAsync(startTiming: false);
             Session.ShowInitialReadyGate();
             Session.SetPracticeSurfaceActive(true);
@@ -830,15 +841,16 @@
                 var wasEligibleAtSubmission = IsCyberDefenseActive;
 
                 var eval = Session.SubmitAnswer(parsedAnswer);
-                var isCritical = eval.IsCorrect
-                    && Session.IsPaceCalibrationReady
-                    && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
                 var submissionId = eval.ChangeSet.SubmissionId;
+                var isCritical = Session.IsPaceCalibrationReady && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
+                var pendingContext = new PendingCombatContext(submissionId, wasEligibleAtSubmission, isCritical);
 
-                CyberDefenseState.RegisterPendingContext(new PendingCombatContext(
-                    submissionId,
-                    wasEligibleAtSubmission: wasEligibleAtSubmission,
-                    isCritical: isCritical));
+                await CombatCoordinator.StageIntentAsync(
+                    submissionId: submissionId,
+                    factId: eval.ChangeSet.Attempt.FactId,
+                    isCorrect: eval.IsCorrect,
+                    latencyMs: eval.LatencyMs,
+                    isEligibleAtSubmission: wasEligibleAtSubmission);
 
                 HapticService.PerformCue(eval.IsCorrect ? HapticFeedbackCue.Correct : HapticFeedbackCue.Incorrect);
 
@@ -846,16 +858,7 @@
 
                 if (Session.IsCurrentSubmissionCommitted)
                 {
-                    var pendingContext = CyberDefenseState.GetPendingContext(submissionId);
-                    var wasEligible = pendingContext?.WasEligibleAtSubmission ?? wasEligibleAtSubmission;
-                    var isCrit = pendingContext?.IsCritical ?? isCritical;
-
-                    CyberDefenseState.DispatchAttempt(new ConfirmedCombatAttempt(
-                        submissionId,
-                        eval.IsCorrect,
-                        isCrit,
-                        isCommitted: true,
-                        wasEligibleAtSubmission: wasEligible));
+                    await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
                 }
 
                 var advancedAutomatically = eval.IsCorrect &&
@@ -936,16 +939,7 @@
                 if (Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null)
                 {
                     var submissionId = Session.LastEvaluation.ChangeSet.SubmissionId;
-                    var pendingContext = CyberDefenseState.GetPendingContext(submissionId);
-                    var wasEligible = pendingContext?.WasEligibleAtSubmission ?? false;
-                    var isCrit = pendingContext?.IsCritical ?? false;
-
-                    CyberDefenseState.DispatchAttempt(new ConfirmedCombatAttempt(
-                        submissionId,
-                        Session.LastEvaluation.IsCorrect,
-                        isCrit,
-                        isCommitted: true,
-                        wasEligibleAtSubmission: wasEligible));
+                    await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
                 }
 
                 if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
@@ -983,7 +977,6 @@
         Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
-        CyberDefenseState.ClearPendingContext();
         SyncPracticeGateCopy();
         _shouldFocusInput = true;
         _shouldFocusPrimaryOverlay = false;
@@ -1020,7 +1013,6 @@
         Session.ClearCurrentAnswerInput();
         _submittedAnswerDisplay = null;
         _validationError = null;
-        CyberDefenseState.ClearPendingContext();
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();

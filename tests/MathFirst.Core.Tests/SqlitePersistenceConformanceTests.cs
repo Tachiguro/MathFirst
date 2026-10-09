@@ -247,7 +247,7 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         await store.ResetLearningProgressAsync();
 
         var snapshot = await store.LoadSnapshotAsync();
-        Assert.Equal(1, snapshot.Revision);
+        Assert.Equal(3, snapshot.Revision);
         Assert.All(snapshot.Progression.OperationProgressions.Values, progression => Assert.Equal(0, progression.BandIndex));
         Assert.Empty(snapshot.ItemStates);
         Assert.Empty(snapshot.RecentAttempts);

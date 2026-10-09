@@ -1368,3 +1368,108 @@ MathFirst maintains strict distinctions between testing tiers:
 - **Platform Builds**: Compilation matrix verification on Windows (`net10.0-windows10.0.19041.0` Debug/Release) and Android (`net10.0-android36.0` Debug/Release) confirming 0 warnings and 0 errors.
 - **Physical-Device Runtime Tests**: Manual or automated testing on physical hardware. *The candidate on `feat/mf-cyber-001-calm-mode-slice1` has NOT yet been validated on a physical device.*
 - **Formal Validation Gate**: *Passing prior test suites during implementation and review does NOT replace the formal `FULL_VALIDATION` gate required for the final candidate commit.*
+
+---
+
+## 32. MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) Contracts & Test Evidence
+
+The bounded MF-CYBER-003 development package delivers dedicated Gameplay SQLite persistence (`mathfirst_gameplay.db`, Schema V1), an idempotent committed-attempt submission consumer with read-only Learner Store evidence verification, crash-safe Full Local Reset with reset epoch fencing, monotonic learner store revision remediation, an authoritative HUD ViewModel projected from persistent run state, and runtime integration across six implementation slices and one reset safety remediation.
+
+### Reported Candidate Test Results (Reviewed Implementation Baseline)
+
+> [!NOTE]
+> The test execution counts and compilation results below represent reported prior agent execution claims from the implementation slices, corroborated by the consolidated package review's source-level test count audit (`MF_CYBER_003_PACKAGE_REVIEW_PASS`). In accordance with strict `DOCUMENT_ONLY` lifecycle governance, **no tests or compiler builds were executed by the current documentation agent**. Formal exact-candidate `FULL_VALIDATION` remains pending.
+
+- **Baseline on `main` (post-PR #74 / PR #75)**: 2,833 Core tests passing in Debug and Release (`MathFirst.Core.Tests`).
+- **Reported Full Core Test Suite (Debug)**: **2,982 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Reported Full Core Test Suite (Release)**: **2,982 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Net Test Increase**: **+149 automated test cases** across 7 new and modified test suites (0 failed, 0 skipped).
+- **Reported Windows Compilation Matrix**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+- **Reported Android Compilation Matrix**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-android36.0` compile target)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-android36.0` compile target)
+- **Consolidated Review Verdict**: `MF_CYBER_003_PACKAGE_REVIEW_PASS` (0 BLOCKER code defects, 0 material MAJOR code defects, 4 report discrepancies corrected, 3 nonblocking NIT observations recorded).
+
+### Dedicated MF-CYBER-003 Test Suites & Coverage Categories
+
+The package-wide net test increase of +149 automated test cases spans seven new and modified test suites in `tests/MathFirst.Core.Tests/`:
+
+1. **Dedicated Gameplay SQLite Store Schema V1 Contracts (`SqliteGameplayStoreTests.cs`, new suite)**:
+   - Verifies SQLite Schema V1 migration runner creating all 6 tables (`gameplay_schema_info`, `gameplay_progression`, `gameplay_run_state`, `gameplay_receipt_ledger`, `gameplay_pending_intent`, `gameplay_reset_intent`).
+   - Verifies connection factory isolation, table initialization, and WAL / `synchronous=NORMAL` PRAGMA configuration.
+   - Verifies complete isolation from the Learner Store: zero migrations or DDL mutations to Learner Schema V9.
+
+2. **Durable Receipt Ledger & Pending Intent Recovery Contracts (`SqliteGameplayStoreLedgerAndIntentTests.cs`, new suite)**:
+   - Verifies pending intent persistence and query retrieval by `SubmissionId`.
+   - Verifies startup crash recovery (`RecoverPendingIntentsAsync`) replaying pending submissions in deterministic `PracticePosition` order.
+   - Verifies atomic transaction commit updating run state, advancing `gameplay_progression.store_revision`, inserting immutable ledger receipts, and purging staged intents.
+   - Verifies transaction rollback: simulated disk/database failures abort without partial writes to receipt ledger or run state.
+
+3. **Application Idempotent Submission Consumer Contracts (`CyberDefenseSubmissionConsumerTests.cs`, new suite)**:
+   - Verifies authoritative read-only Learner Store evidence lookup (`ILearnerStore.GetCommittedAttemptEvidenceAsync`).
+   - Verifies fail-closed rejection when learner attempt evidence is missing, uncommitted, or corrupt.
+   - Verifies idempotent submission consumption: duplicate `SubmissionId` inputs return the existing receipt without applying redundant combat damage or state mutations.
+   - Verifies deterministic pure-domain state machine evaluation via `CyberDefenseStateMachine.ApplyAttempt`.
+   - Verifies atomic receipt insertion recording attempt details, transition outcome, and monotonic revision.
+
+4. **Crash-Safe Reset Coordination & Epoch Fencing Contracts (`CyberDefenseResetCoordinationTests.cs`, new suite)**:
+   - Verifies two-phase crash-safe Full Local Reset across separate Learner and Gameplay databases.
+   - Verifies `gameplay_reset_intent` staging with `synchronous=FULL` durability.
+   - Verifies monotonic `reset_epoch` advancement (starting at 0; incrementing to 1, 2, ... on subsequent resets).
+   - Verifies reset epoch fencing: pre-reset attempt submissions and pending intents staged under older epochs are permanently rejected.
+
+5. **Learner Store Monotonic Reset Safety Contracts (`SqliteLearnerStoreResetSafetyTests.cs`, new suite / Slice 4 Remediation)**:
+   - Verifies `SqliteLearnerStore.ResetLearningProgressAsync` advances learner `store_revision` monotonically across reset operations.
+   - Verifies ABA collision defense: prevents pre-reset attempt evidence from matching post-reset changeset revisions or resurrecting stale state.
+
+6. **Authoritative HUD ViewModel Projection Contracts (`CyberDefenseHudViewModelTests.cs`, new suite)**:
+   - Verifies `CyberDefenseHudViewModel` projecting HUD state directly from persistent run state (`CurrentSector`, `NormalOpponentsTotal`, `NormalOpponentsDefeated`, `SectorBossDefeated`, `PlayerCurrentHp`, `PlayerMaxHp`, `CurrentOpponentKind`, `CurrentOpponentCurrentHp`, `CurrentOpponentMaxHp`).
+   - Verifies Calm Mode suppression: freezes combat presentation, suppresses combat transitions, and yields `CyberDefenseReceiptKind.CalmModeSuppressed`.
+   - Verifies prototype double-dispatch removal: combat state is updated exclusively through the committed submission consumer.
+
+7. **End-to-End Integration & Concurrency Regression Contracts (`CyberDefenseEndToEndIntegrationTests.cs`, new suite)**:
+   - Verifies end-to-end attempt submission lifecycle from presentation to learner persistence, consumer execution, gameplay commit, and HUD view model update.
+   - Verifies crash recovery simulation: uncommitted pending intents are safely resolved upon restart.
+   - Verifies mode switching concurrency and rapid practice state synchronization.
+   - Verifies UI and CSS structural contracts ensuring layout stability and preventing visual artifacts.
+
+### Thirteen Verified Test Categories
+
+The MF-CYBER-003 verification matrix covers 13 distinct functional and safety categories:
+1. **Schema V1 Initialization & Table Creation**: Dedicated database initialization without touching Learner Schema V9.
+2. **Pending Intent Staging & Query**: Durable staging of submission intents prior to combat execution.
+3. **Startup Recovery & Deterministic Ordering**: Crash recovery replay ordered monotonically by `PracticePosition`.
+4. **Idempotent Deduplication**: Duplicate submissions return existing receipt with zero double-damage or state drift.
+5. **Read-Only Learner Evidence Verification**: Strict dependency on authoritative learner commit proof.
+6. **Atomic Transaction Boundary**: Atomic updates to run state, store revision, receipt ledger, and intent purge.
+7. **Two-Phase Crash-Safe Reset**: Resilient full reset coordination across dual independent databases.
+8. **Reset Epoch Fencing**: Monotonic reset epoch fencing pre-reset submissions from post-reset execution.
+9. **Monotonic Learner Revision Advancement**: Remediation preventing ABA changeset collisions upon reset.
+10. **Calm Mode Isolation & Suppression**: Complete suppression of combat mutations and clean receipt logging.
+11. **Authoritative HUD ViewModel Projection**: Direct derivation of UI presentation from durable run state.
+12. **Mode-Switching & State Concurrency**: Race-free synchronization during active rapid practice.
+13. **Multi-Target Compilation**: Warning-free compilation on Windows Desktop and Android compile targets.
+
+### Corrected Slice 6 Report Discrepancies
+
+The consolidated package review identified and corrected four factual inaccuracies in the prior Slice 6 implementation report:
+1. **Correct Answer Base Damage**:
+   - *Reported Claim*: Stated that a rapid correct answer deals 2 damage to the opponent.
+   - *Verified Invariant*: The actual domain baseline established in `CyberDefenseCombatPolicy` is **1 base damage** per correct answer. Additional damage modifiers and critical strikes are not part of the base attack contract in MF-CYBER-003.
+2. **Reset Epoch Counter Monotonicity**:
+   - *Reported Claim*: Stated that Full Local Reset returns the reset epoch to 0.
+   - *Verified Invariant*: The reset epoch starts at 0 upon initial database creation and **increments monotonically** upon each reset (first reset $\to$ epoch 1, second reset $\to$ epoch 2, etc.), ensuring absolute epoch fencing against stale submissions.
+3. **HUD Shields and Streaks Absence**:
+   - *Reported Claim*: Stated that the HUD persists and displays shield and streak counters.
+   - *Verified Invariant*: Shields, Firewall, and Streaks/Overdrive belong to future roadmap packages (MF-CYBER-005 / MF-CYBER-006). The implemented MF-CYBER-003 HUD displays strictly Player HP, Sector progress, and Opponent HP.
+4. **Overdrive Reset on Incorrect Answer**:
+   - *Reported Claim*: Stated that incorrect answers reset the Overdrive meter.
+   - *Verified Invariant*: Overdrive mechanics are not part of MF-CYBER-003; incorrect answers in MF-CYBER-003 inflict counter-damage to the player (4 damage for normal opponents, 6 for boss opponents) without referencing Overdrive.
+
+### Test Governance & TDD Qualification
+
+- **Test-Driven Development (TDD) Context**: TDD is an authoring workflow discipline applied during implementation slices. It is not an ex-post mechanical mandate for an already-implemented, reviewed candidate undergoing documentation reconciliation or release qualification.
+- **Formal Validation Gate**: Prior test passes recorded during implementation slices and review audits do **NOT** replace the required formal exact-candidate `FULL_VALIDATION` gate. Exact-candidate `FULL_VALIDATION` must be executed separately prior to branch push and pull request creation.
+- **Offline & Synthetic Invariants**: All automated tests execute offline against synthetic fixtures, in-memory models, and temporary isolated SQLite databases, in strict accordance with MathFirst privacy and testing invariants.

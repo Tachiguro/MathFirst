@@ -1313,6 +1313,7 @@ public sealed class TrainingSession
         _sessionCorrectLatencies.Clear();
         SessionOrderCounter = 0;
         LastResponseLatencyMs = 0;
+        LastEvaluation = null;
         LastPersistenceResult = null;
         IsCurrentSubmissionCommitted = false;
         _requiresBackgroundResumeAfterAdvance = false;

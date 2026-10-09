@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) — Candidate (Reviewed)
+
+- **Dedicated Gameplay Persistence & Idempotency (Schema V1)**:
+  - Introduced dedicated SQLite gameplay database (`mathfirst_gameplay.db`) with Schema V1, isolating combat persistence from Learner Store Schema V9 (zero learner DDL migrations).
+  - Established 6 gameplay tables: `gameplay_schema_info`, `gameplay_progression`, `gameplay_run_state`, `gameplay_receipt_ledger`, `gameplay_pending_intent`, and `gameplay_reset_intent`.
+  - Added durable receipt ledger (`gameplay_receipt_ledger`) and durable pending intent staging (`gameplay_pending_intent`), providing crash resilience and deduplication.
+  - Implemented startup pending-intent recovery (`RecoverPendingIntentsAsync`) replay-processing outstanding submissions in deterministic `PracticePosition` order.
+  - Configured SQLite PRAGMAs: WAL mode and `synchronous=NORMAL` for high-throughput gameplay operations, with `synchronous=FULL` on critical reset intents.
+- **Application Submission Consumer & Non-Interference**:
+  - Implemented application-layer `CyberDefenseSubmissionConsumer`, verifying authoritative read-only learner attempt evidence (`ILearnerStore.GetCommittedAttemptEvidenceAsync`) before evaluating combat transitions.
+  - Executed deterministic combat progression via pure domain `CyberDefenseStateMachine.ApplyAttempt` within an atomic transaction combining run state updates, monotonic `store_revision` advancement, receipt ledger logging, and pending intent cleanup.
+  - Preserved strict mathematical domain boundaries: combat state never mutates learning history, item scheduling, FSRS-6 spaced repetition, or curriculum advancement.
+- **Authoritative HUD Projection & UI Hardening**:
+  - Introduced `CyberDefenseHudViewModel` projecting HUD state directly from persistent run state (`CurrentSector`, `NormalOpponentsTotal`, `NormalOpponentsDefeated`, `SectorBossDefeated`, `PlayerCurrentHp`, `PlayerMaxHp`, `CurrentOpponentKind`, `CurrentOpponentCurrentHp`, `CurrentOpponentMaxHp`).
+  - Retired prototype double-dispatch from the active production submission path in `Home.razor`, routing combat mutations exclusively through the idempotent consumer.
+  - Hardened Calm Mode isolation: freezes combat presentation, suppresses combat transitions, and logs `CyberDefenseReceiptKind.CalmModeSuppressed`.
+  - Hardened HUD CSS and resolved state synchronization race conditions during rapid practice and mode switching.
+- **Crash-Safe Reset & Epoch Fencing**:
+  - Designed and implemented two-phase crash-safe Full Local Reset across separate Learner and Gameplay databases using `gameplay_reset_intent` and monotonic `reset_epoch` fencing.
+  - Remediated Learner Store (`SqliteLearnerStore.ResetLearningProgressAsync`) to advance `store_revision` monotonically across resets, eliminating ABA changeset collisions and preventing pre-reset attempt resurrection.
+- **Verification & Test Coverage**:
+  - Added 149 net automated tests across 7 new and modified test suites (expanding Core automated suite from 2,833 to 2,982 passing tests across Debug and Release configurations, 0 failed, 0 skipped, based on prior agent execution claims corroborated by package review source audit).
+  - Covered 13 test categories: migrations, pending intent recovery, consumer idempotency, missing learner evidence rejection, atomic commit rollbacks, two-phase reset crashes, epoch fencing, monotonic learner revision, Calm Mode isolation, HUD ViewModel projection, UI concurrency, non-interference, and clean builds on Windows Desktop and Android compile targets.
+  - Note: Formal exact-candidate `FULL_VALIDATION` remains pending prior to push and pull request creation.
+
 ### MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) — Candidate (Reviewed)
 
 - **User-Visible Functionality**:

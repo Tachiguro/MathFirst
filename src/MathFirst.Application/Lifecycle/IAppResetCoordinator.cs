@@ -7,4 +7,7 @@ public interface IAppResetCoordinator
 {
     Task ExecuteFullResetAsync(
         CancellationToken cancellationToken = default);
+
+    Task<bool> ReconcileStartupResetStateAsync(
+        CancellationToken cancellationToken = default);
 }

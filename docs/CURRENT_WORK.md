@@ -9,40 +9,49 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Current Program Position**: Following completion, formal validation (`MF_CYBER_002_FULL_VALIDATION_PASSED`), merge of `MF-CYBER-002` (Core Domain State Machine & Sector/Run Engine) via PR #74 (`110290308366176ef75a5e27660985a627153f02`), and post-merge synchronization (`MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`), the delivered baseline on `main` includes the pure domain combat state machine with 2,833 Core tests passing. No new gameplay implementation package is actively in flight. The current repository-writing task is post-merge project state reconciliation (`DOCUMENT_ONLY`). The next approved roadmap package is `MF-CYBER-003` (Persistent Gameplay Store and Idempotent Submission Consumer), pending separate explicit authorization.
-- **Active Package**: None in active implementation. `MF-CYBER-002` is delivered and merged. Next approved roadmap package is `MF-CYBER-003` (Persistent Gameplay Store & Idempotent Submission Consumer), awaiting explicit user authorization. Current repository activity is post-merge project state reconciliation (`DOCUMENT_ONLY`).
-- **Official Package Objective**: Implement the pure, immutable core domain state machine, exact integer sector scaling formulas, invariant-safe run and opponent state models, defeat healing, incorrect-answer counter-damage, game-over reboot with terminal snapshot preservation, and bounded property-tested simulation for Cyber Defense in `MathFirst.Domain.CyberDefense`.
+- **Current Program Position**: Following completion, formal validation (`MF_CYBER_002_FULL_VALIDATION_PASSED`), merge of `MF-CYBER-002` (Core Domain State Machine & Sector/Run Engine) via PR #74 (`110290308366176ef75a5e27660985a627153f02`), and post-merge documentation reconciliation via PR #75 (`bbcfb5d3e7c6e38f78e13456d92f55ae796e1415`), active development progressed to `MF-CYBER-003` (Persistent Gameplay Store and Idempotent Submission Consumer). Implementation is complete across six planned implementation slices and one reset safety remediation on dedicated task branch `feat/mf-cyber-003-gameplay-store`. Consolidated package review completed with verdict `MF_CYBER_003_PACKAGE_REVIEW_PASS`. Following initial documentation reconciliation (`bf3df86`), the first formal exact-candidate `FULL_VALIDATION` attempt failed (`MF_CYBER_003_FULL_VALIDATION_FAILED`) solely due to a single redundant blank line at EOF in a test file, subsequently corrected and committed at checkpoint `8b7721a` (`MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`). The current repository-writing task is documentation reconciliation following validation remediation (`DOCUMENT_ONLY`). The task branch has not been pushed to the remote repository, no GitHub Pull Request has been opened, and no merge or release has occurred. Fresh formal exact-candidate `FULL_VALIDATION` remains pending.
+- **Active Package**: `MF-CYBER-003` (Persistent Gameplay Store and Idempotent Submission Consumer).
+- **Official Package Objective**: Establish dedicated SQLite Gameplay Store (`mathfirst_gameplay.db`, Schema V1), durable receipt ledger (`CyberDefenseReceiptRecord`), pending intent lifecycle (`CyberDefensePendingIntentRecord`), idempotent committed submission consumer (`CyberDefenseSubmissionConsumer`), crash-safe full reset with epoch fencing (`GameplayResetIntentRecord`), learner store monotonic revision advancement on reset to prevent stale commit resurrection, authoritative HUD ViewModel projection (`CyberDefenseHudViewModel`), and production runtime integration (`CyberDefenseCombatCoordinator`, `Home.razor`) while retiring prototype double-dispatch and preserving mathematical domain authority and Learner Store Schema V9.
 - **Repository State & Synchronization Anchor**:
   - Live local Git and GitHub repository state always takes precedence over documentation baselines.
-  - Verified base `main`: `110290308366176ef75a5e27660985a627153f02` (PR #74 MF-CYBER-002 merge commit, tree `9887d68a8fad23b0f5942b151890b000a64fde7e`).
-  - Active task branch: `docs/mf-cyber-002-postmerge-reconciliation`.
-  - Delivered candidate: `919ee606b34212b0619e72cd094f76458caac0ca`.
-  - Feature branch status: Delivered branch `feat/mf-cyber-002-domain-state-machine` merged via PR #74; local `main` synchronized with `origin/main`; 0 open PRs.
-  - Delivered checkpoint commit sequence (10 commits: 8 implementation checkpoints + 1 separate Non-Interference remediation + 1 documentation reconciliation commit):
-    1. `830bcc81c695b58d0e42be22d0cfa78d029c6b8f` (`feat(cyber-defense): implement opponent classification and exact sector scaling (MF-CYBER-002 slice 1/8)` — `MathFirst-Checkpoint: MF-CYBER-002 1/8 sector-scaling-and-opponent-classification`).
-    2. `effc7f3d8be2d9b94311707535d65389a79721cc` (`feat(cyber-defense): implement combat tuning policy and damage scaling (MF-CYBER-002 slice 2/8)` — `MathFirst-Checkpoint: MF-CYBER-002 2/8 combat-policy-and-damage-scaling`).
-    3. `9cc2ec546d023cc6b3a27db050e44b5ed6bf9eb4` (`feat(cyber-defense): implement invariant-safe run and opponent state (MF-CYBER-002 slice 3/8)` — `MathFirst-Checkpoint: MF-CYBER-002 3/8 invariant-safe-run-and-opponent-state`).
-    4. `168e2607ecd0e39ad8758977f36ba8e408db2568` (`test(cyber): reconcile domain non-interference contracts (MF-CYBER-002)` — test-only Non-Interference contract remediation).
-    5. `13538b30feb7e88935fcfb04210c6d1e9d410423` (`feat(cyber-defense): implement normal opponent combat and progression (MF-CYBER-002 slice 4/8)` — `MathFirst-Checkpoint: MF-CYBER-002 4/8 normal-opponent-combat-and-advancement`).
-    6. `8c1664d6cc94367ae4ed980ab596c85114278fcd` (`feat(cyber-defense): implement boss combat and sector advancement (MF-CYBER-002 slice 5/8)` — `MathFirst-Checkpoint: MF-CYBER-002 5/8 boss-encounter-and-sector-progression`).
-    7. `fb707b341eba8ce93d452067f57140742dee1733` (`feat(cyber-defense): implement incorrect answer counter-damage and nonlethal transitions (MF-CYBER-002 slice 6/8)` — `MathFirst-Checkpoint: MF-CYBER-002 6/8 incorrect-answer-counter-damage`).
-    8. `970733d53662dd9895e6ee8e7932fd656f908a4e` (`feat(cyber-defense): implement fatal counter-damage, game over, and reboot (MF-CYBER-002 slice 7/8)` — `MathFirst-Checkpoint: MF-CYBER-002 7/8 lethal-damage-game-over-and-reboot`).
-    9. `48c9aef5fa60c9c3b1b33f4ce1ceeb41818a0a48` (`feat(cyber-defense): bounded deterministic simulation and domain invariant verification (MF-CYBER-002 slice 8/8)` — `MathFirst-Checkpoint: MF-CYBER-002 8/8 bounded-domain-simulation-and-invariants`).
-    10. `919ee606b34212b0619e72cd094f76458caac0ca` (`docs(cyber): reconcile project documentation for MF-CYBER-002 domain state machine` — documentation reconciliation).
-- **Completed MF-CYBER-002 Milestones**:
-  - Slice 1 Implementation: Established `OpponentKind` (`Normal`, `Boss`) and exact integer sector scaling in `CyberDefenseScalingPolicy` (normal count $G(s) = 5 + \lfloor \log_2(s) \rfloor$, boss index $G(s)$, total opponents $G(s) + 1$, normal HP $H_{\text{normal}}(s) = \text{isqrt}(s + 15) - 2$, boss HP $H_{\text{boss}}(s) = \text{isqrt}(36 \cdot (s + 15)) - 12$, using checked integer square root arithmetic).
-  - Slice 2 Implementation: Established `CyberDefenseCombatPolicy` defining player maximum HP (100), normal enemy base damage (4), boss enemy base damage (6), sector damage bonuses ($\lfloor s / 50 \rfloor$), defeat healing (Normal = 2 HP, Boss = 6 HP), and attack damage validation ($\ge 1$).
-  - Slice 3 Implementation: Implemented immutable domain entities `OpponentState` and `CyberDefenseRunState` with strict constructor validation (checked HP bounds, positive sector, valid opponent index, expected kind/max HP matching policy), value equality (`IEquatable<T>`), initial run factory (`CyberDefenseRunState.InitialRun()`), active run factory, and persistent rehydration support.
-  - Non-Interference Test Remediation: Reconciled architectural regression suite (`NonInterferenceRegressionTests.cs`) replacing broad name-based DLL restrictions with three modular contracts (Contract A: forbidden domain assembly references; Contract B: mathematical learning core isolation from Cyber Defense; Contract C: Cyber Defense domain purity) with synthetic negative fixtures, unblocking pure domain namespace `MathFirst.Domain.CyberDefense`.
-  - Slice 4 Implementation: Implemented normal opponent combat and advancement transitions in pure static `CyberDefenseStateMachine.ApplyAttempt` returning immutable `CyberDefenseCombatTransitionResult`, damage clamping, non-carryover of excess damage, and next opponent setup.
-  - Slice 5 Implementation: Implemented boss combat and sector advancement in `CyberDefenseStateMachine.ApplyAttempt`, advancing sector ($s \to s + 1$), resetting opponent index to 0, clamping defeat healing (6 HP up to 100 max HP), and guarding against arithmetic overflow with checked operations.
-  - Slice 6 Implementation: Implemented incorrect answer counter-damage, non-lethal player HP deduction, zero opponent damage, zero encounter advancement, and zero defeat healing.
-  - Slice 7 Implementation: Implemented fatal counter-damage handling when player HP reaches zero, generating immutable `CyberDefenseTerminalRunSnapshot` (preserving original defeated encounter with `PlayerCurrentHp = 0`) and rebooting active state to `CyberDefenseRunState.InitialRun()`.
-  - Slice 8 Implementation: Implemented comprehensive property-based testing and multi-sector bounded simulations (`CyberDefenseStateMachinePropertyTests`, `SectorScalingFormulaPropertyTests`) verifying monotone HP progression, zero excess damage leak, defeat healing bounds, and mathematical non-interference.
-  - Consolidated Package Review: Consolidated package review completed with verdict `MF_CYBER_002_REVIEW_APPROVED` (0 Blocker, 0 Major, 0 Minor, 1 non-blocking NIT; 0 production defects; 0 unresolved P0/P1 gaps).
-  - Documentation Reconciliation Checkpoint: Reconciled candidate documentation (`919ee606b34212b0619e72cd094f76458caac0ca`).
-  - Exact-Candidate Validation: Formal validation passed (`MF_CYBER_002_FULL_VALIDATION_PASSED` on `919ee606b34212b0619e72cd094f76458caac0ca`).
-  - GitHub PR #74 & Merge: Created and merged PR #74 (`110290308366176ef75a5e27660985a627153f02`), followed by clean post-merge sync (`MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`).
+  - Verified base `main`: `bbcfb5d3e7c6e38f78e13456d92f55ae796e1415` (PR #75 post-merge documentation reconciliation commit).
+  - Active task branch: `feat/mf-cyber-003-gameplay-store`.
+  - Historical implementation checkpoint (Slice 6): `c7272d61444d63660ac81979a8c3ab3c7447d57c`.
+  - Historical documentation reconciliation checkpoint: `bf3df86ea21e4a11bcee762da8fcd11fb45892bf`.
+  - Historical validation remediation checkpoint: `8b7721a4f334ab83e58e7f5f54500137687ede50`.
+  - Active candidate HEAD: Discovered dynamically from live Git (`git rev-parse HEAD`). The latest completed validation-remediation checkpoint is `8b7721a4f334ab83e58e7f5f54500137687ede50`; the exact active candidate HEAD must be obtained from live Git immediately before `FULL_VALIDATION`.
+  - Remote tracking status: Unpushed (branch does not exist on `origin`; verified via `git ls-remote origin feat/mf-cyber-003-gameplay-store`).
+  - GitHub Pull Request status: 0 open PRs; no PR opened for MF-CYBER-003.
+  - Historical checkpoint commit sequence through validation remediation (9 commits relative to base `main`):
+    1. `e26329dec6e4344963d2296c3a6c81530043a09d` (`feat(cyber): implement Gameplay SQLite Schema V1 and storage infrastructure (MF-CYBER-003 slice 1/6)` — `MathFirst-Checkpoint: MF-CYBER-003 1/6 Gameplay SQLite V1`).
+    2. `c186f1e07ccad488708f852c7990b5b90efdb5fb` (`feat(cyber): implement durable receipt ledger and lossless combat roundtrips (MF-CYBER-003 slice 2/6)` — `MathFirst-Checkpoint: MF-CYBER-003 2/6 Receipt Ledger`).
+    3. `2ef6534daa4a4ab5805c3d50fefbc86979a166ce` (`feat(cyber): implement idempotent consumer and pending-intent recovery (MF-CYBER-003 slice 3/6)` — `MathFirst-Checkpoint: MF-CYBER-003 3/6 Consumer and Recovery`).
+    4. `751facb51df00a578a4b7db5678c4c7fe3f6a604` (`feat(gameplay): implement crash-safe full reset and epoch fencing` — `MathFirst-Checkpoint: MF-CYBER-003 4/6 Crash-Safe Reset`).
+    5. `27e159862edf25a5ab5cae46b23941c272e28059` (`fix(learner): advance store revision monotonically across learning reset to prevent stale commit resurrection` — `MathFirst-Checkpoint: MF-CYBER-003 4/6 Reset Safety Remediation`).
+    6. `19f165c6281c56a253700103d2c9d9f6fcd80ad3` (`feat(gameplay): implement authoritative HUD ViewModel and production integration (Slice 5/6)` — `MathFirst-Checkpoint: MF-CYBER-003 5/6 Authoritative HUD Integration`).
+    7. `c7272d61444d63660ac81979a8c3ab3c7447d57c` (`feat(gameplay): implement end-to-end hardening, regression matrix, and synchronization fixes (Slice 6/6)` — `MathFirst-Checkpoint: MF-CYBER-003 6/6 End-to-End Hardening`).
+    8. `bf3df86ea21e4a11bcee762da8fcd11fb45892bf` (`docs(cyber): reconcile MF-CYBER-003 package documentation` — `MathFirst-Checkpoint: MF-CYBER-003 Documentation Reconciliation`).
+    9. `8b7721a4f334ab83e58e7f5f54500137687ede50` (`style(test): remove receipt ledger test EOF whitespace` — `MathFirst-Checkpoint: MF-CYBER-003 Validation Whitespace Remediation`).
+    *(Subsequent candidate documentation reconciliation and validation commits will advance HEAD dynamically; exact candidate HEAD is obtained from Git before formal validation).*
+- **Completed MF-CYBER-003 Milestones**:
+  - Slice 1 Implementation: Established dedicated SQLite database `mathfirst_gameplay.db` separate from Learner Store; defined Gameplay Schema V1 containing six tables: `gameplay_schema_info`, `gameplay_progression`, `gameplay_run_state`, `gameplay_receipt_ledger`, `gameplay_pending_intent`, `gameplay_reset_intent`; implemented `IGameplayStore` application contract and `SqliteGameplayStore` infrastructure implementation with fail-closed schema validation and rehydration of domain `CyberDefenseRunState`.
+  - Slice 2 Implementation: Defined immutable `CyberDefenseReceiptRecord` with strict constructor invariants and `CyberDefenseReceiptKind` (`Applied`, `CalmModeSuppressed`); implemented durable receipt ledger persistence (`RecordReceiptDirectAsync`, `GetReceiptAsync`) supporting lossless roundtrip reconstruction of `CyberDefenseCombatTransitionResult`, `CyberDefenseRunState`, and `CyberDefenseTerminalRunSnapshot` with fail-closed validation of malformed rows.
+  - Slice 3 Implementation: Implemented `CyberDefensePendingIntentRecord` staged in `gameplay_pending_intent`; added `ILearnerStore.GetCommittedAttemptEvidenceAsync` read-only verification query on `attempt_history`; implemented `CyberDefenseSubmissionConsumer` ensuring idempotent consumption; implemented `SqliteGameplayStore.ApplyAttemptTransactionAsync` executing atomic state transition, store revision advance, receipt insertion, and intent deletion in one SQLite transaction; implemented startup pending intent recovery (`RecoverPendingIntentsAsync`) ordered by `PracticePosition`.
+  - Slice 4 Implementation: Implemented crash-safe Full Local Reset with `GameplayResetIntentRecord` and epoch fencing (`reset_epoch`); configured PRAGMA `synchronous = FULL` for reset intent durability; fenced `StagePendingIntentAsync` and `ApplyAttemptTransactionAsync` against active reset markers and stale epochs; implemented crash-recoverable reset orchestration and startup reconciliation in `AppResetCoordinator`.
+  - Slice 4 Safety Remediation: Fixed learner store reset semantics in `SqliteLearnerStore.ResetLearningProgressAsync` by advancing `store_revision` monotonically across learning reset (instead of resetting to 1), preventing stale pre-reset `SubmissionChangeSet` instances from resurrecting after reset (ABA generation collision); explicitly cleared `LastEvaluation` in `TrainingSession.ResetLearningProgressAsync`.
+  - Slice 5 Implementation: Implemented immutable presentation model `CyberDefenseHudViewModel` projected from authoritative `CyberDefenseRunState` and receipts; implemented `ICyberDefenseCombatCoordinator` and `CyberDefenseCombatCoordinator` orchestrating pending intent staging, post-commit consumption, and startup recovery; registered production DI services in `MauiProgram.cs`; integrated combat coordinator in `Home.razor` with durable pending intent staging and post-commit consumption, retiring prototype double-dispatch combat authority; updated `CyberDefenseHud.razor` to present truthful player HP (100 max) and sector/opponent status; integrated HUD reset invalidation in `AppResetCoordinator`.
+  - Slice 6 Implementation: Remediated CSS title nesting (`.shield-section-title` in `CyberDefenseHud.razor.css`); resolved synchronization locking in `CyberDefenseCombatCoordinator` by decoupling mutable state locking from the async operation gate; cleaned up prototype registration and clear calls in `Home.razor`; authored comprehensive 20-scenario End-to-End Hardening Matrix (`CyberDefenseEndToEndHardeningMatrixTests.cs`, Scenarios A through T) and coordinator concurrency tests.
+  - Consolidated Package Review: Consolidated package review completed with verdict `MF_CYBER_003_PACKAGE_REVIEW_PASS` (0 confirmed BLOCKER code defects, 0 material MAJOR code defects, 4 corrected Slice 6 report descriptions, 3 nonblocking NIT observations).
+  - Documentation Reconciliation Checkpoint (`bf3df86`): Initial package documentation reconciliation committed.
+  - Initial Formal FULL_VALIDATION Attempt & Remediation (`8b7721a`): Initial exact-candidate `FULL_VALIDATION` attempt failed (`MF_CYBER_003_FULL_VALIDATION_FAILED`) solely due to a single redundant blank line at EOF in `tests/MathFirst.Core.Tests/CyberDefense/SqliteGameplayStoreReceiptLedgerTests.cs`. All functional test suites passed (2,982 Core tests in Debug/Release, warning-free Windows/Android compilation, 0 NuGet vulnerabilities, 0 broken Markdown links). The whitespace hygiene defect was remediated and committed at checkpoint `8b7721a` (`MathFirst-Checkpoint: MF-CYBER-003 Validation Whitespace Remediation`, `MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`), restoring clean `git diff --check` across the package branch.
+  - Current Lifecycle Checkpoint: Undergoing documentation reconciliation following validation remediation (`DOCUMENT_ONLY`) to eliminate stale HEAD loop and reflect validation facts.
+  - Next Planned Operations:
+    1. COMMIT_ONLY (for candidate documentation reconciliation).
+    2. FULL_VALIDATION on fresh candidate HEAD.
+    3. PUSH_ONLY (after separate user authorization).
+    4. PR_ONLY (after separate user authorization).
+    5. Manual user merge.
+    6. POST_MERGE_SYNC_ONLY.
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
   - `git status`
   - `git rev-parse HEAD`
@@ -50,43 +59,56 @@ This document provides operational context for current repository work.
   - `git log origin/main..HEAD`
   - `gh repo view Tachiguro/MathFirst`
   - `gh pr list --state open`
-- **Durable MF-CYBER-002 Technical Contracts & Invariants**:
-  1. **Pure Domain Isolation**:
-     - `MathFirst.Domain.CyberDefense` contains zero dependencies on presentation, MAUI, SQLite, or application services.
-     - Pure static state machine `CyberDefenseStateMachine.ApplyAttempt` operates on immutable states with zero side effects.
-  2. **Mathematical Non-Interference**:
-     - Math Engine retains absolute authority for arithmetic evaluation, correctness, FSRS-6 spaced repetition, curriculum scheduling, adaptive difficulty, and learning progression.
-     - Cyber Defense consumes already confirmed attempt correctness and effective attack damage.
-  3. **Immutable State Models & Value Equality**:
-     - `CyberDefenseRunState`, `OpponentState`, `CyberDefenseTerminalRunSnapshot`, and `CyberDefenseCombatTransitionResult` are immutable sealed classes implementing `IEquatable<T>` and value equality operators.
-  4. **Exact Sector Scaling & Opponent Counts**:
-     - Normal Opponent Count: $G(s) = 5 + \lfloor \log_2(s) \rfloor$.
-     - Boss Opponent Index: $G(s)$. Exactly one boss per sector.
-     - Total Opponents per Sector: $G(s) + 1$.
-     - Normal Opponent Max HP: $H_{\text{normal}}(s) = \text{isqrt}(s + 15) - 2$.
-     - Boss Opponent Max HP: $H_{\text{boss}}(s) = \text{isqrt}(36 \cdot (s + 15)) - 12$.
-  5. **Combat Tuning & Healing Invariants**:
-     - Player Maximum HP: 100. Initial run starts at Sector 1, OpponentIndex 0, Player HP 100, Normal Opponent 2/2 HP.
-     - Enemy Counter-Damage: $\text{NormalDamage}(s) = 4 + \lfloor s / 50 \rfloor$; $\text{BossDamage}(s) = 6 + \lfloor s / 50 \rfloor$.
-     - Defeat Healing: Normal = 2 HP, Boss = 6 HP. Healing is clamped and never exceeds the 100 HP maximum.
-  6. **Combat Transition Semantics**:
-     - Correct answers damage the current opponent, trigger no enemy counterattack, never carry over excess damage, and require at least one correct attack per opponent defeat.
-     - Incorrect answers trigger enemy counter-damage, do not damage the opponent, do not advance encounter/sector, and award no healing.
-  7. **Fatal Damage & Reboot Lifecycle**:
-     - Fatal damage reduces player HP to zero, captures an immutable `CyberDefenseTerminalRunSnapshot` preserving the original defeated encounter, and returns `CyberDefenseRunState.InitialRun()` as `NextState`. No invalid active run is constructed.
-  8. **Known Non-Blocking Review Observation (NIT)**:
-     - The public constructor `CyberDefenseCombatTransitionResult` accepts argument combinations without full cross-validation when invoked directly; `CyberDefenseStateMachine` generates exclusively valid transitions.
-  9. **Critical Mathematical Boundaries**:
-     - Math Engine retains absolute authority: combat never selects facts, alters difficulty, modifies correctness evaluation, alters FSRS-6 scheduling, or penalizes learning progress.
-     - Learner Store Schema V9 remains completely protected.
-- **Verification Evidence on MF-CYBER-002 Delivery & Quality State**:
-  - Core automated test suite: **2,833 passed** in Debug and Release configurations (0 failed, 0 skipped; **+443 net automated test cases** over pre-MF-CYBER-002 baseline 2,390).
-  - Test Breakdown: `CyberDefenseStateMachinePropertyTests` (49 passed), `SectorScalingFormulaPropertyTests` (60 passed), `CyberDefenseStateMachineTests` (137 passed), Predecessor policy/state invariant tests (`CyberDefenseCombatPolicyTests`, `CyberDefenseRunStateInvariantTests`, `CyberDefenseScalingPolicyTests` — 188 passed), `NonInterferenceRegressionTests` (23 passed), Broad Cyber Defense regression suite (561 passed).
-  - Android & Windows Compilation: Clean Windows Debug & Release (0 warnings, 0 errors), clean Android Debug & Release compile-only (Target `Compile`, 0 warnings, 0 errors).
-  - Security & Markdown Audit: 0 vulnerable NuGet packages (6 projects audited), 48 Markdown documents / 308 relative links / 0 broken links / 0 broken anchors.
-  - Review & Validation Verdicts: `MF_CYBER_002_REVIEW_APPROVED`, `MF_CYBER_002_FULL_VALIDATION_PASSED`, `MF_CYBER_002_PUSH_COMPLETED`, `MF_CYBER_002_PR_CREATED` (PR #74), `MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`.
-  - Candidate diff check: `git diff --check` PASS; merge tree `9887d68a8fad23b0f5942b151890b000a64fde7e` identical to candidate tree.
+- **Durable MF-CYBER-003 Technical Contracts & Invariants**:
+  1. **Dedicated Database Separation**:
+     - Gameplay Store is stored in a dedicated SQLite database file `mathfirst_gameplay.db`, strictly separate from the Learner Store (`mathfirst_learner.db`).
+  2. **Gameplay Schema V1**:
+     - Consists of 6 dedicated tables: `gameplay_schema_info`, `gameplay_progression`, `gameplay_run_state`, `gameplay_receipt_ledger`, `gameplay_pending_intent`, `gameplay_reset_intent`.
+  3. **Learner Store Schema V9 Protection**:
+     - Zero Learner Store Schema V9 DDL migrations were introduced by MF-CYBER-003. Learner store DDL and schema integrity remain preserved.
+  4. **Committed Attempt Consumer & Evidence Verification**:
+     - `CyberDefenseSubmissionConsumer` consumes committed attempts strictly after verification against authoritative read-only learner evidence (`ILearnerStore.GetCommittedAttemptEvidenceAsync`).
+  5. **Idempotence & Lossless Ledger**:
+     - Durable pending intents (`gameplay_pending_intent`) and immutable receipt ledger (`gameplay_receipt_ledger`) ensure idempotent attempt consumption and eliminate duplicate state mutations or replay leaks.
+  6. **Atomic Transactional State Updates**:
+     - `SqliteGameplayStore.ApplyAttemptTransactionAsync` updates `gameplay_run_state`, advances `gameplay_progression.store_revision`, appends to `gameplay_receipt_ledger`, and deletes the staged intent in `gameplay_pending_intent` within a single atomic SQLite transaction.
+  7. **Crash Recovery**:
+     - Startup recovery inspects lingering pending intents ordered by `PracticePosition`, checks authoritative learner attempt evidence, and safely reapplies or discards intents.
+  8. **Crash-Safe Full Local Reset & Epoch Fencing**:
+     - `gameplay_reset_intent` table and monotonic `reset_epoch` protect Full Local Reset across independent Learner and Gameplay stores; pending operations check active reset markers and epoch to fail closed against stale operations; PRAGMA `synchronous = FULL` is used for reset intent durability.
+  9. **Learner Store Monotonic Revision Advancement**:
+     - `SqliteLearnerStore.ResetLearningProgressAsync` advances `store_revision` monotonically across learning reset (instead of resetting revision to 1), preventing stale pre-reset `SubmissionChangeSet` instances from resurrecting after reset (ABA generation collision remediation).
+  10. **Authoritative HUD Projection**:
+      - `CyberDefenseHudViewModel` is projected from authoritative persistent run state (`CyberDefenseRunState`) and receipts; `Home.razor` binds directly to `CombatCoordinator.CurrentViewModel`.
+  11. **Retirement of Prototype Double-Dispatch**:
+      - Prototype in-memory dispatch (`CyberDefenseSessionState.DispatchAttempt`) and context registration in `Home.razor` retired from active production submission path.
+  12. **Calm Mode Freezing & Parity**:
+      - Calm Mode freezes combat while leaving mathematical learning operational; generates `CyberDefenseReceiptKind.CalmModeSuppressed` receipts without mutating run state.
+  13. **SQLite Pragma & Durability Policy**:
+      - Regular gameplay uses WAL mode and `synchronous = NORMAL`; reset intent uses `synchronous = FULL` for durability.
+  14. **Implemented Combat Baseline**:
+      - Player Max HP = 100; First Normal Opponent HP = 2; Initial Sector = 1; Normal Opponents in Sector 1 = 5; Sector Boss = 1 (HP = 12); Base Attack Damage = 1.
+      - Economy, skill trees, firewall, overdrive, and shop features belong to future packages and are not implemented.
+  15. **Known Non-Blocking Review Observations (NITs)**:
+      - D01: Unused legacy `PendingCombatContext` local in `Home.razor`.
+      - D02: Fire-and-forget `RefreshStateAsync` invocation on mode toggle.
+      - D03: Obsolete CSS selectors for the prototype three-shield HUD.
+- **Verification Evidence on MF-CYBER-003 Delivery & Quality State**:
+  - Core automated test suite: **2,982 passed** in Debug and Release configurations (**+149 net automated test cases** over pre-MF-CYBER-003 baseline 2,833).
+  - Prior Execution Claims & Source Audit: Reported by prior implementation agent runs and corroborated by consolidated static review audit. Initial formal FULL_VALIDATION attempt failed solely on EOF whitespace hygiene (`MF_CYBER_003_FULL_VALIDATION_FAILED`), remediated at checkpoint `8b7721a` (`MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`). Fresh formal exact-candidate `FULL_VALIDATION` remains pending.
+  - Windows & Android Compilation: Succeeded in prior implementation runs (Windows Desktop Debug/Release: 0 warnings, 0 errors; Android Target `Compile`: 0 warnings, 0 errors). No physical device validation is claimed from compile-only Android evidence.
+  - Review Verdict: `MF_CYBER_003_PACKAGE_REVIEW_PASS` (0 confirmed BLOCKER, 0 material MAJOR, 4 corrected Slice 6 report descriptions, 3 nonblocking NIT observations).
+- **Candidate Lifecycle Status Distinction**:
+  - **Implemented**: Complete across six slices and one reset safety remediation.
+  - **Reviewed**: Package review passed (`MF_CYBER_003_PACKAGE_REVIEW_PASS`).
+  - **Remediated**: Validation whitespace hygiene defect corrected and committed (`8b7721a`).
+  - **Documented**: Candidate documentation reconciliation in progress following remediation (`DOCUMENT_ONLY`).
+  - **Validated**: Pending fresh formal exact-candidate `FULL_VALIDATION` gate on active candidate HEAD.
+  - **Pushed**: Not pushed to remote.
+  - **Merged**: Not merged into `main`.
+  - **Released**: Not released; Build 4 does not exist.
 - **Prior Merged Work**:
+  - **PR #75 (MF-CYBER-002: Post-Merge Project State Reconciliation)**: Merged via PR #75 at commit `bbcfb5d3e7c6e38f78e13456d92f55ae796e1415` on 2026-10-09 (`docs(cyber): reconcile post-merge project state for MF-CYBER-002 (PR #74)`). Reconciled operational documentation following PR #74 merge.
   - **PR #74 (MF-CYBER-002: Core Domain State Machine & Sector/Run Engine)**: Merged via PR #74 at merge commit `110290308366176ef75a5e27660985a627153f02` on 2026-10-09 (`feat(cyber): MF-CYBER-002 pure domain combat state machine and sector engine`, candidate `919ee606b34212b0619e72cd094f76458caac0ca`, tree `9887d68a8fad23b0f5942b151890b000a64fde7e`). Delivered pure static combat state machine `CyberDefenseStateMachine.ApplyAttempt`, exact integer sector scaling `CyberDefenseScalingPolicy`, combat tuning policies `CyberDefenseCombatPolicy`, invariant-safe immutable models `CyberDefenseRunState`, `OpponentState`, `CyberDefenseTerminalRunSnapshot`, `CyberDefenseCombatTransitionResult`, defeat healing, counter-damage, game-over reboot with terminal snapshot preservation, modular Non-Interference regression contracts, and bounded deterministic simulation suites with 2,833 Core tests on `main`.
   - **PR #73 (MF-CYBER-001: Architectural Boundary, Calm Mode & Math Decoupling)**: Merged via PR #73 at merge commit `ef120433a06df9244066677441f22d82649fa6b7` on 2026-10-08 (`feat(cyber): MF-CYBER-001 Calm Mode and math decoupling`). Delivered user-selectable Calm Mode, layout isolation (`.calm-mode`), confirmed-attempt combat dispatch with `SubmissionId` deduplication, `PendingCombatContext` navigation safety, and mathematical non-interference regressions with 2,390 Core tests on `main`.
   - **PR #72 (Cyber Defense Roguelite GDD and Implementation Roadmap)**: Merged via PR #72 at merge commit `3d476dd2211e4bc00898bc8162ade4f22312effb` on 2026-10-08 (`docs(p7): finalize Cyber Defense roguelite GDD and implementation roadmap`).
@@ -103,8 +125,8 @@ This document provides operational context for current repository work.
   - **P1 (Normal Practice Without Deadline Failure)**: Merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`, 1,936 Core tests).
   - **P0 (Zero-Answer / `0 + 0` Core-Flow Freeze Blocker)**: Merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`, 1,917 Core tests).
 - **Downstream Scope**:
-  - **Active Sequence**: MF-CYBER-002 delivery lifecycle is complete and merged into `main`. The current repository task is dedicated post-merge documentation reconciliation (`DOCUMENT_ONLY`), while MF-CYBER-003 remains the next approved roadmap package awaiting separate explicit authorization.
-  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (Boundary & Calm Mode, Merged PR #73) $\to$ MF-CYBER-002 (Domain State Machine, Merged PR #74) $\to$ MF-CYBER-003 (Gameplay Store & Receipts, Next Approved Roadmap Package) $\to$ MF-CYBER-004 (Headless Simulator) $\to$ MF-CYBER-005 (XP Economy & Attack Tree) $\to$ MF-CYBER-006 (Firewall & Beginner Assistance) $\to$ MF-CYBER-007 (Critical Strike & Overdrive) $\to$ MF-CYBER-008 (Combat HUD & Layout Invariant) $\to$ MF-CYBER-009 (Narrative Tutorial & Copy) $\to$ MF-CYBER-010 (Simulation Matrix & Calibration).
+  - **Active Sequence**: MF-CYBER-003 implementation and package review are complete on task branch `feat/mf-cyber-003-gameplay-store`. Following candidate documentation reconciliation (`DOCUMENT_ONLY`), next steps are `COMMIT_ONLY`, formal `FULL_VALIDATION`, separate user authorization for `PUSH_ONLY` and `PR_ONLY`, followed by manual user merge and `POST_MERGE_SYNC_ONLY`.
+  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (Boundary & Calm Mode, Merged PR #73) $\to$ MF-CYBER-002 (Domain State Machine, Merged PR #74) $\to$ MF-CYBER-003 (Gameplay Store & Receipts, Active Candidate) $\to$ MF-CYBER-004 (Headless Simulator) $\to$ MF-CYBER-005 (XP Economy & Attack Tree) $\to$ MF-CYBER-006 (Firewall & Beginner Assistance) $\to$ MF-CYBER-007 (Critical Strike & Overdrive) $\to$ MF-CYBER-008 (Combat HUD & Layout Invariant) $\to$ MF-CYBER-009 (Narrative Tutorial & Copy) $\to$ MF-CYBER-010 (Simulation Matrix & Calibration).
   - Roadmap Step 55 remains **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
 
 ### 1.1 Pre-Step55 Refinement Program Sequence
@@ -195,8 +217,8 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 10. P8 (`MF-AUDIT-002`, Test-Coverage Audit & Targeted Hardening) is integrated and merged into `main` via PR #70 (`cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`).
 11. Cyber Defense Roguelite GDD and Implementation Roadmap are integrated and merged into `main` via PR #72 (`3d476dd2211e4bc00898bc8162ade4f22312effb`).
 12. MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) is integrated and merged into `main` via PR #73 (`ef120433a06df9244066677441f22d82649fa6b7`).
-13. MF-CYBER-002 (Core Domain State Machine & Sector/Run Engine) is complete, fully validated (`MF_CYBER_002_FULL_VALIDATION_PASSED`), and merged into `main` via PR #74 (`110290308366176ef75a5e27660985a627153f02`); post-merge synchronization completed (`MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`).
-14. MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) is the next approved roadmap package, awaiting explicit user authorization. Subsequent Cyber Defense roadmap packages (MF-CYBER-004 through MF-CYBER-010) follow sequentially.
+13. MF-CYBER-002 (Core Domain State Machine & Sector/Run Engine) is complete, fully validated (`MF_CYBER_002_FULL_VALIDATION_PASSED`), and merged into `main` via PR #74 (`110290308366176ef75a5e27660985a627153f02`); post-merge synchronization completed (`MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`) via PR #75 (`bbcfb5d3e7c6e38f78e13456d92f55ae796e1415`).
+14. MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) implementation, safety remediation, and package review are complete on task branch `feat/mf-cyber-003-gameplay-store` (historical implementation checkpoint `c7272d61444d63660ac81979a8c3ab3c7447d57c`, `MF_CYBER_003_PACKAGE_REVIEW_PASS`; validation whitespace remediation checkpoint `8b7721a4f334ab83e58e7f5f54500137687ede50`). Documentation reconciliation following validation remediation is in progress (`DOCUMENT_ONLY`). The exact candidate HEAD is dynamically resolved from live Git prior to validation. Fresh formal exact-candidate `FULL_VALIDATION` remains pending. Task branch is unpushed and unmerged with zero open PRs. Subsequent Cyber Defense roadmap packages (MF-CYBER-004 through MF-CYBER-010) follow sequentially.
 15. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
