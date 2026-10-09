@@ -9,7 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) — Candidate (Reviewed)
+### SQLite WAL Cold-Restart Test-Fixture Remediation — Implemented and Merged into main (Unreleased)
+
+- **Test Infrastructure & WAL Cold-Restart Determinism**:
+  - Remediated the cold-restart regression test fixture in `tests/MathFirst.Core.Tests/AdaptiveLearningPolicyFinalRegressionTests.cs` to ensure deterministic persistence snapshots under SQLite Write-Ahead Logging (`PRAGMA journal_mode=WAL`).
+  - Replaced the unsafe raw `File.Copy` snapshot assumption—which risked copying the primary `.db` file without transferring active or pending uncheckpointed WAL frames—with an explicit SQLite backup API snapshot helper (`SnapshotDatabaseAsync`, using `source.BackupDatabase(destination)`).
+  - Added dedicated WAL snapshot regression test `SqliteDatabaseSnapshot_PreservesCommittedRows_WhenSourceHasUncheckpointedWal` and hardened `SameDurableState_ProducesSameNextSelectionAfterColdRestart` to deterministically verify that cold restarts preserve committed state across active WAL configurations.
+  - Test-infrastructure hardening only; introduced zero changes to production SQLite persistence contracts, runtime behavior, or schema versions (Learner Store Schema V9 and Gameplay Store Schema V1 remain unchanged).
+  - Validated with 2,983 passing Core tests (+1 net test) in Debug and Release configurations (`MF_CYBER_003_WAL_FIX_FULL_VALIDATION_PASSED`). Merged into `main` via PR #77 at merge commit `231bd04c43534f4be6df4385df2d6a2fb3f70338` (head commit `c4d1b919fc1176907e68f680b5d943f8230205cb`). Implemented and merged into `main`, but not yet released in a published application build.
+
+### MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) — Implemented and Merged into main (Unreleased)
 
 - **Dedicated Gameplay Persistence & Idempotency (Schema V1)**:
   - Introduced dedicated SQLite gameplay database (`mathfirst_gameplay.db`) with Schema V1, isolating combat persistence from Learner Store Schema V9 (zero learner DDL migrations).
@@ -30,9 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Designed and implemented two-phase crash-safe Full Local Reset across separate Learner and Gameplay databases using `gameplay_reset_intent` and monotonic `reset_epoch` fencing.
   - Remediated Learner Store (`SqliteLearnerStore.ResetLearningProgressAsync`) to advance `store_revision` monotonically across resets, eliminating ABA changeset collisions and preventing pre-reset attempt resurrection.
 - **Verification & Test Coverage**:
-  - Added 149 net automated tests across 7 new and modified test suites (expanding Core automated suite from 2,833 to 2,982 passing tests across Debug and Release configurations, 0 failed, 0 skipped, based on prior agent execution claims corroborated by package review source audit).
+  - Added 149 net automated tests across 7 new and modified test suites (expanding Core automated suite from 2,833 to 2,982 passing tests across Debug and Release configurations, 0 failed, 0 skipped).
   - Covered 13 test categories: migrations, pending intent recovery, consumer idempotency, missing learner evidence rejection, atomic commit rollbacks, two-phase reset crashes, epoch fencing, monotonic learner revision, Calm Mode isolation, HUD ViewModel projection, UI concurrency, non-interference, and clean builds on Windows Desktop and Android compile targets.
-  - Note: Formal exact-candidate `FULL_VALIDATION` remains pending prior to push and pull request creation.
+  - Initial formal validation failed on an EOF redundant blank line (`MF_CYBER_003_FULL_VALIDATION_FAILED`), remediated at checkpoint `8b7721a4f334ab83e58e7f5f54500137687ede50` (`MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`), tracked at candidate checkpoint `b5cf736e1e894f2b6debeb94a1e93b82504f65b5`, and passed full validation (`MF_CYBER_003_FULL_VALIDATION_PASSED`). Merged into `main` via PR #76 at merge commit `8707b96959de13707aa8dea53ac09af8556d1678`. Implemented and merged into `main`, but not yet released in a published application build.
 
 ### MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) — Candidate (Reviewed)
 
