@@ -380,7 +380,7 @@ public sealed class FsrsTaskSchedulerTests : IDisposable
         Assert.Empty(postResetSnapshot.FsrsStates);
         Assert.Empty(postResetSnapshot.ItemStates);
         Assert.Empty(postResetSnapshot.RecentAttempts);
-        Assert.Equal(1, postResetSnapshot.Revision);
+        Assert.Equal(4, postResetSnapshot.Revision);
     }
 
     [Fact]

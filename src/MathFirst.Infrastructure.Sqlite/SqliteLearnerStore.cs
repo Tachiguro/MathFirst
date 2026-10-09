@@ -906,6 +906,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
         using var transaction = _connection.BeginTransaction();
         try
         {
+            var (_, revision) = await ReadSchemaInfoInTxAsync(transaction, cancellationToken).ConfigureAwait(false);
+            var nextRevision = checked(revision + 1);
+
             using var cmd = _connection.CreateCommand();
             cmd.Transaction = transaction;
             cmd.CommandText = @"
@@ -914,8 +917,9 @@ public sealed class SqliteLearnerStore : ILearnerStore
                 DELETE FROM fsrs_card_state;
                 DELETE FROM operation_progression;
                 DELETE FROM learner_progression;
-                UPDATE schema_info SET value = '1' WHERE key = 'store_revision';
+                UPDATE schema_info SET value = @value WHERE key = 'store_revision';
             ";
+            cmd.Parameters.AddWithValue("@value", nextRevision.ToString(CultureInfo.InvariantCulture));
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
             var fresh = LearnerProgression.CreateFresh();
