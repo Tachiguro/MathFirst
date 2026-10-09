@@ -928,4 +928,3 @@ public sealed class SqliteGameplayStoreReceiptLedgerTests : IDisposable
                 "sub-inv-07", (CyberDefenseReceiptKind)999, "1+1", true, true, 100, 0, DateTimeOffset.UtcNow, transition));
     }
 }
-
