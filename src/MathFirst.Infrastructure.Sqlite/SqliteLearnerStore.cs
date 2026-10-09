@@ -949,6 +949,50 @@ public sealed class SqliteLearnerStore : ILearnerStore
         }
     }
 
+    public async Task<CommittedLearnerAttemptEvidence?> GetCommittedAttemptEvidenceAsync(string submissionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        if (_connection is null)
+        {
+            return null;
+        }
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = @"
+            SELECT submission_id, fact_id, is_correct, response_latency_ms, practice_position, timestamp
+            FROM attempt_history
+            WHERE submission_id = @id;
+        ";
+        cmd.Parameters.AddWithValue("@id", submissionId);
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        string subId = reader.GetString(0);
+        string factId = reader.GetString(1);
+        bool isCorrect = reader.GetInt32(2) == 1;
+        long responseLatencyMs = reader.GetInt64(3);
+        long? practicePosition = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+        string timestampStr = reader.GetString(5);
+
+        if (!DateTimeOffset.TryParse(timestampStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp))
+        {
+            throw new InvalidOperationException($"Invalid timestamp '{timestampStr}' in attempt_history.");
+        }
+
+        return new CommittedLearnerAttemptEvidence(
+            subId, factId, isCorrect, responseLatencyMs, practicePosition, timestamp);
+    }
+
     public Task CloseAsync(CancellationToken cancellationToken = default)
     {
         lock (_lock)

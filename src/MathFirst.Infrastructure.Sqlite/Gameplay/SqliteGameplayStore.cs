@@ -791,6 +791,360 @@ public sealed class SqliteGameplayStore : IGameplayStore
         throw new InvalidOperationException($"Unsupported receipt kind '{kind}'.");
     }
 
+    public async Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var transaction = _connection!.BeginTransaction();
+        try
+        {
+            using (var selectCmd = _connection.CreateCommand())
+            {
+                selectCmd.Transaction = transaction;
+                selectCmd.CommandText = @"
+                    SELECT fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch
+                    FROM gameplay_pending_intent
+                    WHERE submission_id = @id;
+                ";
+                selectCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                using var reader = await selectCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    string factId = reader.GetString(0);
+                    bool isCorrect = reader.GetInt32(1) == 1;
+                    bool isEligible = reader.GetInt32(2) == 1;
+                    long latency = reader.GetInt64(3);
+                    long epoch = reader.GetInt64(4);
+
+                    if (!string.Equals(factId, intent.FactId, StringComparison.Ordinal) ||
+                        isCorrect != intent.IsCorrect ||
+                        isEligible != intent.IsEligible ||
+                        latency != intent.ResponseLatencyMs ||
+                        epoch != intent.ResetEpoch)
+                    {
+                        throw new InvalidOperationException(
+                            $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
+                    }
+
+                    transaction.Commit();
+                    return;
+                }
+            }
+
+            using (var insertCmd = _connection.CreateCommand())
+            {
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = @"
+                    INSERT INTO gameplay_pending_intent (
+                        submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at
+                    ) VALUES (
+                        @submission_id, @fact_id, @is_correct, @is_eligible, @response_latency_ms, @reset_epoch, @created_at
+                    );
+                ";
+                insertCmd.Parameters.AddWithValue("@submission_id", intent.SubmissionId);
+                insertCmd.Parameters.AddWithValue("@fact_id", intent.FactId);
+                insertCmd.Parameters.AddWithValue("@is_correct", intent.IsCorrect ? 1 : 0);
+                insertCmd.Parameters.AddWithValue("@is_eligible", intent.IsEligible ? 1 : 0);
+                insertCmd.Parameters.AddWithValue("@response_latency_ms", intent.ResponseLatencyMs);
+                insertCmd.Parameters.AddWithValue("@reset_epoch", intent.ResetEpoch);
+                insertCmd.Parameters.AddWithValue("@created_at", intent.CreatedAt.ToString("O"));
+                await insertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    public async Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = @"
+            SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at
+            FROM gameplay_pending_intent
+            WHERE submission_id = @id;
+        ";
+        cmd.Parameters.AddWithValue("@id", submissionId);
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return ReadPendingIntent(reader);
+    }
+
+    public async Task<IReadOnlyList<CyberDefensePendingIntentRecord>> GetPendingIntentsAsync(long resetEpoch, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(resetEpoch);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = @"
+            SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at
+            FROM gameplay_pending_intent
+            WHERE reset_epoch = @epoch
+            ORDER BY created_at ASC, submission_id ASC;
+        ";
+        cmd.Parameters.AddWithValue("@epoch", resetEpoch);
+
+        var list = new List<CyberDefensePendingIntentRecord>();
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add(ReadPendingIntent(reader));
+        }
+
+        return list;
+    }
+
+    public async Task ClearPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
+        cmd.Parameters.AddWithValue("@id", submissionId);
+        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<CyberDefenseReceiptRecord> ApplyAttemptTransactionAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var transaction = _connection!.BeginTransaction();
+        try
+        {
+            // 1. Check existing receipt in ledger
+            using (var checkCmd = _connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = @"
+                    SELECT submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                           response_latency_ms, reset_epoch, processed_at,
+                           requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                           incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                           potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                           is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                           next_player_current_hp, terminal_sector, terminal_opponent_index,
+                           terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                           terminal_player_current_hp
+                    FROM gameplay_receipt_ledger
+                    WHERE submission_id = @id;
+                ";
+                checkCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                using var receiptReader = await checkCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (await receiptReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    var existingReceipt = ReadReceiptRecord(receiptReader);
+                    receiptReader.Close();
+
+                    if (!string.Equals(existingReceipt.FactId, intent.FactId, StringComparison.Ordinal) ||
+                        existingReceipt.IsCorrect != intent.IsCorrect ||
+                        existingReceipt.IsEligible != intent.IsEligible ||
+                        existingReceipt.ResponseLatencyMs != intent.ResponseLatencyMs ||
+                        existingReceipt.ResetEpoch != intent.ResetEpoch)
+                    {
+                        throw new InvalidOperationException(
+                            $"Conflicting receipt already exists for submission '{intent.SubmissionId}'.");
+                    }
+
+                    using (var cleanPendingCmd = _connection.CreateCommand())
+                    {
+                        cleanPendingCmd.Transaction = transaction;
+                        cleanPendingCmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
+                        cleanPendingCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                        await cleanPendingCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    }
+
+                    transaction.Commit();
+                    return existingReceipt;
+                }
+            }
+
+            // 2. Validate progression reset epoch and store revision
+            long currentEpoch;
+            long currentRevision;
+            using (var progCmd = _connection.CreateCommand())
+            {
+                progCmd.Transaction = transaction;
+                progCmd.CommandText = "SELECT reset_epoch, store_revision FROM gameplay_progression WHERE id = 1;";
+                using var progReader = await progCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await progReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing progression row in 'gameplay_progression'.");
+                }
+                currentEpoch = progReader.GetInt64(0);
+                currentRevision = progReader.GetInt64(1);
+            }
+
+            if (intent.ResetEpoch != currentEpoch)
+            {
+                throw new InvalidOperationException(
+                    $"Pending intent reset epoch {intent.ResetEpoch} does not match current store reset epoch {currentEpoch}.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            CyberDefenseReceiptRecord receipt;
+
+            if (!intent.IsEligible)
+            {
+                receipt = CyberDefenseReceiptRecord.CreateCalmModeSuppressed(
+                    intent.SubmissionId,
+                    intent.FactId,
+                    intent.IsCorrect,
+                    intent.IsEligible,
+                    intent.ResponseLatencyMs,
+                    intent.ResetEpoch,
+                    now);
+
+                using (var insertReceiptCmd = _connection.CreateCommand())
+                {
+                    insertReceiptCmd.Transaction = transaction;
+                    InsertReceiptRecord(insertReceiptCmd, receipt);
+                    await insertReceiptCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                using (var deletePendingCmd = _connection.CreateCommand())
+                {
+                    deletePendingCmd.Transaction = transaction;
+                    deletePendingCmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
+                    deletePendingCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                    await deletePendingCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                transaction.Commit();
+                return receipt;
+            }
+
+            // 3. Applied Combat Attempt
+            CyberDefenseRunState currentRunState;
+            using (var runCmd = _connection.CreateCommand())
+            {
+                runCmd.Transaction = transaction;
+                runCmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp FROM gameplay_run_state WHERE id = 1;";
+                using var runReader = await runCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await runReader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing active run state row in 'gameplay_run_state'.");
+                }
+                int sector = runReader.GetInt32(0);
+                int oppIndex = runReader.GetInt32(1);
+                int oppHp = runReader.GetInt32(2);
+                int playerHp = runReader.GetInt32(3);
+                currentRunState = CyberDefenseRunState.Rehydrate(sector, oppIndex, oppHp, playerHp);
+            }
+
+            var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: 1);
+
+            using (var updateRunCmd = _connection.CreateCommand())
+            {
+                updateRunCmd.Transaction = transaction;
+                updateRunCmd.CommandText = @"
+                    UPDATE gameplay_run_state
+                    SET sector = @sector,
+                        opponent_index = @opponentIndex,
+                        opponent_current_hp = @opponentHp,
+                        player_current_hp = @playerHp,
+                        updated_at = @now
+                    WHERE id = 1;
+                ";
+                updateRunCmd.Parameters.AddWithValue("@sector", transition.NextState.Sector);
+                updateRunCmd.Parameters.AddWithValue("@opponentIndex", transition.NextState.OpponentIndex);
+                updateRunCmd.Parameters.AddWithValue("@opponentHp", transition.NextState.CurrentOpponent.CurrentHp);
+                updateRunCmd.Parameters.AddWithValue("@playerHp", transition.NextState.PlayerCurrentHp);
+                updateRunCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                await updateRunCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var newRevision = currentRevision + 1;
+            using (var updateProgCmd = _connection.CreateCommand())
+            {
+                updateProgCmd.Transaction = transaction;
+                updateProgCmd.CommandText = @"
+                    UPDATE gameplay_progression
+                    SET store_revision = @rev,
+                        updated_at = @now
+                    WHERE id = 1;
+                ";
+                updateProgCmd.Parameters.AddWithValue("@rev", newRevision);
+                updateProgCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                await updateProgCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            receipt = CyberDefenseReceiptRecord.CreateApplied(
+                intent.SubmissionId,
+                intent.FactId,
+                intent.IsCorrect,
+                intent.IsEligible,
+                intent.ResponseLatencyMs,
+                intent.ResetEpoch,
+                now,
+                transition);
+
+            using (var insertReceiptCmd = _connection.CreateCommand())
+            {
+                insertReceiptCmd.Transaction = transaction;
+                InsertReceiptRecord(insertReceiptCmd, receipt);
+                await insertReceiptCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            using (var deletePendingCmd = _connection.CreateCommand())
+            {
+                deletePendingCmd.Transaction = transaction;
+                deletePendingCmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
+                deletePendingCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                await deletePendingCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+            return receipt;
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    public static CyberDefensePendingIntentRecord ReadPendingIntent(SqliteDataReader reader)
+    {
+        string subId = reader.GetString(0);
+        string factId = reader.GetString(1);
+        bool isCorrect = reader.GetInt32(2) == 1;
+        bool isEligible = reader.GetInt32(3) == 1;
+        long latency = reader.GetInt64(4);
+        long epoch = reader.GetInt64(5);
+        string createdAtStr = reader.GetString(6);
+
+        if (!DateTimeOffset.TryParse(createdAtStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var createdAt))
+        {
+            throw new InvalidOperationException($"Invalid created_at timestamp '{createdAtStr}' in pending intent table.");
+        }
+
+        return new CyberDefensePendingIntentRecord(
+            subId, factId, isCorrect, isEligible, latency, epoch, createdAt);
+    }
+
     public Task CloseAsync(CancellationToken cancellationToken = default)
     {
         lock (_lock)
