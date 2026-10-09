@@ -9,17 +9,20 @@ This document provides operational context for current repository work.
 
 ## 1. Operational State
 
-- **Current Program Position**: Following completion, formal validation (`MF_CYBER_002_FULL_VALIDATION_PASSED`), merge of `MF-CYBER-002` (Core Domain State Machine & Sector/Run Engine) via PR #74 (`110290308366176ef75a5e27660985a627153f02`), and post-merge documentation reconciliation via PR #75 (`bbcfb5d3e7c6e38f78e13456d92f55ae796e1415`), active development progressed to `MF-CYBER-003` (Persistent Gameplay Store and Idempotent Submission Consumer). Implementation is complete across six planned implementation slices and one reset safety remediation on dedicated task branch `feat/mf-cyber-003-gameplay-store`. Consolidated package review completed with verdict `MF_CYBER_003_PACKAGE_REVIEW_PASS`. The current repository-writing task is candidate documentation reconciliation (`DOCUMENT_ONLY`). The task branch has not been pushed to the remote repository, no GitHub Pull Request has been opened, and no merge or release has occurred. Formal exact-candidate `FULL_VALIDATION` remains pending.
+- **Current Program Position**: Following completion, formal validation (`MF_CYBER_002_FULL_VALIDATION_PASSED`), merge of `MF-CYBER-002` (Core Domain State Machine & Sector/Run Engine) via PR #74 (`110290308366176ef75a5e27660985a627153f02`), and post-merge documentation reconciliation via PR #75 (`bbcfb5d3e7c6e38f78e13456d92f55ae796e1415`), active development progressed to `MF-CYBER-003` (Persistent Gameplay Store and Idempotent Submission Consumer). Implementation is complete across six planned implementation slices and one reset safety remediation on dedicated task branch `feat/mf-cyber-003-gameplay-store`. Consolidated package review completed with verdict `MF_CYBER_003_PACKAGE_REVIEW_PASS`. Following initial documentation reconciliation (`bf3df86`), the first formal exact-candidate `FULL_VALIDATION` attempt failed (`MF_CYBER_003_FULL_VALIDATION_FAILED`) solely due to a single redundant blank line at EOF in a test file, subsequently corrected and committed at checkpoint `8b7721a` (`MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`). The current repository-writing task is documentation reconciliation following validation remediation (`DOCUMENT_ONLY`). The task branch has not been pushed to the remote repository, no GitHub Pull Request has been opened, and no merge or release has occurred. Fresh formal exact-candidate `FULL_VALIDATION` remains pending.
 - **Active Package**: `MF-CYBER-003` (Persistent Gameplay Store and Idempotent Submission Consumer).
 - **Official Package Objective**: Establish dedicated SQLite Gameplay Store (`mathfirst_gameplay.db`, Schema V1), durable receipt ledger (`CyberDefenseReceiptRecord`), pending intent lifecycle (`CyberDefensePendingIntentRecord`), idempotent committed submission consumer (`CyberDefenseSubmissionConsumer`), crash-safe full reset with epoch fencing (`GameplayResetIntentRecord`), learner store monotonic revision advancement on reset to prevent stale commit resurrection, authoritative HUD ViewModel projection (`CyberDefenseHudViewModel`), and production runtime integration (`CyberDefenseCombatCoordinator`, `Home.razor`) while retiring prototype double-dispatch and preserving mathematical domain authority and Learner Store Schema V9.
 - **Repository State & Synchronization Anchor**:
   - Live local Git and GitHub repository state always takes precedence over documentation baselines.
   - Verified base `main`: `bbcfb5d3e7c6e38f78e13456d92f55ae796e1415` (PR #75 post-merge documentation reconciliation commit).
   - Active task branch: `feat/mf-cyber-003-gameplay-store`.
-  - Candidate commit HEAD: `c7272d61444d63660ac81979a8c3ab3c7447d57c`.
+  - Historical implementation checkpoint (Slice 6): `c7272d61444d63660ac81979a8c3ab3c7447d57c`.
+  - Historical documentation reconciliation checkpoint: `bf3df86ea21e4a11bcee762da8fcd11fb45892bf`.
+  - Historical validation remediation checkpoint: `8b7721a4f334ab83e58e7f5f54500137687ede50`.
+  - Active candidate HEAD: Discovered dynamically from live Git (`git rev-parse HEAD`). The latest completed validation-remediation checkpoint is `8b7721a4f334ab83e58e7f5f54500137687ede50`; the exact active candidate HEAD must be obtained from live Git immediately before `FULL_VALIDATION`.
   - Remote tracking status: Unpushed (branch does not exist on `origin`; verified via `git ls-remote origin feat/mf-cyber-003-gameplay-store`).
   - GitHub Pull Request status: 0 open PRs; no PR opened for MF-CYBER-003.
-  - Candidate checkpoint commit sequence (7 commits: 6 implementation checkpoints + 1 reset safety remediation):
+  - Historical checkpoint commit sequence through validation remediation (9 commits relative to base `main`):
     1. `e26329dec6e4344963d2296c3a6c81530043a09d` (`feat(cyber): implement Gameplay SQLite Schema V1 and storage infrastructure (MF-CYBER-003 slice 1/6)` — `MathFirst-Checkpoint: MF-CYBER-003 1/6 Gameplay SQLite V1`).
     2. `c186f1e07ccad488708f852c7990b5b90efdb5fb` (`feat(cyber): implement durable receipt ledger and lossless combat roundtrips (MF-CYBER-003 slice 2/6)` — `MathFirst-Checkpoint: MF-CYBER-003 2/6 Receipt Ledger`).
     3. `2ef6534daa4a4ab5805c3d50fefbc86979a166ce` (`feat(cyber): implement idempotent consumer and pending-intent recovery (MF-CYBER-003 slice 3/6)` — `MathFirst-Checkpoint: MF-CYBER-003 3/6 Consumer and Recovery`).
@@ -27,6 +30,9 @@ This document provides operational context for current repository work.
     5. `27e159862edf25a5ab5cae46b23941c272e28059` (`fix(learner): advance store revision monotonically across learning reset to prevent stale commit resurrection` — `MathFirst-Checkpoint: MF-CYBER-003 4/6 Reset Safety Remediation`).
     6. `19f165c6281c56a253700103d2c9d9f6fcd80ad3` (`feat(gameplay): implement authoritative HUD ViewModel and production integration (Slice 5/6)` — `MathFirst-Checkpoint: MF-CYBER-003 5/6 Authoritative HUD Integration`).
     7. `c7272d61444d63660ac81979a8c3ab3c7447d57c` (`feat(gameplay): implement end-to-end hardening, regression matrix, and synchronization fixes (Slice 6/6)` — `MathFirst-Checkpoint: MF-CYBER-003 6/6 End-to-End Hardening`).
+    8. `bf3df86ea21e4a11bcee762da8fcd11fb45892bf` (`docs(cyber): reconcile MF-CYBER-003 package documentation` — `MathFirst-Checkpoint: MF-CYBER-003 Documentation Reconciliation`).
+    9. `8b7721a4f334ab83e58e7f5f54500137687ede50` (`style(test): remove receipt ledger test EOF whitespace` — `MathFirst-Checkpoint: MF-CYBER-003 Validation Whitespace Remediation`).
+    *(Subsequent candidate documentation reconciliation and validation commits will advance HEAD dynamically; exact candidate HEAD is obtained from Git before formal validation).*
 - **Completed MF-CYBER-003 Milestones**:
   - Slice 1 Implementation: Established dedicated SQLite database `mathfirst_gameplay.db` separate from Learner Store; defined Gameplay Schema V1 containing six tables: `gameplay_schema_info`, `gameplay_progression`, `gameplay_run_state`, `gameplay_receipt_ledger`, `gameplay_pending_intent`, `gameplay_reset_intent`; implemented `IGameplayStore` application contract and `SqliteGameplayStore` infrastructure implementation with fail-closed schema validation and rehydration of domain `CyberDefenseRunState`.
   - Slice 2 Implementation: Defined immutable `CyberDefenseReceiptRecord` with strict constructor invariants and `CyberDefenseReceiptKind` (`Applied`, `CalmModeSuppressed`); implemented durable receipt ledger persistence (`RecordReceiptDirectAsync`, `GetReceiptAsync`) supporting lossless roundtrip reconstruction of `CyberDefenseCombatTransitionResult`, `CyberDefenseRunState`, and `CyberDefenseTerminalRunSnapshot` with fail-closed validation of malformed rows.
@@ -36,12 +42,14 @@ This document provides operational context for current repository work.
   - Slice 5 Implementation: Implemented immutable presentation model `CyberDefenseHudViewModel` projected from authoritative `CyberDefenseRunState` and receipts; implemented `ICyberDefenseCombatCoordinator` and `CyberDefenseCombatCoordinator` orchestrating pending intent staging, post-commit consumption, and startup recovery; registered production DI services in `MauiProgram.cs`; integrated combat coordinator in `Home.razor` with durable pending intent staging and post-commit consumption, retiring prototype double-dispatch combat authority; updated `CyberDefenseHud.razor` to present truthful player HP (100 max) and sector/opponent status; integrated HUD reset invalidation in `AppResetCoordinator`.
   - Slice 6 Implementation: Remediated CSS title nesting (`.shield-section-title` in `CyberDefenseHud.razor.css`); resolved synchronization locking in `CyberDefenseCombatCoordinator` by decoupling mutable state locking from the async operation gate; cleaned up prototype registration and clear calls in `Home.razor`; authored comprehensive 20-scenario End-to-End Hardening Matrix (`CyberDefenseEndToEndHardeningMatrixTests.cs`, Scenarios A through T) and coordinator concurrency tests.
   - Consolidated Package Review: Consolidated package review completed with verdict `MF_CYBER_003_PACKAGE_REVIEW_PASS` (0 confirmed BLOCKER code defects, 0 material MAJOR code defects, 4 corrected Slice 6 report descriptions, 3 nonblocking NIT observations).
-  - Documentation Reconciliation Checkpoint: Undergoing candidate documentation reconciliation (`DOCUMENT_ONLY`).
+  - Documentation Reconciliation Checkpoint (`bf3df86`): Initial package documentation reconciliation committed.
+  - Initial Formal FULL_VALIDATION Attempt & Remediation (`8b7721a`): Initial exact-candidate `FULL_VALIDATION` attempt failed (`MF_CYBER_003_FULL_VALIDATION_FAILED`) solely due to a single redundant blank line at EOF in `tests/MathFirst.Core.Tests/CyberDefense/SqliteGameplayStoreReceiptLedgerTests.cs`. All functional test suites passed (2,982 Core tests in Debug/Release, warning-free Windows/Android compilation, 0 NuGet vulnerabilities, 0 broken Markdown links). The whitespace hygiene defect was remediated and committed at checkpoint `8b7721a` (`MathFirst-Checkpoint: MF-CYBER-003 Validation Whitespace Remediation`, `MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`), restoring clean `git diff --check` across the package branch.
+  - Current Lifecycle Checkpoint: Undergoing documentation reconciliation following validation remediation (`DOCUMENT_ONLY`) to eliminate stale HEAD loop and reflect validation facts.
   - Next Planned Operations:
     1. COMMIT_ONLY (for candidate documentation reconciliation).
-    2. FULL_VALIDATION on final candidate HEAD.
-    3. PUSH_ONLY (after separate authorization).
-    4. PR_ONLY (after separate authorization).
+    2. FULL_VALIDATION on fresh candidate HEAD.
+    3. PUSH_ONLY (after separate user authorization).
+    4. PR_ONLY (after separate user authorization).
     5. Manual user merge.
     6. POST_MERGE_SYNC_ONLY.
 - **Live State Discovery**: Live local Git and GitHub repository state always takes precedence over documentation. The live branch HEAD commit SHA, divergence from `origin/main`, working tree status, review state, mergeability, CI/checks, and merge state must be discovered dynamically from:
@@ -87,14 +95,15 @@ This document provides operational context for current repository work.
       - D03: Obsolete CSS selectors for the prototype three-shield HUD.
 - **Verification Evidence on MF-CYBER-003 Delivery & Quality State**:
   - Core automated test suite: **2,982 passed** in Debug and Release configurations (**+149 net automated test cases** over pre-MF-CYBER-003 baseline 2,833).
-  - Prior Execution Claims & Source Audit: Reported by prior implementation agent runs and corroborated by consolidated static review audit; formal exact-candidate `FULL_VALIDATION` remains pending.
+  - Prior Execution Claims & Source Audit: Reported by prior implementation agent runs and corroborated by consolidated static review audit. Initial formal FULL_VALIDATION attempt failed solely on EOF whitespace hygiene (`MF_CYBER_003_FULL_VALIDATION_FAILED`), remediated at checkpoint `8b7721a` (`MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`). Fresh formal exact-candidate `FULL_VALIDATION` remains pending.
   - Windows & Android Compilation: Succeeded in prior implementation runs (Windows Desktop Debug/Release: 0 warnings, 0 errors; Android Target `Compile`: 0 warnings, 0 errors). No physical device validation is claimed from compile-only Android evidence.
   - Review Verdict: `MF_CYBER_003_PACKAGE_REVIEW_PASS` (0 confirmed BLOCKER, 0 material MAJOR, 4 corrected Slice 6 report descriptions, 3 nonblocking NIT observations).
 - **Candidate Lifecycle Status Distinction**:
   - **Implemented**: Complete across six slices and one reset safety remediation.
   - **Reviewed**: Package review passed (`MF_CYBER_003_PACKAGE_REVIEW_PASS`).
-  - **Documented**: Candidate documentation reconciliation in progress (`DOCUMENT_ONLY`).
-  - **Validated**: Pending formal `FULL_VALIDATION` gate on final candidate HEAD.
+  - **Remediated**: Validation whitespace hygiene defect corrected and committed (`8b7721a`).
+  - **Documented**: Candidate documentation reconciliation in progress following remediation (`DOCUMENT_ONLY`).
+  - **Validated**: Pending fresh formal exact-candidate `FULL_VALIDATION` gate on active candidate HEAD.
   - **Pushed**: Not pushed to remote.
   - **Merged**: Not merged into `main`.
   - **Released**: Not released; Build 4 does not exist.
@@ -209,7 +218,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 11. Cyber Defense Roguelite GDD and Implementation Roadmap are integrated and merged into `main` via PR #72 (`3d476dd2211e4bc00898bc8162ade4f22312effb`).
 12. MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling) is integrated and merged into `main` via PR #73 (`ef120433a06df9244066677441f22d82649fa6b7`).
 13. MF-CYBER-002 (Core Domain State Machine & Sector/Run Engine) is complete, fully validated (`MF_CYBER_002_FULL_VALIDATION_PASSED`), and merged into `main` via PR #74 (`110290308366176ef75a5e27660985a627153f02`); post-merge synchronization completed (`MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`) via PR #75 (`bbcfb5d3e7c6e38f78e13456d92f55ae796e1415`).
-14. MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) implementation and package review are complete on task branch `feat/mf-cyber-003-gameplay-store` (candidate HEAD `c7272d61444d63660ac81979a8c3ab3c7447d57c`, `MF_CYBER_003_PACKAGE_REVIEW_PASS`). Candidate documentation reconciliation is in progress (`DOCUMENT_ONLY`). Formal exact-candidate `FULL_VALIDATION` remains pending. Task branch is unpushed and unmerged with zero open PRs. Subsequent Cyber Defense roadmap packages (MF-CYBER-004 through MF-CYBER-010) follow sequentially.
+14. MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer) implementation, safety remediation, and package review are complete on task branch `feat/mf-cyber-003-gameplay-store` (historical implementation checkpoint `c7272d61444d63660ac81979a8c3ab3c7447d57c`, `MF_CYBER_003_PACKAGE_REVIEW_PASS`; validation whitespace remediation checkpoint `8b7721a4f334ab83e58e7f5f54500137687ede50`). Documentation reconciliation following validation remediation is in progress (`DOCUMENT_ONLY`). The exact candidate HEAD is dynamically resolved from live Git prior to validation. Fresh formal exact-candidate `FULL_VALIDATION` remains pending. Task branch is unpushed and unmerged with zero open PRs. Subsequent Cyber Defense roadmap packages (MF-CYBER-004 through MF-CYBER-010) follow sequentially.
 15. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
