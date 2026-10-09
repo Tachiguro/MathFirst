@@ -132,7 +132,7 @@ Repository: `Tachiguro/MathFirst`
 Canonical path: `C:\Dev\MathFirst`
 Worktrees: Exactly one normal worktree by default
 
-### Historical Reference Delivery Baseline (Snapshot as of 2026-10-07; Extended Post-PR-73 on 2026-10-08)
+### Historical Reference Delivery Baseline (Snapshot as of 2026-10-07; Extended Post-PR-73 and Post-PR-74 on 2026-10-09)
 - **Historical Testing Verification (Roadmap Steps 51–54)**:
   - Step 51: Final V1 Gap Audit passed (`STEP_51_READY_FOR_STEP_52`).
   - Step 52: Fresh Tester APK packaged and validated offline (`STEP_52_TESTER_APK_PASS`, APK SHA-256 `40e2b5e3f23e90a2dbe695db4d724e4375c5f2ef51709a801fa81cf6e06f4039`).
@@ -152,10 +152,12 @@ Worktrees: Exactly one normal worktree by default
   - P8 (MF-AUDIT-002: Test-Coverage Audit & Targeted Hardening): Delivered & Merged (PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`, 2,299 Core tests passing, +71 net automated test cases, normalized Cobertura line coverage 93.93%, branch coverage 82.43%; post-merge reconciled via PR #71 at `4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`).
   - Cyber Defense GDD & Implementation Roadmap: Delivered & Merged (PR #72 at `3d476dd2211e4bc00898bc8162ade4f22312effb`).
   - MF-CYBER-001 (Architectural Boundary, Calm Mode & Math Decoupling): Delivered & Merged (PR #73 at `ef120433a06df9244066677441f22d82649fa6b7`, 2,390 Core tests on `main`).
-  - MF-CYBER-002 (Core Domain State Machine & Sector/Run Engine): Active local candidate on `feat/mf-cyber-002-domain-state-machine` (HEAD `48c9aef5fa60c9c3b1b33f4ce1ceeb41818a0a48`, review `MF_CYBER_002_REVIEW_APPROVED`, in `DOCUMENT_ONLY` mode).
+  - MF-CYBER-002 (Core Domain State Machine & Sector/Run Engine): Delivered & Merged (PR #74 at `110290308366176ef75a5e27660985a627153f02`, validated candidate `919ee606b34212b0619e72cd094f76458caac0ca`, 2,833 Core tests passing).
+  - MF-CYBER-003 (Persistent Gameplay Store and Idempotent Submission Consumer): Next planned roadmap package (not automatically active).
   - P7: Deferred / Post-Core.
   - Step 55: Unauthorized.
 - **Delivered Pre-Step55 & Cyber Defense Packages & Merged PRs**:
+  - PR #74 (`110290308366176ef75a5e27660985a627153f02`): `feat(cyber): MF-CYBER-002 pure domain combat state machine and sector engine`
   - PR #73 (`ef120433a06df9244066677441f22d82649fa6b7`): `feat(cyber): MF-CYBER-001 Calm Mode and math decoupling`
   - PR #72 (`3d476dd2211e4bc00898bc8162ade4f22312effb`): `docs(p7): finalize Cyber Defense roguelite GDD and implementation roadmap`
   - PR #71 (`4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`): `docs: reconcile post-P8 merge state`
@@ -194,6 +196,7 @@ When initializing a new session:
 5. **Await explicit dispatch**: When no active package is established by live evidence, do not autonomously select a downstream task (such as Step 55 or a newly proposed development package). State that there is currently no active work item and await explicit dispatch.
 
 ### Historical Delivered Baseline Summary
+- **MF-CYBER-002 Core Domain State Machine & Sector/Run Engine** (PR #74, merge `110290308366176ef75a5e27660985a627153f02`, candidate `919ee606b34212b0619e72cd094f76458caac0ca`): Delivered pure, immutable core domain state machine (`CyberDefenseStateMachine.ApplyAttempt`), exact integer sector scaling (`CyberDefenseScalingPolicy`), combat tuning policies (`CyberDefenseCombatPolicy`), invariant-safe immutable models (`CyberDefenseRunState`, `OpponentState`, `CyberDefenseTerminalRunSnapshot`, `CyberDefenseCombatTransitionResult`), defeat healing, counter-damage, game-over reboot with terminal snapshot preservation, modular Non-Interference contracts, and bounded deterministic property tests and simulations (`MF_CYBER_002_FULL_VALIDATION_PASSED`, `MF_CYBER_002_POST_MERGE_SYNC_COMPLETED`, 2,833 Core tests passing in Debug and Release, +443 net automated test cases, merge tree `9887d68a8fad23b0f5942b151890b000a64fde7e`).
 - **MF-CYBER-001 Architectural Boundary, Calm Mode & Math Decoupling** (PR #73, merge `ef120433a06df9244066677441f22d82649fa6b7`, candidate `c1ff1635f40bec62d1c41bf1bd64ece93e054824`): Delivered user-selectable Calm Mode with layout isolation (`.calm-mode`), confirmed-attempt combat dispatch with `SubmissionId` deduplication, `PendingCombatContext` navigation safety, and mathematical non-interference regressions with 2,390 Core tests on `main`.
 - **Cyber Defense Roguelite GDD and Implementation Roadmap** (PR #72, merge `3d476dd2211e4bc00898bc8162ade4f22312effb`): Established authoritative GDD and 10-package roadmap for Cyber Defense execution.
 - **Post-P8 Merge State Reconciliation** (PR #71, merge `4e259e863fa95d6f30441d8ffb2eb5e7d5cfdb61`): Reconciled baseline documentation following P8 integration.
@@ -216,7 +219,7 @@ When initializing a new session:
 
 ### Downstream Roadmap Stages
 - **Pre-Step55 V1 Refinement Program**: Workstreams P0 through P6 and P8 are completed and merged; P7 remains deferred post-Core.
-- **Cyber Defense Roguelite Program**: GDD/Roadmap (PR #72) and MF-CYBER-001 (PR #73) merged; active package is MF-CYBER-002 (Domain State Machine, `MF_CYBER_002_REVIEW_APPROVED`), to be followed by MF-CYBER-003 through MF-CYBER-010.
+- **Cyber Defense Roguelite Program**: GDD/Roadmap (PR #72), MF-CYBER-001 (PR #73), and MF-CYBER-002 (PR #74) merged; MF-CYBER-003 is the next planned roadmap package (Persistent Gameplay Store and Idempotent Submission Consumer), awaiting explicit authorization. Subsequent packages MF-CYBER-004 through MF-CYBER-010 follow sequentially.
 - **Release Verification & Distribution**: Production packaging (Step 55, `versionCode >= 4`, `Distributable` profile), Step 56 smoke, Step 57 device verification, and Step 58 Google Play publication remain explicitly deferred and unauthorized until separate user authorization is granted.
 
 This historical reference baseline is operational evidence only. Live local Git and GitHub state always override it; a new session must re-verify every fact before acting.
