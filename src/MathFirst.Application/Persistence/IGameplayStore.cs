@@ -9,5 +9,6 @@ public interface IGameplayStore : IDisposable
     Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default);
     Task<long> GetResetEpochAsync(CancellationToken cancellationToken = default);
     Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default);
+    Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default);
     Task CloseAsync(CancellationToken cancellationToken = default);
 }

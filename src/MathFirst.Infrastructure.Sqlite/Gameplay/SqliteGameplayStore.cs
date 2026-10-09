@@ -471,6 +471,326 @@ public sealed class SqliteGameplayStore : IGameplayStore
         throw new InvalidOperationException("No progression row found in 'gameplay_progression'.");
     }
 
+    /// <summary>
+    /// Retrieves a stored receipt by its unique submission ID.
+    /// Returns null if no receipt exists with the specified submission ID.
+    /// </summary>
+    public async Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = @"
+            SELECT submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                   response_latency_ms, reset_epoch, processed_at,
+                   requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                   incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                   potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                   is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                   next_player_current_hp, terminal_sector, terminal_opponent_index,
+                   terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                   terminal_player_current_hp
+            FROM gameplay_receipt_ledger
+            WHERE submission_id = @submissionId;
+        ";
+        cmd.Parameters.AddWithValue("@submissionId", submissionId);
+
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return ReadReceiptRecord(reader);
+    }
+
+    /// <summary>
+    /// Narrowly scoped persistence operation for recording a validated receipt.
+    /// Note: The atomic consumer in Slice 3 will perform multi-table atomic commits
+    /// combining run state, receipt ledger, and progression revision.
+    /// </summary>
+    public async Task RecordReceiptDirectAsync(CyberDefenseReceiptRecord receipt, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var transaction = _connection!.BeginTransaction();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            InsertReceiptRecord(cmd, receipt);
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Binds an INSERT statement for the specified receipt to the provided command.
+    /// Used by multi-statement atomic transactions.
+    /// </summary>
+    public static void InsertReceiptRecord(SqliteCommand cmd, CyberDefenseReceiptRecord receipt)
+    {
+        ArgumentNullException.ThrowIfNull(cmd);
+        ArgumentNullException.ThrowIfNull(receipt);
+
+        cmd.CommandText = @"
+            INSERT INTO gameplay_receipt_ledger (
+                submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                response_latency_ms, reset_epoch, processed_at,
+                requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                next_player_current_hp, terminal_sector, terminal_opponent_index,
+                terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                terminal_player_current_hp
+            ) VALUES (
+                @submission_id, @receipt_kind, @fact_id, @is_correct, @is_eligible,
+                @response_latency_ms, @reset_epoch, @processed_at,
+                @requested_attack_damage, @applied_opponent_damage, @excess_opponent_damage,
+                @incoming_enemy_damage, @applied_player_damage, @excess_enemy_damage,
+                @potential_healing, @applied_healing, @is_opponent_defeated, @is_sector_completed,
+                @is_game_over, @next_sector, @next_opponent_index, @next_opponent_current_hp,
+                @next_player_current_hp, @terminal_sector, @terminal_opponent_index,
+                @terminal_opponent_kind, @terminal_opponent_current_hp, @terminal_opponent_max_hp,
+                @terminal_player_current_hp
+            );
+        ";
+
+        cmd.Parameters.Clear();
+        cmd.Parameters.AddWithValue("@submission_id", receipt.SubmissionId);
+        cmd.Parameters.AddWithValue("@receipt_kind", receipt.ReceiptKind.ToString());
+        cmd.Parameters.AddWithValue("@fact_id", receipt.FactId);
+        cmd.Parameters.AddWithValue("@is_correct", receipt.IsCorrect ? 1 : 0);
+        cmd.Parameters.AddWithValue("@is_eligible", receipt.IsEligible ? 1 : 0);
+        cmd.Parameters.AddWithValue("@response_latency_ms", receipt.ResponseLatencyMs);
+        cmd.Parameters.AddWithValue("@reset_epoch", receipt.ResetEpoch);
+        cmd.Parameters.AddWithValue("@processed_at", receipt.ProcessedAt.ToString("O"));
+
+        if (receipt.ReceiptKind == CyberDefenseReceiptKind.Applied)
+        {
+            var t = receipt.TransitionResult ?? throw new InvalidOperationException("Applied receipt requires non-null transition result.");
+            cmd.Parameters.AddWithValue("@requested_attack_damage", t.RequestedAttackDamage);
+            cmd.Parameters.AddWithValue("@applied_opponent_damage", t.AppliedOpponentDamage);
+            cmd.Parameters.AddWithValue("@excess_opponent_damage", t.ExcessOpponentDamage);
+            cmd.Parameters.AddWithValue("@incoming_enemy_damage", t.IncomingEnemyDamage);
+            cmd.Parameters.AddWithValue("@applied_player_damage", t.AppliedPlayerDamage);
+            cmd.Parameters.AddWithValue("@excess_enemy_damage", t.ExcessEnemyDamage);
+            cmd.Parameters.AddWithValue("@potential_healing", t.PotentialHealing);
+            cmd.Parameters.AddWithValue("@applied_healing", t.AppliedHealing);
+            cmd.Parameters.AddWithValue("@is_opponent_defeated", t.IsOpponentDefeated ? 1 : 0);
+            cmd.Parameters.AddWithValue("@is_sector_completed", t.IsSectorCompleted ? 1 : 0);
+            cmd.Parameters.AddWithValue("@is_game_over", t.IsGameOver ? 1 : 0);
+            cmd.Parameters.AddWithValue("@next_sector", t.NextState.Sector);
+            cmd.Parameters.AddWithValue("@next_opponent_index", t.NextState.OpponentIndex);
+            cmd.Parameters.AddWithValue("@next_opponent_current_hp", t.NextState.CurrentOpponent.CurrentHp);
+            cmd.Parameters.AddWithValue("@next_player_current_hp", t.NextState.PlayerCurrentHp);
+
+            if (t.IsGameOver && t.TerminalSnapshot != null)
+            {
+                cmd.Parameters.AddWithValue("@terminal_sector", t.TerminalSnapshot.Sector);
+                cmd.Parameters.AddWithValue("@terminal_opponent_index", t.TerminalSnapshot.OpponentIndex);
+                cmd.Parameters.AddWithValue("@terminal_opponent_kind", t.TerminalSnapshot.Kind.ToString());
+                cmd.Parameters.AddWithValue("@terminal_opponent_current_hp", t.TerminalSnapshot.OpponentCurrentHp);
+                cmd.Parameters.AddWithValue("@terminal_opponent_max_hp", t.TerminalSnapshot.OpponentMaxHp);
+                cmd.Parameters.AddWithValue("@terminal_player_current_hp", t.TerminalSnapshot.PlayerCurrentHp);
+            }
+            else
+            {
+                cmd.Parameters.AddWithValue("@terminal_sector", DBNull.Value);
+                cmd.Parameters.AddWithValue("@terminal_opponent_index", DBNull.Value);
+                cmd.Parameters.AddWithValue("@terminal_opponent_kind", DBNull.Value);
+                cmd.Parameters.AddWithValue("@terminal_opponent_current_hp", DBNull.Value);
+                cmd.Parameters.AddWithValue("@terminal_opponent_max_hp", DBNull.Value);
+                cmd.Parameters.AddWithValue("@terminal_player_current_hp", DBNull.Value);
+            }
+        }
+        else
+        {
+            cmd.Parameters.AddWithValue("@requested_attack_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@applied_opponent_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@excess_opponent_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@incoming_enemy_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@applied_player_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@excess_enemy_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@potential_healing", DBNull.Value);
+            cmd.Parameters.AddWithValue("@applied_healing", DBNull.Value);
+            cmd.Parameters.AddWithValue("@is_opponent_defeated", DBNull.Value);
+            cmd.Parameters.AddWithValue("@is_sector_completed", DBNull.Value);
+            cmd.Parameters.AddWithValue("@is_game_over", DBNull.Value);
+            cmd.Parameters.AddWithValue("@next_sector", DBNull.Value);
+            cmd.Parameters.AddWithValue("@next_opponent_index", DBNull.Value);
+            cmd.Parameters.AddWithValue("@next_opponent_current_hp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@next_player_current_hp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@terminal_sector", DBNull.Value);
+            cmd.Parameters.AddWithValue("@terminal_opponent_index", DBNull.Value);
+            cmd.Parameters.AddWithValue("@terminal_opponent_kind", DBNull.Value);
+            cmd.Parameters.AddWithValue("@terminal_opponent_current_hp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@terminal_opponent_max_hp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@terminal_player_current_hp", DBNull.Value);
+        }
+    }
+
+    /// <summary>
+    /// Rehydrates an immutable receipt record from a reader query on gameplay_receipt_ledger.
+    /// </summary>
+    public static CyberDefenseReceiptRecord ReadReceiptRecord(SqliteDataReader reader)
+    {
+        string subId = reader.GetString(0);
+        string kindStr = reader.GetString(1);
+        string factId = reader.GetString(2);
+        bool isCorrect = reader.GetInt32(3) == 1;
+        bool isEligible = reader.GetInt32(4) == 1;
+        long responseLatencyMs = reader.GetInt64(5);
+        long resetEpoch = reader.GetInt64(6);
+        string processedAtStr = reader.GetString(7);
+
+        if (!DateTimeOffset.TryParse(processedAtStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var processedAt))
+        {
+            throw new InvalidOperationException($"Invalid processed_at timestamp '{processedAtStr}' in receipt ledger.");
+        }
+
+        if (!Enum.TryParse<CyberDefenseReceiptKind>(kindStr, ignoreCase: false, out var kind))
+        {
+            throw new InvalidOperationException($"Invalid receipt_kind '{kindStr}' in receipt ledger.");
+        }
+
+        if (kind == CyberDefenseReceiptKind.CalmModeSuppressed)
+        {
+            for (int i = 8; i <= 28; i++)
+            {
+                if (!reader.IsDBNull(i))
+                {
+                    throw new InvalidOperationException($"CalmModeSuppressed receipt row contains non-null combat transition column at index {i}.");
+                }
+            }
+
+            return CyberDefenseReceiptRecord.CreateCalmModeSuppressed(
+                subId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, processedAt);
+        }
+
+        if (kind == CyberDefenseReceiptKind.Applied)
+        {
+            for (int i = 8; i <= 22; i++)
+            {
+                if (reader.IsDBNull(i))
+                {
+                    throw new InvalidOperationException($"Applied receipt row contains null combat transition column at index {i}.");
+                }
+            }
+
+            int requestedAttackDamage = reader.GetInt32(8);
+            int appliedOpponentDamage = reader.GetInt32(9);
+            int excessOpponentDamage = reader.GetInt32(10);
+            int incomingEnemyDamage = reader.GetInt32(11);
+            int appliedPlayerDamage = reader.GetInt32(12);
+            int excessEnemyDamage = reader.GetInt32(13);
+            int potentialHealing = reader.GetInt32(14);
+            int appliedHealing = reader.GetInt32(15);
+            bool isOpponentDefeated = reader.GetInt32(16) == 1;
+            bool isSectorCompleted = reader.GetInt32(17) == 1;
+            bool isGameOver = reader.GetInt32(18) == 1;
+            int nextSector = reader.GetInt32(19);
+            int nextOpponentIndex = reader.GetInt32(20);
+            int nextOpponentCurrentHp = reader.GetInt32(21);
+            int nextPlayerCurrentHp = reader.GetInt32(22);
+
+            CyberDefenseRunState nextState;
+            try
+            {
+                nextState = CyberDefenseRunState.Rehydrate(nextSector, nextOpponentIndex, nextOpponentCurrentHp, nextPlayerCurrentHp);
+            }
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
+            {
+                throw new InvalidOperationException($"Invalid domain next state in receipt ledger: {ex.Message}", ex);
+            }
+
+            CyberDefenseTerminalRunSnapshot? terminalSnapshot = null;
+            if (isGameOver)
+            {
+                for (int i = 23; i <= 28; i++)
+                {
+                    if (reader.IsDBNull(i))
+                    {
+                        throw new InvalidOperationException($"Game-over receipt row contains null terminal column at index {i}.");
+                    }
+                }
+
+                int termSector = reader.GetInt32(23);
+                int termOppIndex = reader.GetInt32(24);
+                string termKindStr = reader.GetString(25);
+                int termOppCurrentHp = reader.GetInt32(26);
+                int termOppMaxHp = reader.GetInt32(27);
+                int termPlayerHp = reader.GetInt32(28);
+
+                if (!Enum.TryParse<OpponentKind>(termKindStr, ignoreCase: false, out var termKind))
+                {
+                    throw new InvalidOperationException($"Invalid terminal_opponent_kind '{termKindStr}' in receipt ledger.");
+                }
+
+                try
+                {
+                    terminalSnapshot = new CyberDefenseTerminalRunSnapshot(
+                        termSector, termOppIndex, termKind, termOppCurrentHp, termOppMaxHp, termPlayerHp);
+                }
+                catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
+                {
+                    throw new InvalidOperationException($"Invalid terminal snapshot in receipt ledger: {ex.Message}", ex);
+                }
+            }
+            else
+            {
+                for (int i = 23; i <= 28; i++)
+                {
+                    if (!reader.IsDBNull(i))
+                    {
+                        throw new InvalidOperationException($"Non-game-over receipt row contains non-null terminal column at index {i}.");
+                    }
+                }
+            }
+
+            CyberDefenseCombatTransitionResult transitionResult;
+            try
+            {
+                transitionResult = new CyberDefenseCombatTransitionResult(
+                    isCorrect,
+                    requestedAttackDamage,
+                    appliedOpponentDamage,
+                    excessOpponentDamage,
+                    incomingEnemyDamage,
+                    appliedPlayerDamage,
+                    excessEnemyDamage,
+                    potentialHealing,
+                    appliedHealing,
+                    isOpponentDefeated,
+                    isSectorCompleted,
+                    isGameOver,
+                    nextState,
+                    terminalSnapshot);
+            }
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
+            {
+                throw new InvalidOperationException($"Invalid combat transition result in receipt ledger: {ex.Message}", ex);
+            }
+
+            return CyberDefenseReceiptRecord.CreateApplied(
+                subId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, processedAt, transitionResult);
+        }
+
+        throw new InvalidOperationException($"Unsupported receipt kind '{kind}'.");
+    }
+
     public Task CloseAsync(CancellationToken cancellationToken = default)
     {
         lock (_lock)
