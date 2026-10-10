@@ -91,8 +91,19 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
         int opponentCurrentHp,
         int playerCurrentHp)
     {
+        return Rehydrate(sector, opponentIndex, opponentCurrentHp, playerCurrentHp, 0);
+    }
+
+    public static CyberDefenseRunState Rehydrate(
+        int sector,
+        int opponentIndex,
+        int opponentCurrentHp,
+        int playerCurrentHp,
+        int opponentExecutedAttacks)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(sector, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(opponentIndex);
+        ArgumentOutOfRangeException.ThrowIfNegative(opponentExecutedAttacks);
 
         int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
         if (opponentIndex > bossIndex)
@@ -124,7 +135,7 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
                 $"Player current HP ({playerCurrentHp}) cannot exceed max HP ({CyberDefenseCombatPolicy.PlayerMaxHp}).");
         }
 
-        var opponent = new OpponentState(kind, maxHp, opponentCurrentHp);
+        var opponent = new OpponentState(kind, maxHp, opponentCurrentHp, opponentExecutedAttacks);
 
         return new CyberDefenseRunState(
             sector,

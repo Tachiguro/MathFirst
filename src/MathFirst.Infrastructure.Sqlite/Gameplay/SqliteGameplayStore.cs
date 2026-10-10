@@ -13,7 +13,8 @@ using Microsoft.Data.Sqlite;
 public sealed class SqliteGameplayStore : IGameplayStore
 {
     public const string DefaultDatabaseFileName = "mathfirst_gameplay.db";
-    public const int DefaultSchemaVersion = 1;
+    public const int DefaultSchemaVersion = 2;
+    public const string DefaultEconomyVersion = "ECONOMY_V1";
 
     private readonly string _connectionString;
     private readonly string _storagePath;
@@ -21,7 +22,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private bool _isInitialized;
     private readonly object _lock = new();
 
-    private const string SchemaV1Ddl = @"
+    private const string SchemaV2Ddl = @"
         CREATE TABLE gameplay_schema_info (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -31,7 +32,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
             id INTEGER PRIMARY KEY CHECK (id = 1),
             store_revision INTEGER NOT NULL CHECK (store_revision >= 1),
             reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
-            updated_at TEXT NOT NULL
+            cumulative_xp INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_xp >= 0),
+            player_level INTEGER NOT NULL DEFAULT 1 CHECK (player_level >= 1),
+            earned_sp INTEGER NOT NULL DEFAULT 0 CHECK (earned_sp >= 0),
+            spent_sp INTEGER NOT NULL DEFAULT 0 CHECK (spent_sp >= 0),
+            available_sp INTEGER NOT NULL DEFAULT 0 CHECK (available_sp >= 0),
+            attack_rank INTEGER NOT NULL DEFAULT 0 CHECK (attack_rank >= 0),
+            economy_version TEXT NOT NULL DEFAULT 'ECONOMY_V1',
+            updated_at TEXT NOT NULL,
+            CHECK (earned_sp = spent_sp + available_sp)
         );
 
         CREATE TABLE gameplay_run_state (
@@ -40,6 +49,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             opponent_index INTEGER NOT NULL CHECK (opponent_index >= 0),
             opponent_current_hp INTEGER NOT NULL CHECK (opponent_current_hp >= 1),
             player_current_hp INTEGER NOT NULL CHECK (player_current_hp >= 1 AND player_current_hp <= 100),
+            opponent_executed_attacks INTEGER NOT NULL DEFAULT 0 CHECK (opponent_executed_attacks >= 0),
             reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
             updated_at TEXT NOT NULL
         );
@@ -74,6 +84,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
             terminal_opponent_current_hp INTEGER CHECK (terminal_opponent_current_hp IS NULL OR terminal_opponent_current_hp >= 1),
             terminal_opponent_max_hp INTEGER CHECK (terminal_opponent_max_hp IS NULL OR terminal_opponent_max_hp >= 1),
             terminal_player_current_hp INTEGER CHECK (terminal_player_current_hp IS NULL OR terminal_player_current_hp = 0),
+            next_opponent_executed_attacks INTEGER CHECK (next_opponent_executed_attacks IS NULL OR next_opponent_executed_attacks >= 0),
+            executed_attacks_on_defeated_opponent INTEGER CHECK (executed_attacks_on_defeated_opponent IS NULL OR executed_attacks_on_defeated_opponent >= 1),
+            awarded_xp INTEGER CHECK (awarded_xp IS NULL OR awarded_xp >= 0),
+            player_level_after INTEGER CHECK (player_level_after IS NULL OR player_level_after >= 1),
+            cumulative_xp_after INTEGER CHECK (cumulative_xp_after IS NULL OR cumulative_xp_after >= 0),
             CHECK (
                 (receipt_kind = 'CalmModeSuppressed' AND
                  requested_attack_damage IS NULL AND
@@ -96,7 +111,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                  terminal_opponent_kind IS NULL AND
                  terminal_opponent_current_hp IS NULL AND
                  terminal_opponent_max_hp IS NULL AND
-                 terminal_player_current_hp IS NULL)
+                 terminal_player_current_hp IS NULL AND
+                 next_opponent_executed_attacks IS NULL AND
+                 executed_attacks_on_defeated_opponent IS NULL)
                 OR
                 (receipt_kind = 'Applied' AND
                  requested_attack_damage IS NOT NULL AND
@@ -128,7 +145,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                    terminal_opponent_kind IS NOT NULL AND
                    terminal_opponent_current_hp IS NOT NULL AND
                    terminal_opponent_max_hp IS NOT NULL AND
-                   terminal_player_current_hp = 0)))
+                   terminal_player_current_hp = 0)) AND
+                 (is_opponent_defeated = 1 OR executed_attacks_on_defeated_opponent IS NULL))
             )
         );
 
@@ -258,7 +276,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             using (var ddlCmd = connection.CreateCommand())
             {
                 ddlCmd.Transaction = transaction;
-                ddlCmd.CommandText = SchemaV1Ddl;
+                ddlCmd.CommandText = SchemaV2Ddl;
                 await ddlCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -269,15 +287,21 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 seedCmd.Transaction = transaction;
                 seedCmd.CommandText = @"
-                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '1');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '2');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('store_revision', '1');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('reset_epoch', '0');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
 
-                    INSERT INTO gameplay_progression (id, store_revision, reset_epoch, updated_at)
-                    VALUES (1, 1, 0, @now);
+                    INSERT INTO gameplay_progression (
+                        id, store_revision, reset_epoch,
+                        cumulative_xp, player_level, earned_sp, spent_sp, available_sp, attack_rank,
+                        economy_version, updated_at
+                    ) VALUES (1, 1, 0, 0, 1, 0, 0, 0, 0, 'ECONOMY_V1', @now);
 
-                    INSERT INTO gameplay_run_state (id, sector, opponent_index, opponent_current_hp, player_current_hp, reset_epoch, updated_at)
-                    VALUES (1, @sector, @opponentIndex, @opponentHp, @playerHp, 0, @now);
+                    INSERT INTO gameplay_run_state (
+                        id, sector, opponent_index, opponent_current_hp, player_current_hp,
+                        opponent_executed_attacks, reset_epoch, updated_at
+                    ) VALUES (1, @sector, @opponentIndex, @opponentHp, @playerHp, 0, 0, @now);
 
                     INSERT INTO gameplay_reset_intent (id, is_pending, current_epoch, target_epoch, created_at, updated_at)
                     VALUES (1, 0, 0, 0, NULL, @now);
@@ -303,8 +327,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
     {
         if (!existingTables.Contains("gameplay_schema_info"))
         {
-            throw new InvalidOperationException(
-                "Existing database is missing required 'gameplay_schema_info' metadata table.");
+            throw new InvalidOperationException("Existing database is incomplete: missing table 'gameplay_schema_info'.");
         }
 
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -331,10 +354,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 $"Unsupported database schema version {version}. Maximum supported version is {DefaultSchemaVersion}.");
         }
 
-        if (version < DefaultSchemaVersion)
+        if (version < 1)
         {
             throw new InvalidOperationException(
-                $"Invalid database schema version {version}. Supported version is {DefaultSchemaVersion}.");
+                $"Invalid database schema version {version}. Supported versions are 1 to {DefaultSchemaVersion}.");
         }
 
         var requiredTables = new[]
@@ -356,9 +379,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
         }
 
+        if (version == 1)
+        {
+            await MigrateV1ToV2Async(connection, cancellationToken).ConfigureAwait(false);
+        }
+
         using (var runCmd = connection.CreateCommand())
         {
-            runCmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp FROM gameplay_run_state WHERE id = 1;";
+            runCmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp, opponent_executed_attacks FROM gameplay_run_state WHERE id = 1;";
             using var reader = await runCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -369,10 +397,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
             int opponentIndex = reader.GetInt32(1);
             int opponentHp = reader.GetInt32(2);
             int playerHp = reader.GetInt32(3);
+            int opponentExecutedAttacks = reader.GetInt32(4);
 
             try
             {
-                CyberDefenseRunState.Rehydrate(sector, opponentIndex, opponentHp, playerHp);
+                CyberDefenseRunState.Rehydrate(sector, opponentIndex, opponentHp, playerHp, opponentExecutedAttacks);
             }
             catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
             {
@@ -382,7 +411,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
         using (var progCmd = connection.CreateCommand())
         {
-            progCmd.CommandText = "SELECT store_revision, reset_epoch FROM gameplay_progression WHERE id = 1;";
+            progCmd.CommandText = "SELECT store_revision, reset_epoch, cumulative_xp, player_level, earned_sp, spent_sp, available_sp, attack_rank, economy_version FROM gameplay_progression WHERE id = 1;";
             using var reader = await progCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -391,9 +420,19 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
             long storeRevision = reader.GetInt64(0);
             long resetEpoch = reader.GetInt64(1);
-            if (storeRevision < 1 || resetEpoch < 0)
+            long cumulativeXp = reader.GetInt64(2);
+            int playerLevel = reader.GetInt32(3);
+            int earnedSp = reader.GetInt32(4);
+            int spentSp = reader.GetInt32(5);
+            int availableSp = reader.GetInt32(6);
+            int attackRank = reader.GetInt32(7);
+            string economyVersion = reader.GetString(8);
+
+            if (storeRevision < 1 || resetEpoch < 0 || cumulativeXp < 0 || playerLevel < 1 ||
+                earnedSp < 0 || spentSp < 0 || availableSp < 0 || attackRank < 0 ||
+                string.IsNullOrEmpty(economyVersion) || earnedSp != checked(spentSp + availableSp))
             {
-                throw new InvalidOperationException("Existing database has invalid progression revision or epoch.");
+                throw new InvalidOperationException("Existing database has invalid progression row.");
             }
         }
 
@@ -405,6 +444,236 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 throw new InvalidOperationException("Existing database is missing row in 'gameplay_reset_intent'.");
             }
+        }
+    }
+
+    private static async Task MigrateV1ToV2Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 1. Rebuild gameplay_progression table
+            using (var progCmd = connection.CreateCommand())
+            {
+                progCmd.Transaction = transaction;
+                progCmd.CommandText = @"
+                    CREATE TABLE gameplay_progression_v2 (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        store_revision INTEGER NOT NULL CHECK (store_revision >= 1),
+                        reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+                        cumulative_xp INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_xp >= 0),
+                        player_level INTEGER NOT NULL DEFAULT 1 CHECK (player_level >= 1),
+                        earned_sp INTEGER NOT NULL DEFAULT 0 CHECK (earned_sp >= 0),
+                        spent_sp INTEGER NOT NULL DEFAULT 0 CHECK (spent_sp >= 0),
+                        available_sp INTEGER NOT NULL DEFAULT 0 CHECK (available_sp >= 0),
+                        attack_rank INTEGER NOT NULL DEFAULT 0 CHECK (attack_rank >= 0),
+                        economy_version TEXT NOT NULL DEFAULT 'ECONOMY_V1',
+                        updated_at TEXT NOT NULL,
+                        CHECK (earned_sp = spent_sp + available_sp)
+                    );
+
+                    INSERT INTO gameplay_progression_v2 (
+                        id, store_revision, reset_epoch,
+                        cumulative_xp, player_level, earned_sp, spent_sp, available_sp, attack_rank,
+                        economy_version, updated_at
+                    )
+                    SELECT
+                        id, store_revision, reset_epoch,
+                        0, 1, 0, 0, 0, 0,
+                        'ECONOMY_V1', updated_at
+                    FROM gameplay_progression;
+
+                    DROP TABLE gameplay_progression;
+                    ALTER TABLE gameplay_progression_v2 RENAME TO gameplay_progression;
+                ";
+                await progCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 2. Rebuild gameplay_run_state table
+            using (var runCmd = connection.CreateCommand())
+            {
+                runCmd.Transaction = transaction;
+                runCmd.CommandText = @"
+                    CREATE TABLE gameplay_run_state_v2 (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        sector INTEGER NOT NULL CHECK (sector >= 1),
+                        opponent_index INTEGER NOT NULL CHECK (opponent_index >= 0),
+                        opponent_current_hp INTEGER NOT NULL CHECK (opponent_current_hp >= 1),
+                        player_current_hp INTEGER NOT NULL CHECK (player_current_hp >= 1 AND player_current_hp <= 100),
+                        opponent_executed_attacks INTEGER NOT NULL DEFAULT 0 CHECK (opponent_executed_attacks >= 0),
+                        reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+                        updated_at TEXT NOT NULL
+                    );
+
+                    INSERT INTO gameplay_run_state_v2 (
+                        id, sector, opponent_index, opponent_current_hp, player_current_hp,
+                        opponent_executed_attacks, reset_epoch, updated_at
+                    )
+                    SELECT
+                        id, sector, opponent_index, opponent_current_hp, player_current_hp,
+                        0, reset_epoch, updated_at
+                    FROM gameplay_run_state;
+
+                    DROP TABLE gameplay_run_state;
+                    ALTER TABLE gameplay_run_state_v2 RENAME TO gameplay_run_state;
+                ";
+                await runCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 3. Rebuild gameplay_receipt_ledger table
+            using (var receiptCmd = connection.CreateCommand())
+            {
+                receiptCmd.Transaction = transaction;
+                receiptCmd.CommandText = @"
+                    CREATE TABLE gameplay_receipt_ledger_v2 (
+                        submission_id TEXT PRIMARY KEY CHECK (length(submission_id) > 0),
+                        receipt_kind TEXT NOT NULL CHECK (receipt_kind IN ('Applied', 'CalmModeSuppressed')),
+                        fact_id TEXT NOT NULL,
+                        is_correct INTEGER NOT NULL CHECK (is_correct IN (0, 1)),
+                        is_eligible INTEGER NOT NULL CHECK (is_eligible IN (0, 1)),
+                        response_latency_ms INTEGER NOT NULL CHECK (response_latency_ms >= 0),
+                        reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+                        processed_at TEXT NOT NULL,
+                        requested_attack_damage INTEGER CHECK (requested_attack_damage IS NULL OR requested_attack_damage >= 0),
+                        applied_opponent_damage INTEGER CHECK (applied_opponent_damage IS NULL OR applied_opponent_damage >= 0),
+                        excess_opponent_damage INTEGER CHECK (excess_opponent_damage IS NULL OR excess_opponent_damage >= 0),
+                        incoming_enemy_damage INTEGER CHECK (incoming_enemy_damage IS NULL OR incoming_enemy_damage >= 0),
+                        applied_player_damage INTEGER CHECK (applied_player_damage IS NULL OR applied_player_damage >= 0),
+                        excess_enemy_damage INTEGER CHECK (excess_enemy_damage IS NULL OR excess_enemy_damage >= 0),
+                        potential_healing INTEGER CHECK (potential_healing IS NULL OR potential_healing >= 0),
+                        applied_healing INTEGER CHECK (applied_healing IS NULL OR applied_healing >= 0),
+                        is_opponent_defeated INTEGER CHECK (is_opponent_defeated IS NULL OR is_opponent_defeated IN (0, 1)),
+                        is_sector_completed INTEGER CHECK (is_sector_completed IS NULL OR is_sector_completed IN (0, 1)),
+                        is_game_over INTEGER CHECK (is_game_over IS NULL OR is_game_over IN (0, 1)),
+                        next_sector INTEGER CHECK (next_sector IS NULL OR next_sector >= 1),
+                        next_opponent_index INTEGER CHECK (next_opponent_index IS NULL OR next_opponent_index >= 0),
+                        next_opponent_current_hp INTEGER CHECK (next_opponent_current_hp IS NULL OR next_opponent_current_hp >= 1),
+                        next_player_current_hp INTEGER CHECK (next_player_current_hp IS NULL OR (next_player_current_hp >= 1 AND next_player_current_hp <= 100)),
+                        terminal_sector INTEGER CHECK (terminal_sector IS NULL OR terminal_sector >= 1),
+                        terminal_opponent_index INTEGER CHECK (terminal_opponent_index IS NULL OR terminal_opponent_index >= 0),
+                        terminal_opponent_kind TEXT CHECK (terminal_opponent_kind IS NULL OR terminal_opponent_kind IN ('Normal', 'Boss')),
+                        terminal_opponent_current_hp INTEGER CHECK (terminal_opponent_current_hp IS NULL OR terminal_opponent_current_hp >= 1),
+                        terminal_opponent_max_hp INTEGER CHECK (terminal_opponent_max_hp IS NULL OR terminal_opponent_max_hp >= 1),
+                        terminal_player_current_hp INTEGER CHECK (terminal_player_current_hp IS NULL OR terminal_player_current_hp = 0),
+                        next_opponent_executed_attacks INTEGER CHECK (next_opponent_executed_attacks IS NULL OR next_opponent_executed_attacks >= 0),
+                        executed_attacks_on_defeated_opponent INTEGER CHECK (executed_attacks_on_defeated_opponent IS NULL OR executed_attacks_on_defeated_opponent >= 1),
+                        awarded_xp INTEGER CHECK (awarded_xp IS NULL OR awarded_xp >= 0),
+                        player_level_after INTEGER CHECK (player_level_after IS NULL OR player_level_after >= 1),
+                        cumulative_xp_after INTEGER CHECK (cumulative_xp_after IS NULL OR cumulative_xp_after >= 0),
+                        CHECK (
+                            (receipt_kind = 'CalmModeSuppressed' AND
+                             requested_attack_damage IS NULL AND
+                             applied_opponent_damage IS NULL AND
+                             excess_opponent_damage IS NULL AND
+                             incoming_enemy_damage IS NULL AND
+                             applied_player_damage IS NULL AND
+                             excess_enemy_damage IS NULL AND
+                             potential_healing IS NULL AND
+                             applied_healing IS NULL AND
+                             is_opponent_defeated IS NULL AND
+                             is_sector_completed IS NULL AND
+                             is_game_over IS NULL AND
+                             next_sector IS NULL AND
+                             next_opponent_index IS NULL AND
+                             next_opponent_current_hp IS NULL AND
+                             next_player_current_hp IS NULL AND
+                             terminal_sector IS NULL AND
+                             terminal_opponent_index IS NULL AND
+                             terminal_opponent_kind IS NULL AND
+                             terminal_opponent_current_hp IS NULL AND
+                             terminal_opponent_max_hp IS NULL AND
+                             terminal_player_current_hp IS NULL AND
+                             next_opponent_executed_attacks IS NULL AND
+                             executed_attacks_on_defeated_opponent IS NULL)
+                            OR
+                            (receipt_kind = 'Applied' AND
+                             requested_attack_damage IS NOT NULL AND
+                             applied_opponent_damage IS NOT NULL AND
+                             excess_opponent_damage IS NOT NULL AND
+                             incoming_enemy_damage IS NOT NULL AND
+                             applied_player_damage IS NOT NULL AND
+                             excess_enemy_damage IS NOT NULL AND
+                             potential_healing IS NOT NULL AND
+                             applied_healing IS NOT NULL AND
+                             is_opponent_defeated IS NOT NULL AND
+                             is_sector_completed IS NOT NULL AND
+                             is_game_over IS NOT NULL AND
+                             next_sector IS NOT NULL AND
+                             next_opponent_index IS NOT NULL AND
+                             next_opponent_current_hp IS NOT NULL AND
+                             next_player_current_hp IS NOT NULL AND
+                             ((is_game_over = 0 AND
+                               terminal_sector IS NULL AND
+                               terminal_opponent_index IS NULL AND
+                               terminal_opponent_kind IS NULL AND
+                               terminal_opponent_current_hp IS NULL AND
+                               terminal_opponent_max_hp IS NULL AND
+                               terminal_player_current_hp IS NULL)
+                              OR
+                              (is_game_over = 1 AND
+                               terminal_sector IS NOT NULL AND
+                               terminal_opponent_index IS NOT NULL AND
+                               terminal_opponent_kind IS NOT NULL AND
+                               terminal_opponent_current_hp IS NOT NULL AND
+                               terminal_opponent_max_hp IS NOT NULL AND
+                               terminal_player_current_hp = 0)) AND
+                             (is_opponent_defeated = 1 OR executed_attacks_on_defeated_opponent IS NULL))
+                        )
+                    );
+
+                    INSERT INTO gameplay_receipt_ledger_v2 (
+                        submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                        response_latency_ms, reset_epoch, processed_at,
+                        requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                        incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                        potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                        is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                        next_player_current_hp, terminal_sector, terminal_opponent_index,
+                        terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                        terminal_player_current_hp,
+                        next_opponent_executed_attacks, executed_attacks_on_defeated_opponent,
+                        awarded_xp, player_level_after, cumulative_xp_after
+                    )
+                    SELECT
+                        submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                        response_latency_ms, reset_epoch, processed_at,
+                        requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                        incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                        potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                        is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                        next_player_current_hp, terminal_sector, terminal_opponent_index,
+                        terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                        terminal_player_current_hp,
+                        NULL, NULL,
+                        NULL, NULL, NULL
+                    FROM gameplay_receipt_ledger;
+
+                    DROP TABLE gameplay_receipt_ledger;
+                    ALTER TABLE gameplay_receipt_ledger_v2 RENAME TO gameplay_receipt_ledger;
+
+                    CREATE INDEX IF NOT EXISTS ix_gameplay_receipt_ledger_epoch_processed
+                        ON gameplay_receipt_ledger(reset_epoch, processed_at);
+                ";
+                await receiptCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 4. Update schema info to version 2
+            using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = @"
+                    UPDATE gameplay_schema_info SET value = '2' WHERE key = 'schema_version';
+                    INSERT OR REPLACE INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
+                ";
+                await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
         }
     }
 
@@ -426,7 +695,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
         using var cmd = _connection!.CreateCommand();
-        cmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp FROM gameplay_run_state WHERE id = 1;";
+        cmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp, opponent_executed_attacks FROM gameplay_run_state WHERE id = 1;";
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -434,8 +703,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
             int opponentIndex = reader.GetInt32(1);
             int opponentHp = reader.GetInt32(2);
             int playerHp = reader.GetInt32(3);
+            int opponentExecutedAttacks = reader.GetInt32(4);
 
-            return CyberDefenseRunState.Rehydrate(sector, opponentIndex, opponentHp, playerHp);
+            return CyberDefenseRunState.Rehydrate(sector, opponentIndex, opponentHp, playerHp, opponentExecutedAttacks);
         }
 
         throw new InvalidOperationException("No active run state row found in 'gameplay_run_state'.");
@@ -471,6 +741,53 @@ public sealed class SqliteGameplayStore : IGameplayStore
         throw new InvalidOperationException("No progression row found in 'gameplay_progression'.");
     }
 
+    public async Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+
+        using var cmd = _connection!.CreateCommand();
+        cmd.CommandText = @"
+            SELECT store_revision, reset_epoch, cumulative_xp, player_level,
+                   earned_sp, spent_sp, available_sp, attack_rank,
+                   economy_version, updated_at
+            FROM gameplay_progression
+            WHERE id = 1;
+        ";
+        using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException("No progression row found in 'gameplay_progression'.");
+        }
+
+        long storeRevision = reader.GetInt64(0);
+        long resetEpoch = reader.GetInt64(1);
+        long cumulativeXp = reader.GetInt64(2);
+        int playerLevel = reader.GetInt32(3);
+        int earnedSp = reader.GetInt32(4);
+        int spentSp = reader.GetInt32(5);
+        int availableSp = reader.GetInt32(6);
+        int attackRank = reader.GetInt32(7);
+        string economyVersion = reader.GetString(8);
+        string updatedAtStr = reader.GetString(9);
+
+        if (!DateTimeOffset.TryParse(updatedAtStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var updatedAt))
+        {
+            throw new InvalidOperationException($"Invalid updated_at timestamp '{updatedAtStr}' in progression table.");
+        }
+
+        return new CyberDefenseProgressionRecord(
+            storeRevision,
+            resetEpoch,
+            cumulativeXp,
+            playerLevel,
+            earnedSp,
+            spentSp,
+            availableSp,
+            attackRank,
+            economyVersion,
+            updatedAt);
+    }
+
     /// <summary>
     /// Retrieves a stored receipt by its unique submission ID.
     /// Returns null if no receipt exists with the specified submission ID.
@@ -494,7 +811,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                    is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
                    next_player_current_hp, terminal_sector, terminal_opponent_index,
                    terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
-                   terminal_player_current_hp
+                   terminal_player_current_hp,
+                   next_opponent_executed_attacks, executed_attacks_on_defeated_opponent,
+                   awarded_xp, player_level_after, cumulative_xp_after
             FROM gameplay_receipt_ledger
             WHERE submission_id = @submissionId;
         ";
@@ -554,7 +873,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
                 next_player_current_hp, terminal_sector, terminal_opponent_index,
                 terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
-                terminal_player_current_hp
+                terminal_player_current_hp,
+                next_opponent_executed_attacks, executed_attacks_on_defeated_opponent,
+                awarded_xp, player_level_after, cumulative_xp_after
             ) VALUES (
                 @submission_id, @receipt_kind, @fact_id, @is_correct, @is_eligible,
                 @response_latency_ms, @reset_epoch, @processed_at,
@@ -564,7 +885,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 @is_game_over, @next_sector, @next_opponent_index, @next_opponent_current_hp,
                 @next_player_current_hp, @terminal_sector, @terminal_opponent_index,
                 @terminal_opponent_kind, @terminal_opponent_current_hp, @terminal_opponent_max_hp,
-                @terminal_player_current_hp
+                @terminal_player_current_hp,
+                @next_opponent_executed_attacks, @executed_attacks_on_defeated_opponent,
+                @awarded_xp, @player_level_after, @cumulative_xp_after
             );
         ";
 
@@ -615,6 +938,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 cmd.Parameters.AddWithValue("@terminal_opponent_max_hp", DBNull.Value);
                 cmd.Parameters.AddWithValue("@terminal_player_current_hp", DBNull.Value);
             }
+
+            cmd.Parameters.AddWithValue("@next_opponent_executed_attacks", t.NextState.CurrentOpponent.ExecutedAttacks);
+            cmd.Parameters.AddWithValue("@executed_attacks_on_defeated_opponent", (object?)t.ExecutedAttacksOnDefeatedOpponent ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@awarded_xp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@player_level_after", DBNull.Value);
+            cmd.Parameters.AddWithValue("@cumulative_xp_after", DBNull.Value);
         }
         else
         {
@@ -639,6 +968,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
             cmd.Parameters.AddWithValue("@terminal_opponent_current_hp", DBNull.Value);
             cmd.Parameters.AddWithValue("@terminal_opponent_max_hp", DBNull.Value);
             cmd.Parameters.AddWithValue("@terminal_player_current_hp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@next_opponent_executed_attacks", DBNull.Value);
+            cmd.Parameters.AddWithValue("@executed_attacks_on_defeated_opponent", DBNull.Value);
+            cmd.Parameters.AddWithValue("@awarded_xp", DBNull.Value);
+            cmd.Parameters.AddWithValue("@player_level_after", DBNull.Value);
+            cmd.Parameters.AddWithValue("@cumulative_xp_after", DBNull.Value);
         }
     }
 
@@ -668,7 +1002,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
         if (kind == CyberDefenseReceiptKind.CalmModeSuppressed)
         {
-            for (int i = 8; i <= 28; i++)
+            for (int i = 8; i <= 33; i++)
             {
                 if (!reader.IsDBNull(i))
                 {
@@ -706,10 +1040,24 @@ public sealed class SqliteGameplayStore : IGameplayStore
             int nextOpponentCurrentHp = reader.GetInt32(21);
             int nextPlayerCurrentHp = reader.GetInt32(22);
 
+            int nextOpponentExecutedAttacks = reader.IsDBNull(29) ? 0 : reader.GetInt32(29);
+            int? executedAttacksOnDefeated = null;
+            if (isOpponentDefeated)
+            {
+                executedAttacksOnDefeated = reader.IsDBNull(30) ? null : reader.GetInt32(30);
+            }
+            else
+            {
+                if (!reader.IsDBNull(30))
+                {
+                    throw new InvalidOperationException("Non-defeated opponent receipt row contains non-null executed_attacks_on_defeated_opponent.");
+                }
+            }
+
             CyberDefenseRunState nextState;
             try
             {
-                nextState = CyberDefenseRunState.Rehydrate(nextSector, nextOpponentIndex, nextOpponentCurrentHp, nextPlayerCurrentHp);
+                nextState = CyberDefenseRunState.Rehydrate(nextSector, nextOpponentIndex, nextOpponentCurrentHp, nextPlayerCurrentHp, nextOpponentExecutedAttacks);
             }
             catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
             {
@@ -777,7 +1125,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     isSectorCompleted,
                     isGameOver,
                     nextState,
-                    terminalSnapshot);
+                    terminalSnapshot,
+                    executedAttacksOnDefeated);
             }
             catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
             {
@@ -998,7 +1347,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                            is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
                            next_player_current_hp, terminal_sector, terminal_opponent_index,
                            terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
-                           terminal_player_current_hp
+                           terminal_player_current_hp,
+                           next_opponent_executed_attacks, executed_attacks_on_defeated_opponent,
+                           awarded_xp, player_level_after, cumulative_xp_after
                     FROM gameplay_receipt_ledger
                     WHERE submission_id = @id;
                 ";
@@ -1092,7 +1443,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             using (var runCmd = _connection.CreateCommand())
             {
                 runCmd.Transaction = transaction;
-                runCmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp FROM gameplay_run_state WHERE id = 1;";
+                runCmd.CommandText = "SELECT sector, opponent_index, opponent_current_hp, player_current_hp, opponent_executed_attacks FROM gameplay_run_state WHERE id = 1;";
                 using var runReader = await runCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
                 if (!await runReader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
@@ -1102,7 +1453,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 int oppIndex = runReader.GetInt32(1);
                 int oppHp = runReader.GetInt32(2);
                 int playerHp = runReader.GetInt32(3);
-                currentRunState = CyberDefenseRunState.Rehydrate(sector, oppIndex, oppHp, playerHp);
+                int oppExecutedAttacks = runReader.GetInt32(4);
+                currentRunState = CyberDefenseRunState.Rehydrate(sector, oppIndex, oppHp, playerHp, oppExecutedAttacks);
             }
 
             var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: 1);
@@ -1116,6 +1468,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         opponent_index = @opponentIndex,
                         opponent_current_hp = @opponentHp,
                         player_current_hp = @playerHp,
+                        opponent_executed_attacks = @opponentExecutedAttacks,
                         updated_at = @now
                     WHERE id = 1;
                 ";
@@ -1123,6 +1476,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 updateRunCmd.Parameters.AddWithValue("@opponentIndex", transition.NextState.OpponentIndex);
                 updateRunCmd.Parameters.AddWithValue("@opponentHp", transition.NextState.CurrentOpponent.CurrentHp);
                 updateRunCmd.Parameters.AddWithValue("@playerHp", transition.NextState.PlayerCurrentHp);
+                updateRunCmd.Parameters.AddWithValue("@opponentExecutedAttacks", transition.NextState.CurrentOpponent.ExecutedAttacks);
                 updateRunCmd.Parameters.AddWithValue("@now", now.ToString("O"));
                 await updateRunCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -1343,6 +1697,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         opponent_index = @opponentIndex,
                         opponent_current_hp = @opponentHp,
                         player_current_hp = @playerHp,
+                        opponent_executed_attacks = 0,
                         reset_epoch = @targetEpoch,
                         updated_at = @now
                     WHERE id = 1;
@@ -1350,6 +1705,13 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     UPDATE gameplay_progression
                     SET store_revision = 1,
                         reset_epoch = @targetEpoch,
+                        cumulative_xp = 0,
+                        player_level = 1,
+                        earned_sp = 0,
+                        spent_sp = 0,
+                        available_sp = 0,
+                        attack_rank = 0,
+                        economy_version = 'ECONOMY_V1',
                         updated_at = @now
                     WHERE id = 1;
 
@@ -1360,6 +1722,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     UPDATE gameplay_schema_info
                     SET value = @targetEpochStr
                     WHERE key = 'reset_epoch';
+
+                    INSERT OR REPLACE INTO gameplay_schema_info (key, value)
+                    VALUES ('economy_version', 'ECONOMY_V1');
                 ";
                 resetCmd.Parameters.AddWithValue("@sector", initialRun.Sector);
                 resetCmd.Parameters.AddWithValue("@opponentIndex", initialRun.OpponentIndex);

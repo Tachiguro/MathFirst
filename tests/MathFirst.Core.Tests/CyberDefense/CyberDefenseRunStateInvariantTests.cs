@@ -84,6 +84,27 @@ public class CyberDefenseRunStateInvariantTests
         Assert.Equal(OpponentKind.Normal, opponent.Kind);
         Assert.Equal(5, opponent.MaxHp);
         Assert.Equal(currentHp, opponent.CurrentHp);
+        Assert.Equal(0, opponent.ExecutedAttacks);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-5)]
+    [InlineData(-100)]
+    public void OpponentState_ThrowsWhenExecutedAttacksIsNegative(int executedAttacks)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new OpponentState(OpponentKind.Normal, 5, 5, executedAttacks));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(10)]
+    public void OpponentState_PreservesValidExecutedAttacks(int executedAttacks)
+    {
+        var opponent = new OpponentState(OpponentKind.Normal, 5, 5, executedAttacks);
+        Assert.Equal(executedAttacks, opponent.ExecutedAttacks);
     }
 
     // =========================================================================
@@ -389,6 +410,32 @@ public class CyberDefenseRunStateInvariantTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             CyberDefenseRunState.Rehydrate(1, 6, 1, 100));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-10)]
+    public void Rehydrate_ThrowsWhenOpponentExecutedAttacksIsNegative(int executedAttacks)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CyberDefenseRunState.Rehydrate(1, 0, 1, 100, executedAttacks));
+    }
+
+    [Fact]
+    public void Rehydrate_DefaultsOpponentExecutedAttacksToZero()
+    {
+        var run = CyberDefenseRunState.Rehydrate(1, 0, 1, 100);
+        Assert.Equal(0, run.CurrentOpponent.ExecutedAttacks);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(7)]
+    public void Rehydrate_PreservesSuppliedOpponentExecutedAttacks(int executedAttacks)
+    {
+        var run = CyberDefenseRunState.Rehydrate(1, 0, 1, 100, executedAttacks);
+        Assert.Equal(executedAttacks, run.CurrentOpponent.ExecutedAttacks);
     }
 
     // =========================================================================
