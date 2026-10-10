@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MF-CYBER-004 (Authoritative Headless Combat Simulator and Synthetic Player Profile Harness) — Candidate (Reviewed)
+
+- **Authoritative Headless Combat Simulator Engine**:
+  - Implemented high-throughput, 100% headless combat simulation engine (`HeadlessCombatSimulator`) in test infrastructure (`tests/MathFirst.Core.Tests/CyberDefense/Simulator/`).
+  - Reuses the authoritative production pure domain combat state machine (`CyberDefenseStateMachine.ApplyAttempt`), `CyberDefenseScalingPolicy`, and `CyberDefenseCombatPolicy` directly, without creating a second or parallel combat engine.
+  - Implemented deterministic SplitMix64 pseudo-random number generator (`DeterministicPrng`) and virtual elapsed-time simulation clock (`VirtualSimulationClock`).
+  - Implemented multi-turn execution lifecycle (`SimulationRunConfig`, `SimulationExecutionResult`) supporting bounded turn limits, target sector goals, cooperative cancellation, and production-faithful game-over reboot semantics.
+  - Structured deterministic per-run telemetry (`SimulationRunTelemetry`) capturing observed accuracy, questions, highest sector reached, game-overs, applied player/opponent damage, opponent defeats, sector completions, and virtual elapsed time; future gameplay fields (XP, levels, skill points, shields) remain explicitly unavailable/nullable.
+- **Five Synthetic Player Profiles & Sampling Streams**:
+  - Defined five canonical synthetic player profiles (`SyntheticPlayerProfiles`, `SyntheticPlayerProfile`): Profile A (Perfect, 100% accuracy), Profile B (Expert, 98% accuracy, attack-focused preference), Profile C (Average, 85% accuracy, balanced preference), Profile D (Learner, 70% accuracy, defensive preference), and Profile E (Beginner, 50% accuracy, no initial upgrades).
+  - Implemented deterministic synthetic attempt sampling (`SyntheticAttemptSampler`) driven by independent SplitMix64 streams for correctness and response latency.
+  - All profiles presently use effective base attack damage 1; upgrade strategy execution, XP economy, player levels, and skill trees are deferred to future roadmap packages.
+- **Deterministic Batch Execution & Profile A Sector 1000 Proof**:
+  - Implemented deterministic seed-batch runner (`DeterministicSimulationBatchRunner`, `SimulationBatchConfig`, `SimulationBatchResult`, `SimulationBatchRunReceipt`) supporting multi-seed batch execution with immutable receipts, checked aggregate arithmetic, and weighted observed accuracy.
+  - Verified Profile A mathematical proof (`ProfileAPerfectSurvivalTests`): reaching Sector 1000 requires completing Sectors 1 through 999 (372,516 turns and correct answers, 0 incorrect, 0 game-overs, 0 player damage, 372,516 opponent damage, 13,972 total opponents defeated, 447,019,200 ms virtual time) without taking damage or experiencing defeat.
+  - Validated 100,000-turn batch acceptance suite in `DeterministicSimulationBatchRunnerTests` (B35: 5 profiles × 20 seeds × 1,000 turns = 100 runs / 100,000 turns) reproducing identical telemetry across independent test runs.
+- **Zero Production Mutations & Quality Baseline**:
+  - Test-infrastructure-only package: introduced zero changes to production application code, zero learner persistence or gameplay SQLite migrations (Learner Store Schema V9 and Gameplay Store Schema V1 preserved), zero network telemetry, and zero real user data.
+  - Verified with 204 focused simulator regression tests across 7 dedicated test suites and 3,187 full Core tests passing in `MathFirst.Core.Tests` in independent TEST_ONLY mode; package review approved with verdict `MF_CYBER_004_PACKAGE_REVIEW_PASS` (MAJOR-01 formally closed following batch evidence reconciliation `MF_CYBER_004_BATCH_EVIDENCE_RECONCILED`; non-blocking MINOR-01 noted). Implemented and reviewed on feature branch `feat/mf-cyber-004-headless-simulator`, but not yet validated in formal FULL_VALIDATION, pushed, PR-created, or merged.
+
 ### SQLite WAL Cold-Restart Test-Fixture Remediation — Implemented and Merged into main (Unreleased)
 
 - **Test Infrastructure & WAL Cold-Restart Determinism**:
