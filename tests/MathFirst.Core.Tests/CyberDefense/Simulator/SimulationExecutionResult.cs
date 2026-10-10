@@ -36,6 +36,11 @@ public sealed record class SimulationExecutionResult
     public CyberDefenseTerminalRunSnapshot? TerminalSnapshot => LastTerminalSnapshot;
 
     /// <summary>
+    /// Structured simulation telemetry for this execution run.
+    /// </summary>
+    public SimulationRunTelemetry Telemetry { get; }
+
+    /// <summary>
     /// Initializes a new instance of <see cref="SimulationExecutionResult"/>.
     /// </summary>
     public SimulationExecutionResult(
@@ -44,7 +49,8 @@ public sealed record class SimulationExecutionResult
         long totalExecutedTurns,
         int totalGameOvers,
         long totalVirtualTimeMs,
-        CyberDefenseTerminalRunSnapshot? lastTerminalSnapshot = null)
+        CyberDefenseTerminalRunSnapshot? lastTerminalSnapshot,
+        SimulationRunTelemetry telemetry)
     {
         FinalState = finalState ?? throw new ArgumentNullException(nameof(finalState));
         TerminationReason = terminationReason;
@@ -58,5 +64,34 @@ public sealed record class SimulationExecutionResult
             ? totalVirtualTimeMs
             : throw new ArgumentOutOfRangeException(nameof(totalVirtualTimeMs), totalVirtualTimeMs, "Total virtual time cannot be negative.");
         LastTerminalSnapshot = lastTerminalSnapshot;
+        Telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
+    }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="SimulationExecutionResult"/> with backward compatibility.
+    /// </summary>
+    public SimulationExecutionResult(
+        CyberDefenseRunState finalState,
+        SimulationTerminationReason terminationReason,
+        long totalExecutedTurns,
+        int totalGameOvers,
+        long totalVirtualTimeMs,
+        CyberDefenseTerminalRunSnapshot? lastTerminalSnapshot = null)
+        : this(
+            finalState,
+            terminationReason,
+            totalExecutedTurns,
+            totalGameOvers,
+            totalVirtualTimeMs,
+            lastTerminalSnapshot,
+            SimulationRunTelemetry.CreateFallback(
+                masterSeed: 0UL,
+                profileId: "unspecified",
+                profileName: "Unspecified",
+                highestSectorReached: finalState?.Sector ?? 1,
+                totalExecutedTurns: totalExecutedTurns,
+                totalGameOvers: totalGameOvers,
+                totalVirtualTimeMs: totalVirtualTimeMs))
+    {
     }
 }

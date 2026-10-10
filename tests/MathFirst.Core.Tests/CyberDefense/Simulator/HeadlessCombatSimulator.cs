@@ -58,6 +58,11 @@ public static class HeadlessCombatSimulator
 
         var clock = new VirtualSimulationClock();
         var sampler = new SyntheticAttemptSampler(config.Profile, config.MasterSeed);
+        var accumulator = new SimulationTelemetryAccumulator(
+            config.MasterSeed,
+            config.Profile.Id,
+            config.Profile.Name,
+            config.StartingState.Sector);
         CyberDefenseRunState currentState = config.StartingState;
         CyberDefenseTerminalRunSnapshot? lastTerminalSnapshot = null;
         long totalExecutedTurns = 0;
@@ -72,7 +77,8 @@ public static class HeadlessCombatSimulator
                 totalExecutedTurns,
                 totalGameOvers,
                 clock.ElapsedMilliseconds,
-                lastTerminalSnapshot);
+                lastTerminalSnapshot,
+                accumulator.ToTelemetry(clock.ElapsedMilliseconds));
         }
 
         // Precedence 2: If starting state already satisfies target sector, stop with zero turns.
@@ -84,7 +90,8 @@ public static class HeadlessCombatSimulator
                 totalExecutedTurns,
                 totalGameOvers,
                 clock.ElapsedMilliseconds,
-                lastTerminalSnapshot);
+                lastTerminalSnapshot,
+                accumulator.ToTelemetry(clock.ElapsedMilliseconds));
         }
 
         // Main execution loop: bounded strictly by MaxTurns.
@@ -99,7 +106,8 @@ public static class HeadlessCombatSimulator
                     totalExecutedTurns,
                     totalGameOvers,
                     clock.ElapsedMilliseconds,
-                    lastTerminalSnapshot);
+                    lastTerminalSnapshot,
+                    accumulator.ToTelemetry(clock.ElapsedMilliseconds));
             }
 
             // Step 6 & 7: Repeatedly sample one synthetic attempt and pass to authoritative transition.
@@ -109,9 +117,10 @@ public static class HeadlessCombatSimulator
                 attempt.IsCorrect,
                 config.Profile.EffectiveAttackDamage);
 
-            // Step 9 & 10: Advance virtual clock and increment executed turns.
+            // Step 9 & 10: Advance virtual clock, increment executed turns, and record telemetry.
             clock.Advance(attempt.SyntheticLatencyMilliseconds);
             totalExecutedTurns++;
+            accumulator.RecordTurn(transition);
 
             // Step 11: If GameOver, increment counter and retain authoritative terminal snapshot.
             if (transition.IsGameOver)
@@ -135,7 +144,8 @@ public static class HeadlessCombatSimulator
                     totalExecutedTurns,
                     totalGameOvers,
                     clock.ElapsedMilliseconds,
-                    lastTerminalSnapshot);
+                    lastTerminalSnapshot,
+                    accumulator.ToTelemetry(clock.ElapsedMilliseconds));
             }
 
             // Precedence 7: If target sector is reached, stop with TargetSectorReached.
@@ -147,7 +157,8 @@ public static class HeadlessCombatSimulator
                     totalExecutedTurns,
                     totalGameOvers,
                     clock.ElapsedMilliseconds,
-                    lastTerminalSnapshot);
+                    lastTerminalSnapshot,
+                    accumulator.ToTelemetry(clock.ElapsedMilliseconds));
             }
 
             // Precedence 8: If maximum turn count is reached, stop with MaxTurnsReached.
@@ -159,7 +170,8 @@ public static class HeadlessCombatSimulator
                     totalExecutedTurns,
                     totalGameOvers,
                     clock.ElapsedMilliseconds,
-                    lastTerminalSnapshot);
+                    lastTerminalSnapshot,
+                    accumulator.ToTelemetry(clock.ElapsedMilliseconds));
             }
         }
 
@@ -169,6 +181,7 @@ public static class HeadlessCombatSimulator
             totalExecutedTurns,
             totalGameOvers,
             clock.ElapsedMilliseconds,
-            lastTerminalSnapshot);
+            lastTerminalSnapshot,
+            accumulator.ToTelemetry(clock.ElapsedMilliseconds));
     }
 }
