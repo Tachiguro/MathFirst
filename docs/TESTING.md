@@ -1375,22 +1375,45 @@ MathFirst maintains strict distinctions between testing tiers:
 
 The bounded MF-CYBER-003 development package delivers dedicated Gameplay SQLite persistence (`mathfirst_gameplay.db`, Schema V1), an idempotent committed-attempt submission consumer with read-only Learner Store evidence verification, crash-safe Full Local Reset with reset epoch fencing, monotonic learner store revision remediation, an authoritative HUD ViewModel projected from persistent run state, and runtime integration across six implementation slices and one reset safety remediation.
 
-### Reported Candidate Test Results (Reviewed Implementation Baseline)
+### Verified Final Candidate Validation Evidence (Candidate `b5cf736e1e894f2b6debeb94a1e93b82504f65b5`)
 
-> [!NOTE]
-> The test execution counts and compilation results below represent reported prior agent execution claims from the implementation slices, corroborated by the consolidated package review's source-level test count audit (`MF_CYBER_003_PACKAGE_REVIEW_PASS`). In accordance with strict `DOCUMENT_ONLY` lifecycle governance, **no tests or compiler builds were executed by the current documentation agent**. Formal exact-candidate `FULL_VALIDATION` remains pending.
+The formal exact-candidate validation for MF-CYBER-003 was executed and passed on candidate commit `b5cf736e1e894f2b6debeb94a1e93b82504f65b5` with verdict `MF_CYBER_003_FULL_VALIDATION_PASSED`. The package was subsequently merged to `main` via PR #76 at merge commit `8707b96959de13707aa8dea53ac09af8556d1678` (`MF_CYBER_003_POST_MERGE_SYNC_COMPLETED`).
 
 - **Baseline on `main` (post-PR #74 / PR #75)**: 2,833 Core tests passing in Debug and Release (`MathFirst.Core.Tests`).
-- **Reported Full Core Test Suite (Debug)**: **2,982 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
-- **Reported Full Core Test Suite (Release)**: **2,982 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Full Core Test Suite (Debug)**: **2,982 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Full Core Test Suite (Release)**: **2,982 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
 - **Net Test Increase**: **+149 automated test cases** across 7 new and modified test suites (0 failed, 0 skipped).
-- **Reported Windows Compilation Matrix**:
+- **Windows Compilation Matrix**:
   - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
   - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
-- **Reported Android Compilation Matrix**:
-  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-android36.0` compile target)
-  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-android36.0` compile target)
+- **Android Compilation Matrix (Target `Compile`)**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-android36.0`)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-android36.0`)
+- **NuGet Vulnerability Security Audit**: 0 known vulnerabilities across 6 projects.
+- **Markdown Link & Anchor Audit**: 38 documents, 308 relative file links, 1 fragment, 0 broken.
+- **Diff Whitespace Hygiene**: `git diff --check` PASS (clean).
+- **Candidate Repository Immutability**: PASS (working tree clean, HEAD immutable).
 - **Consolidated Review Verdict**: `MF_CYBER_003_PACKAGE_REVIEW_PASS` (0 BLOCKER code defects, 0 material MAJOR code defects, 4 report discrepancies corrected, 3 nonblocking NIT observations recorded).
+- **Post-Merge Synchronization**: `MF_CYBER_003_POST_MERGE_SYNC_COMPLETED` (merged via PR #76 at merge commit `8707b96959de13707aa8dea53ac09af8556d1678`).
+
+### Formal Validation & Remediation History
+
+1. **Initial Validation Attempt (`MF_CYBER_003_FULL_VALIDATION_FAILED`)**:
+   - Initial exact-candidate validation on commit `bf3df86ea21e4a11bcee762da8fcd11fb45892bf` passed all automated test suites and compiler builds, but failed on repository whitespace hygiene (`git diff --check`).
+   - A single redundant blank line at EOF in `tests/MathFirst.Core.Tests/CyberDefense/SqliteGameplayStoreReceiptLedgerTests.cs` caused the failure.
+2. **Whitespace Remediation Checkpoint (`8b7721a4f334ab83e58e7f5f54500137687ede50`)**:
+   - The trailing blank line was removed and committed at checkpoint `8b7721a` with verdict `MF_CYBER_003_VALIDATION_WHITESPACE_REMEDIATION_PASS`.
+3. **Candidate Tracking Documentation Checkpoint (`b5cf736e1e894f2b6debeb94a1e93b82504f65b5`)**:
+   - Tracked validation remediation history and updated candidate documentation before re-validation.
+4. **Final Exact-Candidate Validation (`MF_CYBER_003_FULL_VALIDATION_PASSED`)**:
+   - Full exact-candidate re-validation executed cleanly on candidate `b5cf736e1e894f2b6debeb94a1e93b82504f65b5` with zero failures across all gates.
+5. **Post-Merge Documentation Validation Attempt (`MF_CYBER_003_POST_MERGE_DOCS_FULL_VALIDATION_FAILED`)**:
+   - Following PR #76 merge (`8707b96959de13707aa8dea53ac09af8556d1678`), post-merge documentation reconciliation candidate `41e74c9a697dd6ddf1d3cf254259779bb6f7b1ec` on branch `docs/mf-cyber-003-postmerge-reconciliation` underwent formal validation.
+   - Result: `MF_CYBER_003_POST_MERGE_DOCS_FULL_VALIDATION_FAILED`.
+   - Core Debug Suite: 2,981 passed, 1 failed, 0 skipped (`MathFirst.Core.Tests`).
+   - Core Release Suite: 2,982 passed, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+   - Failing test: `SameDurableState_ProducesSameNextSelectionAfterColdRestart` in `tests/MathFirst.Core.Tests/AdaptiveLearningPolicyFinalRegressionTests.cs`.
+   - Failure cause: Unsafe raw `File.Copy` snapshot assumption in SQLite WAL mode. When creating a secondary test database from an active WAL database, raw `File.Copy` only copied the primary database file without transferring active or pending uncheckpointed WAL frames from the `-wal` file, causing state discrepancy on cold restart. Remediated under PR #77.
 
 ### Dedicated MF-CYBER-003 Test Suites & Coverage Categories
 
@@ -1468,8 +1491,58 @@ The consolidated package review identified and corrected four factual inaccuraci
    - *Reported Claim*: Stated that incorrect answers reset the Overdrive meter.
    - *Verified Invariant*: Overdrive mechanics are not part of MF-CYBER-003; incorrect answers in MF-CYBER-003 inflict counter-damage to the player (4 damage for normal opponents, 6 for boss opponents) without referencing Overdrive.
 
-### Test Governance & TDD Qualification
+### Test Governance & Evidence Boundaries
 
 - **Test-Driven Development (TDD) Context**: TDD is an authoring workflow discipline applied during implementation slices. It is not an ex-post mechanical mandate for an already-implemented, reviewed candidate undergoing documentation reconciliation or release qualification.
-- **Formal Validation Gate**: Prior test passes recorded during implementation slices and review audits do **NOT** replace the required formal exact-candidate `FULL_VALIDATION` gate. Exact-candidate `FULL_VALIDATION` must be executed separately prior to branch push and pull request creation.
-- **Offline & Synthetic Invariants**: All automated tests execute offline against synthetic fixtures, in-memory models, and temporary isolated SQLite databases, in strict accordance with MathFirst privacy and testing invariants.
+- **Exact Metrics Boundary**: The exact test metrics (2,982 passed in Debug and Release) and compiler passes belong to validated candidate `b5cf736e1e894f2b6debeb94a1e93b82504f65b5`. No separate full test execution was run or claimed on merge commit `8707b96959de13707aa8dea53ac09af8556d1678`.
+- **Tree Identity**: The merged `main` commit tree (`7b457784740182be4be4b4db700ddc8af8b6a9cc`) is Git-tree-identical to the validated candidate tree (`7b457784740182be4be4b4db700ddc8af8b6a9cc`).
+- **Android Target Compile Boundary**: Android compilation matrix verification targets the `Compile` target only; it does not constitute APK packaging, alignment, signing, or device installation.
+- **No Physical Hardware Verification**: Compilation success and automated unit/integration test passes do not constitute manual physical-device validation. No physical device testing was performed for MF-CYBER-003.
+- **Offline & Synthetic Invariants**: All automated tests execute offline against synthetic fixtures, in-memory models, and temporary isolated SQLite databases, in strict accordance with MathFirst privacy and testing invariants. Real learner data is never accessed.
+- **Release Boundaries**: MF-CYBER-003 merge into `main` does not constitute an application release. Step 55 remains **NOT EXECUTED / NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
+
+---
+
+## 33. SQLite WAL Cold-Restart Test-Fixture Remediation (PR #77) Contracts & Test Evidence
+
+Following the validation failure of historical post-merge documentation candidate `41e74c9a697dd6ddf1d3cf254259779bb6f7b1ec`, an isolated test-infrastructure remediation was executed on branch `fix/mf-learn-wal-cold-restart-fixture` to eliminate the non-deterministic test fixture snapshot defect in `tests/MathFirst.Core.Tests/AdaptiveLearningPolicyFinalRegressionTests.cs`.
+
+### Verified Remediation Candidate Validation Evidence (Commit `c4d1b919fc1176907e68f680b5d943f8230205cb`)
+
+The formal exact-candidate validation for the WAL fixture remediation was executed and passed on candidate commit `c4d1b919fc1176907e68f680b5d943f8230205cb` with verdict `MF_CYBER_003_WAL_FIX_FULL_VALIDATION_PASSED`. The remediation was subsequently merged into `main` via PR #77 at merge commit `231bd04c43534f4be6df4385df2d6a2fb3f70338` (merged tree `26bbe84f3c5bd5efcbd54d3d7df9b31e3b0d75d1`, Git-tree-identical to the validated candidate tree).
+
+- **Baseline on `main` (post-PR #76)**: 2,982 Core tests passing in Debug and Release (`MathFirst.Core.Tests`).
+- **Full Core Test Suite (Debug)**: **2,983 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Full Core Test Suite (Release)**: **2,983 passed**, 0 failed, 0 skipped (`MathFirst.Core.Tests`).
+- **Net Test Increase**: **+1 net automated test case** across 1 modified test file (`tests/MathFirst.Core.Tests/AdaptiveLearningPolicyFinalRegressionTests.cs`, 133 insertions, 2 deletions).
+- **Windows Compilation Matrix**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-windows10.0.19041.0`)
+- **Android Compilation Matrix (Target `Compile`)**:
+  - `Configuration=Debug`: 0 warnings, 0 errors (`net10.0-android36.0`)
+  - `Configuration=Release`: 0 warnings, 0 errors (`net10.0-android36.0`)
+- **NuGet Vulnerability Security Audit**: 0 known vulnerabilities across 6 projects.
+- **Diff Whitespace Hygiene**: `git diff --check` PASS (clean).
+- **Validation Verdict**: `MF_CYBER_003_WAL_FIX_FULL_VALIDATION_PASSED`.
+- **Merge Commit**: `231bd04c43534f4be6df4385df2d6a2fb3f70338` (PR #77, merged at 2026-10-09T21:05:44Z).
+
+### Remediated Fixture Mechanics & Regression Tests
+
+1. **Deterministic SQLite Database Snapshotting (`SnapshotDatabaseAsync`)**:
+   - Replaced the unsafe raw `File.Copy` snapshot assumption in `AdaptiveLearningPolicyFinalRegressionTests` with explicit SQLite backup API snapshotting (`SnapshotDatabaseAsync`, calling `source.BackupDatabase(destination)`).
+   - Guarantees that active and uncheckpointed WAL frames are completely and safely transferred to the destination database file before the connection is closed, eliminating cold-restart data loss in WAL mode.
+2. **Dedicated WAL Snapshot Regression Test**:
+   - Added regression test `SqliteDatabaseSnapshot_PreservesCommittedRows_WhenSourceHasUncheckpointedWal`.
+   - Configures a database with WAL mode and `PRAGMA wal_autocheckpoint = 0`, commits fixture rows, verifies uncheckpointed WAL presence, snapshots to a destination database, and asserts 100% row preservation.
+3. **Hardened Cold-Restart Invariant Verification**:
+   - Hardened `SameDurableState_ProducesSameNextSelectionAfterColdRestart`.
+   - Asserts equivalence across cold restart for: `PracticePosition` (50), `StoreRevision`, per-operation accepted attempt counts, per-operation band indices, positioned correct attempt counts, item states count, and exact next-selection identity (`scheduledOp`, `fact.Id`, `opOrdinal`, `requestedRole`).
+   - Note: The regression test name is `SqliteDatabaseSnapshot_PreservesCommittedRows_WhenSourceHasUncheckpointedWal` (not `DeterministicSnapshot_PreservesWalRowsAcrossRestart`).
+
+### Test Governance & Evidence Boundaries
+
+- **Exact Metrics Attribution**: The 2,983-test evidence belongs strictly to the exact WAL-fix validation candidate `c4d1b919fc1176907e68f680b5d943f8230205cb` (and the tree-identical PR #77 merge commit `231bd04c43534f4be6df4385df2d6a2fb3f70338`).
+- **No Separate Post-Merge Full Test Run**: No separate post-merge full test execution was run or claimed on merge commit `231bd04c43534f4be6df4385df2d6a2fb3f70338`; tree identity with the validated candidate guarantees test equivalence.
+- **Historical Validation Failure Preserved**: The historical documentation validation failure verdict (`MF_CYBER_003_POST_MERGE_DOCS_FULL_VALIDATION_FAILED` on commit `41e74c9a697dd6ddf1d3cf254259779bb6f7b1ec`) is preserved unchanged as historical fact.
+- **No Production Code or Schema Changes**: PR #77 is strictly test-infrastructure hardening. Learner Store Schema V9 and Gameplay Store Schema V1 remain unchanged with zero DDL migrations.
+- **Pending Validation for Current Documentation Candidate**: Current documentation reconciliation candidate on continuation branch `docs/mf-cyber-003-postmerge-reconciliation-v2` has not yet undergone formal `FULL_VALIDATION`. That validation will occur in a later separate lifecycle operation following review and commit.
