@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-004 (Authoritative Headless Combat Simulator and Synthetic Player Profile Harness) — Candidate (Reviewed)
+### MF-CYBER-004 (Authoritative Headless Combat Simulator and Synthetic Player Profile Harness) — Implemented and Merged into main (Unreleased)
 
 - **Authoritative Headless Combat Simulator Engine**:
   - Implemented high-throughput, 100% headless combat simulation engine (`HeadlessCombatSimulator`) in test infrastructure (`tests/MathFirst.Core.Tests/CyberDefense/Simulator/`).
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Validated 100,000-turn batch acceptance suite in `DeterministicSimulationBatchRunnerTests` (B35: 5 profiles × 20 seeds × 1,000 turns = 100 runs / 100,000 turns) reproducing identical telemetry across independent test runs.
 - **Zero Production Mutations & Quality Baseline**:
   - Test-infrastructure-only package: introduced zero changes to production application code, zero learner persistence or gameplay SQLite migrations (Learner Store Schema V9 and Gameplay Store Schema V1 preserved), zero network telemetry, and zero real user data.
-  - Verified with 204 focused simulator regression tests across 7 dedicated test suites and 3,187 full Core tests passing in `MathFirst.Core.Tests` in independent TEST_ONLY mode; package review approved with verdict `MF_CYBER_004_PACKAGE_REVIEW_PASS` (MAJOR-01 formally closed following batch evidence reconciliation `MF_CYBER_004_BATCH_EVIDENCE_RECONCILED`; non-blocking MINOR-01 noted). Implemented and reviewed on feature branch `feat/mf-cyber-004-headless-simulator`, but not yet validated in formal FULL_VALIDATION, pushed, PR-created, or merged.
+  - Verified with 204 focused simulator regression tests across 7 dedicated test suites and 3,187 full Core tests passing in `MathFirst.Core.Tests` in Debug and Release (+204 net automated tests over pre-MF-CYBER-004 baseline 2,983); package review approved with verdict `MF_CYBER_004_PACKAGE_REVIEW_PASS` (MAJOR-01 formally closed following batch evidence reconciliation `MF_CYBER_004_BATCH_EVIDENCE_RECONCILED`; non-blocking MINOR-01 noted); validated in formal exact-candidate full validation (`MF_CYBER_004_FULL_VALIDATION_PASSED` on candidate `09ad042d4e1ae57ca3327cb3f9d031d206ea5ff0`). Merged into `main` via PR #79 on 2026-10-10 at merge commit `77841189d5ed5824a05ef61229f330fec52a4424` (validated candidate `09ad042d4e1ae57ca3327cb3f9d031d206ea5ff0`, merge tree `ad7e88870b753644919255643c797059fadbdf15`). Implemented and merged into `main`, but not yet released in a published application build.
 
 ### SQLite WAL Cold-Restart Test-Fixture Remediation — Implemented and Merged into main (Unreleased)
 
