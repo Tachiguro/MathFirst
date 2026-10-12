@@ -23,7 +23,9 @@
 
 <div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
-        <header class="mathfirst-header">
+        <header class="mathfirst-header"
+                inert="@(_isUpgradeTerminalOpen ? true : null)"
+                aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
             <div class="mathfirst-title-group">
                 <div class="brand-shield-emblem" aria-hidden="true">
                     <svg viewBox="0 0 24 28" width="22" height="26" fill="none">
@@ -39,7 +41,7 @@
             <div class="practice-header-actions">
                 <button type="button"
                         class="button button-secondary mode-toggle-btn @(IsCyberDefenseActive ? "mode-cyber" : "mode-calm")"
-                        disabled="@_isSubmitting"
+                        disabled="@(_isSubmitting || _isUpgradeTerminalOpen)"
                         aria-label="@(IsCyberDefenseActive ? Localizer["CalmMode_SwitchAction"] : Localizer["CyberDefense_EnableAction"])"
                         title="@(IsCyberDefenseActive ? Localizer["CalmMode_SwitchAction"] : Localizer["CyberDefense_EnableAction"])"
                         aria-pressed="@IsCyberDefenseActive"

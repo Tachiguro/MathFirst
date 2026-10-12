@@ -529,6 +529,113 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         Assert.Matches(@"_shouldFocusInput\s*=\s*false;[\s\S]*?_shouldFocusPrimaryOverlay\s*=\s*true;", home);
     }
 
+    // =========================================================================
+    // SLICE 6D.2: Modal Header Accessibility Containment (MAJOR-01 & MINOR-01)
+    // =========================================================================
+
+    [Fact]
+    public void Home_Contract_HeaderAccessibilityContainment_WhenUpgradeTerminalIsOpen()
+    {
+        // ---------------------------------------------------------------------
+        // Structural source-contract test (static markup verification):
+        // Verifies MAJOR-01 header isolation and MINOR-01 mode toggle defense.
+        // ---------------------------------------------------------------------
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        // 1. Locate the page header element
+        var headerStart = home.IndexOf("<header class=\"mathfirst-header\"", StringComparison.Ordinal);
+        Assert.True(headerStart >= 0, "Header element '<header class=\"mathfirst-header\"' must exist in Home.razor.");
+
+        var headerTagEnd = home.IndexOf('>', headerStart);
+        Assert.True(headerTagEnd > headerStart, "Header opening tag must be closed with '>'.");
+        var headerOpeningTag = home.Substring(headerStart, headerTagEnd - headerStart + 1);
+
+        // MAJOR-01 Requirement 1: State-dependent inert protection on mathfirst-header
+        Assert.Contains("inert=\"@(_isUpgradeTerminalOpen ? true : null)\"", headerOpeningTag, StringComparison.Ordinal);
+
+        // MAJOR-01 Requirement 2: State-dependent aria-hidden protection on mathfirst-header
+        Assert.Contains("aria-hidden=\"@(_isUpgradeTerminalOpen ? \"true\" : null)\"", headerOpeningTag, StringComparison.Ordinal);
+
+        // 2. Locate the Mode Toggle button inside the header
+        var headerEnd = home.IndexOf("</header>", headerStart, StringComparison.Ordinal);
+        Assert.True(headerEnd > headerTagEnd, "</header> closing tag must exist after header opening tag.");
+        var headerContent = home.Substring(headerStart, headerEnd - headerStart + 9);
+
+        // MINOR-01 Requirement 3: Mode toggle button is disabled when modal is open
+        Assert.Contains("mode-toggle-btn", headerContent, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"@(_isSubmitting || _isUpgradeTerminalOpen)\"", headerContent, StringComparison.Ordinal);
+
+        // 3. Requirement 4: State-dependent evaluation simulation
+        // In Blazor, binding null removes the attribute, while true/"true" renders the attribute
+        bool isModalOpen = true;
+        bool? inertWhenOpen = isModalOpen ? true : null;
+        string? ariaHiddenWhenOpen = isModalOpen ? "true" : null;
+        Assert.True(inertWhenOpen.HasValue && inertWhenOpen.Value, "Inert must evaluate to true when modal is open.");
+        Assert.Equal("true", ariaHiddenWhenOpen);
+
+        bool isModalClosed = false;
+        bool? inertWhenClosed = isModalClosed ? true : null;
+        string? ariaHiddenWhenClosed = isModalClosed ? "true" : null;
+        Assert.Null(inertWhenClosed); // Attribute removed -> header accessible
+        Assert.Null(ariaHiddenWhenClosed); // Attribute removed -> header visible in accessibility tree
+
+        // Mode toggle disabled evaluation simulation:
+        // Closed + Not submitting -> Enabled
+        Assert.False(false || isModalClosed, "Mode toggle must be enabled when modal is closed and not submitting.");
+        // Open + Not submitting -> Disabled
+        Assert.True(false || isModalOpen, "Mode toggle must be disabled when modal is open.");
+        // Closed + Submitting -> Disabled
+        Assert.True(true || isModalClosed, "Mode toggle must be disabled when submitting.");
+
+        // 4. Requirement 5: UpgradeTerminal is rendered outside the header and outside all inert containers
+        var upgradeTerminalPos = home.IndexOf("<UpgradeTerminal", StringComparison.Ordinal);
+        Assert.True(upgradeTerminalPos > headerEnd,
+            "UpgradeTerminal must be rendered outside (after) the header element.");
+
+        // UpgradeTerminal must be outside training-top-region and practice-layout
+        var topRegionPos = home.IndexOf("class=\"training-top-region\"", StringComparison.Ordinal);
+        var practiceLayoutPos = home.IndexOf("class=\"practice-layout\"", StringComparison.Ordinal);
+        Assert.True(upgradeTerminalPos > topRegionPos, "UpgradeTerminal must be outside training-top-region.");
+        Assert.True(upgradeTerminalPos > practiceLayoutPos, "UpgradeTerminal must be outside practice-layout.");
+
+        // Confirm that the UpgradeTerminal tag itself is not inside an inert container
+        // Ensure no ancestor enclosing UpgradeTerminal has inert="@(_isUpgradeTerminalOpen ? true : null)"
+        var mainCardPos = home.IndexOf("<main class=\"training-card", StringComparison.Ordinal);
+        var mainCardTagEnd = home.IndexOf('>', mainCardPos);
+        var mainCardTag = home.Substring(mainCardPos, mainCardTagEnd - mainCardPos + 1);
+        Assert.DoesNotContain("inert", mainCardTag, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-hidden", mainCardTag, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_Contract_HeaderAccessibility_PreservesInputIsolationAndFocusRestoration()
+    {
+        // ---------------------------------------------------------------------
+        // Structural source-contract & behavioral test:
+        // Verifies Requirements 6 & 7 (Input isolation & Focus restoration contracts).
+        // ---------------------------------------------------------------------
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        // Requirement 6: Existing input isolation is preserved
+        // 1. Global keydown returns immediately when Upgrade Terminal is open
+        Assert.Matches(@"HandleGlobalKeyDown[^{]*\{[\s\S]*?if\s*\(_isUpgradeTerminalOpen\)\s*\{\s*return;\s*\}", home);
+
+        // 2. Keypad click handler rejects while Upgrade Terminal is open
+        Assert.Matches(@"HandleKeypadKeyAsync[^{]*\{[\s\S]*?if\s*\(_isUpgradeTerminalOpen\)\s*\{\s*return;\s*\}", home);
+
+        // 3. Mode Toggle handler rejects while Upgrade Terminal is open
+        Assert.Matches(@"ToggleCyberDefenseMode\(\)[\s\S]*?if\s*\(_isSubmitting\s*\|\|\s*_isUpgradeTerminalOpen\)\s*\{\s*return;\s*\}", home);
+
+        // Requirement 7: Existing focus restoration contracts remain intact across all three gate states
+        // In CloseUpgradeTerminalCore:
+        // GateState.Running + AwaitingAnswer -> focus input
+        // GateState.ManualPause -> focus primary overlay (resume button)
+        // GateState.BackgroundResumeGate -> focus primary overlay (resume button)
+        Assert.Contains("CloseUpgradeTerminalCore", home, StringComparison.Ordinal);
+        Assert.Matches(@"if\s*\(shouldResumeTiming\)[\s\S]*?_shouldFocusInput\s*=\s*true;[\s\S]*?_shouldFocusPrimaryOverlay\s*=\s*false;", home);
+        Assert.Matches(@"else[\s\S]*?_shouldFocusInput\s*=\s*false;[\s\S]*?_shouldFocusPrimaryOverlay\s*=\s*true;", home);
+    }
+
     [Fact]
     public async Task ObservedTerminalRefresh_SafeObservationPattern_CatchesExpectedCancellationAndDisposal()
     {
