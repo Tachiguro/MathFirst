@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MF-CYBER-005 (XP Economy, Player Level Curve, and Attack Upgrade Path) — Candidate (Implemented & Reviewed, Unmerged)
+
+- **XP & Player Level Progression**:
+  - Earn XP through math practice turns: correct answers grant 6 XP and incorrect answers grant 1 XP.
+  - Defeating opponents awards bonus XP: 1 XP per attack dealt for normal enemies, and 2 XP per attack dealt plus a 10 XP completion milestone bonus for sector bosses.
+  - Player levels advance deterministically along a calibrated progression curve starting at Level 1 (0 XP), transitioning smoothly from early rapid leveling to sustained long-term mastery.
+  - Each level gained awards 1 Skill Point ($SP = \text{Level} - 1$).
+- **Attack Upgrades & Skill Point Economy**:
+  - Upgrade attack damage in single-rank increments ($D(\text{rank}) = 1 + \text{rank}$), increasing damage from base 1 HP upward.
+  - Transparent step-logarithmic Skill Point cost function evaluated on the rank being purchased ($C(\text{nextRank}) = 1 + \lfloor \log_2(\text{nextRank}) \rfloor$): 1 SP for rank 1, 2 SP for ranks 2–3, 3 SP for ranks 4–7, and 4 SP for ranks 8–15.
+  - Atomic purchase verification ensures Skill Point conservation (`earned_sp = spent_sp + available_sp`), preventing double-spending or rank desynchronization.
+- **Upgrade Terminal Interface & Purchasing**:
+  - Introduced the in-game Upgrade Terminal dialog accessible directly from the Cyber Defense HUD.
+  - Real-time progression readout displaying current player level, XP progress bar to next level, current and required XP, available and spent Skill Points, and current/next attack damage stats.
+  - One-click purchase action with immediate feedback, affordability validation, and localized status updates in English, German, and Russian.
+- **Question-Bound Attack Damage Semantics**:
+  - Attack damage is bound at question presentation time via `CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision)`: upgrades purchased mid-question take effect starting with the subsequent question, preserving clean mathematical presentation boundaries.
+- **Pause-Safe Interaction & Learning Isolation**:
+  - Opening the Upgrade Terminal automatically pauses active math interaction timing, ensuring terminal navigation never contaminates measured response latency or fluency tracking.
+  - In-flight partial answer input and fact state are strictly preserved across terminal open and close cycles.
+  - Full isolation of learning data: Learner Store Schema V9, FSRS spaced repetition, item mastery, and curriculum progression remain completely untouched and independent of combat upgrades.
+- **Accessibility & Lifecycle Hardening**:
+  - Accessible modal dialog featuring keyboard focus management, backdrop dismissal, and standard Escape key support.
+  - Modal header isolation: parent practice header receives dynamic inert and aria-hidden bindings (`inert="@(_isUpgradeTerminalOpen ? true : null)"`, `aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)"`) while the terminal is active, and mode toggling is safely disabled to prevent keyboard focus leaks and screenreader confusion.
+  - Robust SQLite persistence with Gameplay Schema V4, connection lifecycle safety, and crash-safe reset epoch fencing.
+  - *Candidate Status*: Implemented across 13 checkpoint commits on task branch `feat/mf-cyber-005-xp-economy-slice1` (implementation checkpoint before documentation reconciliation: `798466f7327efd9f60faeae482a467043d8c408b`; the documentation-inclusive candidate HEAD is determined by the subsequent `COMMIT_ONLY`); consolidated package review completed with findings (`MF_CYBER_005_CONSOLIDATED_REVIEW_CHANGES_REQUIRED`), addressed in Slice 6D.2, and approved by independent review (`SLICE_6D2_REVIEW_PASS`); documentation review returned `MF_CYBER_005_DOCUMENTATION_REVIEW_CHANGES_REQUIRED`, with corrections applied and independent re-review pending; not yet validated via formal FULL_VALIDATION, not pushed to remote, and not merged into `main`.
+
 ### MF-CYBER-004 (Authoritative Headless Combat Simulator and Synthetic Player Profile Harness) — Implemented and Merged into main (Unreleased)
 
 - **Authoritative Headless Combat Simulator Engine**:

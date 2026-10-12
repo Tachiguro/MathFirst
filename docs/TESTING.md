@@ -1546,3 +1546,68 @@ The formal exact-candidate validation for the WAL fixture remediation was execut
 - **Historical Validation Failure Preserved**: The historical documentation validation failure verdict (`MF_CYBER_003_POST_MERGE_DOCS_FULL_VALIDATION_FAILED` on commit `41e74c9a697dd6ddf1d3cf254259779bb6f7b1ec`) is preserved unchanged as historical fact.
 - **No Production Code or Schema Changes**: PR #77 is strictly test-infrastructure hardening. Learner Store Schema V9 and Gameplay Store Schema V1 remain unchanged with zero DDL migrations.
 - **Pending Validation for Current Documentation Candidate**: Current documentation reconciliation candidate on continuation branch `docs/mf-cyber-003-postmerge-reconciliation-v2` has not yet undergone formal `FULL_VALIDATION`. That validation will occur in a later separate lifecycle operation following review and commit.
+
+---
+
+## 34. MF-CYBER-005 (XP Economy, Player Level Curve, and Upgrade Terminal) Contracts & Test Evidence
+
+Following the completion and review of all implementation slices (1 through 6D.2) on task branch `feat/mf-cyber-005-xp-economy-slice1` (implementation checkpoint before documentation reconciliation: `798466f7327efd9f60faeae482a467043d8c408b`; merge-base `dca7893da0f77704a910cdb7594a78f6e52be280`; documentation-inclusive candidate HEAD determined by the subsequent `COMMIT_ONLY`), the test suite for `MF-CYBER-005` encompasses 22 affected test files (18 added, 4 modified) in `tests/MathFirst.Core.Tests/CyberDefense/` containing 560 declared test methods across `[Fact]` (489) and `[Theory]` (71), representing 408 net added test methods and 178 net added `[InlineData]` parameter rows over the `origin/main` baseline across unit, property, persistence, view-model, and component contract suites.
+
+### Verified Test Suites & Verification Scope
+
+1. **Domain Economy, Level, and Opponent Tracking Tests**:
+   - `CyberDefenseEconomyPolicyTests.cs`: Verifies XP allocation for correct attempts (6 XP), incorrect attempts (1 XP), normal enemy defeat bonus (1 XP per attack dealt), and boss enemy defeat bonus (2 XP per attack dealt plus 10 XP completion milestone).
+   - `PlayerLevelCurveTests.cs`: Verifies monotonic player level derivation across XP thresholds: per-level XP delta $\Delta\text{XP}(\text{level}) = \lceil 80 + 24 \cdot (\text{level} - 1)^{0.75} \rceil$ for $\text{level} \le 100$, and $\Delta\text{XP}(\text{level}) = \lceil 834 + 160 \cdot \log_2(\text{level} / 100) \rceil$ for $\text{level} > 100$, with cumulative thresholds $\text{Threshold}(1) = 0$ and $\text{Threshold}(L) = \sum_{k=1}^{L-1} \Delta\text{XP}(k)$ for $L \ge 2$, Skill Point awards ($SP = \text{Level} - 1$), and immutable `PlayerLevelProgress` metrics (level, current cumulative XP, threshold range $[\text{Threshold}(L), \text{Threshold}(L+1))$, progress ratio, remaining XP).
+   - `CyberDefenseProgressionRewardTests.cs`: Verifies reward receipt emission, executed attack count provenance propagation, and reward ledger updates upon encounter transitions.
+   - `OpponentExecutedAttackTrackingTests.cs`: Verifies tracking of executed attacks on opponents across combat turns, counter-attacks, defeat bonus calculations, and persistence rehydration.
+   - `CyberDefenseRunStateInvariantTests.cs` (modified): Verifies domain invariants on `CyberDefenseRunState`, including non-negative `opponent_executed_attacks`, valid `OpponentEncounterProvenance` values, constructor guard clauses, and value equality.
+   - `CyberDefenseStateMachineTests.cs` (modified): Verifies pure static `CyberDefenseStateMachine.ApplyAttempt` transitions, accounting for opponent executed attacks during normal combat, counter-damage on incorrect answers, and terminal snapshot recording.
+
+2. **Attack Upgrade Policy Tests**:
+   - `CyberDefenseAttackUpgradePolicyTests.cs`: Verifies attack upgrade formula $D(\text{rank}) = 1 + \text{rank}$ starting at base damage 1, step-logarithmic upgrade costs evaluated on the rank being purchased $C(\text{nextRank}) = 1 + \lfloor \log_2(\text{nextRank}) \rfloor$ (e.g. next rank 1 → 1 SP, 2–3 → 2 SP, 4–7 → 3 SP, 8–15 → 4 SP, 16 → 5 SP), cumulative SP calculation, and validation guards against negative ranks or invalid progressions.
+   - `AttackUpgradeContractTests.cs`: Verifies domain-level purchase eligibility, snapshot serialization, and rank boundary contracts.
+
+3. **SQLite Gameplay Persistence & Migration Tests**:
+   - `SqliteGameplayStoreSchemaV2MigrationTests.cs`: Verifies schema upgrade from V1 to V2, adding `opponent_executed_attacks INTEGER NOT NULL DEFAULT 0 CHECK (opponent_executed_attacks >= 0)` to `gameplay_run_state`, and column preservation across fresh initialization.
+   - `SqliteGameplayStoreSchemaV3MigrationTests.cs`: Verifies schema upgrade from V2 to V3, adding `opponent_encounter_provenance TEXT NOT NULL DEFAULT 'Authoritative' CHECK (opponent_encounter_provenance IN ('Authoritative', 'UnverifiedLegacy'))` to `gameplay_run_state`.
+   - `SqliteGameplayStoreSchemaV4MigrationTests.cs`: Verifies schema upgrade from V3 to V4, adding progression columns to `gameplay_progression` (`cumulative_xp`, `player_level`, `earned_sp`, `spent_sp`, `available_sp`, `attack_rank`, `economy_version`, and the `CHECK (earned_sp = spent_sp + available_sp)` invariant constraint) and `effective_attack_damage INTEGER NOT NULL DEFAULT 1 CHECK (effective_attack_damage >= 1)` to `gameplay_pending_intent`.
+   - `SqliteGameplayStoreExactlyOnceProgressionTests.cs`: Verifies exactly-once XP settlement, deduplication across replayed attempt submissions, and receipt ledger consistency.
+   - `SqliteGameplayStorePendingIntentAndConsumerTests.cs` (modified): Verifies staging of `effective_attack_damage` in pending intents and consumption by `CyberDefenseSubmissionConsumer`.
+
+4. **Purchase Transaction and Concurrency Tests**:
+   - `SqliteGameplayStoreAttackPurchaseTests.cs`: Verifies `PurchaseAttackUpgradeAsync` atomic transactions, SP deduction, rank increment, store revision bump, and error handling for insufficient SP or invalid initial state.
+   - `SqliteGameplayStoreConcurrencyTests.cs`: Verifies optimistic rank checking, store revision conflict rejection, and concurrent purchase attempt isolation ensuring no double-spend or state corruption occurs.
+
+5. **Reset Epoch and Store Revision Tests**:
+   - `CrashSafeResetAndEpochFencingTests.cs` (modified): Verifies two-phase crash-safe reset coordination, monotonic `reset_epoch` advancement, and fencing of pre-reset pending purchases and attempts from executing against post-reset state.
+   - `CyberDefenseCrashRecoveryContractTests.cs`: Verifies pending intent recovery on startup, reconciling staged effective attack damage and progression state after simulated process termination.
+
+6. **Question-Bound Damage Tests**:
+   - `CyberDefenseQuestionBoundAttackDamageTests.cs`: Verifies that attack damage is bound at question presentation via `CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision)`. Mid-question upgrades apply only to subsequent questions, while the current question's damage remains fixed.
+   - `AuthoritativeCombatDamageActivationTests.cs`: Verifies end-to-end integration between question-bound damage in `CyberDefenseCombatCoordinator`, staging in `gameplay_pending_intent`, and consumption in `CyberDefenseStateMachine.ApplyAttempt`.
+
+7. **UpgradeTerminalViewModel Tests**:
+   - `UpgradeTerminalViewModelTests.cs`: Verifies `UpgradeTerminalViewModel` state projection, reactive property notifications, progression metrics derivation, affordability evaluations, purchase command execution, and error handling for failed transactions.
+
+8. **Upgrade Terminal Component Contract Tests**:
+   - `UpgradeTerminalComponentContractTests.cs`: Verifies Razor component markup, structural DOM hierarchy, dialog accessibility attributes (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `aria-describedby`), Escape key dismissal, backdrop dismissal, keyboard button focus states, and complete localization across English, German, and Russian.
+   - Verifies Slice 6D.2 modal header isolation remediation: `mathfirst-header` element receives dynamic bindings `inert="@(_isUpgradeTerminalOpen ? true : null)"` and `aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)"` when the terminal is open, and mode toggle is disabled.
+
+9. **UpgradeTerminalHomeIntegrationTests & Lifecycle Tests**:
+   - `UpgradeTerminalHomeIntegrationTests.cs`: Verifies pause-safe Home integration:
+     - Opening terminal via `OpenUpgradeTerminalAsync` synchronously calls `Session.PauseItemTiming()`, freezing active interaction timing so modal dwell time does not contaminate math response latency.
+     - Closing terminal via `CloseUpgradeTerminal` / `CloseUpgradeTerminalCore` calls `Session.ResumeItemTiming()` only when returning to active running practice awaiting answer.
+     - Unsubmitted partial input and fact instance revision (`Session.FactInstanceRevision`) are strictly preserved across terminal open/close cycles.
+     - Mode toggle is disabled while terminal is open.
+
+### Explicit Evidence Boundaries
+
+1. **Domain Policy Verification**: Pure domain unit and property tests verify mathematical policies (`CyberDefenseEconomyPolicy`, `CyberDefenseLevelPolicy`, `CyberDefenseAttackUpgradePolicy`, `PlayerLevelProgress`). They do not execute SQLite database engines, file I/O, or UI rendering.
+2. **SQLite Transactional Persistence Verification**: SQLite persistence tests verify transactional atomicity, schema migrations V1 $\to$ V4, optimistic concurrency, and epoch fencing against temporary isolated disk/in-memory SQLite instances. They do not simulate OS crashes or physical flash storage corruption.
+3. **TrainingSession Timing Verification**: Integration tests verify that `Session.PauseItemTiming()` and `Session.ResumeItemTiming()` properly segment active math response latency and preserve partial input.
+4. **Razor Source-Contract Verification**: Component tests inspect Razor source and markup structure via contract tests. They verify DOM attributes, ARIA tags, and CSS classes statically.
+5. **Test-Local Coordinator Verification**: Test-local refresh coordinator tests verify event publication and subscription semantics without executing the full MAUI/Blazor hosting runtime or `Home.razor` Blazor rendering engine.
+6. **Physical Device & WebView Boundary**: WebView keyboard focus management, focus trapping, and screenreader announcement behavior remain unverified on physical hardware devices or emulators. Formal manual physical-device validation has not been performed for MF-CYBER-005.
+7. **Learner Store Schema V9 Boundary**: Learner Store Schema V9 is completely untouched; 0 DDL migrations were introduced to `mathfirst_learner.db`. FSRS-6 spaced repetition, attempt history, and band progression remain completely decoupled from gameplay progression.
+8. **Formal Validation Status**: Formal exact-candidate `FULL_VALIDATION` has **NOT YET PASSED** for MF-CYBER-005. The package is currently in `DOCUMENT_ONLY` reconciliation awaiting documentation re-review and `COMMIT_ONLY`; full validation must subsequently target the resulting documentation-inclusive candidate HEAD, not the implementation checkpoint `798466f7327efd9f60faeae482a467043d8c408b`.
+9. **Review History**: Consolidated package review was conducted with mandatory findings (`MF_CYBER_005_CONSOLIDATED_REVIEW_CHANGES_REQUIRED`), resolved in Slice 6D.2 (`SLICE_6D2_REVIEW_PASS`, checkpoint commit `798466f7327efd9f60faeae482a467043d8c408b`); candidate documentation review returned `MF_CYBER_005_DOCUMENTATION_REVIEW_CHANGES_REQUIRED`, with corrections applied and independent re-review pending.
