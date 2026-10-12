@@ -474,4 +474,363 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
             Assert.NotEqual(key, value);
         }
     }
+
+    // =========================================================================
+    // SLICE 6D: Hardening Regressions (Findings 1 & 2)
+    // =========================================================================
+
+    [Fact]
+    public void Home_Contract_InertAndAriaHidden_IsolatesTrainingTopRegionWhileOpen()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        // training-top-region must have inert and aria-hidden when Upgrade Terminal is open
+        Assert.Contains("<div class=\"training-top-region\" inert=\"@(_isUpgradeTerminalOpen ? true : null)\" aria-hidden=\"@(_isUpgradeTerminalOpen ? \"true\" : null)\">", home, StringComparison.Ordinal);
+
+        // practice-layout must also preserve its inert and aria-hidden
+        Assert.Contains("<div class=\"practice-layout\" inert=\"@(_isUpgradeTerminalOpen ? true : null)\" aria-hidden=\"@(_isUpgradeTerminalOpen ? \"true\" : null)\">", home, StringComparison.Ordinal);
+
+        // UpgradeTerminal component must be rendered outside training-top-region and practice-layout
+        var topRegionIndex = home.IndexOf("class=\"training-top-region\"", StringComparison.Ordinal);
+        var practiceLayoutIndex = home.IndexOf("class=\"practice-layout\"", StringComparison.Ordinal);
+        var upgradeTerminalIndex = home.IndexOf("<UpgradeTerminal", StringComparison.Ordinal);
+
+        Assert.True(topRegionIndex > 0, "training-top-region must exist in Home.razor.");
+        Assert.True(practiceLayoutIndex > topRegionIndex, "practice-layout must be placed after training-top-region.");
+        Assert.True(upgradeTerminalIndex > practiceLayoutIndex, "UpgradeTerminal modal must be outside and after the inert layout containers.");
+    }
+
+    [Fact]
+    public void Home_Contract_TerminalBackgroundRefresh_UsesSafeObservationPattern()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        // Must NOT contain fire-and-forget unobserved task calls to RefreshAsync
+        Assert.DoesNotContain("_ = _upgradeTerminalViewModel?.RefreshAsync()", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = _upgradeTerminalViewModel.RefreshAsync()", home, StringComparison.Ordinal);
+
+        // Must route through safe scheduled background refresh
+        Assert.Contains("ScheduleUpgradeTerminalRefresh()", home, StringComparison.Ordinal);
+        Assert.Contains("RunObservedTerminalRefreshAsync()", home, StringComparison.Ordinal);
+
+        // Must handle cancellation and disposal safely in refresh runner
+        Assert.Contains("catch (OperationCanceledException)", home, StringComparison.Ordinal);
+        Assert.Contains("catch (ObjectDisposedException)", home, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_Contract_ModalClosure_RestoresAppropriateFocus()
+    {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
+
+        // CloseUpgradeTerminalCore restores focus to input if running and awaiting answer, or primary overlay otherwise
+        Assert.Contains("CloseUpgradeTerminalCore", home, StringComparison.Ordinal);
+        Assert.Matches(@"if\s*\(shouldResumeTiming\)\s*\{[\s\S]*?_shouldFocusInput\s*=\s*true;[\s\S]*?_shouldFocusPrimaryOverlay\s*=\s*false;", home);
+        Assert.Matches(@"_shouldFocusInput\s*=\s*false;[\s\S]*?_shouldFocusPrimaryOverlay\s*=\s*true;", home);
+    }
+
+    [Fact]
+    public async Task ObservedTerminalRefresh_SafeObservationPattern_CatchesExpectedCancellationAndDisposal()
+    {
+        var store = new TestGameplayStore();
+        using var vm = new UpgradeTerminalViewModel(store);
+        using var coordinator = new ObservedTerminalRefreshCoordinator(vm);
+
+        // 1. Cancellation test
+        store.GetProgressionHandler = _ => throw new OperationCanceledException();
+        coordinator.ScheduleRefresh();
+        var task = coordinator.CurrentTask;
+        Assert.NotNull(task);
+        await task;
+        Assert.True(task.IsCompletedSuccessfully, "Task must complete cleanly without faulting on OperationCanceledException.");
+
+        // 2. Disposal test
+        store.GetProgressionHandler = _ => throw new ObjectDisposedException("store");
+        coordinator.ScheduleRefresh();
+        var task2 = coordinator.CurrentTask;
+        Assert.NotNull(task2);
+        await task2;
+        Assert.True(task2.IsCompletedSuccessfully, "Task must complete cleanly without faulting on ObjectDisposedException.");
+    }
+
+    [Fact]
+    public async Task ObservedTerminalRefresh_UnexpectedStoreException_DoesNotThrowUnobservedException()
+    {
+        var store = new TestGameplayStore();
+        using var vm = new UpgradeTerminalViewModel(store);
+        using var coordinator = new ObservedTerminalRefreshCoordinator(vm);
+
+        store.GetProgressionHandler = _ => throw new InvalidOperationException("SQLite disk I/O error");
+
+        coordinator.ScheduleRefresh();
+        var task = coordinator.CurrentTask;
+        Assert.NotNull(task);
+        await task;
+
+        Assert.True(task.IsCompletedSuccessfully, "Unexpected exception must be observed and handled without faulting the task.");
+        Assert.Equal(1, coordinator.ObservedExceptionCount);
+    }
+
+    [Fact]
+    public async Task ObservedTerminalRefresh_CompletedMathSubmission_SurvivesSecondaryRefreshFailure()
+    {
+        var clock = new FakeClock();
+        var session = await CreateAndStartSessionAsync(clock);
+
+        var initialFact = session.CurrentFact;
+        Assert.NotNull(initialFact);
+
+        // Simulate successful math submission
+        var eval = session.SubmitAnswer(initialFact.CorrectResult);
+        Assert.True(eval.IsCorrect);
+
+        var persistence = await session.CommitCurrentEvaluationAsync();
+        Assert.True(persistence.IsSuccess);
+        Assert.True(session.IsCurrentSubmissionCommitted);
+
+        // Secondary UI refresh fails with store exception
+        var store = new TestGameplayStore
+        {
+            GetProgressionHandler = _ => throw new InvalidOperationException("Store unavailable")
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        using var coordinator = new ObservedTerminalRefreshCoordinator(vm);
+
+        coordinator.ScheduleRefresh();
+        var refreshTask = coordinator.CurrentTask;
+        Assert.NotNull(refreshTask);
+        await refreshTask;
+
+        // Mathematical advancement proceeds completely unaffected
+        var advanced = await session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
+        Assert.True(advanced);
+        Assert.NotEqual(initialFact.Id, session.CurrentFact!.Id);
+    }
+
+    [Fact]
+    public async Task ObservedTerminalRefresh_RapidRequests_CoalescesToSinglePendingPass()
+    {
+        var store = new TestGameplayStore();
+        using var vm = new UpgradeTerminalViewModel(store);
+        using var coordinator = new ObservedTerminalRefreshCoordinator(vm);
+
+        var firstCallTcs = new TaskCompletionSource<bool>();
+        var allowFirstCallToComplete = new TaskCompletionSource<bool>();
+
+        store.GetProgressionHandler = async ct =>
+        {
+            if (store.RefreshCallCount == 1)
+            {
+                firstCallTcs.TrySetResult(true);
+                await allowFirstCallToComplete.Task;
+            }
+            return CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow);
+        };
+
+        // First call starts executing and waits
+        coordinator.ScheduleRefresh();
+        await firstCallTcs.Task;
+
+        // Schedule 5 more rapid requests while first is still executing
+        for (int i = 0; i < 5; i++)
+        {
+            coordinator.ScheduleRefresh();
+        }
+
+        // Release first call
+        allowFirstCallToComplete.TrySetResult(true);
+
+        // Await until active tasks finish
+        while (coordinator.CurrentTask != null && !coordinator.CurrentTask.IsCompleted)
+        {
+            await Task.Delay(10);
+        }
+
+        // Total calls should be exactly 2: initial executing pass + single coalesced pending pass
+        Assert.Equal(2, store.RefreshCallCount);
+    }
+
+    [Fact]
+    public async Task ObservedTerminalRefresh_DisposalDuringExecution_CancelsSafelyWithoutUiUpdate()
+    {
+        var store = new TestGameplayStore();
+        using var vm = new UpgradeTerminalViewModel(store);
+        var coordinator = new ObservedTerminalRefreshCoordinator(vm);
+
+        var executingTcs = new TaskCompletionSource<bool>();
+
+        store.GetProgressionHandler = async ct =>
+        {
+            executingTcs.TrySetResult(true);
+            await Task.Delay(5000, ct); // Block until cancelled
+            return CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow);
+        };
+
+        coordinator.ScheduleRefresh();
+        await executingTcs.Task;
+
+        // Dispose coordinator during active execution
+        coordinator.Dispose();
+
+        var task = coordinator.CurrentTask;
+        if (task != null)
+        {
+            await task;
+            Assert.True(task.IsCompletedSuccessfully);
+        }
+
+        Assert.Equal(0, coordinator.StateChangeNotifications);
+    }
+
+    private sealed class TestGameplayStore : IGameplayStore
+    {
+        public string StoragePath => "inmemory://test-gameplay";
+        public Func<CancellationToken, Task<CyberDefenseProgressionRecord>>? GetProgressionHandler { get; set; }
+        public int RefreshCallCount { get; private set; }
+
+#pragma warning disable CS0067 // Event is never used
+        public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
+#pragma warning restore CS0067
+
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseRunState.InitialRun());
+        public Task<long> GetResetEpochAsync(CancellationToken cancellationToken = default) => Task.FromResult(0L);
+        public Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default) => Task.FromResult(1L);
+
+        public async Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default)
+        {
+            RefreshCallCount++;
+            if (GetProgressionHandler != null)
+            {
+                return await GetProgressionHandler(cancellationToken);
+            }
+            return CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow);
+        }
+
+        public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseAttackUpgradeSnapshot.FromProgression(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow)));
+
+        public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));
+
+        public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<CyberDefenseReceiptRecord?>(null);
+
+        public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<CyberDefensePendingIntentRecord?>(null);
+        public Task<IReadOnlyList<CyberDefensePendingIntentRecord>> GetPendingIntentsAsync(long resetEpoch, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CyberDefensePendingIntentRecord>>([]);
+        public Task ClearPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<CyberDefenseReceiptRecord> ApplyAttemptTransactionAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new CyberDefenseReceiptRecord(intent.SubmissionId, CyberDefenseReceiptKind.CalmModeSuppressed, "fact1", true, true, 500, 0L, DateTimeOffset.UtcNow));
+        public Task<GameplayResetIntentRecord> GetResetIntentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GameplayResetIntentRecord(false, 0L, 0L, null, DateTimeOffset.UtcNow));
+        public Task<GameplayResetIntentRecord> BeginOrGetResetIntentAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GameplayResetIntentRecord(false, 0L, 0L, null, DateTimeOffset.UtcNow));
+        public Task ResetGameplayStateAsync(long targetEpoch, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task ClearResetIntentAsync(long targetEpoch, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void Dispose() { }
+    }
+
+    private sealed class ObservedTerminalRefreshCoordinator : IDisposable
+    {
+        private readonly object _lock = new();
+        private readonly UpgradeTerminalViewModel _vm;
+        private CancellationTokenSource? _cts = new();
+        private Task? _activeTask;
+        private bool _hasQueuedRefresh;
+        private bool _isDisposed;
+        public int CompletedRefreshCount { get; private set; }
+        public int ObservedExceptionCount { get; private set; }
+        public int StateChangeNotifications { get; private set; }
+
+        public ObservedTerminalRefreshCoordinator(UpgradeTerminalViewModel vm)
+        {
+            _vm = vm;
+            _vm.StateChanged += () =>
+            {
+                if (!_isDisposed)
+                {
+                    StateChangeNotifications++;
+                }
+            };
+        }
+
+        public void ScheduleRefresh()
+        {
+            if (_isDisposed) return;
+            lock (_lock)
+            {
+                if (_isDisposed) return;
+                if (_activeTask is not null && !_activeTask.IsCompleted)
+                {
+                    _hasQueuedRefresh = true;
+                    return;
+                }
+                _activeTask = RunObservedRefreshAsync();
+            }
+        }
+
+        public Task? CurrentTask
+        {
+            get { lock (_lock) return _activeTask; }
+        }
+
+        private async Task RunObservedRefreshAsync()
+        {
+            while (true)
+            {
+                CancellationToken ct;
+                lock (_lock)
+                {
+                    if (_isDisposed || _cts is null) return;
+                    ct = _cts.Token;
+                    _hasQueuedRefresh = false;
+                }
+
+                try
+                {
+                    await _vm.RefreshAsync(ct).ConfigureAwait(false);
+                    CompletedRefreshCount++;
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    ObservedExceptionCount++;
+                    System.Diagnostics.Trace.TraceWarning("UpgradeTerminal background refresh failed: {0}", ex);
+                }
+
+                lock (_lock)
+                {
+                    if (_isDisposed || !_hasQueuedRefresh)
+                    {
+                        _activeTask = null;
+                        return;
+                    }
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            _isDisposed = true;
+            lock (_lock)
+            {
+                try { _cts?.Cancel(); } catch (ObjectDisposedException) { }
+                _cts?.Dispose();
+                _cts = null;
+                _hasQueuedRefresh = false;
+            }
+        }
+    }
 }

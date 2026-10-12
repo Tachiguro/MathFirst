@@ -298,7 +298,7 @@
                 {
                     @if (IsCyberDefenseActive && CombatCoordinator.CurrentViewModel is not null)
                     {
-                        <div class="training-top-region">
+                        <div class="training-top-region" inert="@(_isUpgradeTerminalOpen ? true : null)" aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
                             <CyberDefenseHud ViewModel="CombatCoordinator.CurrentViewModel"
                                              CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                              ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
@@ -459,6 +459,10 @@
     private bool _isUpgradeTerminalOpen;
     private bool _wasTimingSuspendedByTerminal;
     private bool _isDisposed;
+    private readonly object _terminalRefreshLock = new();
+    private Task? _terminalRefreshTask;
+    private bool _hasQueuedTerminalRefresh;
+    private CancellationTokenSource? _terminalRefreshCts = new();
     private int EffectiveAvailableSp => _upgradeTerminalViewModel?.AvailableSkillPoints ?? 0;
     private string _answerInput = string.Empty;
     private string? _validationError;
@@ -670,11 +674,98 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
+    private void ScheduleUpgradeTerminalRefresh()
+    {
+        if (_isDisposed || _upgradeTerminalViewModel is null)
+        {
+            return;
+        }
+
+        lock (_terminalRefreshLock)
+        {
+            if (_isDisposed || _upgradeTerminalViewModel is null)
+            {
+                return;
+            }
+
+            if (_terminalRefreshTask is not null && !_terminalRefreshTask.IsCompleted)
+            {
+                _hasQueuedTerminalRefresh = true;
+                return;
+            }
+
+            _terminalRefreshTask = RunObservedTerminalRefreshAsync();
+        }
+    }
+
+    private async Task RunObservedTerminalRefreshAsync()
+    {
+        while (true)
+        {
+            CancellationToken ct;
+            UpgradeTerminalViewModel? vm;
+            lock (_terminalRefreshLock)
+            {
+                if (_isDisposed || _terminalRefreshCts is null || _upgradeTerminalViewModel is null)
+                {
+                    return;
+                }
+                ct = _terminalRefreshCts.Token;
+                vm = _upgradeTerminalViewModel;
+                _hasQueuedTerminalRefresh = false;
+            }
+
+            try
+            {
+                await vm.RefreshAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected cancellation during teardown, shutdown, or disposal
+                return;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected when ViewModel, store, or component is disposed
+                return;
+            }
+            catch (Exception ex)
+            {
+                // Secondary refresh failure isolation:
+                // Completed math submissions and session progression remain successful.
+                // Exceptions are observed so they never produce unobserved task exceptions.
+                System.Diagnostics.Trace.TraceWarning("UpgradeTerminal background refresh failed: {0}", ex);
+            }
+
+            lock (_terminalRefreshLock)
+            {
+                if (_isDisposed || !_hasQueuedTerminalRefresh || _upgradeTerminalViewModel is null)
+                {
+                    _terminalRefreshTask = null;
+                    return;
+                }
+            }
+        }
+    }
+
     public void Dispose()
     {
         _isDisposed = true;
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         Session.AppForegroundStateChanged -= OnAppForegroundChanged;
+        lock (_terminalRefreshLock)
+        {
+            try
+            {
+                _terminalRefreshCts?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            _terminalRefreshCts?.Dispose();
+            _terminalRefreshCts = null;
+            _hasQueuedTerminalRefresh = false;
+        }
         if (_upgradeTerminalViewModel is not null)
         {
             _upgradeTerminalViewModel.StateChanged -= OnUpgradeTerminalStateChanged;
@@ -925,7 +1016,7 @@
                 if (Session.IsCurrentSubmissionCommitted)
                 {
                     await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
-                    _ = _upgradeTerminalViewModel?.RefreshAsync();
+                    ScheduleUpgradeTerminalRefresh();
                 }
 
                 var advancedAutomatically = eval.IsCorrect &&
@@ -1007,7 +1098,7 @@
                 {
                     var submissionId = Session.LastEvaluation.ChangeSet.SubmissionId;
                     await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
-                    _ = _upgradeTerminalViewModel?.RefreshAsync();
+                    ScheduleUpgradeTerminalRefresh();
                 }
 
                 if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
