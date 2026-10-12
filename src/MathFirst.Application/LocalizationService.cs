@@ -326,7 +326,9 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Busy"] = "A purchase is already in progress.",
         ["UpgradeTerminal_Feedback_Disposed"] = "Terminal is no longer available.",
         ["UpgradeTerminal_Feedback_Cancelled"] = "Purchase operation was cancelled.",
-        ["UpgradeTerminal_Feedback_Error"] = "Failed to purchase upgrade."
+        ["UpgradeTerminal_Feedback_Error"] = "Failed to purchase upgrade.",
+        ["UpgradeTerminal_IndicatorAction"] = "Upgrade ↑",
+        ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade Terminal: {0} Skill Points available"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -540,7 +542,9 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Busy"] = "Ein Kaufvorgang läuft bereits.",
         ["UpgradeTerminal_Feedback_Disposed"] = "Terminal ist nicht mehr verfügbar.",
         ["UpgradeTerminal_Feedback_Cancelled"] = "Kaufvorgang wurde abgebrochen.",
-        ["UpgradeTerminal_Feedback_Error"] = "Upgrade konnte nicht gekauft werden."
+        ["UpgradeTerminal_Feedback_Error"] = "Upgrade konnte nicht gekauft werden.",
+        ["UpgradeTerminal_IndicatorAction"] = "Upgrade ↑",
+        ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade-Terminal: {0} Fähigkeitspunkte verfügbar"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -754,6 +758,8 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Busy"] = "Покупка уже выполняется.",
         ["UpgradeTerminal_Feedback_Disposed"] = "Терминал больше недоступен.",
         ["UpgradeTerminal_Feedback_Cancelled"] = "Покупка была отменена.",
-        ["UpgradeTerminal_Feedback_Error"] = "Не удалось приобрести улучшение."
+        ["UpgradeTerminal_Feedback_Error"] = "Не удалось приобрести улучшение.",
+        ["UpgradeTerminal_IndicatorAction"] = "Улучшения ↑",
+        ["UpgradeTerminal_IndicatorAriaLabel"] = "Терминал улучшений: доступно {0} очков навыков"
     };
 }

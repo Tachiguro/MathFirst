@@ -5,6 +5,7 @@
 @using MathFirst.Application.Diagnostics
 @using MathFirst.Application.Gameplay
 @using MathFirst.Application.Lifecycle
+@using MathFirst.Application.Persistence
 @using MathFirst.Application.Practice
 @using MathFirst.App.Components.Training
 @using MathFirst.Domain
@@ -16,6 +17,7 @@
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
 @inject ICyberDefenseCombatCoordinator CombatCoordinator
+@inject IGameplayStore GameplayStore
 @inject IJSRuntime JSRuntime
 @inject IHapticFeedbackService HapticService
 
@@ -116,7 +118,9 @@
                     <section class="practice-overlay practice-gate-overlay"
                              role="dialog"
                              aria-modal="true"
-                             aria-labelledby="practice-gate-title">
+                             aria-labelledby="practice-gate-title"
+                             inert="@(_isUpgradeTerminalOpen ? true : null)"
+                             aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
                         <div class="practice-overlay-content">
                             <h2 id="practice-gate-title">@PracticeGateTitle</h2>
                             @if (Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory)
@@ -162,6 +166,15 @@
                                         <span class="pause-summary-value">@LearningPolicy.FormatLatencySeconds(summary.MedianCorrectLatencyMs, Localizer["Training_Unavailable"])</span>
                                     </div>
                                 </div>
+                                @if (IsCyberDefenseActive)
+                                {
+                                    <button type="button"
+                                            class="button button-secondary practice-overlay-action pause-upgrade-btn"
+                                            aria-label='@Localizer["UpgradeTerminal_Title"]'
+                                            @onclick="OpenUpgradeTerminalAsync">
+                                        @Localizer["UpgradeTerminal_Title"]
+                                    </button>
+                                }
                             }
                             <button type="button"
                                     @ref="_primaryOverlayButton"
@@ -289,7 +302,9 @@
                             <CyberDefenseHud ViewModel="CombatCoordinator.CurrentViewModel"
                                              CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                              ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
-                                             TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")" />
+                                             TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")"
+                                             AvailableSkillPoints="EffectiveAvailableSp"
+                                             OnOpenUpgradeTerminal="OpenUpgradeTerminalAsync" />
 
                             <PracticeCountdownTimer Session="Session"
                                                     IsVisible="false"
@@ -303,7 +318,7 @@
                                                 AriaLabel='@(Session.HasEnforcedDeadline ? Localizer["Training_TimerAriaLabel", (int)Session.CurrentFactDeadlineSeconds] : Localizer["Training_TimerElapsedAriaLabel"])' />
                     }
 
-                    <div class="practice-layout">
+                    <div class="practice-layout" inert="@(_isUpgradeTerminalOpen ? true : null)" aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
                         <div class="practice-interaction-column">
                             <div class="solve-to-attack-panel @(IsCalmMode ? "calm-mode" : "")">
                                 @if (IsCyberDefenseActive)
@@ -429,12 +444,22 @@
                         </div>
                     </div>
                 }
+
+                @if (_isUpgradeTerminalOpen && _upgradeTerminalViewModel is not null)
+                {
+                    <UpgradeTerminal ViewModel="_upgradeTerminalViewModel" OnClose="CloseUpgradeTerminal" />
+                }
             </main>
         }
     </div>
 </div>
 
 @code {
+    private UpgradeTerminalViewModel? _upgradeTerminalViewModel;
+    private bool _isUpgradeTerminalOpen;
+    private bool _wasTimingSuspendedByTerminal;
+    private bool _isDisposed;
+    private int EffectiveAvailableSp => _upgradeTerminalViewModel?.AvailableSkillPoints ?? 0;
     private string _answerInput = string.Empty;
     private string? _validationError;
     private string? _submittedAnswerDisplay;
@@ -460,7 +485,7 @@
 
     private void ToggleCyberDefenseMode()
     {
-        if (_isSubmitting)
+        if (_isSubmitting || _isUpgradeTerminalOpen)
         {
             return;
         }
@@ -521,6 +546,17 @@
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
         RefreshEnabledOperations();
+
+        _upgradeTerminalViewModel = new UpgradeTerminalViewModel(GameplayStore);
+        _upgradeTerminalViewModel.StateChanged += OnUpgradeTerminalStateChanged;
+        try
+        {
+            await _upgradeTerminalViewModel.InitializeAsync();
+        }
+        catch
+        {
+            // Non-fatal on startup; terminal will attempt re-refresh on open.
+        }
 
         if (!Session.IsInitialized)
         {
@@ -625,10 +661,26 @@
         SyncPracticeGateCopy();
     }
 
+    private void OnUpgradeTerminalStateChanged()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     public void Dispose()
     {
+        _isDisposed = true;
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         Session.AppForegroundStateChanged -= OnAppForegroundChanged;
+        if (_upgradeTerminalViewModel is not null)
+        {
+            _upgradeTerminalViewModel.StateChanged -= OnUpgradeTerminalStateChanged;
+            _upgradeTerminalViewModel?.Dispose();
+            _upgradeTerminalViewModel = null;
+        }
         Session.PauseItemTiming();
     }
 
@@ -661,6 +713,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_isUpgradeTerminalOpen)
+        {
+            return;
+        }
+
         if (IsAnswerEntryVisible && _guardedInputRenderVersion != _inputRenderVersion)
         {
             try
@@ -721,6 +778,11 @@
     private async Task HandleGlobalKeyDown(KeyboardEventArgs e)
     {
         if (e.Key is not "Enter" and not "NumpadEnter")
+        {
+            return;
+        }
+
+        if (_isUpgradeTerminalOpen)
         {
             return;
         }
@@ -790,7 +852,7 @@
 
     private async Task HandleKeypadKeyAsync(string key)
     {
-        if (!IsAnswerEntryVisible || _isSubmitting)
+        if (!IsAnswerEntryVisible || _isSubmitting || _isUpgradeTerminalOpen)
         {
             return;
         }
@@ -820,7 +882,7 @@
 
     private async Task Submit()
     {
-        if (_isSubmitting || !IsAnswerEntryVisible)
+        if (_isSubmitting || !IsAnswerEntryVisible || _isUpgradeTerminalOpen)
         {
             return;
         }
@@ -863,6 +925,7 @@
                 if (Session.IsCurrentSubmissionCommitted)
                 {
                     await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
+                    _ = _upgradeTerminalViewModel?.RefreshAsync();
                 }
 
                 var advancedAutomatically = eval.IsCorrect &&
@@ -944,6 +1007,7 @@
                 {
                     var submissionId = Session.LastEvaluation.ChangeSet.SubmissionId;
                     await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
+                    _ = _upgradeTerminalViewModel?.RefreshAsync();
                 }
 
                 if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
@@ -1059,7 +1123,86 @@
         Session.PracticeGate == PracticeGateState.Running &&
         Session.InteractionState == SessionInteractionState.AwaitingAnswer;
 
-    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting;
+    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen;
+
+    private async Task OpenUpgradeTerminalAsync()
+    {
+        if (_isUpgradeTerminalOpen || _isSubmitting || _isDisposed)
+        {
+            return;
+        }
+
+        // Synchronously pause timing before any await
+        _wasTimingSuspendedByTerminal = Session.IsTimingActive;
+        Session.PauseItemTiming();
+
+        _isUpgradeTerminalOpen = true;
+        _shouldFocusInput = false;
+
+        try
+        {
+            if (_upgradeTerminalViewModel is not null)
+            {
+                await _upgradeTerminalViewModel.RefreshAsync();
+            }
+        }
+        catch
+        {
+            // Failed dialog initialization safely releases only the terminal-owned pause
+            CloseUpgradeTerminalCore(releasePauseOnly: true);
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseUpgradeTerminal()
+    {
+        CloseUpgradeTerminalCore(releasePauseOnly: false);
+    }
+
+    private void CloseUpgradeTerminalCore(bool releasePauseOnly)
+    {
+        if (!_isUpgradeTerminalOpen && !releasePauseOnly)
+        {
+            return;
+        }
+
+        _isUpgradeTerminalOpen = false;
+
+        var shouldResumeTiming = _wasTimingSuspendedByTerminal
+            && Session.IsAppForeground
+            && Session.PracticeGate == PracticeGateState.Running
+            && Session.InteractionState == SessionInteractionState.AwaitingAnswer;
+
+        _wasTimingSuspendedByTerminal = false;
+
+        if (shouldResumeTiming)
+        {
+            Session.ResumeItemTiming();
+            _shouldFocusInput = true;
+            _shouldFocusPrimaryOverlay = false;
+        }
+        else
+        {
+            Session.SetPracticeSurfaceActive(true);
+            if (Session.PracticeGate == PracticeGateState.Running && Session.InteractionState == SessionInteractionState.AwaitingAnswer)
+            {
+                _shouldFocusInput = true;
+                _shouldFocusPrimaryOverlay = false;
+            }
+            else
+            {
+                _shouldFocusInput = false;
+                _shouldFocusPrimaryOverlay = true;
+            }
+        }
+
+        if (!_isDisposed)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
 
     private void RefreshEnabledOperations()
     {
