@@ -201,4 +201,76 @@ public sealed class AttackUpgradeContractTests
         Assert.False(snapshot.HasSufficientSkillPoints);
         Assert.False(snapshot.CanAfford);
     }
+
+    // =========================================================================
+    // 7. Numeric Boundary Safety (Tests 28-29)
+    // =========================================================================
+
+    [Fact]
+    public void Test28_Snapshot_AtNumericBoundary_DoesNotOverflow_AndPresentsNoPurchasableNextRank()
+    {
+        // T17: At currentRank == int.MaxValue - 1, snapshot creation does not overflow
+        // and presents no purchasable next rank.
+        int boundaryRank = int.MaxValue - CyberDefenseAttackUpgradePolicy.BaseAttackDamage; // int.MaxValue - 1
+        var prog = new CyberDefenseProgressionRecord(
+            storeRevision: 10,
+            resetEpoch: 0,
+            cumulativeXp: 1_000_000,
+            playerLevel: 100,
+            earnedSkillPoints: 1000,
+            spentSkillPoints: 500,
+            availableSkillPoints: 500,
+            attackRank: boundaryRank,
+            economyVersion: CyberDefenseProgressionRecord.DefaultEconomyVersion,
+            updatedAt: DateTimeOffset.UtcNow);
+
+        var snapshot = prog.ToAttackUpgradeSnapshot();
+
+        Assert.Equal(boundaryRank, snapshot.CurrentAttackRank);
+        Assert.Equal(int.MaxValue, snapshot.CurrentBaseDamage); // 1 + (int.MaxValue - 1) == int.MaxValue
+        Assert.Null(snapshot.NextAttackRank);
+        Assert.Null(snapshot.NextBaseDamage);
+        Assert.Null(snapshot.NextRankCost);
+        Assert.False(snapshot.HasSufficientSkillPoints);
+        Assert.False(snapshot.CanAfford);
+    }
+
+    [Theory]
+    [InlineData(0, 1, 1, 2, 1)]
+    [InlineData(1, 2, 2, 3, 2)]
+    [InlineData(2, 3, 3, 4, 2)]
+    [InlineData(5, 6, 6, 7, 3)]
+    [InlineData(10, 11, 11, 12, 4)]
+    [InlineData(50, 51, 51, 52, 6)]
+    [InlineData(100, 101, 101, 102, 7)]
+    public void Test29_RegularAttackRankSnapshots_RemainUnchanged_AtLowAndMediumRanks(
+        int currentRank,
+        int expectedNextRank,
+        int expectedCurrentDmg,
+        int expectedNextDmg,
+        int expectedCost)
+    {
+        // T19: Regular Attack rank snapshot calculations remain unchanged at low and medium ranks.
+        var prog = new CyberDefenseProgressionRecord(
+            storeRevision: 1,
+            resetEpoch: 0,
+            cumulativeXp: 1000,
+            playerLevel: 10,
+            earnedSkillPoints: 100,
+            spentSkillPoints: 0,
+            availableSkillPoints: 100,
+            attackRank: currentRank,
+            economyVersion: CyberDefenseProgressionRecord.DefaultEconomyVersion,
+            updatedAt: DateTimeOffset.UtcNow);
+
+        var snapshot = prog.ToAttackUpgradeSnapshot();
+
+        Assert.Equal(currentRank, snapshot.CurrentAttackRank);
+        Assert.Equal(expectedNextRank, snapshot.NextAttackRank);
+        Assert.Equal(expectedCurrentDmg, snapshot.CurrentBaseDamage);
+        Assert.Equal(expectedNextDmg, snapshot.NextBaseDamage);
+        Assert.Equal(expectedCost, snapshot.NextRankCost);
+        Assert.True(snapshot.HasSufficientSkillPoints);
+        Assert.True(snapshot.CanAfford);
+    }
 }

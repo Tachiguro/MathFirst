@@ -9,6 +9,8 @@ using MathFirst.Domain.CyberDefense;
 /// </summary>
 public sealed record CyberDefenseAttackUpgradeSnapshot
 {
+    public const int MaxRepresentableAttackRank = int.MaxValue - CyberDefenseAttackUpgradePolicy.BaseAttackDamage;
+
     public int CurrentAttackRank { get; }
     public int? NextAttackRank { get; }
     public int CurrentBaseDamage { get; }
@@ -76,7 +78,7 @@ public sealed record CyberDefenseAttackUpgradeSnapshot
         int? nextCost = null;
         bool hasSufficientSp = false;
 
-        if (currentRank < int.MaxValue)
+        if (currentRank < MaxRepresentableAttackRank)
         {
             int nRank = checked(currentRank + 1);
             nextRank = nRank;
