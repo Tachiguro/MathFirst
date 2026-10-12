@@ -73,4 +73,7 @@ public sealed record CyberDefenseProgressionRecord
             attackRank: 0,
             economyVersion: DefaultEconomyVersion,
             updatedAt: updatedAt);
+
+    public CyberDefenseAttackUpgradeSnapshot ToAttackUpgradeSnapshot() =>
+        CyberDefenseAttackUpgradeSnapshot.FromProgression(this);
 }

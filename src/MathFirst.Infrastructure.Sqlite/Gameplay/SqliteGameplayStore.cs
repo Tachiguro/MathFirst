@@ -21,6 +21,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private SqliteConnection? _connection;
     private bool _isInitialized;
     private readonly object _lock = new();
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     private const string SchemaV3Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -1073,6 +1074,190 @@ public sealed class SqliteGameplayStore : IGameplayStore
             attackRank,
             economyVersion,
             updatedAt);
+    }
+
+    public async Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        var progression = await GetProgressionAsync(cancellationToken).ConfigureAwait(false);
+        return CyberDefenseAttackUpgradeSnapshot.FromProgression(progression);
+    }
+
+    public async Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(
+        int expectedRank,
+        long expectedResetEpoch,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRank);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
+
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var transaction = _connection!.BeginTransaction();
+            try
+            {
+                // 1. Check reset intent and read progression row within transaction
+                bool isResetPending;
+                long currentEpoch;
+            long currentRevision;
+            long currentCumulativeXp;
+            int currentPlayerLevel;
+            int currentEarnedSp;
+            int currentSpentSp;
+            int currentAvailableSp;
+            int currentAttackRank;
+            string economyVersion;
+
+            using (var checkCmd = _connection.CreateCommand())
+            {
+                checkCmd.Transaction = transaction;
+                checkCmd.CommandText = @"
+                    SELECT r.is_pending, p.reset_epoch, p.store_revision, p.cumulative_xp, p.player_level,
+                           p.earned_sp, p.spent_sp, p.available_sp, p.attack_rank, p.economy_version
+                    FROM gameplay_reset_intent r
+                    JOIN gameplay_progression p ON p.id = 1
+                    WHERE r.id = 1;
+                ";
+                using var reader = await checkCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing reset intent or progression row.");
+                }
+
+                isResetPending = reader.GetInt32(0) == 1;
+                currentEpoch = reader.GetInt64(1);
+                currentRevision = reader.GetInt64(2);
+                currentCumulativeXp = reader.GetInt64(3);
+                currentPlayerLevel = reader.GetInt32(4);
+                currentEarnedSp = reader.GetInt32(5);
+                currentSpentSp = reader.GetInt32(6);
+                currentAvailableSp = reader.GetInt32(7);
+                currentAttackRank = reader.GetInt32(8);
+                economyVersion = reader.GetString(9);
+            }
+
+            // Step 1: Check reset intent state
+            if (isResetPending)
+            {
+                throw new InvalidOperationException("Cannot purchase attack upgrade while a reset is pending.");
+            }
+
+            // Step 2: Validate expected reset epoch
+            if (expectedResetEpoch != currentEpoch)
+            {
+                throw new InvalidOperationException(
+                    $"Purchase reset epoch {expectedResetEpoch} does not match current store reset epoch {currentEpoch}.");
+            }
+
+            // Step 4: Validate progression invariants
+            if (currentEarnedSp != checked(currentSpentSp + currentAvailableSp))
+            {
+                throw new InvalidOperationException(
+                    $"Progression invariant violated: earned SP ({currentEarnedSp}) != spent SP ({currentSpentSp}) + available SP ({currentAvailableSp}).");
+            }
+
+            // Step 5: Check expected current rank
+            if (expectedRank != currentAttackRank)
+            {
+                throw new InvalidOperationException(
+                    $"Expected attack rank {expectedRank} does not match current rank {currentAttackRank}.");
+            }
+
+            // Step 6: Calculate exact next rank (fail closed on integer overflow)
+            int nextRank;
+            try
+            {
+                nextRank = checked(currentAttackRank + 1);
+            }
+            catch (OverflowException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Attack rank overflow: current rank {currentAttackRank} has reached maximum representation limit.", ex);
+            }
+
+            // Step 7: Calculate exact cost
+            int cost = CyberDefenseAttackUpgradePolicy.GetUpgradeCost(nextRank);
+
+            // Step 8: Verify available SP
+            if (currentAvailableSp < cost)
+            {
+                throw new InvalidOperationException(
+                    $"Insufficient available skill points ({currentAvailableSp}) to purchase attack rank {nextRank} (cost {cost}).");
+            }
+
+            // Step 9: Calculate new spent and available SP using checked arithmetic
+            int newSpentSp = checked(currentSpentSp + cost);
+            int newAvailableSp = checked(currentAvailableSp - cost);
+            long newRevision = checked(currentRevision + 1);
+
+            // Step 10: Verify SP conservation
+            if (currentEarnedSp != checked(newSpentSp + newAvailableSp))
+            {
+                throw new InvalidOperationException(
+                    $"SP conservation invariant violated: earned SP ({currentEarnedSp}) != new spent SP ({newSpentSp}) + new available SP ({newAvailableSp}).");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            // Step 11: Update progression with guarded predicate
+            using (var updateCmd = _connection.CreateCommand())
+            {
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = @"
+                    UPDATE gameplay_progression
+                    SET store_revision = @newRevision,
+                        spent_sp = @newSpentSp,
+                        available_sp = @newAvailableSp,
+                        attack_rank = @nextRank,
+                        updated_at = @now
+                    WHERE id = 1
+                      AND reset_epoch = @expectedResetEpoch
+                      AND attack_rank = @expectedRank;
+                ";
+                updateCmd.Parameters.AddWithValue("@newRevision", newRevision);
+                updateCmd.Parameters.AddWithValue("@newSpentSp", newSpentSp);
+                updateCmd.Parameters.AddWithValue("@newAvailableSp", newAvailableSp);
+                updateCmd.Parameters.AddWithValue("@nextRank", nextRank);
+                updateCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                updateCmd.Parameters.AddWithValue("@expectedResetEpoch", expectedResetEpoch);
+                updateCmd.Parameters.AddWithValue("@expectedRank", expectedRank);
+
+                // Step 12: Verify exactly one progression row was updated
+                int rowsAffected = await updateCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                if (rowsAffected != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to update progression row. Concurrency conflict or row modified concurrently (rows affected: {rowsAffected}).");
+                }
+            }
+
+            // Step 13: Commit
+            transaction.Commit();
+
+            // Step 14: Return resulting immutable progression snapshot
+            return new CyberDefenseProgressionRecord(
+                newRevision,
+                currentEpoch,
+                currentCumulativeXp,
+                currentPlayerLevel,
+                currentEarnedSp,
+                newSpentSp,
+                newAvailableSp,
+                nextRank,
+                economyVersion,
+                now);
+            }
+            catch
+            {
+                try { transaction.Rollback(); } catch { }
+                throw;
+            }
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     /// <summary>
@@ -2303,5 +2488,6 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
             _isInitialized = false;
         }
+        _writeGate.Dispose();
     }
 }
