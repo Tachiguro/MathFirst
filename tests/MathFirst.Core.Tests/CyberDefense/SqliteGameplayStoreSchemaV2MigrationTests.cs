@@ -135,7 +135,7 @@ public sealed class SqliteGameplayStoreSchemaV2MigrationTests : IDisposable
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
             var version = (string?)await cmd.ExecuteScalarAsync();
-            Assert.Equal("2", version);
+            Assert.Equal("3", version);
         }
 
         var prog = await store.GetProgressionAsync();
@@ -215,7 +215,7 @@ public sealed class SqliteGameplayStoreSchemaV2MigrationTests : IDisposable
             await connection.OpenAsync();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-            Assert.Equal("2", (string?)await cmd.ExecuteScalarAsync());
+            Assert.Equal("3", (string?)await cmd.ExecuteScalarAsync());
         }
 
         // 3. Preservation of active run state
@@ -341,14 +341,14 @@ public sealed class SqliteGameplayStoreSchemaV2MigrationTests : IDisposable
             using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
                 CREATE TABLE gameplay_schema_info (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                INSERT INTO gameplay_schema_info VALUES ('schema_version', '3');
+                INSERT INTO gameplay_schema_info VALUES ('schema_version', '4');
             ";
             await cmd.ExecuteNonQueryAsync();
         }
 
         using var store = new SqliteGameplayStore(dbPath);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
-        Assert.Contains("Unsupported database schema version 3", ex.Message);
+        Assert.Contains("Unsupported database schema version 4", ex.Message);
     }
 
     // 10. Exact V2 receipt roundtrip equality & multi-hit tracking

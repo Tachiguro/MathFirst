@@ -89,7 +89,8 @@ public static class CyberDefenseStateMachine
                 run.CurrentOpponent.Kind,
                 run.CurrentOpponent.MaxHp,
                 remainingOpponentHp,
-                nextExecutedAttacks);
+                nextExecutedAttacks,
+                run.CurrentOpponent.Provenance);
 
             var nextState = CyberDefenseRunState.CreateActive(
                 run.Sector,
@@ -112,7 +113,8 @@ public static class CyberDefenseStateMachine
                 isGameOver: false,
                 nextState: nextState,
                 terminalSnapshot: null,
-                executedAttacksOnDefeatedOpponent: null);
+                executedAttacksOnDefeatedOpponent: null,
+                defeatedOpponentProvenance: null);
         }
         else
         {
@@ -146,7 +148,8 @@ public static class CyberDefenseStateMachine
                 nextOpponentKind,
                 nextOpponentMaxHp,
                 nextOpponentCurrentHp,
-                executedAttacks: 0);
+                executedAttacks: 0,
+                provenance: OpponentEncounterProvenance.Authoritative);
 
             var nextState = CyberDefenseRunState.CreateActive(
                 nextSector,
@@ -169,7 +172,8 @@ public static class CyberDefenseStateMachine
                 isGameOver: false,
                 nextState: nextState,
                 terminalSnapshot: null,
-                executedAttacksOnDefeatedOpponent: nextExecutedAttacks);
+                executedAttacksOnDefeatedOpponent: nextExecutedAttacks,
+                defeatedOpponentProvenance: run.CurrentOpponent.Provenance);
         }
     }
 }
