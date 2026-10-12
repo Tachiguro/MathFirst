@@ -1231,9 +1231,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
             cmd.Parameters.AddWithValue("@next_opponent_executed_attacks", t.NextState.CurrentOpponent.ExecutedAttacks);
             cmd.Parameters.AddWithValue("@executed_attacks_on_defeated_opponent", (object?)t.ExecutedAttacksOnDefeatedOpponent ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@awarded_xp", DBNull.Value);
-            cmd.Parameters.AddWithValue("@player_level_after", DBNull.Value);
-            cmd.Parameters.AddWithValue("@cumulative_xp_after", DBNull.Value);
+            cmd.Parameters.AddWithValue("@awarded_xp", (object?)receipt.AwardedXp ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@player_level_after", (object?)receipt.PlayerLevelAfter ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cumulative_xp_after", (object?)receipt.CumulativeXpAfter ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@next_opponent_encounter_provenance", t.NextState.CurrentOpponent.Provenance.ToString());
             cmd.Parameters.AddWithValue("@defeated_opponent_encounter_provenance", (object?)t.DefeatedOpponentProvenance?.ToString() ?? DBNull.Value);
         }
@@ -1427,6 +1427,18 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 }
             }
 
+            int? awardedXp = reader.IsDBNull(31) ? null : reader.GetInt32(31);
+            int? playerLevelAfter = reader.IsDBNull(32) ? null : reader.GetInt32(32);
+            long? cumulativeXpAfter = reader.IsDBNull(33) ? null : reader.GetInt64(33);
+
+            if (awardedXp.HasValue || playerLevelAfter.HasValue || cumulativeXpAfter.HasValue)
+            {
+                if (!awardedXp.HasValue || !playerLevelAfter.HasValue || !cumulativeXpAfter.HasValue)
+                {
+                    throw new InvalidOperationException("Inconsistent reward metadata in receipt ledger row: awarded_xp, player_level_after, and cumulative_xp_after must all be non-null if any is present.");
+                }
+            }
+
             CyberDefenseCombatTransitionResult transitionResult;
             try
             {
@@ -1454,7 +1466,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
 
             return CyberDefenseReceiptRecord.CreateApplied(
-                subId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, processedAt, transitionResult);
+                subId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, processedAt, transitionResult,
+                awardedXp, playerLevelAfter, cumulativeXpAfter);
         }
 
         throw new InvalidOperationException($"Unsupported receipt kind '{kind}'.");
@@ -1704,13 +1717,24 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 }
             }
 
-            // 2. Validate progression reset epoch and store revision
+            // 2. Validate progression reset epoch and load progression state
             long currentEpoch;
             long currentRevision;
+            long currentCumulativeXp;
+            int currentPlayerLevel;
+            int currentEarnedSp;
+            int currentSpentSp;
+            int currentAvailableSp;
+            int currentAttackRank;
             using (var progCmd = _connection.CreateCommand())
             {
                 progCmd.Transaction = transaction;
-                progCmd.CommandText = "SELECT reset_epoch, store_revision FROM gameplay_progression WHERE id = 1;";
+                progCmd.CommandText = @"
+                    SELECT reset_epoch, store_revision, cumulative_xp, player_level,
+                           earned_sp, spent_sp, available_sp, attack_rank
+                    FROM gameplay_progression
+                    WHERE id = 1;
+                ";
                 using var progReader = await progCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
                 if (!await progReader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
@@ -1718,6 +1742,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 }
                 currentEpoch = progReader.GetInt64(0);
                 currentRevision = progReader.GetInt64(1);
+                currentCumulativeXp = progReader.GetInt64(2);
+                currentPlayerLevel = progReader.GetInt32(3);
+                currentEarnedSp = progReader.GetInt32(4);
+                currentSpentSp = progReader.GetInt32(5);
+                currentAvailableSp = progReader.GetInt32(6);
+                currentAttackRank = progReader.GetInt32(7);
             }
 
             if (intent.ResetEpoch != currentEpoch)
@@ -1785,6 +1815,46 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
             var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: 1);
 
+            int awardedXp;
+            if (transition.IsOpponentDefeated)
+            {
+                int attackCount = transition.ExecutedAttacksOnDefeatedOpponent
+                    ?? throw new InvalidOperationException("Opponent defeated but executed attacks count is null.");
+                awardedXp = CyberDefenseEconomyPolicy.CalculateAttemptTotalXp(
+                    intent.IsCorrect,
+                    opponentDefeated: true,
+                    currentRunState.CurrentOpponent.Kind,
+                    attackCount);
+            }
+            else
+            {
+                awardedXp = CyberDefenseEconomyPolicy.CalculateAttemptTotalXp(
+                    intent.IsCorrect,
+                    opponentDefeated: false,
+                    currentRunState.CurrentOpponent.Kind,
+                    1);
+            }
+
+            long newCumulativeXp = checked(currentCumulativeXp + awardedXp);
+            int newPlayerLevel = CyberDefenseLevelPolicy.GetLevel(newCumulativeXp);
+            if (newPlayerLevel < currentPlayerLevel)
+            {
+                throw new InvalidOperationException(
+                    $"Player level cannot decrease from {currentPlayerLevel} to {newPlayerLevel}.");
+            }
+
+            int gainedLevels = checked(newPlayerLevel - currentPlayerLevel);
+            int newEarnedSp = checked(currentEarnedSp + gainedLevels);
+            int newAvailableSp = checked(currentAvailableSp + gainedLevels);
+            int newSpentSp = currentSpentSp;
+            int newAttackRank = currentAttackRank;
+
+            if (newEarnedSp != checked(newSpentSp + newAvailableSp))
+            {
+                throw new InvalidOperationException(
+                    $"Earned SP invariant violated: {newEarnedSp} != {newSpentSp} + {newAvailableSp}.");
+            }
+
             using (var updateRunCmd = _connection.CreateCommand())
             {
                 updateRunCmd.Transaction = transaction;
@@ -1809,17 +1879,29 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 await updateRunCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            var newRevision = currentRevision + 1;
+            var newRevision = checked(currentRevision + 1);
             using (var updateProgCmd = _connection.CreateCommand())
             {
                 updateProgCmd.Transaction = transaction;
                 updateProgCmd.CommandText = @"
                     UPDATE gameplay_progression
                     SET store_revision = @rev,
+                        cumulative_xp = @cumulativeXp,
+                        player_level = @playerLevel,
+                        earned_sp = @earnedSp,
+                        spent_sp = @spentSp,
+                        available_sp = @availableSp,
+                        attack_rank = @attackRank,
                         updated_at = @now
                     WHERE id = 1;
                 ";
                 updateProgCmd.Parameters.AddWithValue("@rev", newRevision);
+                updateProgCmd.Parameters.AddWithValue("@cumulativeXp", newCumulativeXp);
+                updateProgCmd.Parameters.AddWithValue("@playerLevel", newPlayerLevel);
+                updateProgCmd.Parameters.AddWithValue("@earnedSp", newEarnedSp);
+                updateProgCmd.Parameters.AddWithValue("@spentSp", newSpentSp);
+                updateProgCmd.Parameters.AddWithValue("@availableSp", newAvailableSp);
+                updateProgCmd.Parameters.AddWithValue("@attackRank", newAttackRank);
                 updateProgCmd.Parameters.AddWithValue("@now", now.ToString("O"));
                 await updateProgCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -1832,7 +1914,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 intent.ResponseLatencyMs,
                 intent.ResetEpoch,
                 now,
-                transition);
+                transition,
+                awardedXp: awardedXp,
+                playerLevelAfter: newPlayerLevel,
+                cumulativeXpAfter: newCumulativeXp);
 
             using (var insertReceiptCmd = _connection.CreateCommand())
             {

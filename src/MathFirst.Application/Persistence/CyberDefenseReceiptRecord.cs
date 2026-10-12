@@ -18,6 +18,9 @@ public sealed record CyberDefenseReceiptRecord
     public long ResetEpoch { get; }
     public DateTimeOffset ProcessedAt { get; }
     public CyberDefenseCombatTransitionResult? TransitionResult { get; }
+    public int? AwardedXp { get; }
+    public int? PlayerLevelAfter { get; }
+    public long? CumulativeXpAfter { get; }
 
     public CyberDefenseReceiptRecord(
         string submissionId,
@@ -28,7 +31,10 @@ public sealed record CyberDefenseReceiptRecord
         long responseLatencyMs,
         long resetEpoch,
         DateTimeOffset processedAt,
-        CyberDefenseCombatTransitionResult? transitionResult = null)
+        CyberDefenseCombatTransitionResult? transitionResult = null,
+        int? awardedXp = null,
+        int? playerLevelAfter = null,
+        long? cumulativeXpAfter = null)
     {
         if (string.IsNullOrWhiteSpace(submissionId))
         {
@@ -63,6 +69,20 @@ public sealed record CyberDefenseReceiptRecord
                     $"Attempt correctness ({isCorrect}) does not match transition result correctness ({transitionResult.IsCorrect}).",
                     nameof(isCorrect));
             }
+
+            if (awardedXp.HasValue || playerLevelAfter.HasValue || cumulativeXpAfter.HasValue)
+            {
+                if (!awardedXp.HasValue || !playerLevelAfter.HasValue || !cumulativeXpAfter.HasValue)
+                {
+                    throw new ArgumentException(
+                        "Reward metadata (awarded XP, player level, cumulative XP) must either all be present or all be null.",
+                        nameof(awardedXp));
+                }
+
+                ArgumentOutOfRangeException.ThrowIfNegative(awardedXp.Value, nameof(awardedXp));
+                ArgumentOutOfRangeException.ThrowIfLessThan(playerLevelAfter.Value, 1, nameof(playerLevelAfter));
+                ArgumentOutOfRangeException.ThrowIfNegative(cumulativeXpAfter.Value, nameof(cumulativeXpAfter));
+            }
         }
         else if (receiptKind == CyberDefenseReceiptKind.CalmModeSuppressed)
         {
@@ -71,6 +91,13 @@ public sealed record CyberDefenseReceiptRecord
                 throw new ArgumentException(
                     "CalmModeSuppressed receipt must not contain a combat transition result.",
                     nameof(transitionResult));
+            }
+
+            if (awardedXp.HasValue || playerLevelAfter.HasValue || cumulativeXpAfter.HasValue)
+            {
+                throw new ArgumentException(
+                    "CalmModeSuppressed receipt must not contain reward metadata.",
+                    nameof(awardedXp));
             }
         }
 
@@ -83,6 +110,9 @@ public sealed record CyberDefenseReceiptRecord
         ResetEpoch = resetEpoch;
         ProcessedAt = processedAt;
         TransitionResult = transitionResult;
+        AwardedXp = awardedXp;
+        PlayerLevelAfter = playerLevelAfter;
+        CumulativeXpAfter = cumulativeXpAfter;
     }
 
     public static CyberDefenseReceiptRecord CreateApplied(
@@ -93,7 +123,10 @@ public sealed record CyberDefenseReceiptRecord
         long responseLatencyMs,
         long resetEpoch,
         DateTimeOffset processedAt,
-        CyberDefenseCombatTransitionResult transitionResult)
+        CyberDefenseCombatTransitionResult transitionResult,
+        int? awardedXp = null,
+        int? playerLevelAfter = null,
+        long? cumulativeXpAfter = null)
     {
         return new CyberDefenseReceiptRecord(
             submissionId,
@@ -104,7 +137,10 @@ public sealed record CyberDefenseReceiptRecord
             responseLatencyMs,
             resetEpoch,
             processedAt,
-            transitionResult);
+            transitionResult,
+            awardedXp,
+            playerLevelAfter,
+            cumulativeXpAfter);
     }
 
     public static CyberDefenseReceiptRecord CreateCalmModeSuppressed(
