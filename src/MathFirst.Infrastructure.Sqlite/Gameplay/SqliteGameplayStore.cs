@@ -15,7 +15,7 @@ using Microsoft.Data.Sqlite;
 public sealed class SqliteGameplayStore : IGameplayStore
 {
     public const string DefaultDatabaseFileName = "mathfirst_gameplay.db";
-    public const int DefaultSchemaVersion = 3;
+    public const int DefaultSchemaVersion = 4;
     public const string DefaultEconomyVersion = "ECONOMY_V1";
 
     private readonly string _connectionString;
@@ -28,7 +28,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private int _activeOperations;
     private bool _resourcesCleanedUp;
 
-    private const string SchemaV3Ddl = @"
+    private const string SchemaV4Ddl = @"
         CREATE TABLE gameplay_schema_info (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -170,7 +170,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
             is_eligible INTEGER NOT NULL CHECK (is_eligible IN (0, 1)),
             response_latency_ms INTEGER NOT NULL CHECK (response_latency_ms >= 0),
             reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            effective_attack_damage INTEGER NOT NULL DEFAULT 1 CHECK (effective_attack_damage >= 1)
         );
 
         CREATE TABLE gameplay_reset_intent (
@@ -433,7 +434,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             using (var ddlCmd = connection.CreateCommand())
             {
                 ddlCmd.Transaction = transaction;
-                ddlCmd.CommandText = SchemaV3Ddl;
+                ddlCmd.CommandText = SchemaV4Ddl;
                 await ddlCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -444,7 +445,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 seedCmd.Transaction = transaction;
                 seedCmd.CommandText = @"
-                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '3');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '4');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('store_revision', '1');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('reset_epoch', '0');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
@@ -539,10 +540,22 @@ public sealed class SqliteGameplayStore : IGameplayStore
         if (version == 1)
         {
             await MigrateV1ToV3Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
             await MigrateV2ToV3Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 3)
+        {
+            await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
+        }
+
+        using (var colCmd = connection.CreateCommand())
+        {
+            colCmd.CommandText = "SELECT effective_attack_damage FROM gameplay_pending_intent LIMIT 0;";
+            await colCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         using (var runCmd = connection.CreateCommand())
@@ -1096,6 +1109,36 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 metaCmd.Transaction = transaction;
                 metaCmd.CommandText = "UPDATE gameplay_schema_info SET value = '3' WHERE key = 'schema_version';";
+                await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task MigrateV3ToV4Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 1. Add effective_attack_damage column to gameplay_pending_intent
+            using (var alterCmd = connection.CreateCommand())
+            {
+                alterCmd.Transaction = transaction;
+                alterCmd.CommandText = "ALTER TABLE gameplay_pending_intent ADD COLUMN effective_attack_damage INTEGER NOT NULL DEFAULT 1 CHECK (effective_attack_damage >= 1);";
+                await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            // 2. Update schema version to 4
+            using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = "UPDATE gameplay_schema_info SET value = '4' WHERE key = 'schema_version';";
                 await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -1815,7 +1858,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 {
                     guardCmd.Transaction = transaction;
                     guardCmd.CommandText = @"
-                        SELECT r.is_pending, p.reset_epoch
+                        SELECT r.is_pending, p.reset_epoch, p.attack_rank
                         FROM gameplay_reset_intent r
                         JOIN gameplay_progression p ON p.id = 1
                         WHERE r.id = 1;
@@ -1827,6 +1870,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     }
                     bool isResetPending = guardReader.GetInt32(0) == 1;
                     long currentEpoch = guardReader.GetInt64(1);
+                    int currentAttackRank = guardReader.GetInt32(2);
                     guardReader.Close();
 
                     if (isResetPending)
@@ -1839,13 +1883,20 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         throw new InvalidOperationException(
                             $"Pending intent reset epoch {intent.ResetEpoch} does not match current store reset epoch {currentEpoch}.");
                     }
+
+                    int maxEntitledDamage = CyberDefenseAttackUpgradePolicy.GetAttackDamage(currentAttackRank);
+                    if (intent.EffectiveAttackDamage > maxEntitledDamage)
+                    {
+                        throw new InvalidOperationException(
+                            $"Pending intent effective attack damage {intent.EffectiveAttackDamage} exceeds authoritative entitlement {maxEntitledDamage} for attack rank {currentAttackRank}.");
+                    }
                 }
 
                 using (var selectCmd = _connection.CreateCommand())
                 {
                     selectCmd.Transaction = transaction;
                     selectCmd.CommandText = @"
-                        SELECT fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch
+                        SELECT fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, effective_attack_damage
                         FROM gameplay_pending_intent
                         WHERE submission_id = @id;
                     ";
@@ -1858,12 +1909,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         bool isEligible = reader.GetInt32(2) == 1;
                         long latency = reader.GetInt64(3);
                         long epoch = reader.GetInt64(4);
+                        int damage = reader.GetInt32(5);
 
                         if (!string.Equals(factId, intent.FactId, StringComparison.Ordinal) ||
                             isCorrect != intent.IsCorrect ||
                             isEligible != intent.IsEligible ||
                             latency != intent.ResponseLatencyMs ||
-                            epoch != intent.ResetEpoch)
+                            epoch != intent.ResetEpoch ||
+                            damage != intent.EffectiveAttackDamage)
                         {
                             throw new InvalidOperationException(
                                 $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
@@ -1879,9 +1932,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     insertCmd.Transaction = transaction;
                     insertCmd.CommandText = @"
                         INSERT INTO gameplay_pending_intent (
-                            submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at
+                            submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
                         ) VALUES (
-                            @submission_id, @fact_id, @is_correct, @is_eligible, @response_latency_ms, @reset_epoch, @created_at
+                            @submission_id, @fact_id, @is_correct, @is_eligible, @response_latency_ms, @reset_epoch, @created_at, @effective_attack_damage
                         );
                     ";
                     insertCmd.Parameters.AddWithValue("@submission_id", intent.SubmissionId);
@@ -1891,6 +1944,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     insertCmd.Parameters.AddWithValue("@response_latency_ms", intent.ResponseLatencyMs);
                     insertCmd.Parameters.AddWithValue("@reset_epoch", intent.ResetEpoch);
                     insertCmd.Parameters.AddWithValue("@created_at", intent.CreatedAt.ToString("O"));
+                    insertCmd.Parameters.AddWithValue("@effective_attack_damage", intent.EffectiveAttackDamage);
                     await insertCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
 
@@ -1915,7 +1969,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             using var cmd = _connection!.CreateCommand();
             cmd.CommandText = @"
-                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at
+                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
                 FROM gameplay_pending_intent
                 WHERE submission_id = @id;
             ";
@@ -1939,7 +1993,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             using var cmd = _connection!.CreateCommand();
             cmd.CommandText = @"
-                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at
+                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
                 FROM gameplay_pending_intent
                 WHERE reset_epoch = @epoch
                 ORDER BY created_at ASC, submission_id ASC;
@@ -2033,7 +2087,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             existingReceipt.IsCorrect != intent.IsCorrect ||
                             existingReceipt.IsEligible != intent.IsEligible ||
                             existingReceipt.ResponseLatencyMs != intent.ResponseLatencyMs ||
-                            existingReceipt.ResetEpoch != intent.ResetEpoch)
+                            existingReceipt.ResetEpoch != intent.ResetEpoch ||
+                            (existingReceipt.ReceiptKind == CyberDefenseReceiptKind.Applied &&
+                             existingReceipt.IsCorrect &&
+                             existingReceipt.TransitionResult?.RequestedAttackDamage != intent.EffectiveAttackDamage))
                         {
                             throw new InvalidOperationException(
                                 $"Conflicting receipt already exists for submission '{intent.SubmissionId}'.");
@@ -2089,6 +2146,44 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 {
                     throw new InvalidOperationException(
                         $"Pending intent reset epoch {intent.ResetEpoch} does not match current store reset epoch {currentEpoch}.");
+                }
+
+                int maxEntitledDamage = CyberDefenseAttackUpgradePolicy.GetAttackDamage(currentAttackRank);
+                if (intent.EffectiveAttackDamage < 1 || intent.EffectiveAttackDamage > maxEntitledDamage)
+                {
+                    throw new InvalidOperationException(
+                        $"Attempt effective attack damage {intent.EffectiveAttackDamage} exceeds authoritative entitlement {maxEntitledDamage} for attack rank {currentAttackRank}.");
+                }
+
+                CyberDefensePendingIntentRecord? persistedIntent = null;
+                using (var pendingCmd = _connection.CreateCommand())
+                {
+                    pendingCmd.Transaction = transaction;
+                    pendingCmd.CommandText = @"
+                        SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
+                        FROM gameplay_pending_intent
+                        WHERE submission_id = @id;
+                    ";
+                    pendingCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                    using var pendingReader = await pendingCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    if (await pendingReader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        persistedIntent = ReadPendingIntent(pendingReader);
+                    }
+                }
+
+                if (persistedIntent is not null)
+                {
+                    if (!string.Equals(persistedIntent.FactId, intent.FactId, StringComparison.Ordinal) ||
+                        persistedIntent.IsCorrect != intent.IsCorrect ||
+                        persistedIntent.IsEligible != intent.IsEligible ||
+                        persistedIntent.ResponseLatencyMs != intent.ResponseLatencyMs ||
+                        persistedIntent.ResetEpoch != intent.ResetEpoch ||
+                        persistedIntent.EffectiveAttackDamage != intent.EffectiveAttackDamage)
+                    {
+                        throw new InvalidOperationException(
+                            $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
+                    }
                 }
 
                 var now = DateTimeOffset.UtcNow;
@@ -2148,7 +2243,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     currentRunState = CyberDefenseRunState.Rehydrate(sector, oppIndex, oppHp, playerHp, oppExecutedAttacks, oppProv);
                 }
 
-                var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: 1);
+                int effectiveDamageToApply = persistedIntent != null ? persistedIntent.EffectiveAttackDamage : intent.EffectiveAttackDamage;
+                var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: effectiveDamageToApply);
 
                 int awardedXp;
                 if (transition.IsOpponentDefeated)
@@ -2295,8 +2391,18 @@ public sealed class SqliteGameplayStore : IGameplayStore
             throw new InvalidOperationException($"Invalid created_at timestamp '{createdAtStr}' in pending intent table.");
         }
 
+        int effectiveAttackDamage = 1;
+        if (reader.FieldCount > 7 && !reader.IsDBNull(7))
+        {
+            effectiveAttackDamage = reader.GetInt32(7);
+            if (effectiveAttackDamage < 1)
+            {
+                throw new InvalidOperationException($"Invalid effective_attack_damage '{effectiveAttackDamage}' in pending intent table: must be >= 1.");
+            }
+        }
+
         return new CyberDefensePendingIntentRecord(
-            subId, factId, isCorrect, isEligible, latency, epoch, createdAt);
+            subId, factId, isCorrect, isEligible, latency, epoch, createdAt, effectiveAttackDamage);
     }
 
     public Task<GameplayResetIntentRecord> GetResetIntentAsync(CancellationToken cancellationToken = default)

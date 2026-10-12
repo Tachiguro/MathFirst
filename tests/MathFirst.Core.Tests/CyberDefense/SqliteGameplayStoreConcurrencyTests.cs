@@ -1256,4 +1256,3 @@ public sealed class SqliteGameplayStoreConcurrencyTests : IDisposable
         await Assert.ThrowsAsync<ObjectDisposedException>(() => store.ClearResetIntentAsync(1));
     }
 }
-
