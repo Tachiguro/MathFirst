@@ -12,6 +12,7 @@ public interface IGameplayStore : IDisposable
     Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default);
     Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default);
     Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default);
+    event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
     Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default);
     Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default);
     Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default);

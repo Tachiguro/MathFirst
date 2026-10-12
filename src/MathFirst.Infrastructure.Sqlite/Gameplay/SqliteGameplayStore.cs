@@ -27,6 +27,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private bool _disposed;
     private int _activeOperations;
     private bool _resourcesCleanedUp;
+    public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
+    private readonly object _notificationLock = new();
+    private long _lastPublishedEpoch = -1;
+    private long _lastPublishedRevision = -1;
 
     private const string SchemaV4Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -1265,7 +1269,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         return CyberDefenseAttackUpgradeSnapshot.FromProgression(progression);
     }
 
-    public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(
+    public async Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(
         int expectedRank,
         long expectedResetEpoch,
         CancellationToken cancellationToken = default)
@@ -1273,7 +1277,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         ArgumentOutOfRangeException.ThrowIfNegative(expectedRank);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
 
-        return ExecuteWithConnectionGateAsync(async ct =>
+        var newProgression = await ExecuteWithConnectionGateAsync(async ct =>
         {
             using var transaction = _connection!.BeginTransaction();
             try
@@ -1424,7 +1428,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 transaction.Commit();
 
                 // Step 14: Return resulting immutable progression snapshot
-                return new CyberDefenseProgressionRecord(
+                var newProgression = new CyberDefenseProgressionRecord(
                     newRevision,
                     currentEpoch,
                     currentCumulativeXp,
@@ -1435,13 +1439,59 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     nextRank,
                     economyVersion,
                     now);
+
+                return newProgression;
             }
             catch
             {
                 try { transaction.Rollback(); } catch { }
                 throw;
             }
-        }, cancellationToken);
+        }, cancellationToken).ConfigureAwait(false);
+
+        NotifyAttackUpgradeSnapshotChanged(CyberDefenseAttackUpgradeSnapshot.FromProgression(newProgression));
+
+        return newProgression;
+    }
+
+    private void NotifyAttackUpgradeSnapshotChanged(CyberDefenseAttackUpgradeSnapshot snapshot)
+    {
+        var handlers = AttackUpgradeSnapshotChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        lock (_notificationLock)
+        {
+            if (_lastPublishedEpoch >= 0)
+            {
+                if (snapshot.ResetEpoch < _lastPublishedEpoch)
+                {
+                    return;
+                }
+
+                if (snapshot.ResetEpoch == _lastPublishedEpoch && snapshot.StoreRevision <= _lastPublishedRevision)
+                {
+                    return;
+                }
+            }
+
+            _lastPublishedEpoch = snapshot.ResetEpoch;
+            _lastPublishedRevision = snapshot.StoreRevision;
+
+            foreach (Action<CyberDefenseAttackUpgradeSnapshot> subscriber in handlers.GetInvocationList())
+            {
+                try
+                {
+                    subscriber(snapshot);
+                }
+                catch
+                {
+                    // Observer exception isolation: subscriber failures must never compromise store operations.
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -2513,11 +2563,13 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }, cancellationToken);
     }
 
-    public Task ResetGameplayStateAsync(long targetEpoch, CancellationToken cancellationToken = default)
+    public async Task ResetGameplayStateAsync(long targetEpoch, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(targetEpoch);
 
-        return ExecuteWithConnectionGateAsync(async ct =>
+        CyberDefenseAttackUpgradeSnapshot? resetSnapshot = null;
+
+        await ExecuteWithConnectionGateAsync(async ct =>
         {
             using var transaction = _connection!.BeginTransaction();
             try
@@ -2596,13 +2648,30 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 }
 
                 transaction.Commit();
+
+                resetSnapshot = new CyberDefenseAttackUpgradeSnapshot(
+                    currentAttackRank: 0,
+                    nextAttackRank: 1,
+                    currentBaseDamage: 1,
+                    nextBaseDamage: 2,
+                    nextRankCost: 1,
+                    availableSkillPoints: 0,
+                    hasSufficientSkillPoints: false,
+                    playerLevel: 1,
+                    resetEpoch: targetEpoch,
+                    storeRevision: 1);
             }
             catch
             {
                 try { transaction.Rollback(); } catch { }
                 throw;
             }
-        }, cancellationToken);
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (resetSnapshot != null)
+        {
+            NotifyAttackUpgradeSnapshotChanged(resetSnapshot);
+        }
     }
 
     public Task ClearResetIntentAsync(long targetEpoch, CancellationToken cancellationToken = default)
@@ -2844,6 +2913,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
         if (shouldCleanup)
         {
+            AttackUpgradeSnapshotChanged = null;
+            lock (_notificationLock)
+            {
+                _lastPublishedEpoch = -1;
+                _lastPublishedRevision = -1;
+            }
             CleanupResources();
         }
     }

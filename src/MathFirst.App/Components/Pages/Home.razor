@@ -566,6 +566,7 @@
                 _answerInput = Session.CurrentAnswerInput;
                 _submittedAnswerDisplay = null;
                 _validationError = null;
+                BindCurrentQuestionDamage();
             }
             else
             {
@@ -845,12 +846,15 @@
                 var isCritical = Session.IsPaceCalibrationReady && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
                 var pendingContext = new PendingCombatContext(submissionId, wasEligibleAtSubmission, isCritical);
 
+                var boundDamage = await CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision);
+
                 await CombatCoordinator.StageIntentAsync(
                     submissionId: submissionId,
                     factId: eval.ChangeSet.Attempt.FactId,
                     isCorrect: eval.IsCorrect,
                     latencyMs: eval.LatencyMs,
-                    isEligibleAtSubmission: wasEligibleAtSubmission);
+                    isEligibleAtSubmission: wasEligibleAtSubmission,
+                    effectiveAttackDamage: boundDamage);
 
                 HapticService.PerformCue(eval.IsCorrect ? HapticFeedbackCue.Correct : HapticFeedbackCue.Incorrect);
 
@@ -980,6 +984,7 @@
         SyncPracticeGateCopy();
         _shouldFocusInput = true;
         _shouldFocusPrimaryOverlay = false;
+        BindCurrentQuestionDamage();
     }
 
     private void PausePractice()
@@ -1016,6 +1021,15 @@
         _shouldFocusInput = false;
         _shouldFocusPrimaryOverlay = true;
         SyncPracticeGateCopy();
+        BindCurrentQuestionDamage();
+    }
+
+    private void BindCurrentQuestionDamage()
+    {
+        if (Session.IsInitialized && Session.CurrentFact is not null)
+        {
+            _ = CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision);
+        }
     }
 
     private string GetCheckInLatencyDisplay(long? latencyMs)

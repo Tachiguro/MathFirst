@@ -71,6 +71,7 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow).ToAttackUpgradeSnapshot());
+        public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged { add { } remove { } }
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Simulated gameplay storage failure during attack purchase.");
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => Task.FromResult<CyberDefenseReceiptRecord?>(null);
