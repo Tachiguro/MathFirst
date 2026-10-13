@@ -1900,6 +1900,182 @@ public sealed class SqliteGameplayStore : IGameplayStore
         return newProgression;
     }
 
+    public async Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(
+        long expectedResetEpoch,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
+
+        return await ExecuteWithConnectionGateAsync(async ct =>
+        {
+            using var transaction = _connection!.BeginTransaction();
+            try
+            {
+                // 1. Check reset intent and progression row
+                bool isResetPending;
+                long currentEpoch;
+                int firewallRank;
+
+                using (var checkCmd = _connection.CreateCommand())
+                {
+                    checkCmd.Transaction = transaction;
+                    checkCmd.CommandText = @"
+                        SELECT r.is_pending, p.reset_epoch, p.firewall_rank
+                        FROM gameplay_reset_intent r
+                        JOIN gameplay_progression p ON p.id = 1
+                        WHERE r.id = 1;
+                    ";
+                    using var reader = await checkCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        throw new InvalidOperationException("Missing reset intent or progression row.");
+                    }
+
+                    isResetPending = reader.GetInt32(0) == 1;
+                    currentEpoch = reader.GetInt64(1);
+                    firewallRank = reader.GetInt32(2);
+                }
+
+                // 2. Reject if reset is pending
+                if (isResetPending)
+                {
+                    throw new InvalidOperationException("Cannot activate firewall capacity while a reset is pending.");
+                }
+
+                // 3. Verify expected reset epoch against current store reset epoch
+                if (expectedResetEpoch != currentEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Activation reset epoch {expectedResetEpoch} does not match current store reset epoch {currentEpoch}.");
+                }
+
+                // 4. Reject or safely defer activation while an older unsettled/recoverable gameplay intent exists
+                using (var pendingCmd = _connection.CreateCommand())
+                {
+                    pendingCmd.Transaction = transaction;
+                    pendingCmd.CommandText = @"
+                        SELECT COUNT(*)
+                        FROM gameplay_pending_intent
+                        WHERE reset_epoch = @epoch;
+                    ";
+                    pendingCmd.Parameters.AddWithValue("@epoch", currentEpoch);
+                    long pendingCount = Convert.ToInt64(await pendingCmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+                    if (pendingCount > 0)
+                    {
+                        throw new InvalidOperationException("Cannot activate firewall capacity while unsettled combat intents exist.");
+                    }
+                }
+
+                // 5. Read current gameplay_run_state
+                int sector;
+                int opponentIndex;
+                int opponentHp;
+                int playerHp;
+                int opponentExecutedAttacks;
+                string provenanceStr;
+                int oldShieldCapacity;
+                int oldActiveShields;
+                int oldShieldRechargeUnits;
+
+                using (var runCmd = _connection.CreateCommand())
+                {
+                    runCmd.Transaction = transaction;
+                    runCmd.CommandText = @"
+                        SELECT sector, opponent_index, opponent_current_hp, player_current_hp,
+                               opponent_executed_attacks, opponent_encounter_provenance,
+                               shield_capacity, active_shields, shield_recharge_units
+                        FROM gameplay_run_state
+                        WHERE id = 1;
+                    ";
+                    using var runReader = await runCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    if (!await runReader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        throw new InvalidOperationException("Missing gameplay_run_state row.");
+                    }
+
+                    sector = runReader.GetInt32(0);
+                    opponentIndex = runReader.GetInt32(1);
+                    opponentHp = runReader.GetInt32(2);
+                    playerHp = runReader.GetInt32(3);
+                    opponentExecutedAttacks = runReader.GetInt32(4);
+                    provenanceStr = runReader.GetString(5);
+                    oldShieldCapacity = runReader.GetInt32(6);
+                    oldActiveShields = runReader.GetInt32(7);
+                    oldShieldRechargeUnits = runReader.GetInt32(8);
+                }
+
+                if (!Enum.TryParse<OpponentEncounterProvenance>(provenanceStr, ignoreCase: false, out var provenance))
+                {
+                    throw new InvalidOperationException($"Invalid opponent_encounter_provenance '{provenanceStr}' in gameplay_run_state.");
+                }
+
+                // Validate existing state invariants
+                var currentRunState = CyberDefenseRunState.Rehydrate(
+                    sector, opponentIndex, opponentHp, playerHp, opponentExecutedAttacks, provenance,
+                    oldShieldCapacity, oldActiveShields, oldShieldRechargeUnits);
+
+                // 6. Capacity and recharge semantics
+                int targetCapacity = Math.Clamp(firewallRank, 0, CyberDefenseFirewallPolicy.MaxShieldCapacity);
+                int delta = targetCapacity - oldShieldCapacity;
+
+                // Deterministic no-op if purchased capacity has already been activated or rank is 0
+                if (delta <= 0)
+                {
+                    transaction.Commit();
+                    return currentRunState;
+                }
+
+                int newCapacity = targetCapacity;
+                int newActiveShields = oldActiveShields + delta;
+                int newRechargeUnits = newActiveShields == newCapacity ? 0 : oldShieldRechargeUnits;
+
+                // Validate new shield invariants
+                var newRunState = CyberDefenseRunState.Rehydrate(
+                    sector, opponentIndex, opponentHp, playerHp, opponentExecutedAttacks, provenance,
+                    newCapacity, newActiveShields, newRechargeUnits);
+
+                var now = DateTimeOffset.UtcNow;
+
+                // 7. Update gameplay_run_state atomically with optimistic concurrency check
+                using (var updateCmd = _connection.CreateCommand())
+                {
+                    updateCmd.Transaction = transaction;
+                    updateCmd.CommandText = @"
+                        UPDATE gameplay_run_state
+                        SET shield_capacity = @newCapacity,
+                            active_shields = @newActiveShields,
+                            shield_recharge_units = @newRechargeUnits,
+                            updated_at = @now
+                        WHERE id = 1
+                          AND reset_epoch = @expectedResetEpoch
+                          AND shield_capacity = @oldCapacity;
+                    ";
+                    updateCmd.Parameters.AddWithValue("@newCapacity", newCapacity);
+                    updateCmd.Parameters.AddWithValue("@newActiveShields", newActiveShields);
+                    updateCmd.Parameters.AddWithValue("@newRechargeUnits", newRechargeUnits);
+                    updateCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                    updateCmd.Parameters.AddWithValue("@expectedResetEpoch", expectedResetEpoch);
+                    updateCmd.Parameters.AddWithValue("@oldCapacity", oldShieldCapacity);
+
+                    int rows = await updateCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                    if (rows != 1)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed to update gameplay_run_state during firewall activation. Concurrency conflict (rows affected: {rows}).");
+                    }
+                }
+
+                transaction.Commit();
+                return newRunState;
+            }
+            catch
+            {
+                try { transaction.Rollback(); } catch { }
+                throw;
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(
         int expectedRank,
         long expectedResetEpoch,

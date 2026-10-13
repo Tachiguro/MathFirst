@@ -33,6 +33,9 @@ public interface ICyberDefenseCombatCoordinator
     int GetBoundEffectiveAttackDamageOrDefault(
         long questionKey,
         int fallback = 1);
+    Task ActivateQuestionBoundFirewallCapacityAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default);
     Task<CyberDefenseConsumptionResult?> ConsumeCommittedAttemptAsync(
         string submissionId,
         CancellationToken cancellationToken = default);

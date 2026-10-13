@@ -23,6 +23,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     private readonly object _stateLock = new();
     private readonly Dictionary<long, int> _boundQuestionDamage = new();
     private readonly Dictionary<long, Task<int>> _inFlightQuestionBindings = new();
+    private readonly Dictionary<long, Task> _inFlightQuestionActivations = new();
+    private long _lastActivatedQuestionKey = -1;
     private long _activeGeneration = 1;
     private long _activeResetEpoch = -1;
     private CyberDefenseAttackUpgradeSnapshot? _authoritativeSnapshot;
@@ -57,6 +59,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             _activeResetEpoch = snapshot.ResetEpoch;
             _boundQuestionDamage.Clear();
             _inFlightQuestionBindings.Clear();
+            _inFlightQuestionActivations.Clear();
+            _lastActivatedQuestionKey = -1;
             _lowestRetainedQuestionKey = -1;
             _authoritativeSnapshot = snapshot;
             return true;
@@ -296,6 +300,101 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         }
     }
 
+    public Task ActivateQuestionBoundFirewallCapacityAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (questionKey < 0 || _gameplayStore == null)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task? inFlightTask;
+        lock (_stateLock)
+        {
+            // 1. If already activated for this question key or an older question, do not activate again.
+            if (_lastActivatedQuestionKey >= 0 && questionKey <= _lastActivatedQuestionKey)
+            {
+                return Task.CompletedTask;
+            }
+
+            // 2. If activation for this questionKey is already in flight, return the existing task.
+            if (!_inFlightQuestionActivations.TryGetValue(questionKey, out inFlightTask))
+            {
+                inFlightTask = PerformQuestionActivationAsync(questionKey, _activeGeneration, _activeResetEpoch);
+                _inFlightQuestionActivations[questionKey] = inFlightTask;
+            }
+        }
+
+        return AwaitActivationAsync(inFlightTask, cancellationToken);
+    }
+
+    private async Task PerformQuestionActivationAsync(long questionKey, long taskGeneration, long taskResetEpoch)
+    {
+        CyberDefenseRunState? newRunState = null;
+        try
+        {
+            long currentEpoch = taskResetEpoch;
+            if (currentEpoch < 0 && _gameplayStore != null)
+            {
+                currentEpoch = await _gameplayStore.GetResetEpochAsync().ConfigureAwait(false);
+            }
+
+            if (_gameplayStore != null && currentEpoch >= 0)
+            {
+                newRunState = await _gameplayStore.ActivatePendingFirewallCapacityAsync(currentEpoch).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Learning-first failure isolation: Activation failure must never crash or block learning.
+        }
+
+        lock (_stateLock)
+        {
+            _inFlightQuestionActivations.Remove(questionKey);
+
+            // Generation fence: stale generation callback dropped
+            if (taskGeneration != _activeGeneration)
+            {
+                return;
+            }
+
+            // Epoch fence
+            if (_activeResetEpoch >= 0 && taskResetEpoch >= 0 && taskResetEpoch != _activeResetEpoch)
+            {
+                return;
+            }
+
+            // If activation succeeded, update last activated question key and ViewModel
+            if (newRunState != null)
+            {
+                if (questionKey > _lastActivatedQuestionKey)
+                {
+                    _lastActivatedQuestionKey = questionKey;
+                }
+
+                _currentViewModel = CyberDefenseHudViewModel.FromRunState(newRunState, null, _feedbackRevision);
+            }
+        }
+    }
+
+    private static async Task AwaitActivationAsync(Task activationTask, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await activationTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Learning-first failure isolation
+        }
+    }
+
     private async Task<int> CaptureAndBindDamageAsync(long questionKey, long taskGeneration)
     {
         int boundDamage = 1;
@@ -479,6 +578,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             _currentViewModel = CyberDefenseHudViewModel.Initial();
             _boundQuestionDamage.Clear();
             _inFlightQuestionBindings.Clear();
+            _inFlightQuestionActivations.Clear();
+            _lastActivatedQuestionKey = -1;
             _activeQuestionKey = -1;
             _lowestRetainedQuestionKey = -1;
             _authoritativeSnapshot = null;

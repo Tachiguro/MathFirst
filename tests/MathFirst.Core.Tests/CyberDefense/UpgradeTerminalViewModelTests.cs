@@ -738,6 +738,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
 
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
+
         public void ReleasePurchase() => _purchaseRelease.TrySetResult(true);
         public void ReleasePurchaseWithException(Exception ex) => _purchaseRelease.TrySetException(ex);
 
@@ -786,6 +789,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             throw new InvalidOperationException("Simulated store failure: disk I/O error");
         }
 
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
+
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => _inner.StagePendingIntentAsync(intent, cancellationToken);
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetPendingIntentAsync(submissionId, cancellationToken);
@@ -832,6 +838,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         {
             throw _exceptionToThrow;
         }
+
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
 
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => _inner.StagePendingIntentAsync(intent, cancellationToken);
@@ -885,6 +894,8 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => _inner.StagePendingIntentAsync(intent, cancellationToken);
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetPendingIntentAsync(submissionId, cancellationToken);
@@ -924,6 +935,8 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => _inner.StagePendingIntentAsync(intent, cancellationToken);
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetPendingIntentAsync(submissionId, cancellationToken);
@@ -969,6 +982,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
 
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
 
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => _inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => _inner.StagePendingIntentAsync(intent, cancellationToken);

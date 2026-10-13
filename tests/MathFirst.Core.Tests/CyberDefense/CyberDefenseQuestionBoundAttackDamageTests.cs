@@ -1982,6 +1982,8 @@ internal sealed class ControllableDelayedGameplayStore : IGameplayStore
 
     public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
         _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+    public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+        _inner.ActivatePendingFirewallCapacityAsync(expectedResetEpoch, cancellationToken);
     public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) =>
         _inner.GetReceiptAsync(submissionId, cancellationToken);
     public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) =>

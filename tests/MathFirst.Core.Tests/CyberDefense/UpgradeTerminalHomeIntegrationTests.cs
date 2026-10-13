@@ -827,6 +827,9 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));
 
+        public Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseRunState.InitialRun());
+
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<CyberDefenseReceiptRecord?>(null);
 

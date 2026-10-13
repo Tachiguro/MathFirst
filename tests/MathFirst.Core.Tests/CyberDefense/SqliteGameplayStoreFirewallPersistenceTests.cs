@@ -437,4 +437,79 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
         Assert.Equal(1, runState.ActiveShields);
         Assert.Equal(10, runState.ShieldRechargeUnits);
     }
+
+    [Fact]
+    public async Task ActivatePendingFirewallCapacityAsync_ZeroRank_ReturnsCurrentStateNoOp()
+    {
+        var dbPath = GetTempDbPath("activate_zero_rank");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        var state = await store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0);
+
+        Assert.Equal(0, state.ShieldCapacity);
+        Assert.Equal(0, state.ActiveShields);
+        Assert.Equal(0, state.ShieldRechargeUnits);
+    }
+
+    [Fact]
+    public async Task ActivatePendingFirewallCapacityAsync_DeltaPositive_ActivatesCapacityAndPreservesDepletedSlots()
+    {
+        var dbPath = GetTempDbPath("activate_delta_positive");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        // Simulate purchased Rank 2 in progression, but currently capacity 1, active 0, recharge 15 in run state
+        await SetRunShieldStateAsync(store, capacity: 1, active: 0, recharge: 15);
+        await store.ExecuteUnderGateForTestAsync(async conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE gameplay_progression SET firewall_rank = 2, player_level = 20 WHERE id = 1;";
+            await cmd.ExecuteNonQueryAsync();
+        });
+
+        var newState = await store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0);
+
+        Assert.Equal(2, newState.ShieldCapacity);
+        Assert.Equal(1, newState.ActiveShields);
+        Assert.Equal(15, newState.ShieldRechargeUnits);
+    }
+
+    [Fact]
+    public async Task ActivatePendingFirewallCapacityAsync_PendingReset_ThrowsInvalidOperationException()
+    {
+        var dbPath = GetTempDbPath("activate_pending_reset");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await store.BeginOrGetResetIntentAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0));
+    }
+
+    [Fact]
+    public async Task ActivatePendingFirewallCapacityAsync_EpochMismatch_ThrowsInvalidOperationException()
+    {
+        var dbPath = GetTempDbPath("activate_epoch_mismatch");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 99));
+    }
+
+    [Fact]
+    public async Task ActivatePendingFirewallCapacityAsync_UnsettledIntent_ThrowsInvalidOperationException()
+    {
+        var dbPath = GetTempDbPath("activate_unsettled_intent");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        var intent = CreateIntent("sub-unsettled");
+        await store.StagePendingIntentAsync(intent);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0));
+    }
 }
