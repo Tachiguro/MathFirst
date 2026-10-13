@@ -67,6 +67,13 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default) => Task.FromResult(CyberDefenseRunState.InitialRun());
         public Task<long> GetResetEpochAsync(CancellationToken cancellationToken = default) => Task.FromResult(0L);
         public Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default) => Task.FromResult(1L);
+        public Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));
+        public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow).ToAttackUpgradeSnapshot());
+        public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged { add { } remove { } }
+        public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Simulated gameplay storage failure during attack purchase.");
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => Task.FromResult<CyberDefenseReceiptRecord?>(null);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Simulated gameplay storage failure during staging.");

@@ -1,0 +1,358 @@
+@using System.Threading
+@using System.Threading.Tasks
+@using MathFirst.Application
+@using MathFirst.Application.Gameplay
+@implements IDisposable
+@inject ILocalizationService InjectedLocalizer
+
+<section class="practice-overlay upgrade-terminal-dialog"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="upgrade-terminal-title"
+         aria-describedby="upgrade-terminal-subtitle">
+    <div class="practice-overlay-content upgrade-terminal-content">
+        <header class="upgrade-terminal-header">
+            <h2 id="upgrade-terminal-title">@EffectiveLocalizer["UpgradeTerminal_Title"]</h2>
+            <p id="upgrade-terminal-subtitle" class="upgrade-terminal-subtitle">@EffectiveLocalizer["UpgradeTerminal_Subtitle"]</p>
+        </header>
+
+        <!-- Player Meta: Level & Available Skill Points -->
+        <div class="upgrade-meta-bar" role="region" aria-label="@EffectiveLocalizer["UpgradeTerminal_PlayerStatusAriaLabel"]">
+            <div class="meta-stat-pill">
+                <span class="meta-stat-label">@EffectiveLocalizer["UpgradeTerminal_LevelLabel"]</span>
+                <span class="meta-stat-value">@EffectivePlayerLevel</span>
+            </div>
+            <div class="meta-stat-pill meta-stat-sp">
+                <span class="meta-stat-label">@EffectiveLocalizer["UpgradeTerminal_SkillPointsLabel"]</span>
+                <span class="meta-stat-value">@EffectiveAvailableSp</span>
+            </div>
+        </div>
+
+        <!-- Upgrade Cards List -->
+        <div class="upgrade-cards-container" role="list">
+            <article class="upgrade-card attack-upgrade-card" role="listitem" aria-labelledby="attack-upgrade-title">
+                <div class="upgrade-card-header">
+                    <div class="upgrade-icon-slot" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                    </div>
+                    <div class="upgrade-title-group">
+                        <h3 id="attack-upgrade-title" class="upgrade-card-title">@EffectiveLocalizer["UpgradeTerminal_AttackTitle"]</h3>
+                        <span class="upgrade-rank-badge">@EffectiveLocalizer["UpgradeTerminal_CurrentRank", EffectiveCurrentRank]</span>
+                    </div>
+                </div>
+
+                <p class="upgrade-card-desc">@EffectiveLocalizer["UpgradeTerminal_AttackDescription"]</p>
+
+                <div class="upgrade-stats-grid">
+                    <div class="stat-cell current-stat">
+                        <span class="stat-name">@EffectiveLocalizer["UpgradeTerminal_CurrentDamage", EffectiveCurrentDamage]</span>
+                    </div>
+                    <div class="stat-cell next-stat">
+                        @if (IsMaxRank)
+                        {
+                            <span class="stat-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                        }
+                        else
+                        {
+                            <span class="stat-next">@EffectiveLocalizer["UpgradeTerminal_NextRankDamage", EffectiveNextDamage ?? 0]</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="upgrade-cost-row">
+                    @if (IsMaxRank)
+                    {
+                        <span class="cost-badge cost-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                    }
+                    else
+                    {
+                        <span class="cost-badge @(CanAfford ? "cost-affordable" : "cost-insufficient")">
+                            @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCost ?? 0]
+                        </span>
+                    }
+                </div>
+            </article>
+        </div>
+
+        <!-- Accessible Live Announcement Region for Purchase Feedback -->
+        <div class="upgrade-terminal-feedback @FeedbackCssClass"
+             role="status"
+             aria-live="polite"
+             aria-atomic="true">
+            @if (!string.IsNullOrEmpty(_feedbackMessage))
+            {
+                <span class="feedback-text">@_feedbackMessage</span>
+            }
+        </div>
+
+        <!-- Dialog Actions: Purchase & Close -->
+        <div class="upgrade-terminal-actions">
+            <button type="button"
+                    @ref="_purchaseButton"
+                    class="button button-primary practice-overlay-action upgrade-purchase-btn"
+                    disabled="@IsPurchaseDisabled"
+                    aria-disabled="@IsPurchaseDisabled"
+                    aria-label="@PurchaseButtonAriaLabel"
+                    @onclick="HandlePurchaseClick">
+                @PurchaseButtonText
+            </button>
+            <button type="button"
+                    @ref="_closeButton"
+                    class="button button-secondary practice-overlay-action upgrade-close-btn"
+                    aria-label="@EffectiveLocalizer["UpgradeTerminal_CloseAction"]"
+                    @onclick="HandleCloseClick">
+                @EffectiveLocalizer["UpgradeTerminal_CloseAction"]
+            </button>
+        </div>
+    </div>
+</section>
+
+@code {
+    private enum FeedbackKind
+    {
+        None,
+        Success,
+        Warning,
+        Error,
+        Info
+    }
+
+    [Parameter]
+    public UpgradeTerminalViewModel? ViewModel { get; set; }
+
+    [Parameter]
+    public ILocalizationService? Localizer { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private ElementReference _purchaseButton;
+    private ElementReference _closeButton;
+    private UpgradeTerminalViewModel? _subscribedViewModel;
+    private bool _isProcessingPurchase;
+    private bool _isDisposed;
+    private bool _initialFocusSet;
+    private string? _feedbackMessage;
+    private FeedbackKind _feedbackKind = FeedbackKind.None;
+
+    private ILocalizationService EffectiveLocalizer => Localizer ?? InjectedLocalizer;
+
+    private int EffectivePlayerLevel => ViewModel?.PlayerLevel ?? 1;
+    private int EffectiveAvailableSp => ViewModel?.AvailableSkillPoints ?? 0;
+    private int EffectiveCurrentRank => ViewModel?.CurrentAttackRank ?? 0;
+    private int EffectiveCurrentDamage => ViewModel?.CurrentBaseDamage ?? 1;
+    private int? EffectiveNextDamage => ViewModel?.NextBaseDamage;
+    private int? EffectiveNextCost => ViewModel?.NextRankCost;
+    private bool IsMaxRank => ViewModel?.IsMaxRank ?? false;
+    private bool CanAfford => ViewModel?.CanAfford ?? false;
+
+    public bool IsPurchaseDisabled =>
+        _isDisposed ||
+        _isProcessingPurchase ||
+        ViewModel == null ||
+        ViewModel.IsDisposed ||
+        ViewModel.IsBusy ||
+        ViewModel.IsMaxRank ||
+        !ViewModel.HasSufficientSkillPoints ||
+        !ViewModel.CanPurchase;
+
+    private string PurchaseButtonText
+    {
+        get
+        {
+            if (ViewModel?.IsBusy == true || _isProcessingPurchase)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_Purchasing"];
+            }
+            if (IsMaxRank)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_MaxRank"];
+            }
+            return EffectiveLocalizer["UpgradeTerminal_UpgradeAction"];
+        }
+    }
+
+    private string PurchaseButtonAriaLabel
+    {
+        get
+        {
+            if (IsMaxRank)
+            {
+                return $"{EffectiveLocalizer["UpgradeTerminal_AttackTitle"]}: {EffectiveLocalizer["UpgradeTerminal_MaxRank"]}";
+            }
+            return $"{EffectiveLocalizer["UpgradeTerminal_UpgradeAction"]}: {EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCost ?? 0]}";
+        }
+    }
+
+    private string FeedbackCssClass => _feedbackKind switch
+    {
+        FeedbackKind.Success => "feedback-success",
+        FeedbackKind.Warning => "feedback-warning",
+        FeedbackKind.Error => "feedback-error",
+        FeedbackKind.Info => "feedback-info",
+        _ => "feedback-empty"
+    };
+
+    protected override void OnInitialized()
+    {
+        SubscribeToViewModel();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_subscribedViewModel, ViewModel))
+        {
+            UnsubscribeFromViewModel();
+            SubscribeToViewModel();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialFocusSet)
+        {
+            _initialFocusSet = true;
+            try
+            {
+                if (ViewModel?.CanPurchase == true)
+                {
+                    await _purchaseButton.FocusAsync();
+                }
+                else
+                {
+                    await _closeButton.FocusAsync();
+                }
+            }
+            catch
+            {
+                // Headless test harnesses or platforms without active focus targets catch safely.
+            }
+        }
+    }
+
+    private void SubscribeToViewModel()
+    {
+        if (ViewModel != null && !_isDisposed)
+        {
+            _subscribedViewModel = ViewModel;
+            _subscribedViewModel.StateChanged += OnViewModelStateChanged;
+        }
+    }
+
+    private void UnsubscribeFromViewModel()
+    {
+        if (_subscribedViewModel != null)
+        {
+            _subscribedViewModel.StateChanged -= OnViewModelStateChanged;
+            _subscribedViewModel = null;
+        }
+    }
+
+    private void OnViewModelStateChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (_isDisposed) return;
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandlePurchaseClick()
+    {
+        if (IsPurchaseDisabled || ViewModel == null)
+        {
+            return;
+        }
+
+        _isProcessingPurchase = true;
+        _feedbackMessage = null;
+        _feedbackKind = FeedbackKind.None;
+
+        try
+        {
+            var result = await ViewModel.PurchaseUpgradeAsync();
+            ApplyPurchaseResult(result);
+        }
+        catch (Exception)
+        {
+            _feedbackKind = FeedbackKind.Error;
+            _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Error"];
+        }
+        finally
+        {
+            _isProcessingPurchase = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyPurchaseResult(UpgradePurchaseResult result)
+    {
+        switch (result.Status)
+        {
+            case UpgradePurchaseStatus.Success:
+                _feedbackKind = FeedbackKind.Success;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Success"];
+                break;
+
+            case UpgradePurchaseStatus.InsufficientSkillPoints:
+                _feedbackKind = FeedbackKind.Warning;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_InsufficientSkillPoints"];
+                break;
+
+            case UpgradePurchaseStatus.StaleRank:
+                _feedbackKind = FeedbackKind.Warning;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_StaleRank"];
+                break;
+
+            case UpgradePurchaseStatus.StaleResetEpoch:
+                _feedbackKind = FeedbackKind.Warning;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_StaleResetEpoch"];
+                break;
+
+            case UpgradePurchaseStatus.MaxRankReached:
+                _feedbackKind = FeedbackKind.Info;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_MaxRankReached"];
+                break;
+
+            case UpgradePurchaseStatus.Busy:
+                _feedbackKind = FeedbackKind.Warning;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Busy"];
+                break;
+
+            case UpgradePurchaseStatus.Disposed:
+                _feedbackKind = FeedbackKind.Error;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Disposed"];
+                break;
+
+            case UpgradePurchaseStatus.Cancelled:
+                _feedbackKind = FeedbackKind.Info;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Cancelled"];
+                break;
+
+            case UpgradePurchaseStatus.Error:
+            default:
+                _feedbackKind = FeedbackKind.Error;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Error"];
+                break;
+        }
+    }
+
+    private async Task HandleCloseClick()
+    {
+        if (_isDisposed) return;
+
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed) return;
+        _isDisposed = true;
+        UnsubscribeFromViewModel();
+    }
+}

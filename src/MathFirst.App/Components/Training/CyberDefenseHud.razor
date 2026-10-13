@@ -20,19 +20,33 @@
                 <span class="scene-category-text">@Localizer["CyberDefense_Title"]</span>
                 <span class="scene-sector-tag">@Localizer["CyberDefense_SectorDisplay", EffectiveModel.SectorNumber]</span>
             </div>
-            <div class="scene-wave-tag @(EffectiveModel.IsBoss ? "wave-boss-active" : "")">
-                @if (EffectiveModel.IsSectorBoss)
+            <div class="scene-top-actions">
+                @if (AvailableSkillPoints > 0)
                 {
-                    <span class="boss-wave-text">@Localizer["CyberDefense_SectorBossLabel"]</span>
+                    <button type="button"
+                            class="upgrade-indicator-badge"
+                            aria-label='@Localizer["UpgradeTerminal_IndicatorAriaLabel", AvailableSkillPoints]'
+                            title='@Localizer["UpgradeTerminal_IndicatorAriaLabel", AvailableSkillPoints]'
+                            @onclick="HandleUpgradeIndicatorClick">
+                        <span class="upgrade-indicator-icon" aria-hidden="true">▲</span>
+                        <span class="upgrade-indicator-text">@Localizer["UpgradeTerminal_IndicatorAction"]</span>
+                        <span class="upgrade-indicator-count">(@AvailableSkillPoints)</span>
+                    </button>
                 }
-                else if (EffectiveModel.IsBoss)
-                {
-                    <span class="boss-wave-text">@Localizer["CyberDefense_BossLabel"]</span>
-                }
-                else
-                {
-                    @Localizer["CyberDefense_WaveDisplay", EffectiveModel.WaveNumber, EffectiveModel.TotalOpponentCount]
-                }
+                <div class="scene-wave-tag @(EffectiveModel.IsBoss ? "wave-boss-active" : "")">
+                    @if (EffectiveModel.IsSectorBoss)
+                    {
+                        <span class="boss-wave-text">@Localizer["CyberDefense_SectorBossLabel"]</span>
+                    }
+                    else if (EffectiveModel.IsBoss)
+                    {
+                        <span class="boss-wave-text">@Localizer["CyberDefense_BossLabel"]</span>
+                    }
+                    else
+                    {
+                        @Localizer["CyberDefense_WaveDisplay", EffectiveModel.WaveNumber, EffectiveModel.TotalOpponentCount]
+                    }
+                </div>
             </div>
         </div>
 
@@ -194,6 +208,20 @@
 
     [Parameter]
     public string? TaskKey { get; set; }
+
+    [Parameter]
+    public int AvailableSkillPoints { get; set; }
+
+    [Parameter]
+    public EventCallback OnOpenUpgradeTerminal { get; set; }
+
+    private async Task HandleUpgradeIndicatorClick()
+    {
+        if (OnOpenUpgradeTerminal.HasDelegate)
+        {
+            await OnOpenUpgradeTerminal.InvokeAsync();
+        }
+    }
 
     private CyberDefenseHudViewModel EffectiveModel =>
         ViewModel ?? (State != null ? CyberDefenseHudViewModel.FromEncounterState(State) : CyberDefenseHudViewModel.Initial());

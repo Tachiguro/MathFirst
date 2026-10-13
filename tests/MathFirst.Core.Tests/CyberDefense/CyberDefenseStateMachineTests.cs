@@ -1775,6 +1775,110 @@ public class CyberDefenseStateMachineTests
         Assert.NotNull(result);
         Assert.True(result.IsCorrect);
         Assert.True(result.IsOpponentDefeated);
+        Assert.Null(result.ExecutedAttacksOnDefeatedOpponent);
+    }
+
+    [Fact]
+    public void CombatTransitionResult_PreservesExplicitExecutedAttacksOnDefeatedOpponent()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        var result = new CyberDefenseCombatTransitionResult(
+            isCorrect: true,
+            requestedAttackDamage: 2,
+            appliedOpponentDamage: 2,
+            excessOpponentDamage: 0,
+            incomingEnemyDamage: 0,
+            appliedPlayerDamage: 0,
+            excessEnemyDamage: 0,
+            potentialHealing: 2,
+            appliedHealing: 0,
+            isOpponentDefeated: true,
+            isSectorCompleted: false,
+            isGameOver: false,
+            nextState: run,
+            terminalSnapshot: null,
+            executedAttacksOnDefeatedOpponent: 1);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsCorrect);
+        Assert.True(result.IsOpponentDefeated);
+        Assert.Equal(1, result.ExecutedAttacksOnDefeatedOpponent);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(10)]
+    public void CombatTransitionResult_ExposesExecutedAttacksOnDefeatedOpponent_WhenOpponentDefeated(int count)
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        var result = new CyberDefenseCombatTransitionResult(
+            isCorrect: true,
+            requestedAttackDamage: 2,
+            appliedOpponentDamage: 2,
+            excessOpponentDamage: 0,
+            incomingEnemyDamage: 0,
+            appliedPlayerDamage: 0,
+            excessEnemyDamage: 0,
+            potentialHealing: 2,
+            appliedHealing: 0,
+            isOpponentDefeated: true,
+            isSectorCompleted: false,
+            isGameOver: false,
+            nextState: run,
+            terminalSnapshot: null,
+            executedAttacksOnDefeatedOpponent: count);
+
+        Assert.Equal(count, result.ExecutedAttacksOnDefeatedOpponent);
+    }
+
+    [Fact]
+    public void CombatTransitionResult_ThrowsWhenExecutedAttacksOnDefeatedOpponentSuppliedForNonDefeat()
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        Assert.Throws<ArgumentException>(() =>
+            new CyberDefenseCombatTransitionResult(
+                isCorrect: true,
+                requestedAttackDamage: 1,
+                appliedOpponentDamage: 1,
+                excessOpponentDamage: 0,
+                incomingEnemyDamage: 0,
+                appliedPlayerDamage: 0,
+                excessEnemyDamage: 0,
+                potentialHealing: 0,
+                appliedHealing: 0,
+                isOpponentDefeated: false,
+                isSectorCompleted: false,
+                isGameOver: false,
+                nextState: run,
+                terminalSnapshot: null,
+                executedAttacksOnDefeatedOpponent: 1));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(-5)]
+    public void CombatTransitionResult_ThrowsWhenExecutedAttacksOnDefeatedOpponentIsLessThanOne(int invalidCount)
+    {
+        var run = CyberDefenseRunState.InitialRun();
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new CyberDefenseCombatTransitionResult(
+                isCorrect: true,
+                requestedAttackDamage: 2,
+                appliedOpponentDamage: 2,
+                excessOpponentDamage: 0,
+                incomingEnemyDamage: 0,
+                appliedPlayerDamage: 0,
+                excessEnemyDamage: 0,
+                potentialHealing: 2,
+                appliedHealing: 0,
+                isOpponentDefeated: true,
+                isSectorCompleted: false,
+                isGameOver: false,
+                nextState: run,
+                terminalSnapshot: null,
+                executedAttacksOnDefeatedOpponent: invalidCount));
     }
 
     // =========================================================================

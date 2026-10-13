@@ -15,6 +15,7 @@ public sealed record CyberDefensePendingIntentRecord
     public long ResponseLatencyMs { get; }
     public long ResetEpoch { get; }
     public DateTimeOffset CreatedAt { get; }
+    public int EffectiveAttackDamage { get; }
 
     public CyberDefensePendingIntentRecord(
         string submissionId,
@@ -24,6 +25,19 @@ public sealed record CyberDefensePendingIntentRecord
         long responseLatencyMs,
         long resetEpoch,
         DateTimeOffset createdAt)
+        : this(submissionId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, createdAt, effectiveAttackDamage: 1)
+    {
+    }
+
+    public CyberDefensePendingIntentRecord(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        bool isEligible,
+        long responseLatencyMs,
+        long resetEpoch,
+        DateTimeOffset createdAt,
+        int effectiveAttackDamage)
     {
         if (string.IsNullOrWhiteSpace(submissionId))
         {
@@ -38,6 +52,14 @@ public sealed record CyberDefensePendingIntentRecord
         ArgumentOutOfRangeException.ThrowIfNegative(responseLatencyMs);
         ArgumentOutOfRangeException.ThrowIfNegative(resetEpoch);
 
+        if (effectiveAttackDamage < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(effectiveAttackDamage),
+                effectiveAttackDamage,
+                "Effective attack damage must be at least 1.");
+        }
+
         SubmissionId = submissionId;
         FactId = factId;
         IsCorrect = isCorrect;
@@ -45,5 +67,6 @@ public sealed record CyberDefensePendingIntentRecord
         ResponseLatencyMs = responseLatencyMs;
         ResetEpoch = resetEpoch;
         CreatedAt = createdAt;
+        EffectiveAttackDamage = effectiveAttackDamage;
     }
 }

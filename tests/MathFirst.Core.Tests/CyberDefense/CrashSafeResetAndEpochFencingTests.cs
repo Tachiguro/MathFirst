@@ -522,6 +522,10 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
         public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<long> GetResetEpochAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged { add { } remove { } }
+        public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -545,6 +549,14 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
         public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default) => inner.GetRunStateAsync(cancellationToken);
         public Task<long> GetResetEpochAsync(CancellationToken cancellationToken = default) => inner.GetResetEpochAsync(cancellationToken);
         public Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default) => inner.GetStoreRevisionAsync(cancellationToken);
+        public Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default) => inner.GetProgressionAsync(cancellationToken);
+        public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
+        public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged
+        {
+            add => inner.AttackUpgradeSnapshotChanged += value;
+            remove => inner.AttackUpgradeSnapshotChanged -= value;
+        }
+        public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => inner.StagePendingIntentAsync(intent, cancellationToken);
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => inner.GetPendingIntentAsync(submissionId, cancellationToken);

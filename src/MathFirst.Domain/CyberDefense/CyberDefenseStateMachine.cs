@@ -77,6 +77,7 @@ public static class CyberDefenseStateMachine
 
         int requestedAttackDamage = effectiveAttackDamage;
         int currentOpponentHp = run.CurrentOpponent.CurrentHp;
+        int nextExecutedAttacks = checked(run.CurrentOpponent.ExecutedAttacks + 1);
 
         int appliedOpponentDamage = Math.Min(requestedAttackDamage, currentOpponentHp);
         int excessOpponentDamage = checked(requestedAttackDamage - appliedOpponentDamage);
@@ -87,7 +88,9 @@ public static class CyberDefenseStateMachine
             var nextOpponent = new OpponentState(
                 run.CurrentOpponent.Kind,
                 run.CurrentOpponent.MaxHp,
-                remainingOpponentHp);
+                remainingOpponentHp,
+                nextExecutedAttacks,
+                run.CurrentOpponent.Provenance);
 
             var nextState = CyberDefenseRunState.CreateActive(
                 run.Sector,
@@ -109,7 +112,9 @@ public static class CyberDefenseStateMachine
                 isSectorCompleted: false,
                 isGameOver: false,
                 nextState: nextState,
-                terminalSnapshot: null);
+                terminalSnapshot: null,
+                executedAttacksOnDefeatedOpponent: null,
+                defeatedOpponentProvenance: null);
         }
         else
         {
@@ -142,7 +147,9 @@ public static class CyberDefenseStateMachine
             var nextOpponent = new OpponentState(
                 nextOpponentKind,
                 nextOpponentMaxHp,
-                nextOpponentCurrentHp);
+                nextOpponentCurrentHp,
+                executedAttacks: 0,
+                provenance: OpponentEncounterProvenance.Authoritative);
 
             var nextState = CyberDefenseRunState.CreateActive(
                 nextSector,
@@ -164,7 +171,9 @@ public static class CyberDefenseStateMachine
                 isSectorCompleted: isSectorCompleted,
                 isGameOver: false,
                 nextState: nextState,
-                terminalSnapshot: null);
+                terminalSnapshot: null,
+                executedAttacksOnDefeatedOpponent: nextExecutedAttacks,
+                defeatedOpponentProvenance: run.CurrentOpponent.Provenance);
         }
     }
 }

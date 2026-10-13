@@ -91,8 +91,38 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
         int opponentCurrentHp,
         int playerCurrentHp)
     {
+        return Rehydrate(sector, opponentIndex, opponentCurrentHp, playerCurrentHp, 0);
+    }
+
+    public static CyberDefenseRunState Rehydrate(
+        int sector,
+        int opponentIndex,
+        int opponentCurrentHp,
+        int playerCurrentHp,
+        int opponentExecutedAttacks)
+    {
+        return Rehydrate(sector, opponentIndex, opponentCurrentHp, playerCurrentHp, opponentExecutedAttacks, OpponentEncounterProvenance.Authoritative);
+    }
+
+    public static CyberDefenseRunState Rehydrate(
+        int sector,
+        int opponentIndex,
+        int opponentCurrentHp,
+        int playerCurrentHp,
+        int opponentExecutedAttacks,
+        OpponentEncounterProvenance provenance)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(sector, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(opponentIndex);
+        ArgumentOutOfRangeException.ThrowIfNegative(opponentExecutedAttacks);
+
+        if (!Enum.IsDefined(typeof(OpponentEncounterProvenance), provenance))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(provenance),
+                provenance,
+                $"Undefined encounter provenance: {provenance}.");
+        }
 
         int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(sector);
         if (opponentIndex > bossIndex)
@@ -124,7 +154,7 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
                 $"Player current HP ({playerCurrentHp}) cannot exceed max HP ({CyberDefenseCombatPolicy.PlayerMaxHp}).");
         }
 
-        var opponent = new OpponentState(kind, maxHp, opponentCurrentHp);
+        var opponent = new OpponentState(kind, maxHp, opponentCurrentHp, opponentExecutedAttacks, provenance);
 
         return new CyberDefenseRunState(
             sector,

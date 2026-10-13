@@ -19,6 +19,20 @@ public interface ICyberDefenseCombatCoordinator
         long latencyMs,
         bool isEligibleAtSubmission,
         CancellationToken cancellationToken = default);
+    Task StageIntentAsync(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long latencyMs,
+        bool isEligibleAtSubmission,
+        int effectiveAttackDamage,
+        CancellationToken cancellationToken = default);
+    Task<int> GetOrBindEffectiveAttackDamageAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default);
+    int GetBoundEffectiveAttackDamageOrDefault(
+        long questionKey,
+        int fallback = 1);
     Task<CyberDefenseConsumptionResult?> ConsumeCommittedAttemptAsync(
         string submissionId,
         CancellationToken cancellationToken = default);

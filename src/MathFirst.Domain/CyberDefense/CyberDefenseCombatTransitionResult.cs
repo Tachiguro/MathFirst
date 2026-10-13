@@ -16,6 +16,8 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
     public bool IsGameOver { get; }
     public CyberDefenseRunState NextState { get; }
     public CyberDefenseTerminalRunSnapshot? TerminalSnapshot { get; }
+    public int? ExecutedAttacksOnDefeatedOpponent { get; }
+    public OpponentEncounterProvenance? DefeatedOpponentProvenance { get; }
 
     public CyberDefenseCombatTransitionResult(
         bool isCorrect,
@@ -31,7 +33,9 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         bool isSectorCompleted,
         bool isGameOver,
         CyberDefenseRunState nextState,
-        CyberDefenseTerminalRunSnapshot? terminalSnapshot = null)
+        CyberDefenseTerminalRunSnapshot? terminalSnapshot = null,
+        int? executedAttacksOnDefeatedOpponent = null,
+        OpponentEncounterProvenance? defeatedOpponentProvenance = null)
     {
         ArgumentNullException.ThrowIfNull(nextState);
         ArgumentOutOfRangeException.ThrowIfNegative(requestedAttackDamage);
@@ -99,6 +103,44 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
                 nameof(terminalSnapshot));
         }
 
+        if (!isOpponentDefeated)
+        {
+            if (executedAttacksOnDefeatedOpponent.HasValue)
+            {
+                throw new ArgumentException(
+                    "Executed attacks on defeated opponent must be null when opponent is not defeated.",
+                    nameof(executedAttacksOnDefeatedOpponent));
+            }
+
+            if (defeatedOpponentProvenance.HasValue)
+            {
+                throw new ArgumentException(
+                    "Defeated opponent provenance must be null when opponent is not defeated.",
+                    nameof(defeatedOpponentProvenance));
+            }
+        }
+        else
+        {
+            if (executedAttacksOnDefeatedOpponent.HasValue)
+            {
+                ArgumentOutOfRangeException.ThrowIfLessThan(
+                    executedAttacksOnDefeatedOpponent.Value,
+                    1,
+                    nameof(executedAttacksOnDefeatedOpponent));
+            }
+
+            if (defeatedOpponentProvenance.HasValue)
+            {
+                if (!Enum.IsDefined(typeof(OpponentEncounterProvenance), defeatedOpponentProvenance.Value))
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(defeatedOpponentProvenance),
+                        defeatedOpponentProvenance.Value,
+                        $"Undefined defeated opponent provenance: {defeatedOpponentProvenance.Value}.");
+                }
+            }
+        }
+
         IsCorrect = isCorrect;
         RequestedAttackDamage = requestedAttackDamage;
         AppliedOpponentDamage = appliedOpponentDamage;
@@ -113,6 +155,8 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         IsGameOver = isGameOver;
         NextState = nextState;
         TerminalSnapshot = terminalSnapshot;
+        ExecutedAttacksOnDefeatedOpponent = executedAttacksOnDefeatedOpponent;
+        DefeatedOpponentProvenance = defeatedOpponentProvenance;
     }
 
     public bool Equals(CyberDefenseCombatTransitionResult? other)
@@ -132,7 +176,9 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
                IsSectorCompleted == other.IsSectorCompleted &&
                IsGameOver == other.IsGameOver &&
                Equals(NextState, other.NextState) &&
-               Equals(TerminalSnapshot, other.TerminalSnapshot);
+               Equals(TerminalSnapshot, other.TerminalSnapshot) &&
+               ExecutedAttacksOnDefeatedOpponent == other.ExecutedAttacksOnDefeatedOpponent &&
+               DefeatedOpponentProvenance == other.DefeatedOpponentProvenance;
     }
 
     public override bool Equals(object? obj) => Equals(obj as CyberDefenseCombatTransitionResult);
@@ -154,6 +200,8 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         hash.Add(IsGameOver);
         hash.Add(NextState);
         hash.Add(TerminalSnapshot);
+        hash.Add(ExecutedAttacksOnDefeatedOpponent);
+        hash.Add(DefeatedOpponentProvenance);
         return hash.ToHashCode();
     }
 
