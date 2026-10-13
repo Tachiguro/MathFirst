@@ -1946,13 +1946,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 // 2. Reject if reset is pending
                 if (isResetPending)
                 {
-                    throw new InvalidOperationException("Cannot activate firewall capacity while a reset is pending.");
+                    transaction.Rollback();
+                    return CyberDefenseFirewallActivationResult.RejectedResetPending("Cannot activate firewall capacity while a reset is pending.");
                 }
 
                 // 3. Verify expected reset epoch against current store reset epoch
                 if (expectedResetEpoch != currentEpoch)
                 {
-                    throw new InvalidOperationException(
+                    transaction.Rollback();
+                    return CyberDefenseFirewallActivationResult.RejectedEpochMismatch(
                         $"Activation reset epoch {expectedResetEpoch} does not match current store reset epoch {currentEpoch}.");
                 }
 
@@ -2079,10 +2081,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 transaction.Commit();
                 return CyberDefenseFirewallActivationResult.Applied(newRunState);
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 try { transaction.Rollback(); } catch { }
-                throw;
+                return CyberDefenseFirewallActivationResult.Failed(ex.Message);
             }
         }, cancellationToken).ConfigureAwait(false);
     }

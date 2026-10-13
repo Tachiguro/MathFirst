@@ -476,7 +476,7 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
     }
 
     [Fact]
-    public async Task ActivatePendingFirewallCapacityAsync_PendingReset_ThrowsInvalidOperationException()
+    public async Task ActivatePendingFirewallCapacityAsync_PendingReset_ReturnsRejectedResetPending()
     {
         var dbPath = GetTempDbPath("activate_pending_reset");
         using var store = new SqliteGameplayStore(dbPath);
@@ -484,19 +484,19 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
 
         await store.BeginOrGetResetIntentAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0));
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.RejectedResetPending, result.Status);
     }
 
     [Fact]
-    public async Task ActivatePendingFirewallCapacityAsync_EpochMismatch_ThrowsInvalidOperationException()
+    public async Task ActivatePendingFirewallCapacityAsync_EpochMismatch_ReturnsRejectedEpochMismatch()
     {
         var dbPath = GetTempDbPath("activate_epoch_mismatch");
         using var store = new SqliteGameplayStore(dbPath);
         await store.InitializeAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 99));
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 99);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.RejectedEpochMismatch, result.Status);
     }
 
     [Fact]
