@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-005 (XP Economy, Player Level Curve, and Attack Upgrade Path) — Candidate (Implemented & Reviewed, Unmerged)
+### MF-CYBER-005 (XP Economy, Player Level Curve, and Attack Upgrade Path) — Implemented and Merged into main (Unreleased)
 
 - **XP & Player Level Progression**:
   - Earn XP through math practice turns: correct answers grant 6 XP and incorrect answers grant 1 XP.
@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Accessible modal dialog featuring keyboard focus management, backdrop dismissal, and standard Escape key support.
   - Modal header isolation: parent practice header receives dynamic inert and aria-hidden bindings (`inert="@(_isUpgradeTerminalOpen ? true : null)"`, `aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)"`) while the terminal is active, and mode toggling is safely disabled to prevent keyboard focus leaks and screenreader confusion.
   - Robust SQLite persistence with Gameplay Schema V4, connection lifecycle safety, and crash-safe reset epoch fencing.
-  - *Candidate Status*: Implemented across 13 checkpoint commits on task branch `feat/mf-cyber-005-xp-economy-slice1` (implementation checkpoint before documentation reconciliation: `798466f7327efd9f60faeae482a467043d8c408b`; the documentation-inclusive candidate HEAD is determined by the subsequent `COMMIT_ONLY`); consolidated package review completed with findings (`MF_CYBER_005_CONSOLIDATED_REVIEW_CHANGES_REQUIRED`), addressed in Slice 6D.2, and approved by independent review (`SLICE_6D2_REVIEW_PASS`); documentation review returned `MF_CYBER_005_DOCUMENTATION_REVIEW_CHANGES_REQUIRED`, with corrections applied and independent re-review pending; not yet validated via formal FULL_VALIDATION, not pushed to remote, and not merged into `main`.
+  - *Status & Integration*: Implemented across 13 checkpoint commits on task branch `feat/mf-cyber-005-xp-economy-slice1` (implementation checkpoint before documentation reconciliation: `798466f7327efd9f60faeae482a467043d8c408b`; validated candidate HEAD: `70c8e97e894f8a6192d1397d7adb674411241778` across 15 total feature-branch commits); consolidated package review completed with findings (`MF_CYBER_005_CONSOLIDATED_REVIEW_CHANGES_REQUIRED`), addressed in Slice 6D.2, and approved by independent review (`SLICE_6D2_REVIEW_PASS`); documentation reconciliation completed (`DOCUMENTATION_RECONCILED_WITH_CHANGES`); validated in formal exact-candidate full validation (`MF_CYBER_005_FULL_VALIDATION_PASS` on candidate `70c8e97e894f8a6192d1397d7adb674411241778` with 3,736 Core Debug and 3,736 Core Release tests passing [0 failed, 0 skipped], Windows Release build passing [0 warnings, 0 errors], Android Release Compile passing [0 warnings, 0 errors], NuGet audit passing [0 known vulnerabilities], 38 Markdown documents / 308 relative links passing [0 broken], and `git diff --check origin/main...HEAD` clean). Merged into `main` via PR #82 on 2026-10-13 at merge commit `7325736f363680e20d363e898c3a8ae45e0dc038` (validated candidate `70c8e97e894f8a6192d1397d7adb674411241778`). No physical-device, emulator, WebView-runtime, or screen-reader acceptance testing was performed. Implemented and merged into `main`, but not yet released in a published application build.
 
 ### MF-CYBER-004 (Authoritative Headless Combat Simulator and Synthetic Player Profile Harness) — Implemented and Merged into main (Unreleased)
 
