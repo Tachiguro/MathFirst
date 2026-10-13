@@ -1342,4 +1342,3 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         Assert.False(vm.IsBusy);
     }
 }
-
