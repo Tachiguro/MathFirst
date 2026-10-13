@@ -526,6 +526,8 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged { add { } remove { } }
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -557,6 +559,8 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
             remove => inner.AttackUpgradeSnapshotChanged -= value;
         }
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
+        public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => inner.GetReceiptAsync(submissionId, cancellationToken);
         public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default) => inner.StagePendingIntentAsync(intent, cancellationToken);
         public Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default) => inner.GetPendingIntentAsync(submissionId, cancellationToken);

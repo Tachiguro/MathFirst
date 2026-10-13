@@ -14,6 +14,7 @@ public sealed record CyberDefenseProgressionRecord
     public int SpentSkillPoints { get; }
     public int AvailableSkillPoints { get; }
     public int AttackRank { get; }
+    public int FirewallRank { get; }
     public string EconomyVersion { get; }
     public DateTimeOffset UpdatedAt { get; }
 
@@ -28,6 +29,33 @@ public sealed record CyberDefenseProgressionRecord
         int attackRank,
         string economyVersion,
         DateTimeOffset updatedAt)
+        : this(
+            storeRevision,
+            resetEpoch,
+            cumulativeXp,
+            playerLevel,
+            earnedSkillPoints,
+            spentSkillPoints,
+            availableSkillPoints,
+            attackRank,
+            economyVersion,
+            updatedAt,
+            firewallRank: 0)
+    {
+    }
+
+    public CyberDefenseProgressionRecord(
+        long storeRevision,
+        long resetEpoch,
+        long cumulativeXp,
+        int playerLevel,
+        int earnedSkillPoints,
+        int spentSkillPoints,
+        int availableSkillPoints,
+        int attackRank,
+        string economyVersion,
+        DateTimeOffset updatedAt,
+        int firewallRank)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(storeRevision, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(resetEpoch);
@@ -37,6 +65,8 @@ public sealed record CyberDefenseProgressionRecord
         ArgumentOutOfRangeException.ThrowIfNegative(spentSkillPoints);
         ArgumentOutOfRangeException.ThrowIfNegative(availableSkillPoints);
         ArgumentOutOfRangeException.ThrowIfNegative(attackRank);
+        ArgumentOutOfRangeException.ThrowIfNegative(firewallRank);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(firewallRank, MathFirst.Domain.CyberDefense.CyberDefenseFirewallPolicy.MaxRank);
 
         if (string.IsNullOrWhiteSpace(economyVersion))
         {
@@ -59,6 +89,7 @@ public sealed record CyberDefenseProgressionRecord
         AttackRank = attackRank;
         EconomyVersion = economyVersion;
         UpdatedAt = updatedAt;
+        FirewallRank = firewallRank;
     }
 
     public static CyberDefenseProgressionRecord Initial(DateTimeOffset updatedAt) =>
@@ -72,8 +103,12 @@ public sealed record CyberDefenseProgressionRecord
             availableSkillPoints: 0,
             attackRank: 0,
             economyVersion: DefaultEconomyVersion,
-            updatedAt: updatedAt);
+            updatedAt: updatedAt,
+            firewallRank: 0);
 
     public CyberDefenseAttackUpgradeSnapshot ToAttackUpgradeSnapshot() =>
         CyberDefenseAttackUpgradeSnapshot.FromProgression(this);
+
+    public CyberDefenseFirewallUpgradeSnapshot ToFirewallUpgradeSnapshot() =>
+        CyberDefenseFirewallUpgradeSnapshot.FromProgression(this);
 }
