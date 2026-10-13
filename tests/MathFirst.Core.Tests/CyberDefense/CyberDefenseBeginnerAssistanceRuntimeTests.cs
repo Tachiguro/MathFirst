@@ -69,11 +69,14 @@ public sealed class CyberDefenseBeginnerAssistanceRuntimeTests : IDisposable
         int isAssistanceActive = 0,
         long cumulativeXp = 0,
         long storeRevision = 1,
-        long resetEpoch = 0)
+        long resetEpoch = 0,
+        int? activatedFirewallRank = null)
     {
         long resolvedXp = cumulativeXp > 0
             ? cumulativeXp
             : CyberDefenseLevelPolicy.GetCumulativeXpThreshold(playerLevel);
+
+        int resolvedActivatedRank = activatedFirewallRank ?? firewallRank;
 
         await store.ExecuteUnderGateForTestAsync(async conn =>
         {
@@ -88,6 +91,7 @@ public sealed class CyberDefenseBeginnerAssistanceRuntimeTests : IDisposable
                     firewall_rank = @fw,
                     consecutive_early_defeats = @defeats,
                     is_beginner_assistance_active = @assist,
+                    activated_firewall_rank = @actFw,
                     cumulative_xp = @xp,
                     store_revision = @rev,
                     reset_epoch = @epoch,
@@ -102,6 +106,7 @@ public sealed class CyberDefenseBeginnerAssistanceRuntimeTests : IDisposable
             cmd.Parameters.AddWithValue("@fw", firewallRank);
             cmd.Parameters.AddWithValue("@defeats", consecutiveEarlyDefeats);
             cmd.Parameters.AddWithValue("@assist", isAssistanceActive);
+            cmd.Parameters.AddWithValue("@actFw", resolvedActivatedRank);
             cmd.Parameters.AddWithValue("@xp", resolvedXp);
             cmd.Parameters.AddWithValue("@rev", storeRevision);
             cmd.Parameters.AddWithValue("@epoch", resetEpoch);
@@ -652,9 +657,15 @@ public sealed class CyberDefenseBeginnerAssistanceRuntimeTests : IDisposable
 
         // At next-question presentation boundary (Q2), activation runs with target permanent capacity 1
         var activation = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
-        Assert.Equal(CyberDefenseFirewallActivationStatus.AlreadyCurrent, activation.Status);
-        // Since capacity was already 1, no duplicate slot is added (capacity stays 1, recharge preserved)
+        Assert.Equal(CyberDefenseFirewallActivationStatus.Applied, activation.Status);
+        // The former temporary slot is replaced with charged permanent Rank 1 capacity
         Assert.Equal(1, activation.RunState!.ShieldCapacity);
+        Assert.Equal(1, activation.RunState.ActiveShields);
+        Assert.Equal(0, activation.RunState.ShieldRechargeUnits);
+
+        // Repeated activation at Q2 boundary is idempotent and does not refill shields
+        var repeatedActivation = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.AlreadyCurrent, repeatedActivation.Status);
     }
 
     [Fact]
@@ -826,5 +837,55 @@ public sealed class CyberDefenseBeginnerAssistanceRuntimeTests : IDisposable
 
         var runState = await store.GetRunStateAsync();
         Assert.Equal(5, runState.PlayerCurrentHp);
+    }
+
+    [Fact]
+    public async Task Sector1BossClear_WithMidQuestionRank1Purchase_RemovesTemporaryShieldCapacity()
+    {
+        var dbPath = GetTempDbPath("boss_clear_mid_purchase");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        // Player has temporary emergency shield and enough SP to buy Rank 1
+        await SetProgressionAsync(
+            store,
+            playerLevel: 5,
+            earnedSp: 5,
+            spentSp: 0,
+            availableSp: 5,
+            firewallRank: 0,
+            isAssistanceActive: 1);
+
+        int bossIndex = CyberDefenseScalingPolicy.GetBossIndex(1);
+        await SetRunStateAsync(
+            store,
+            sector: 1,
+            opponentIndex: bossIndex,
+            opponentHp: 1,
+            playerHp: 100,
+            capacity: 1,
+            active: 1,
+            recharge: 0);
+
+        // Player purchases Rank 1 mid-question during boss fight
+        var purchasedProg = await store.PurchaseFirewallUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+        Assert.Equal(1, purchasedProg.FirewallRank);
+        Assert.Equal(0, purchasedProg.ActivatedFirewallRank);
+
+        // Defeat Sector 1 Boss
+        var receipt = await store.ApplyAttemptTransactionAsync(CreateIntent("sub-boss-defeat", isCorrect: true, effectiveDamage: 1));
+        Assert.True(receipt.TransitionResult!.IsSectorCompleted);
+        Assert.Equal(2, receipt.TransitionResult.NextState.Sector);
+
+        // Because activated_firewall_rank was 0 when clearing Sector 1, temporary shield must be removed!
+        Assert.Equal(0, receipt.TransitionResult.NextState.ShieldCapacity);
+        Assert.Equal(0, receipt.TransitionResult.NextState.ActiveShields);
+        Assert.Equal(0, receipt.TransitionResult.NextState.ShieldRechargeUnits);
+
+        var runState = await store.GetRunStateAsync();
+        Assert.Equal(2, runState.Sector);
+        Assert.Equal(0, runState.ShieldCapacity);
+        Assert.Equal(0, runState.ActiveShields);
+        Assert.Equal(0, runState.ShieldRechargeUnits);
     }
 }

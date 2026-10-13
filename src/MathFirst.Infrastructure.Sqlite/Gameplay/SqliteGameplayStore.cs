@@ -15,7 +15,7 @@ using Microsoft.Data.Sqlite;
 public sealed class SqliteGameplayStore : IGameplayStore
 {
     public const string DefaultDatabaseFileName = "mathfirst_gameplay.db";
-    public const int DefaultSchemaVersion = 5;
+    public const int DefaultSchemaVersion = 6;
     public const string DefaultEconomyVersion = "ECONOMY_V1";
 
     private readonly string _connectionString;
@@ -34,6 +34,217 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private long _lastPublishedRevision = -1;
     private long _lastPublishedFirewallEpoch = -1;
     private long _lastPublishedFirewallRevision = -1;
+
+    private const string SchemaV6Ddl = @"
+        CREATE TABLE gameplay_schema_info (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        CREATE TABLE gameplay_progression (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            store_revision INTEGER NOT NULL CHECK (store_revision >= 1),
+            reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+            cumulative_xp INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_xp >= 0),
+            player_level INTEGER NOT NULL DEFAULT 1 CHECK (player_level >= 1),
+            earned_sp INTEGER NOT NULL DEFAULT 0 CHECK (earned_sp >= 0),
+            spent_sp INTEGER NOT NULL DEFAULT 0 CHECK (spent_sp >= 0),
+            available_sp INTEGER NOT NULL DEFAULT 0 CHECK (available_sp >= 0),
+            attack_rank INTEGER NOT NULL DEFAULT 0 CHECK (attack_rank >= 0),
+            economy_version TEXT NOT NULL DEFAULT 'ECONOMY_V1',
+            updated_at TEXT NOT NULL,
+            firewall_rank INTEGER NOT NULL DEFAULT 0 CHECK (firewall_rank >= 0 AND firewall_rank <= 3),
+            consecutive_early_defeats INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_early_defeats >= 0),
+            is_beginner_assistance_active INTEGER NOT NULL DEFAULT 0 CHECK (is_beginner_assistance_active IN (0, 1)),
+            activated_firewall_rank INTEGER NOT NULL DEFAULT 0 CHECK (activated_firewall_rank >= 0 AND activated_firewall_rank <= firewall_rank),
+            CHECK (earned_sp = spent_sp + available_sp)
+        );
+
+        CREATE TABLE gameplay_run_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            sector INTEGER NOT NULL CHECK (sector >= 1),
+            opponent_index INTEGER NOT NULL CHECK (opponent_index >= 0),
+            opponent_current_hp INTEGER NOT NULL CHECK (opponent_current_hp >= 1),
+            player_current_hp INTEGER NOT NULL CHECK (player_current_hp >= 1 AND player_current_hp <= 100),
+            opponent_executed_attacks INTEGER NOT NULL DEFAULT 0 CHECK (opponent_executed_attacks >= 0),
+            opponent_encounter_provenance TEXT NOT NULL DEFAULT 'Authoritative' CHECK (opponent_encounter_provenance IN ('Authoritative', 'UnverifiedLegacy')),
+            shield_capacity INTEGER NOT NULL DEFAULT 0 CHECK (shield_capacity >= 0 AND shield_capacity <= 3),
+            active_shields INTEGER NOT NULL DEFAULT 0 CHECK (active_shields >= 0 AND active_shields <= shield_capacity),
+            shield_recharge_units INTEGER NOT NULL DEFAULT 0 CHECK (shield_recharge_units >= 0 AND shield_recharge_units < 30),
+            reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+            updated_at TEXT NOT NULL,
+            CHECK (
+                (shield_capacity = 0 AND active_shields = 0 AND shield_recharge_units = 0)
+                OR
+                (shield_capacity > 0 AND active_shields = shield_capacity AND shield_recharge_units = 0)
+                OR
+                (shield_capacity > 0 AND active_shields < shield_capacity AND shield_recharge_units >= 0 AND shield_recharge_units < 30)
+            )
+        );
+
+        CREATE TABLE gameplay_receipt_ledger (
+            submission_id TEXT PRIMARY KEY CHECK (length(submission_id) > 0),
+            receipt_kind TEXT NOT NULL CHECK (receipt_kind IN ('Applied', 'CalmModeSuppressed')),
+            fact_id TEXT NOT NULL,
+            is_correct INTEGER NOT NULL CHECK (is_correct IN (0, 1)),
+            is_eligible INTEGER NOT NULL CHECK (is_eligible IN (0, 1)),
+            response_latency_ms INTEGER NOT NULL CHECK (response_latency_ms >= 0),
+            reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+            processed_at TEXT NOT NULL,
+            requested_attack_damage INTEGER CHECK (requested_attack_damage IS NULL OR requested_attack_damage >= 0),
+            applied_opponent_damage INTEGER CHECK (applied_opponent_damage IS NULL OR applied_opponent_damage >= 0),
+            excess_opponent_damage INTEGER CHECK (excess_opponent_damage IS NULL OR excess_opponent_damage >= 0),
+            incoming_enemy_damage INTEGER CHECK (incoming_enemy_damage IS NULL OR incoming_enemy_damage >= 0),
+            applied_player_damage INTEGER CHECK (applied_player_damage IS NULL OR applied_player_damage >= 0),
+            excess_enemy_damage INTEGER CHECK (excess_enemy_damage IS NULL OR excess_enemy_damage >= 0),
+            potential_healing INTEGER CHECK (potential_healing IS NULL OR potential_healing >= 0),
+            applied_healing INTEGER CHECK (applied_healing IS NULL OR applied_healing >= 0),
+            is_opponent_defeated INTEGER CHECK (is_opponent_defeated IS NULL OR is_opponent_defeated IN (0, 1)),
+            is_sector_completed INTEGER CHECK (is_sector_completed IS NULL OR is_sector_completed IN (0, 1)),
+            is_game_over INTEGER CHECK (is_game_over IS NULL OR is_game_over IN (0, 1)),
+            next_sector INTEGER CHECK (next_sector IS NULL OR next_sector >= 1),
+            next_opponent_index INTEGER CHECK (next_opponent_index IS NULL OR next_opponent_index >= 0),
+            next_opponent_current_hp INTEGER CHECK (next_opponent_current_hp IS NULL OR next_opponent_current_hp >= 1),
+            next_player_current_hp INTEGER CHECK (next_player_current_hp IS NULL OR (next_player_current_hp >= 1 AND next_player_current_hp <= 100)),
+            terminal_sector INTEGER CHECK (terminal_sector IS NULL OR terminal_sector >= 1),
+            terminal_opponent_index INTEGER CHECK (terminal_opponent_index IS NULL OR terminal_opponent_index >= 0),
+            terminal_opponent_kind TEXT CHECK (terminal_opponent_kind IS NULL OR terminal_opponent_kind IN ('Normal', 'Boss')),
+            terminal_opponent_current_hp INTEGER CHECK (terminal_opponent_current_hp IS NULL OR terminal_opponent_current_hp >= 1),
+            terminal_opponent_max_hp INTEGER CHECK (terminal_opponent_max_hp IS NULL OR terminal_opponent_max_hp >= 1),
+            terminal_player_current_hp INTEGER CHECK (terminal_player_current_hp IS NULL OR terminal_player_current_hp = 0),
+            next_opponent_executed_attacks INTEGER CHECK (next_opponent_executed_attacks IS NULL OR next_opponent_executed_attacks >= 0),
+            executed_attacks_on_defeated_opponent INTEGER CHECK (executed_attacks_on_defeated_opponent IS NULL OR executed_attacks_on_defeated_opponent >= 1),
+            awarded_xp INTEGER CHECK (awarded_xp IS NULL OR awarded_xp >= 0),
+            player_level_after INTEGER CHECK (player_level_after IS NULL OR player_level_after >= 1),
+            cumulative_xp_after INTEGER CHECK (cumulative_xp_after IS NULL OR cumulative_xp_after >= 0),
+            next_opponent_encounter_provenance TEXT CHECK (next_opponent_encounter_provenance IS NULL OR next_opponent_encounter_provenance IN ('Authoritative', 'UnverifiedLegacy')),
+            defeated_opponent_encounter_provenance TEXT CHECK (defeated_opponent_encounter_provenance IS NULL OR defeated_opponent_encounter_provenance IN ('Authoritative', 'UnverifiedLegacy')),
+            is_shield_absorbed INTEGER CHECK (is_shield_absorbed IS NULL OR is_shield_absorbed IN (0, 1)),
+            absorbed_enemy_damage INTEGER CHECK (absorbed_enemy_damage IS NULL OR absorbed_enemy_damage >= 0),
+            next_shield_capacity INTEGER CHECK (next_shield_capacity IS NULL OR (next_shield_capacity >= 0 AND next_shield_capacity <= 3)),
+            next_active_shields INTEGER CHECK (next_active_shields IS NULL OR (next_active_shields >= 0 AND next_active_shields <= next_shield_capacity)),
+            next_shield_recharge_units INTEGER CHECK (next_shield_recharge_units IS NULL OR (next_shield_recharge_units >= 0 AND next_shield_recharge_units < 30)),
+            CHECK (
+                (receipt_kind = 'CalmModeSuppressed' AND
+                 requested_attack_damage IS NULL AND
+                 applied_opponent_damage IS NULL AND
+                 excess_opponent_damage IS NULL AND
+                 incoming_enemy_damage IS NULL AND
+                 applied_player_damage IS NULL AND
+                 excess_enemy_damage IS NULL AND
+                 potential_healing IS NULL AND
+                 applied_healing IS NULL AND
+                 is_opponent_defeated IS NULL AND
+                 is_sector_completed IS NULL AND
+                 is_game_over IS NULL AND
+                 next_sector IS NULL AND
+                 next_opponent_index IS NULL AND
+                 next_opponent_current_hp IS NULL AND
+                 next_player_current_hp IS NULL AND
+                 terminal_sector IS NULL AND
+                 terminal_opponent_index IS NULL AND
+                 terminal_opponent_kind IS NULL AND
+                 terminal_opponent_current_hp IS NULL AND
+                 terminal_opponent_max_hp IS NULL AND
+                 terminal_player_current_hp IS NULL AND
+                 next_opponent_executed_attacks IS NULL AND
+                 executed_attacks_on_defeated_opponent IS NULL AND
+                 next_opponent_encounter_provenance IS NULL AND
+                 defeated_opponent_encounter_provenance IS NULL AND
+                 is_shield_absorbed IS NULL AND
+                 absorbed_enemy_damage IS NULL AND
+                 next_shield_capacity IS NULL AND
+                 next_active_shields IS NULL AND
+                 next_shield_recharge_units IS NULL)
+                OR
+                (receipt_kind = 'Applied' AND
+                 requested_attack_damage IS NOT NULL AND
+                 applied_opponent_damage IS NOT NULL AND
+                 excess_opponent_damage IS NOT NULL AND
+                 incoming_enemy_damage IS NOT NULL AND
+                 applied_player_damage IS NOT NULL AND
+                 excess_enemy_damage IS NOT NULL AND
+                 potential_healing IS NOT NULL AND
+                 applied_healing IS NOT NULL AND
+                 is_opponent_defeated IS NOT NULL AND
+                 is_sector_completed IS NOT NULL AND
+                 is_game_over IS NOT NULL AND
+                 next_sector IS NOT NULL AND
+                 next_opponent_index IS NOT NULL AND
+                 next_opponent_current_hp IS NOT NULL AND
+                 next_player_current_hp IS NOT NULL AND
+                 ((is_game_over = 0 AND
+                   terminal_sector IS NULL AND
+                   terminal_opponent_index IS NULL AND
+                   terminal_opponent_kind IS NULL AND
+                   terminal_opponent_current_hp IS NULL AND
+                   terminal_opponent_max_hp IS NULL AND
+                   terminal_player_current_hp IS NULL)
+                  OR
+                  (is_game_over = 1 AND
+                   terminal_sector IS NOT NULL AND
+                   terminal_opponent_index IS NOT NULL AND
+                   terminal_opponent_kind IS NOT NULL AND
+                   terminal_opponent_current_hp IS NOT NULL AND
+                   terminal_opponent_max_hp IS NOT NULL AND
+                   terminal_player_current_hp = 0)) AND
+                 (is_opponent_defeated = 1 OR (executed_attacks_on_defeated_opponent IS NULL AND defeated_opponent_encounter_provenance IS NULL)) AND
+                 (executed_attacks_on_defeated_opponent IS NOT NULL OR defeated_opponent_encounter_provenance IS NULL) AND
+                 (next_opponent_executed_attacks IS NOT NULL OR next_opponent_encounter_provenance IS NULL) AND
+                 (
+                     (is_shield_absorbed IS NULL AND absorbed_enemy_damage IS NULL AND next_shield_capacity IS NULL AND next_active_shields IS NULL AND next_shield_recharge_units IS NULL)
+                     OR
+                     (
+                         is_shield_absorbed IS NOT NULL AND
+                         absorbed_enemy_damage IS NOT NULL AND
+                         next_shield_capacity IS NOT NULL AND
+                         next_active_shields IS NOT NULL AND
+                         next_shield_recharge_units IS NOT NULL AND
+                         ((is_shield_absorbed = 0 AND absorbed_enemy_damage = 0) OR (is_shield_absorbed = 1 AND absorbed_enemy_damage > 0)) AND
+                         (
+                             (next_shield_capacity = 0 AND next_active_shields = 0 AND next_shield_recharge_units = 0)
+                             OR
+                             (next_shield_capacity > 0 AND next_active_shields = next_shield_capacity AND next_shield_recharge_units = 0)
+                             OR
+                             (next_shield_capacity > 0 AND next_active_shields < next_shield_capacity AND next_shield_recharge_units >= 0 AND next_shield_recharge_units < 30)
+                         )
+                     )
+                 )
+                )
+            )
+        );
+
+        CREATE TABLE gameplay_pending_intent (
+            submission_id TEXT PRIMARY KEY CHECK (length(submission_id) > 0),
+            fact_id TEXT NOT NULL,
+            is_correct INTEGER NOT NULL CHECK (is_correct IN (0, 1)),
+            is_eligible INTEGER NOT NULL CHECK (is_eligible IN (0, 1)),
+            response_latency_ms INTEGER NOT NULL CHECK (response_latency_ms >= 0),
+            reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+            created_at TEXT NOT NULL,
+            effective_attack_damage INTEGER NOT NULL DEFAULT 1 CHECK (effective_attack_damage >= 1)
+        );
+
+        CREATE TABLE gameplay_reset_intent (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            is_pending INTEGER NOT NULL CHECK (is_pending IN (0, 1)),
+            current_epoch INTEGER NOT NULL CHECK (current_epoch >= 0),
+            target_epoch INTEGER NOT NULL CHECK (target_epoch >= current_epoch),
+            created_at TEXT,
+            updated_at TEXT NOT NULL,
+            CHECK (
+                (is_pending = 0 AND target_epoch = current_epoch)
+                OR
+                (is_pending = 1 AND target_epoch > current_epoch)
+            )
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_gameplay_receipt_ledger_epoch_processed
+            ON gameplay_receipt_ledger(reset_epoch, processed_at);
+
+        CREATE INDEX IF NOT EXISTS ix_gameplay_pending_intent_epoch_created
+            ON gameplay_pending_intent(reset_epoch, created_at);
+    ";
 
     private const string SchemaV5Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -484,7 +695,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             using (var ddlCmd = connection.CreateCommand())
             {
                 ddlCmd.Transaction = transaction;
-                ddlCmd.CommandText = SchemaV5Ddl;
+                ddlCmd.CommandText = SchemaV6Ddl;
                 await ddlCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -495,7 +706,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 seedCmd.Transaction = transaction;
                 seedCmd.CommandText = @"
-                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '5');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '6');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('store_revision', '1');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('reset_epoch', '0');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
@@ -504,8 +715,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         id, store_revision, reset_epoch,
                         cumulative_xp, player_level, earned_sp, spent_sp, available_sp, attack_rank,
                         economy_version, updated_at,
-                        firewall_rank, consecutive_early_defeats, is_beginner_assistance_active
-                    ) VALUES (1, 1, 0, 0, 1, 0, 0, 0, 0, 'ECONOMY_V1', @now, 0, 0, 0);
+                        firewall_rank, consecutive_early_defeats, is_beginner_assistance_active,
+                        activated_firewall_rank
+                    ) VALUES (1, 1, 0, 0, 1, 0, 0, 0, 0, 'ECONOMY_V1', @now, 0, 0, 0, 0);
 
                     INSERT INTO gameplay_run_state (
                         id, sector, opponent_index, opponent_current_hp, player_current_hp,
@@ -595,21 +807,29 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV1ToV3Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
             await MigrateV2ToV3Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
             await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 5)
+        {
+            await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
         }
 
         using (var colCmd = connection.CreateCommand())
@@ -662,7 +882,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
             progCmd.CommandText = @"
                 SELECT store_revision, reset_epoch, cumulative_xp, player_level,
                        earned_sp, spent_sp, available_sp, attack_rank, economy_version,
-                       firewall_rank, consecutive_early_defeats, is_beginner_assistance_active
+                       firewall_rank, consecutive_early_defeats, is_beginner_assistance_active,
+                       activated_firewall_rank
                 FROM gameplay_progression WHERE id = 1;
             ";
             using var reader = await progCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -683,12 +904,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
             int firewallRank = reader.GetInt32(9);
             int consecutiveEarlyDefeats = reader.GetInt32(10);
             int isBeginnerAssistanceActive = reader.GetInt32(11);
+            int activatedFirewallRank = reader.GetInt32(12);
 
             if (storeRevision < 1 || resetEpoch < 0 || cumulativeXp < 0 || playerLevel < 1 ||
                 earnedSp < 0 || spentSp < 0 || availableSp < 0 || attackRank < 0 ||
                 string.IsNullOrEmpty(economyVersion) || earnedSp != checked(spentSp + availableSp) ||
                 firewallRank < 0 || firewallRank > CyberDefenseFirewallPolicy.MaxRank ||
-                consecutiveEarlyDefeats < 0 || (isBeginnerAssistanceActive != 0 && isBeginnerAssistanceActive != 1))
+                consecutiveEarlyDefeats < 0 || (isBeginnerAssistanceActive != 0 && isBeginnerAssistanceActive != 1) ||
+                activatedFirewallRank < 0 || activatedFirewallRank > firewallRank)
             {
                 throw new InvalidOperationException("Existing database has invalid progression row.");
             }
@@ -1580,6 +1803,151 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }
     }
 
+    private static async Task MigrateV5ToV6Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 0. Inspect existing V5 progression and run_state to detect ambiguity
+            int firewallRank;
+            int isBeginnerAssistanceActive;
+            using (var progCheckCmd = connection.CreateCommand())
+            {
+                progCheckCmd.Transaction = transaction;
+                progCheckCmd.CommandText = "SELECT firewall_rank, is_beginner_assistance_active FROM gameplay_progression WHERE id = 1;";
+                using var r = await progCheckCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing progression row in V5 database.");
+                }
+                firewallRank = r.GetInt32(0);
+                isBeginnerAssistanceActive = r.GetInt32(1);
+            }
+
+            int shieldCapacity;
+            using (var runCheckCmd = connection.CreateCommand())
+            {
+                runCheckCmd.Transaction = transaction;
+                runCheckCmd.CommandText = "SELECT shield_capacity FROM gameplay_run_state WHERE id = 1;";
+                using var r = await runCheckCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await r.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing run state row in V5 database.");
+                }
+                shieldCapacity = r.GetInt32(0);
+            }
+
+            // Fail-closed ambiguity classification:
+            // 1. If firewallRank == 0: activated_firewall_rank is 0 (unambiguous, no rank ever purchased).
+            // 2. If shieldCapacity == 0: activated_firewall_rank is 0 (unambiguous, permanent capacity never activated).
+            // 3. If firewallRank > 1 and shieldCapacity == firewallRank: activated_firewall_rank is firewallRank
+            //    (unambiguous, capacity >= 2 could not have originated from beginner assistance).
+            // 4. All other states (specifically firewallRank >= 1 and shieldCapacity == 1, or shieldCapacity != firewallRank when capacity > 0)
+            //    are ambiguous because V5 cannot differentiate between a retired temporary emergency shield and an activated permanent rank.
+            int determinedActivatedRank;
+            if (firewallRank == 0)
+            {
+                determinedActivatedRank = 0;
+            }
+            else if (shieldCapacity == 0)
+            {
+                determinedActivatedRank = 0;
+            }
+            else if (firewallRank > 1 && shieldCapacity == firewallRank)
+            {
+                determinedActivatedRank = firewallRank;
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Ambiguous legacy Schema V5 state detected (firewall_rank={firewallRank}, shield_capacity={shieldCapacity}, is_beginner_assistance_active={isBeginnerAssistanceActive}): " +
+                    "cannot reliably determine whether shield capacity represents retired beginner assistance or activated permanent firewall rank. " +
+                    "Migration aborted to prevent data corruption.");
+            }
+
+            // 1. Rebuild gameplay_progression table with activated_firewall_rank
+            int progCountBefore;
+            using (var countCmd = connection.CreateCommand())
+            {
+                countCmd.Transaction = transaction;
+                countCmd.CommandText = "SELECT COUNT(*) FROM gameplay_progression;";
+                progCountBefore = Convert.ToInt32(await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+            }
+
+            using (var progCmd = connection.CreateCommand())
+            {
+                progCmd.Transaction = transaction;
+                progCmd.CommandText = @"
+                    CREATE TABLE gameplay_progression_v6 (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        store_revision INTEGER NOT NULL CHECK (store_revision >= 1),
+                        reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+                        cumulative_xp INTEGER NOT NULL DEFAULT 0 CHECK (cumulative_xp >= 0),
+                        player_level INTEGER NOT NULL DEFAULT 1 CHECK (player_level >= 1),
+                        earned_sp INTEGER NOT NULL DEFAULT 0 CHECK (earned_sp >= 0),
+                        spent_sp INTEGER NOT NULL DEFAULT 0 CHECK (spent_sp >= 0),
+                        available_sp INTEGER NOT NULL DEFAULT 0 CHECK (available_sp >= 0),
+                        attack_rank INTEGER NOT NULL DEFAULT 0 CHECK (attack_rank >= 0),
+                        economy_version TEXT NOT NULL DEFAULT 'ECONOMY_V1',
+                        updated_at TEXT NOT NULL,
+                        firewall_rank INTEGER NOT NULL DEFAULT 0 CHECK (firewall_rank >= 0 AND firewall_rank <= 3),
+                        consecutive_early_defeats INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_early_defeats >= 0),
+                        is_beginner_assistance_active INTEGER NOT NULL DEFAULT 0 CHECK (is_beginner_assistance_active IN (0, 1)),
+                        activated_firewall_rank INTEGER NOT NULL DEFAULT 0 CHECK (activated_firewall_rank >= 0 AND activated_firewall_rank <= firewall_rank),
+                        CHECK (earned_sp = spent_sp + available_sp)
+                    );
+
+                    INSERT INTO gameplay_progression_v6 (
+                        id, store_revision, reset_epoch,
+                        cumulative_xp, player_level, earned_sp, spent_sp, available_sp, attack_rank,
+                        economy_version, updated_at,
+                        firewall_rank, consecutive_early_defeats, is_beginner_assistance_active,
+                        activated_firewall_rank
+                    )
+                    SELECT
+                        id, store_revision, reset_epoch,
+                        cumulative_xp, player_level, earned_sp, spent_sp, available_sp, attack_rank,
+                        economy_version, updated_at,
+                        firewall_rank, consecutive_early_defeats, is_beginner_assistance_active,
+                        @activatedRank
+                    FROM gameplay_progression;
+
+                    DROP TABLE gameplay_progression;
+                    ALTER TABLE gameplay_progression_v6 RENAME TO gameplay_progression;
+                ";
+                progCmd.Parameters.AddWithValue("@activatedRank", determinedActivatedRank);
+                await progCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            int progCountAfter;
+            using (var countCmd = connection.CreateCommand())
+            {
+                countCmd.Transaction = transaction;
+                countCmd.CommandText = "SELECT COUNT(*) FROM gameplay_progression;";
+                progCountAfter = Convert.ToInt32(await countCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+            }
+            if (progCountBefore != progCountAfter)
+            {
+                throw new InvalidOperationException($"Row count mismatch during progression migration: {progCountBefore} -> {progCountAfter}.");
+            }
+
+            // 2. Update schema version to 6
+            using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = "UPDATE gameplay_schema_info SET value = '6' WHERE key = 'schema_version';";
+                await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
     public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default)
     {
         return ExecuteWithConnectionGateAsync(async ct =>
@@ -1658,7 +2026,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             cmd.CommandText = @"
                 SELECT store_revision, reset_epoch, cumulative_xp, player_level,
                        earned_sp, spent_sp, available_sp, attack_rank,
-                       economy_version, updated_at, firewall_rank
+                       economy_version, updated_at, firewall_rank, activated_firewall_rank
                 FROM gameplay_progression
                 WHERE id = 1;
             ";
@@ -1679,6 +2047,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             string economyVersion = reader.GetString(8);
             string updatedAtStr = reader.GetString(9);
             int firewallRank = reader.GetInt32(10);
+            int activatedFirewallRank = reader.GetInt32(11);
 
             if (!DateTimeOffset.TryParse(updatedAtStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var updatedAt))
             {
@@ -1696,7 +2065,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 attackRank,
                 economyVersion,
                 updatedAt,
-                firewallRank);
+                firewallRank,
+                activatedFirewallRank);
         }, cancellationToken);
     }
 
@@ -1738,6 +2108,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 string economyVersion;
                 int currentFirewallRank;
                 int isBeginnerAssistanceActive;
+                int currentActivatedFirewallRank;
 
                 using (var checkCmd = _connection.CreateCommand())
                 {
@@ -1745,7 +2116,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     checkCmd.CommandText = @"
                         SELECT r.is_pending, p.reset_epoch, p.store_revision, p.cumulative_xp, p.player_level,
                                p.earned_sp, p.spent_sp, p.available_sp, p.attack_rank, p.economy_version,
-                               p.firewall_rank, p.is_beginner_assistance_active
+                               p.firewall_rank, p.is_beginner_assistance_active, p.activated_firewall_rank
                         FROM gameplay_reset_intent r
                         JOIN gameplay_progression p ON p.id = 1
                         WHERE r.id = 1;
@@ -1768,6 +2139,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     economyVersion = reader.GetString(9);
                     currentFirewallRank = reader.GetInt32(10);
                     isBeginnerAssistanceActive = reader.GetInt32(11);
+                    currentActivatedFirewallRank = reader.GetInt32(12);
                 }
 
                 // Step 1: Reject purchase if a reset is pending
@@ -1891,7 +2263,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     currentAttackRank,
                     economyVersion,
                     now,
-                    nextRank);
+                    nextRank,
+                    currentActivatedFirewallRank);
             }
             catch
             {
@@ -1922,12 +2295,13 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 bool isResetPending;
                 long currentEpoch;
                 int firewallRank;
+                int previouslyActivatedRank;
 
                 using (var checkCmd = _connection.CreateCommand())
                 {
                     checkCmd.Transaction = transaction;
                     checkCmd.CommandText = @"
-                        SELECT r.is_pending, p.reset_epoch, p.firewall_rank
+                        SELECT r.is_pending, p.reset_epoch, p.firewall_rank, p.activated_firewall_rank
                         FROM gameplay_reset_intent r
                         JOIN gameplay_progression p ON p.id = 1
                         WHERE r.id = 1;
@@ -1941,6 +2315,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     isResetPending = reader.GetInt32(0) == 1;
                     currentEpoch = reader.GetInt64(1);
                     firewallRank = reader.GetInt32(2);
+                    previouslyActivatedRank = reader.GetInt32(3);
                 }
 
                 // 2. Reject if reset is pending
@@ -2029,18 +2404,33 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 // 6. Capacity and recharge semantics with question-bound target clamp
                 int effectiveTarget = Math.Min(firewallRank, questionBoundTargetCapacity);
                 int targetCapacity = Math.Clamp(effectiveTarget, 0, CyberDefenseFirewallPolicy.MaxShieldCapacity);
-                int delta = targetCapacity - oldShieldCapacity;
 
-                // Deterministic no-op if purchased capacity has already been activated or rank is 0
-                if (delta <= 0)
+                // Deterministic no-op if purchased capacity has already been activated or target capacity <= previously activated rank
+                if (targetCapacity <= previouslyActivatedRank)
                 {
                     transaction.Commit();
                     return CyberDefenseFirewallActivationResult.AlreadyCurrent(currentRunState);
                 }
 
                 int newCapacity = targetCapacity;
-                int newActiveShields = oldActiveShields + delta;
-                int newRechargeUnits = newActiveShields == newCapacity ? 0 : oldShieldRechargeUnits;
+                int newActiveShields;
+                int newRechargeUnits;
+
+                if (previouslyActivatedRank == 0)
+                {
+                    // First activation of permanent firewall: replace former temporary emergency slot (if any).
+                    // Start fully charged with 0 recharge units.
+                    newActiveShields = targetCapacity;
+                    newRechargeUnits = 0;
+                }
+                else
+                {
+                    // Incremental upgrade (e.g. Rank 1 -> 2 or Rank 2 -> 3):
+                    // Charge only newly added slot(s), preserve existing active shields and recharge unless now full.
+                    int rankDelta = targetCapacity - previouslyActivatedRank;
+                    newActiveShields = oldActiveShields + rankDelta;
+                    newRechargeUnits = newActiveShields == newCapacity ? 0 : oldShieldRechargeUnits;
+                }
 
                 // Validate new shield invariants
                 var newRunState = CyberDefenseRunState.Rehydrate(
@@ -2050,10 +2440,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 var now = DateTimeOffset.UtcNow;
 
                 // 7. Update gameplay_run_state atomically with optimistic concurrency check
-                using (var updateCmd = _connection.CreateCommand())
+                using (var updateRunCmd = _connection.CreateCommand())
                 {
-                    updateCmd.Transaction = transaction;
-                    updateCmd.CommandText = @"
+                    updateRunCmd.Transaction = transaction;
+                    updateRunCmd.CommandText = @"
                         UPDATE gameplay_run_state
                         SET shield_capacity = @newCapacity,
                             active_shields = @newActiveShields,
@@ -2063,18 +2453,43 @@ public sealed class SqliteGameplayStore : IGameplayStore
                           AND reset_epoch = @expectedResetEpoch
                           AND shield_capacity = @oldCapacity;
                     ";
-                    updateCmd.Parameters.AddWithValue("@newCapacity", newCapacity);
-                    updateCmd.Parameters.AddWithValue("@newActiveShields", newActiveShields);
-                    updateCmd.Parameters.AddWithValue("@newRechargeUnits", newRechargeUnits);
-                    updateCmd.Parameters.AddWithValue("@now", now.ToString("O"));
-                    updateCmd.Parameters.AddWithValue("@expectedResetEpoch", expectedResetEpoch);
-                    updateCmd.Parameters.AddWithValue("@oldCapacity", oldShieldCapacity);
+                    updateRunCmd.Parameters.AddWithValue("@newCapacity", newCapacity);
+                    updateRunCmd.Parameters.AddWithValue("@newActiveShields", newActiveShields);
+                    updateRunCmd.Parameters.AddWithValue("@newRechargeUnits", newRechargeUnits);
+                    updateRunCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                    updateRunCmd.Parameters.AddWithValue("@expectedResetEpoch", expectedResetEpoch);
+                    updateRunCmd.Parameters.AddWithValue("@oldCapacity", oldShieldCapacity);
 
-                    int rows = await updateCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                    int rows = await updateRunCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                     if (rows != 1)
                     {
                         throw new InvalidOperationException(
                             $"Failed to update gameplay_run_state during firewall activation. Concurrency conflict (rows affected: {rows}).");
+                    }
+                }
+
+                // 8. Update gameplay_progression.activated_firewall_rank atomically
+                using (var updateProgCmd = _connection.CreateCommand())
+                {
+                    updateProgCmd.Transaction = transaction;
+                    updateProgCmd.CommandText = @"
+                        UPDATE gameplay_progression
+                        SET activated_firewall_rank = @targetRank,
+                            updated_at = @now
+                        WHERE id = 1
+                          AND reset_epoch = @expectedResetEpoch
+                          AND activated_firewall_rank = @previouslyActivatedRank;
+                    ";
+                    updateProgCmd.Parameters.AddWithValue("@targetRank", targetCapacity);
+                    updateProgCmd.Parameters.AddWithValue("@now", now.ToString("O"));
+                    updateProgCmd.Parameters.AddWithValue("@expectedResetEpoch", expectedResetEpoch);
+                    updateProgCmd.Parameters.AddWithValue("@previouslyActivatedRank", previouslyActivatedRank);
+
+                    int rows = await updateProgCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                    if (rows != 1)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed to update gameplay_progression during firewall activation. Concurrency conflict (rows affected: {rows}).");
                     }
                 }
 
@@ -2114,6 +2529,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 int currentAttackRank;
                 string economyVersion;
                 int currentFirewallRank;
+                int currentActivatedFirewallRank;
 
                 using (var checkCmd = _connection.CreateCommand())
                 {
@@ -2121,7 +2537,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     checkCmd.CommandText = @"
                         SELECT r.is_pending, p.reset_epoch, p.store_revision, p.cumulative_xp, p.player_level,
                                p.earned_sp, p.spent_sp, p.available_sp, p.attack_rank, p.economy_version,
-                               p.firewall_rank
+                               p.firewall_rank, p.activated_firewall_rank
                         FROM gameplay_reset_intent r
                         JOIN gameplay_progression p ON p.id = 1
                         WHERE r.id = 1;
@@ -2143,6 +2559,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     currentAttackRank = reader.GetInt32(8);
                     economyVersion = reader.GetString(9);
                     currentFirewallRank = reader.GetInt32(10);
+                    currentActivatedFirewallRank = reader.GetInt32(11);
                 }
 
                 // Step 1: Check reset intent state
@@ -2262,7 +2679,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     nextRank,
                     economyVersion,
                     now,
-                    currentFirewallRank);
+                    currentFirewallRank,
+                    currentActivatedFirewallRank);
 
                 return newProgression;
             }
@@ -3097,13 +3515,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 int currentFirewallRank;
                 int currentConsecutiveEarlyDefeats;
                 bool isBeginnerAssistanceActive;
+                int currentActivatedFirewallRank;
                 using (var progCmd = _connection.CreateCommand())
                 {
                     progCmd.Transaction = transaction;
                     progCmd.CommandText = @"
                         SELECT reset_epoch, store_revision, cumulative_xp, player_level,
                                earned_sp, spent_sp, available_sp, attack_rank,
-                               firewall_rank, consecutive_early_defeats, is_beginner_assistance_active
+                               firewall_rank, consecutive_early_defeats, is_beginner_assistance_active,
+                               activated_firewall_rank
                         FROM gameplay_progression
                         WHERE id = 1;
                     ";
@@ -3123,6 +3543,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     currentFirewallRank = progReader.GetInt32(8);
                     currentConsecutiveEarlyDefeats = progReader.GetInt32(9);
                     isBeginnerAssistanceActive = progReader.GetInt32(10) == 1;
+                    currentActivatedFirewallRank = progReader.GetInt32(11);
                 }
 
                 if (intent.ResetEpoch != currentEpoch)
@@ -3299,7 +3720,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
                         nextConsecutiveEarlyDefeats = 0;
 
-                        if (currentFirewallRank == 0)
+                        if (currentActivatedFirewallRank == 0)
                         {
                             var nextStateWithoutEmergencyShield = CyberDefenseRunState.CreateActive(
                                 transition.NextState.Sector,
@@ -3692,6 +4113,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             firewall_rank = 0,
                             consecutive_early_defeats = 0,
                             is_beginner_assistance_active = 0,
+                            activated_firewall_rank = 0,
                             updated_at = @now
                         WHERE id = 1;
 

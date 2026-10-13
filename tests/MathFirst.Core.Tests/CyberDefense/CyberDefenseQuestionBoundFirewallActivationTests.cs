@@ -55,11 +55,14 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         int isAssistanceActive = 0,
         long cumulativeXp = 0,
         long storeRevision = 1,
-        long resetEpoch = 0)
+        long resetEpoch = 0,
+        int? activatedFirewallRank = null)
     {
         long resolvedXp = cumulativeXp > 0
             ? cumulativeXp
             : CyberDefenseLevelPolicy.GetCumulativeXpThreshold(playerLevel);
+
+        int resolvedActivatedFirewallRank = activatedFirewallRank ?? 0;
 
         await store.ExecuteUnderGateForTestAsync(async conn =>
         {
@@ -72,6 +75,7 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
                     available_sp = @available,
                     attack_rank = @atk,
                     firewall_rank = @fw,
+                    activated_firewall_rank = @actfw,
                     is_beginner_assistance_active = @assist,
                     cumulative_xp = @xp,
                     store_revision = @rev,
@@ -85,6 +89,7 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
             cmd.Parameters.AddWithValue("@available", availableSp);
             cmd.Parameters.AddWithValue("@atk", attackRank);
             cmd.Parameters.AddWithValue("@fw", firewallRank);
+            cmd.Parameters.AddWithValue("@actfw", resolvedActivatedFirewallRank);
             cmd.Parameters.AddWithValue("@assist", isAssistanceActive);
             cmd.Parameters.AddWithValue("@xp", resolvedXp);
             cmd.Parameters.AddWithValue("@rev", storeRevision);
@@ -295,7 +300,7 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         await coordinator.InitializeAsync();
 
         // Level 20, Rank 1 purchased, but current shield is depleted (0 active) with 18 recharge units
-        await SetProgressionAsync(store, playerLevel: 20, earnedSp: 20, spentSp: 3, availableSp: 17, firewallRank: 1);
+        await SetProgressionAsync(store, playerLevel: 20, earnedSp: 20, spentSp: 3, availableSp: 17, firewallRank: 1, activatedFirewallRank: 1);
         await SetRunShieldStateAsync(store, capacity: 1, active: 0, recharge: 18);
 
         await coordinator.ActivateQuestionBoundFirewallCapacityAsync(questionKey: 10);
@@ -330,7 +335,7 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         await coordinator.InitializeAsync();
 
         // Level 50, Rank 2, 2 active shields (fully charged)
-        await SetProgressionAsync(store, playerLevel: 50, earnedSp: 50, spentSp: 11, availableSp: 39, firewallRank: 2);
+        await SetProgressionAsync(store, playerLevel: 50, earnedSp: 50, spentSp: 11, availableSp: 39, firewallRank: 2, activatedFirewallRank: 2);
         await SetRunShieldStateAsync(store, capacity: 2, active: 2, recharge: 0);
 
         await coordinator.ActivateQuestionBoundFirewallCapacityAsync(questionKey: 10);
@@ -1117,5 +1122,53 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         // Consumption succeeds, retry receives RejectedEpochMismatch and clears deferred state
         var consumptionResult = await coordinator.ConsumeCommittedAttemptAsync("sub-q10-epoch");
         Assert.NotNull(consumptionResult);
+    }
+
+    [Fact]
+    public async Task T26_TemporaryToPermanentHandoff_DepletedEmergencyShield_ReplacedByChargedRank1AtQ11()
+    {
+        var dbPath = GetTempDbPath("temp_to_perm_handoff");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        // Q10 state: emergency shield depleted, partial recharge 18, player level 5 with SP
+        await SetRunShieldStateAsync(store, capacity: 1, active: 0, recharge: 18);
+        await SetProgressionAsync(
+            store,
+            playerLevel: 5,
+            earnedSp: 5,
+            spentSp: 0,
+            availableSp: 5,
+            firewallRank: 0,
+            isAssistanceActive: 1);
+
+        // Mid-Q10 purchase of Rank 1
+        var purchasedProg = await store.PurchaseFirewallUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+        Assert.Equal(1, purchasedProg.FirewallRank);
+        Assert.Equal(0, purchasedProg.ActivatedFirewallRank);
+
+        // Physical combat shield remains unchanged during Q10
+        var midRun = await store.GetRunStateAsync();
+        Assert.Equal(1, midRun.ShieldCapacity);
+        Assert.Equal(0, midRun.ActiveShields);
+        Assert.Equal(18, midRun.ShieldRechargeUnits);
+
+        // Q11 boundary activation: target capacity 1
+        var activationResult = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.Applied, activationResult.Status);
+        Assert.Equal(1, activationResult.RunState!.ShieldCapacity);
+        Assert.Equal(1, activationResult.RunState.ActiveShields);
+        Assert.Equal(0, activationResult.RunState.ShieldRechargeUnits);
+
+        var activeProg = await store.GetProgressionAsync();
+        Assert.Equal(1, activeProg.FirewallRank);
+        Assert.Equal(1, activeProg.ActivatedFirewallRank);
+
+        // Idempotency: duplicate Q11 activation does not refill or mutate
+        var duplicateResult = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.AlreadyCurrent, duplicateResult.Status);
+        Assert.Equal(1, duplicateResult.RunState!.ShieldCapacity);
+        Assert.Equal(1, duplicateResult.RunState.ActiveShields);
+        Assert.Equal(0, duplicateResult.RunState.ShieldRechargeUnits);
     }
 }

@@ -351,7 +351,7 @@ public sealed class SqliteGameplayStoreSchemaV3MigrationTests : IDisposable
         await connection.OpenAsync();
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-        Assert.Equal("5", (string?)await cmd.ExecuteScalarAsync());
+        Assert.Equal("6", (string?)await cmd.ExecuteScalarAsync());
 
         var run = await store.GetRunStateAsync();
         Assert.Equal(1, run.Sector);
@@ -1200,14 +1200,14 @@ public sealed class SqliteGameplayStoreSchemaV3MigrationTests : IDisposable
             using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
                 CREATE TABLE gameplay_schema_info (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                INSERT INTO gameplay_schema_info VALUES ('schema_version', '6');
+                INSERT INTO gameplay_schema_info VALUES ('schema_version', '7');
             ";
             await cmd.ExecuteNonQueryAsync();
         }
 
         using var store = new SqliteGameplayStore(dbPath);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
-        Assert.Contains("Unsupported database schema version 6", ex.Message);
+        Assert.Contains("Unsupported database schema version 7", ex.Message);
     }
 
     // 28. Learner Store Schema V9 isolation

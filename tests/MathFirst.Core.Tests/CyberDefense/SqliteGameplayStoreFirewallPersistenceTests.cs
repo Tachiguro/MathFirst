@@ -464,7 +464,7 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
         await store.ExecuteUnderGateForTestAsync(async conn =>
         {
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE gameplay_progression SET firewall_rank = 2, player_level = 20 WHERE id = 1;";
+            cmd.CommandText = "UPDATE gameplay_progression SET firewall_rank = 2, activated_firewall_rank = 1, player_level = 20 WHERE id = 1;";
             await cmd.ExecuteNonQueryAsync();
         });
 
