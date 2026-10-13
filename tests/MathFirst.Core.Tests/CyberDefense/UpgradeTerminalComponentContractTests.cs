@@ -62,7 +62,21 @@ public sealed class UpgradeTerminalComponentContractTests
             "UpgradeTerminal_Feedback_Busy",
             "UpgradeTerminal_Feedback_Disposed",
             "UpgradeTerminal_Feedback_Cancelled",
-            "UpgradeTerminal_Feedback_Error"
+            "UpgradeTerminal_Feedback_Error",
+            "UpgradeTerminal_FirewallTitle",
+            "UpgradeTerminal_FirewallDescription",
+            "UpgradeTerminal_PermanentRank",
+            "UpgradeTerminal_CurrentCapacity",
+            "UpgradeTerminal_NextCapacity",
+            "UpgradeTerminal_RequiredLevel",
+            "UpgradeTerminal_LevelLocked",
+            "UpgradeTerminal_UpgradeFirewallAction",
+            "UpgradeTerminal_Feedback_FirewallSuccess",
+            "UpgradeTerminal_FirewallActivationNotice",
+            "UpgradeTerminal_Feedback_FirewallMaxRank",
+            "UpgradeTerminal_Feedback_LockedLevel",
+            "UpgradeTerminal_Feedback_FirewallStaleRank",
+            "UpgradeTerminal_FirewallPurchaseAriaLabel"
         ];
 
         foreach (var key in requiredKeys)
@@ -71,6 +85,16 @@ public sealed class UpgradeTerminalComponentContractTests
             Assert.False(string.IsNullOrWhiteSpace(value), $"Localized key '{key}' must not be null or empty for language '{languageCode}'.");
             Assert.NotEqual(key, value); // Must not return fallback key name
         }
+    }
+
+    [Fact]
+    public void UpgradeTerminal_Markup_ContainsDedicatedFirewallCardAndPurchaseControl()
+    {
+        var content = ReadUpgradeTerminalRazor();
+
+        Assert.Contains("firewall-upgrade-card", content, StringComparison.Ordinal);
+        Assert.Contains("firewall-purchase-btn", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_FirewallTitle", content, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -131,7 +155,13 @@ public sealed class UpgradeTerminalComponentContractTests
             "UpgradeTerminal_CurrentRank",
             "UpgradeTerminal_CurrentDamage",
             "UpgradeTerminal_NextRankDamage",
-            "UpgradeTerminal_Cost"
+            "UpgradeTerminal_Cost",
+            "UpgradeTerminal_PermanentRank",
+            "UpgradeTerminal_CurrentCapacity",
+            "UpgradeTerminal_NextCapacity",
+            "UpgradeTerminal_RequiredLevel",
+            "UpgradeTerminal_LevelLocked",
+            "UpgradeTerminal_FirewallPurchaseAriaLabel"
         ];
 
         foreach (var key in templateKeys)
@@ -180,6 +210,8 @@ public sealed class UpgradeTerminalComponentContractTests
         Assert.Contains("role=\"list\"", content, StringComparison.Ordinal);
         Assert.Contains("role=\"listitem\"", content, StringComparison.Ordinal);
         Assert.Contains("id=\"attack-upgrade-title\"", content, StringComparison.Ordinal);
+        Assert.Contains("id=\"firewall-upgrade-title\"", content, StringComparison.Ordinal);
+        Assert.Contains("firewall-upgrade-card", content, StringComparison.Ordinal);
 
         // Accessible live region for purchase announcements
         Assert.Contains("role=\"status\"", content, StringComparison.Ordinal);
@@ -187,9 +219,14 @@ public sealed class UpgradeTerminalComponentContractTests
 
         // Buttons
         Assert.Contains("@onclick=\"HandlePurchaseClick\"", content, StringComparison.Ordinal);
+        Assert.Contains("@onclick=\"HandleFirewallPurchaseClick\"", content, StringComparison.Ordinal);
         Assert.Contains("@onclick=\"HandleCloseClick\"", content, StringComparison.Ordinal);
         Assert.Contains("disabled=\"@IsPurchaseDisabled\"", content, StringComparison.Ordinal);
         Assert.Contains("aria-disabled=\"@IsPurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"@IsFirewallPurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"@IsFirewallPurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("attack-purchase-btn", content, StringComparison.Ordinal);
+        Assert.Contains("firewall-purchase-btn", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -252,6 +289,9 @@ public sealed class UpgradeTerminalComponentContractTests
         Assert.Contains(".upgrade-card", css, StringComparison.Ordinal);
         Assert.Contains(".upgrade-terminal-feedback", css, StringComparison.Ordinal);
         Assert.Contains(".upgrade-terminal-actions", css, StringComparison.Ordinal);
+        Assert.Contains(".firewall-icon-slot", css, StringComparison.Ordinal);
+        Assert.Contains(".cost-locked", css, StringComparison.Ordinal);
+        Assert.Contains(".upgrade-card-notice", css, StringComparison.Ordinal);
 
         // Tabular figures for alignment
         Assert.Contains("font-variant-numeric: tabular-nums", css, StringComparison.Ordinal);

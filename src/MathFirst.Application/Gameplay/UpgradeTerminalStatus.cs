@@ -25,6 +25,21 @@ public sealed record UpgradeTerminalStatus
     public bool CanAfford => HasSufficientSkillPoints;
     public bool IsMaxRank => !NextAttackRank.HasValue;
     public bool CanPurchase => CanAfford && !IsMaxRank;
+    public int CurrentFirewallRank { get; }
+    public int ActivatedFirewallRank { get; }
+    public int? NextFirewallRank { get; }
+    public int? NextRequiredLevel { get; }
+    public int? NextFirewallRequiredLevel => NextRequiredLevel;
+    public int? NextFirewallCost { get; }
+    public int CurrentPermanentCapacity => CyberDefenseFirewallPolicy.GetShieldCapacity(CurrentFirewallRank);
+    public int CurrentShieldCapacity => CurrentPermanentCapacity;
+    public int? NextPermanentCapacity => NextFirewallRank.HasValue ? CyberDefenseFirewallPolicy.GetShieldCapacity(NextFirewallRank.Value) : null;
+    public int? NextShieldCapacity => NextPermanentCapacity;
+    public bool IsFirewallLevelUnlocked { get; }
+    public bool HasSufficientFirewallSkillPoints { get; }
+    public bool HasSufficientFirewallSp => HasSufficientFirewallSkillPoints;
+    public bool IsFirewallMaxRank => !NextFirewallRank.HasValue;
+    public bool CanPurchaseFirewall => !IsFirewallMaxRank && IsFirewallLevelUnlocked && HasSufficientFirewallSkillPoints;
     public long ResetEpoch { get; }
     public long StoreRevision { get; }
 
@@ -46,7 +61,9 @@ public sealed record UpgradeTerminalStatus
         int? nextRankCost,
         bool hasSufficientSkillPoints,
         long resetEpoch,
-        long storeRevision)
+        long storeRevision,
+        int currentFirewallRank = 0,
+        int activatedFirewallRank = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(playerLevel, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(cumulativeXp);
@@ -74,6 +91,11 @@ public sealed record UpgradeTerminalStatus
         ArgumentOutOfRangeException.ThrowIfNegative(resetEpoch);
         ArgumentOutOfRangeException.ThrowIfLessThan(storeRevision, 1);
 
+        ArgumentOutOfRangeException.ThrowIfNegative(currentFirewallRank);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(currentFirewallRank, CyberDefenseFirewallPolicy.MaxRank);
+        ArgumentOutOfRangeException.ThrowIfNegative(activatedFirewallRank);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(activatedFirewallRank, currentFirewallRank);
+
         PlayerLevel = playerLevel;
         CumulativeXp = cumulativeXp;
         XpIntoCurrentLevel = xpIntoCurrentLevel;
@@ -92,6 +114,27 @@ public sealed record UpgradeTerminalStatus
         HasSufficientSkillPoints = hasSufficientSkillPoints;
         ResetEpoch = resetEpoch;
         StoreRevision = storeRevision;
+
+        CurrentFirewallRank = currentFirewallRank;
+        ActivatedFirewallRank = activatedFirewallRank;
+
+        if (currentFirewallRank < CyberDefenseFirewallPolicy.MaxRank)
+        {
+            int nRank = checked(currentFirewallRank + 1);
+            NextFirewallRank = nRank;
+            NextRequiredLevel = CyberDefenseFirewallPolicy.GetRequiredLevel(nRank);
+            NextFirewallCost = CyberDefenseFirewallPolicy.GetUpgradeCost(nRank);
+            IsFirewallLevelUnlocked = CyberDefenseFirewallPolicy.IsRankUnlockedAtLevel(nRank, playerLevel);
+            HasSufficientFirewallSkillPoints = availableSkillPoints >= NextFirewallCost.Value;
+        }
+        else
+        {
+            NextFirewallRank = null;
+            NextRequiredLevel = null;
+            NextFirewallCost = null;
+            IsFirewallLevelUnlocked = false;
+            HasSufficientFirewallSkillPoints = false;
+        }
     }
 
     public static UpgradeTerminalStatus Initial()
@@ -115,7 +158,9 @@ public sealed record UpgradeTerminalStatus
             nextRankCost: 1,
             hasSufficientSkillPoints: false,
             resetEpoch: 0,
-            storeRevision: 1);
+            storeRevision: 1,
+            currentFirewallRank: 0,
+            activatedFirewallRank: 0);
     }
 
     public static UpgradeTerminalStatus FromProgression(CyberDefenseProgressionRecord progression)
@@ -159,10 +204,16 @@ public sealed record UpgradeTerminalStatus
             nextRankCost: nextCost,
             hasSufficientSkillPoints: hasSufficientSp,
             resetEpoch: progression.ResetEpoch,
-            storeRevision: progression.StoreRevision);
+            storeRevision: progression.StoreRevision,
+            currentFirewallRank: progression.FirewallRank,
+            activatedFirewallRank: progression.ActivatedFirewallRank);
     }
 
-    public static UpgradeTerminalStatus FromSnapshot(CyberDefenseAttackUpgradeSnapshot snapshot, long cumulativeXp = 0L)
+    public static UpgradeTerminalStatus FromSnapshot(
+        CyberDefenseAttackUpgradeSnapshot snapshot,
+        long cumulativeXp = 0L,
+        int currentFirewallRank = 0,
+        int activatedFirewallRank = 0)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentOutOfRangeException.ThrowIfNegative(cumulativeXp);
@@ -199,6 +250,67 @@ public sealed record UpgradeTerminalStatus
             nextRankCost: snapshot.NextRankCost,
             hasSufficientSkillPoints: snapshot.HasSufficientSkillPoints,
             resetEpoch: snapshot.ResetEpoch,
-            storeRevision: snapshot.StoreRevision);
+            storeRevision: snapshot.StoreRevision,
+            currentFirewallRank: currentFirewallRank,
+            activatedFirewallRank: activatedFirewallRank);
+    }
+
+    public static UpgradeTerminalStatus FromFirewallSnapshot(
+        CyberDefenseFirewallUpgradeSnapshot snapshot,
+        long cumulativeXp = 0L,
+        int currentAttackRank = 0,
+        int activatedFirewallRank = 0)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentOutOfRangeException.ThrowIfNegative(cumulativeXp);
+
+        var progress = CyberDefenseLevelPolicy.CalculateProgress(cumulativeXp);
+        if (progress.Level != snapshot.PlayerLevel)
+        {
+            cumulativeXp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(snapshot.PlayerLevel);
+            progress = CyberDefenseLevelPolicy.CalculateProgress(cumulativeXp);
+        }
+
+        int currentDamage = CyberDefenseAttackUpgradePolicy.GetAttackDamage(currentAttackRank);
+        int? nextAttackRank = null;
+        int? nextDamage = null;
+        int? nextAttackCost = null;
+        bool hasSufficientAttackSp = false;
+
+        if (currentAttackRank < CyberDefenseAttackUpgradeSnapshot.MaxRepresentableAttackRank)
+        {
+            int nRank = checked(currentAttackRank + 1);
+            nextAttackRank = nRank;
+            nextDamage = CyberDefenseAttackUpgradePolicy.GetAttackDamage(nRank);
+            int cost = CyberDefenseAttackUpgradePolicy.GetUpgradeCost(nRank);
+            nextAttackCost = cost;
+            hasSufficientAttackSp = snapshot.AvailableSkillPoints >= cost;
+        }
+
+        int earnedSp = checked(snapshot.PlayerLevel - 1);
+        int spentSp = checked(earnedSp - snapshot.AvailableSkillPoints);
+        if (spentSp < 0) spentSp = 0;
+
+        return new UpgradeTerminalStatus(
+            playerLevel: snapshot.PlayerLevel,
+            cumulativeXp: cumulativeXp,
+            xpIntoCurrentLevel: progress.XpIntoCurrentLevel,
+            xpRequiredForNextLevel: progress.XpRequiredForNextLevel,
+            remainingXpToNextLevel: progress.RemainingXpToNextLevel,
+            progressRatio: progress.ProgressRatio,
+            levelProgress: progress,
+            availableSkillPoints: snapshot.AvailableSkillPoints,
+            earnedSkillPoints: earnedSp,
+            spentSkillPoints: spentSp,
+            currentAttackRank: currentAttackRank,
+            nextAttackRank: nextAttackRank,
+            currentBaseDamage: currentDamage,
+            nextBaseDamage: nextDamage,
+            nextRankCost: nextAttackCost,
+            hasSufficientSkillPoints: hasSufficientAttackSp,
+            resetEpoch: snapshot.ResetEpoch,
+            storeRevision: snapshot.StoreRevision,
+            currentFirewallRank: snapshot.CurrentFirewallRank,
+            activatedFirewallRank: activatedFirewallRank);
     }
 }

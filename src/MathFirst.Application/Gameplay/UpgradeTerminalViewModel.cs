@@ -25,6 +25,7 @@ public sealed class UpgradeTerminalViewModel : IDisposable
         ArgumentNullException.ThrowIfNull(gameplayStore);
         _gameplayStore = gameplayStore;
         _gameplayStore.AttackUpgradeSnapshotChanged += OnAttackUpgradeSnapshotChanged;
+        _gameplayStore.FirewallUpgradeSnapshotChanged += OnFirewallUpgradeSnapshotChanged;
     }
 
     public bool IsDisposed
@@ -56,6 +57,21 @@ public sealed class UpgradeTerminalViewModel : IDisposable
     public bool CanAfford => Status.CanAfford;
     public bool IsMaxRank => Status.IsMaxRank;
     public bool CanPurchase => Status.CanPurchase && !IsBusy && !IsDisposed;
+    public int CurrentFirewallRank => Status.CurrentFirewallRank;
+    public int ActivatedFirewallRank => Status.ActivatedFirewallRank;
+    public int? NextFirewallRank => Status.NextFirewallRank;
+    public int? NextRequiredLevel => Status.NextRequiredLevel;
+    public int? NextFirewallRequiredLevel => Status.NextRequiredLevel;
+    public int? NextFirewallCost => Status.NextFirewallCost;
+    public int CurrentPermanentCapacity => Status.CurrentPermanentCapacity;
+    public int CurrentShieldCapacity => Status.CurrentPermanentCapacity;
+    public int? NextPermanentCapacity => Status.NextPermanentCapacity;
+    public int? NextShieldCapacity => Status.NextPermanentCapacity;
+    public bool IsFirewallLevelUnlocked => Status.IsFirewallLevelUnlocked;
+    public bool HasSufficientFirewallSkillPoints => Status.HasSufficientFirewallSkillPoints;
+    public bool HasSufficientFirewallSp => Status.HasSufficientFirewallSkillPoints;
+    public bool IsFirewallMaxRank => Status.IsFirewallMaxRank;
+    public bool CanPurchaseFirewall => Status.CanPurchaseFirewall && !IsBusy && !IsDisposed;
     public long ResetEpoch => Status.ResetEpoch;
     public long StoreRevision => Status.StoreRevision;
 
@@ -250,6 +266,168 @@ public sealed class UpgradeTerminalViewModel : IDisposable
         }
     }
 
+    public async Task<UpgradePurchaseResult> PurchaseFirewallUpgradeAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_stateLock)
+        {
+            if (_isDisposed)
+            {
+                return UpgradePurchaseResult.Disposed(_status);
+            }
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return UpgradePurchaseResult.Cancelled(Status);
+        }
+
+        if (Interlocked.CompareExchange(ref _isPurchasingFlag, 1, 0) != 0)
+        {
+            return UpgradePurchaseResult.Busy(Status);
+        }
+
+        bool busyEntryNotified = false;
+        try
+        {
+            lock (_stateLock)
+            {
+                if (_isDisposed)
+                {
+                    return UpgradePurchaseResult.Disposed(_status);
+                }
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return UpgradePurchaseResult.Cancelled(Status);
+            }
+
+            StateChanged?.Invoke();
+            busyEntryNotified = true;
+
+            var current = Status;
+
+            if (current.IsFirewallMaxRank)
+            {
+                return UpgradePurchaseResult.MaxRankReached(current, "Maximum firewall rank reached.");
+            }
+
+            if (!current.IsFirewallLevelUnlocked)
+            {
+                return UpgradePurchaseResult.LockedLevel(
+                    current,
+                    $"Firewall rank {current.NextFirewallRank} requires player level {current.NextRequiredLevel}.");
+            }
+
+            if (!current.HasSufficientFirewallSkillPoints)
+            {
+                return UpgradePurchaseResult.InsufficientSkillPoints(
+                    current,
+                    "Insufficient skill points for firewall upgrade.");
+            }
+
+            try
+            {
+                var newProgression = await _gameplayStore.PurchaseFirewallUpgradeAsync(
+                    current.CurrentFirewallRank,
+                    current.ResetEpoch,
+                    cancellationToken).ConfigureAwait(false);
+
+                var committedStatus = UpgradeTerminalStatus.FromProgression(newProgression);
+                UpgradeTerminalStatus? statusToPublish = null;
+                bool wasDisposed;
+
+                lock (_stateLock)
+                {
+                    wasDisposed = _isDisposed;
+                    if (!wasDisposed)
+                    {
+                        if (TryApplyStatus_NoLock(committedStatus, out var applied))
+                        {
+                            statusToPublish = applied;
+                        }
+                    }
+                }
+
+                if (!wasDisposed && statusToPublish != null)
+                {
+                    StatusChanged?.Invoke(statusToPublish);
+                    StateChanged?.Invoke();
+                }
+
+                return UpgradePurchaseResult.Success(committedStatus);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return UpgradePurchaseResult.Cancelled(Status);
+            }
+            catch (ObjectDisposedException)
+            {
+                return UpgradePurchaseResult.Disposed(Status);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await TryRefreshCoreAsync().ConfigureAwait(false);
+                var refreshed = Status;
+
+                if (ex.Message.Contains("level", StringComparison.OrdinalIgnoreCase) &&
+                    (ex.Message.Contains("insufficient", StringComparison.OrdinalIgnoreCase) ||
+                     ex.Message.Contains("requires", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return UpgradePurchaseResult.LockedLevel(refreshed, ex.Message);
+                }
+
+                if (ex.Message.Contains("Insufficient available skill points", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UpgradePurchaseResult.InsufficientSkillPoints(refreshed, ex.Message);
+                }
+
+                if (ex.Message.Contains("Expected firewall rank", StringComparison.OrdinalIgnoreCase) ||
+                    ex.Message.Contains("Concurrency conflict", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UpgradePurchaseResult.StaleRank(refreshed, ex.Message);
+                }
+
+                if (ex.Message.Contains("reset epoch", StringComparison.OrdinalIgnoreCase) ||
+                    ex.Message.Contains("reset is pending", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UpgradePurchaseResult.StaleResetEpoch(refreshed, ex.Message);
+                }
+
+                if (ex.Message.Contains("maximum", StringComparison.OrdinalIgnoreCase) ||
+                    ex.Message.Contains("already reached maximum rank", StringComparison.OrdinalIgnoreCase))
+                {
+                    return UpgradePurchaseResult.MaxRankReached(refreshed, ex.Message);
+                }
+
+                return UpgradePurchaseResult.Error(ex.Message, ex, refreshed);
+            }
+            catch (Exception ex)
+            {
+                await TryRefreshCoreAsync().ConfigureAwait(false);
+                return UpgradePurchaseResult.Error(ex.Message, ex, Status);
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _isPurchasingFlag, 0);
+
+            bool shouldNotifyRelease;
+            lock (_stateLock)
+            {
+                shouldNotifyRelease = !_isDisposed && busyEntryNotified;
+            }
+
+            if (shouldNotifyRelease)
+            {
+                StateChanged?.Invoke();
+            }
+        }
+    }
+
+    public Task<UpgradePurchaseResult> PurchaseFirewallAsync(CancellationToken cancellationToken = default) =>
+        PurchaseFirewallUpgradeAsync(cancellationToken);
+
     private async Task TryRefreshCoreAsync()
     {
         try
@@ -259,6 +437,64 @@ public sealed class UpgradeTerminalViewModel : IDisposable
         catch
         {
             // Best effort refresh; ignore secondary failure
+        }
+    }
+
+    private readonly object _refreshLock = new();
+    private Task? _inFlightRefreshTask;
+    private bool _queuedRefreshNeeded;
+
+    private void TriggerAuthoritativeReconciliation()
+    {
+        lock (_refreshLock)
+        {
+            lock (_stateLock)
+            {
+                if (_isDisposed) return;
+            }
+
+            if (_inFlightRefreshTask != null && !_inFlightRefreshTask.IsCompleted)
+            {
+                _queuedRefreshNeeded = true;
+                return;
+            }
+
+            _inFlightRefreshTask = RunReconciliationLoopAsync();
+        }
+    }
+
+    private async Task RunReconciliationLoopAsync()
+    {
+        while (true)
+        {
+            lock (_refreshLock)
+            {
+                _queuedRefreshNeeded = false;
+            }
+
+            try
+            {
+                await RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Best effort refresh; ignore secondary failure
+            }
+
+            lock (_refreshLock)
+            {
+                bool isDisposed;
+                lock (_stateLock)
+                {
+                    isDisposed = _isDisposed;
+                }
+
+                if (isDisposed || !_queuedRefreshNeeded)
+                {
+                    _inFlightRefreshTask = null;
+                    break;
+                }
+            }
         }
     }
 
@@ -297,7 +533,12 @@ public sealed class UpgradeTerminalViewModel : IDisposable
                 cumulativeXp = _status.CumulativeXp;
             }
 
-            var candidate = UpgradeTerminalStatus.FromSnapshot(snapshot, cumulativeXp);
+            var candidate = UpgradeTerminalStatus.FromSnapshot(
+                snapshot,
+                cumulativeXp,
+                currentFirewallRank: _status.CurrentFirewallRank,
+                activatedFirewallRank: _status.ActivatedFirewallRank);
+
             if (TryApplyStatus_NoLock(candidate, out var applied))
             {
                 statusToPublish = applied;
@@ -312,7 +553,66 @@ public sealed class UpgradeTerminalViewModel : IDisposable
 
         if (shouldReconcileAuthoritativeStore)
         {
-            _ = TryRefreshCoreAsync();
+            TriggerAuthoritativeReconciliation();
+        }
+    }
+
+    private void OnFirewallUpgradeSnapshotChanged(CyberDefenseFirewallUpgradeSnapshot snapshot)
+    {
+        UpgradeTerminalStatus? statusToPublish = null;
+        bool shouldReconcileAuthoritativeStore = false;
+
+        lock (_stateLock)
+        {
+            if (_isDisposed) return;
+
+            if (snapshot.ResetEpoch < _status.ResetEpoch)
+            {
+                return;
+            }
+            if (snapshot.ResetEpoch == _status.ResetEpoch && snapshot.StoreRevision < _status.StoreRevision)
+            {
+                return;
+            }
+
+            long cumulativeXp;
+            if (snapshot.ResetEpoch > _status.ResetEpoch)
+            {
+                // Reset epoch advanced: previous epoch's XP must never be retained
+                cumulativeXp = 0L;
+                shouldReconcileAuthoritativeStore = true;
+            }
+            else if (snapshot.PlayerLevel != _status.PlayerLevel)
+            {
+                cumulativeXp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(snapshot.PlayerLevel);
+                shouldReconcileAuthoritativeStore = true;
+            }
+            else
+            {
+                cumulativeXp = _status.CumulativeXp;
+            }
+
+            var candidate = UpgradeTerminalStatus.FromFirewallSnapshot(
+                snapshot,
+                cumulativeXp,
+                currentAttackRank: _status.CurrentAttackRank,
+                activatedFirewallRank: _status.ActivatedFirewallRank);
+
+            if (TryApplyStatus_NoLock(candidate, out var applied))
+            {
+                statusToPublish = applied;
+            }
+        }
+
+        if (statusToPublish != null)
+        {
+            StatusChanged?.Invoke(statusToPublish);
+            StateChanged?.Invoke();
+        }
+
+        if (shouldReconcileAuthoritativeStore)
+        {
+            TriggerAuthoritativeReconciliation();
         }
     }
 
@@ -358,6 +658,7 @@ public sealed class UpgradeTerminalViewModel : IDisposable
             _isDisposed = true;
         }
         _gameplayStore.AttackUpgradeSnapshotChanged -= OnAttackUpgradeSnapshotChanged;
+        _gameplayStore.FirewallUpgradeSnapshotChanged -= OnFirewallUpgradeSnapshotChanged;
         StatusChanged = null;
         StateChanged = null;
     }

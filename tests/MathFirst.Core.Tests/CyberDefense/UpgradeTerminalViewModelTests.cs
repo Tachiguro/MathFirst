@@ -3,6 +3,7 @@ namespace MathFirst.Core.Tests.CyberDefense;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using MathFirst.Application.Gameplay;
@@ -39,7 +40,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         int spentSp,
         int availableSp,
         int attackRank,
-        long resetEpoch = 0)
+        long resetEpoch = 0,
+        int firewallRank = 0,
+        int activatedFirewallRank = 0)
     {
         using var connection = new SqliteConnection($"Data Source={dbPath}");
         await connection.OpenAsync();
@@ -52,7 +55,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
                 spent_sp = @spent,
                 available_sp = @available,
                 attack_rank = @rank,
-                reset_epoch = @resetEpoch
+                reset_epoch = @resetEpoch,
+                firewall_rank = @firewallRank,
+                activated_firewall_rank = @activatedFirewallRank
             WHERE id = 1;
         ";
         cmd.Parameters.AddWithValue("@xp", cumulativeXp);
@@ -62,6 +67,8 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         cmd.Parameters.AddWithValue("@available", availableSp);
         cmd.Parameters.AddWithValue("@rank", attackRank);
         cmd.Parameters.AddWithValue("@resetEpoch", resetEpoch);
+        cmd.Parameters.AddWithValue("@firewallRank", firewallRank);
+        cmd.Parameters.AddWithValue("@activatedFirewallRank", activatedFirewallRank);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -714,6 +721,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         {
             _inner = inner;
             _inner.AttackUpgradeSnapshotChanged += snapshot => AttackUpgradeSnapshotChanged?.Invoke(snapshot);
+            _inner.FirewallUpgradeSnapshotChanged += snapshot => FirewallUpgradeSnapshotChanged?.Invoke(snapshot);
         }
 
         public string StoragePath => _inner.StoragePath;
@@ -736,8 +744,13 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             return await _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         }
 
-        public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
-            _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public async Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            PurchaseCallCount++;
+            PurchaseEnteredSignal.TrySetResult(true);
+            await _purchaseRelease.Task;
+            return await _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        }
 
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity, expectedResetEpoch, cancellationToken);
@@ -767,6 +780,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         {
             _inner = inner;
             _inner.AttackUpgradeSnapshotChanged += snapshot => AttackUpgradeSnapshotChanged?.Invoke(snapshot);
+            _inner.FirewallUpgradeSnapshotChanged += snapshot => FirewallUpgradeSnapshotChanged?.Invoke(snapshot);
         }
 
         public string StoragePath => _inner.StoragePath;
@@ -818,6 +832,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             _inner = inner;
             _exceptionToThrow = exceptionToThrow;
             _inner.AttackUpgradeSnapshotChanged += snapshot => AttackUpgradeSnapshotChanged?.Invoke(snapshot);
+            _inner.FirewallUpgradeSnapshotChanged += snapshot => FirewallUpgradeSnapshotChanged?.Invoke(snapshot);
         }
 
         public string StoragePath => _inner.StoragePath;
@@ -870,6 +885,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         {
             _inner = inner;
             _inner.AttackUpgradeSnapshotChanged += snapshot => AttackUpgradeSnapshotChanged?.Invoke(snapshot);
+            _inner.FirewallUpgradeSnapshotChanged += snapshot => FirewallUpgradeSnapshotChanged?.Invoke(snapshot);
         }
 
         public string StoragePath => _inner.StoragePath;
@@ -924,6 +940,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             _inner = inner;
             NextRecord = initialRecord;
             _inner.AttackUpgradeSnapshotChanged += snapshot => AttackUpgradeSnapshotChanged?.Invoke(snapshot);
+            _inner.FirewallUpgradeSnapshotChanged += snapshot => FirewallUpgradeSnapshotChanged?.Invoke(snapshot);
         }
 
         public string StoragePath => _inner.StoragePath;
@@ -966,6 +983,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             _inner = inner;
             _onCommitted = onCommitted;
             _inner.AttackUpgradeSnapshotChanged += snapshot => AttackUpgradeSnapshotChanged?.Invoke(snapshot);
+            _inner.FirewallUpgradeSnapshotChanged += snapshot => FirewallUpgradeSnapshotChanged?.Invoke(snapshot);
         }
 
         public string StoragePath => _inner.StoragePath;
@@ -986,8 +1004,12 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             return result;
         }
 
-        public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
-            _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public async Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            var result = await _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+            _onCommitted();
+            return result;
+        }
 
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity, expectedResetEpoch, cancellationToken);
@@ -1391,5 +1413,605 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         var cancelResult = await vm.PurchaseUpgradeAsync(cts.Token);
         Assert.Equal(UpgradePurchaseStatus.Cancelled, cancelResult.Status);
         Assert.False(vm.IsBusy);
+    }
+
+    // =========================================================================
+    // 16. Slice 6A: Firewall Contracts and LockedLevel RED Demonstrations
+    // =========================================================================
+
+    [Fact]
+    public void UpgradePurchaseStatus_DefinesLockedLevel()
+    {
+        Assert.True(Enum.TryParse<UpgradePurchaseStatus>("LockedLevel", out _), "UpgradePurchaseStatus must define LockedLevel.");
+    }
+
+    [Fact]
+    public void UpgradePurchaseResult_LockedLevelFactory_AvailableAndValid()
+    {
+        var factory = typeof(UpgradePurchaseResult).GetMethod("LockedLevel", BindingFlags.Public | BindingFlags.Static);
+        Assert.NotNull(factory);
+    }
+
+    [Fact]
+    public void UpgradeTerminalStatus_ExposesFirewallProperties()
+    {
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("CurrentFirewallRank"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("ActivatedFirewallRank"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("NextFirewallRank"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("NextRequiredLevel"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("NextFirewallCost"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("CurrentPermanentCapacity"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("NextPermanentCapacity"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("IsFirewallLevelUnlocked"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("HasSufficientFirewallSkillPoints"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("IsFirewallMaxRank"));
+        Assert.NotNull(typeof(UpgradeTerminalStatus).GetProperty("CanPurchaseFirewall"));
+    }
+
+    [Fact]
+    public void UpgradeTerminalViewModel_ExposesFirewallPurchaseCommand()
+    {
+        var method = typeof(UpgradeTerminalViewModel).GetMethod("PurchaseFirewallUpgradeAsync");
+        Assert.NotNull(method);
+    }
+
+    // =========================================================================
+    // 17. Slice 6A: Firewall Status Projections and Policy Alignment
+    // =========================================================================
+
+    [Theory]
+    [InlineData(1, 0, 0, false, false, false, 5, 3, 0, 1)]     // Level 1 / Rank 0: locked, cannot afford
+    [InlineData(5, 3, 0, true, true, true, 5, 3, 0, 1)]        // Level 5 / Rank 0 with 3 SP: purchasable
+    [InlineData(5, 2, 0, true, false, false, 5, 3, 0, 1)]       // Level 5 / Rank 0 without 3 SP: insufficient
+    [InlineData(19, 10, 1, false, true, false, 20, 8, 1, 2)]    // Level 19 / Rank 1: locked, cannot purchase
+    [InlineData(20, 8, 1, true, true, true, 20, 8, 1, 2)]       // Level 20 / Rank 1 with 8 SP: purchasable
+    [InlineData(49, 20, 2, false, true, false, 50, 15, 2, 3)]   // Level 49 / Rank 2: locked, cannot purchase
+    [InlineData(50, 15, 2, true, true, true, 50, 15, 2, 3)]     // Level 50 / Rank 2 with 15 SP: purchasable
+    public async Task UpgradeTerminalViewModel_FirewallStatusProjections_MatchPolicy(
+        int playerLevel,
+        int availableSp,
+        int firewallRank,
+        bool expectedLevelUnlocked,
+        bool expectedHasSufficientSp,
+        bool expectedCanPurchase,
+        int expectedNextReqLevel,
+        int expectedNextCost,
+        int expectedCurrentCapacity,
+        int expectedNextCapacity)
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long cumulativeXp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(playerLevel);
+        int earnedSp = Math.Max(availableSp, playerLevel - 1);
+        int spentSp = earnedSp - availableSp;
+
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: cumulativeXp,
+            playerLevel: playerLevel,
+            earnedSp: earnedSp,
+            spentSp: spentSp,
+            availableSp: availableSp,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: firewallRank,
+            activatedFirewallRank: firewallRank);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        Assert.Equal(firewallRank, vm.CurrentFirewallRank);
+        Assert.Equal(firewallRank, vm.ActivatedFirewallRank);
+        Assert.Equal(expectedNextReqLevel, vm.NextRequiredLevel);
+        Assert.Equal(expectedNextCost, vm.NextFirewallCost);
+        Assert.Equal(expectedCurrentCapacity, vm.CurrentPermanentCapacity);
+        Assert.Equal(expectedNextCapacity, vm.NextPermanentCapacity);
+        Assert.Equal(expectedLevelUnlocked, vm.IsFirewallLevelUnlocked);
+        Assert.Equal(expectedHasSufficientSp, vm.HasSufficientFirewallSkillPoints);
+        Assert.False(vm.IsFirewallMaxRank);
+        Assert.Equal(expectedCanPurchase, vm.CanPurchaseFirewall);
+    }
+
+    [Fact]
+    public async Task UpgradeTerminalViewModel_FirewallStatus_Rank3_MaxRankReached()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(50);
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: xp,
+            playerLevel: 50,
+            earnedSp: 49,
+            spentSp: 26,
+            availableSp: 23,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 3,
+            activatedFirewallRank: 3);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        Assert.Equal(3, vm.CurrentFirewallRank);
+        Assert.Equal(3, vm.ActivatedFirewallRank);
+        Assert.Null(vm.NextFirewallRank);
+        Assert.Null(vm.NextFirewallCost);
+        Assert.Equal(3, vm.CurrentPermanentCapacity);
+        Assert.Null(vm.NextPermanentCapacity);
+        Assert.True(vm.IsFirewallMaxRank);
+        Assert.False(vm.CanPurchaseFirewall);
+    }
+
+    [Fact]
+    public async Task UpgradeTerminalViewModel_BeginnerAssistanceShield_DoesNotCountAsPurchasedRank()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        using (var connection = new SqliteConnection($"Data Source={store.StoragePath}"))
+        {
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE gameplay_progression
+                SET is_beginner_assistance_active = 1,
+                    firewall_rank = 0,
+                    activated_firewall_rank = 0
+                WHERE id = 1;
+
+                UPDATE gameplay_run_state
+                SET shield_capacity = 1,
+                    active_shields = 1
+                WHERE id = 1;
+            ";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        Assert.Equal(0, vm.CurrentFirewallRank);
+        Assert.Equal(0, vm.CurrentPermanentCapacity);
+        Assert.Equal(1, vm.NextFirewallRank);
+        Assert.Equal(1, vm.NextPermanentCapacity);
+        Assert.False(vm.IsFirewallMaxRank);
+    }
+
+    // =========================================================================
+    // 18. Slice 6A: Result Contracts and Enum Preservation
+    // =========================================================================
+
+    [Fact]
+    public void UpgradePurchaseStatus_PreservesExistingValuesAndAppendsLockedLevel()
+    {
+        Assert.Equal(0, (int)UpgradePurchaseStatus.Success);
+        Assert.Equal(1, (int)UpgradePurchaseStatus.InsufficientSkillPoints);
+        Assert.Equal(2, (int)UpgradePurchaseStatus.StaleRank);
+        Assert.Equal(3, (int)UpgradePurchaseStatus.StaleResetEpoch);
+        Assert.Equal(4, (int)UpgradePurchaseStatus.MaxRankReached);
+        Assert.Equal(5, (int)UpgradePurchaseStatus.Busy);
+        Assert.Equal(6, (int)UpgradePurchaseStatus.Disposed);
+        Assert.Equal(7, (int)UpgradePurchaseStatus.Cancelled);
+        Assert.Equal(8, (int)UpgradePurchaseStatus.Error);
+        Assert.Equal(9, (int)UpgradePurchaseStatus.LockedLevel);
+    }
+
+    [Fact]
+    public void UpgradePurchaseResult_LockedLevel_ReturnsExpectedContract()
+    {
+        var status = UpgradeTerminalStatus.Initial();
+        var result = UpgradePurchaseResult.LockedLevel(status, "Player level insufficient.");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.LockedLevel, result.Status);
+        Assert.Same(status, result.StatusSnapshot);
+        Assert.Equal("Player level insufficient.", result.Message);
+        Assert.Null(result.Exception);
+    }
+
+    [Fact]
+    public void UpgradePurchaseResult_ExistingAttackFactories_RemainUnchanged()
+    {
+        var status = UpgradeTerminalStatus.Initial();
+        var success = UpgradePurchaseResult.Success(status);
+        Assert.True(success.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Success, success.Status);
+
+        var insufficient = UpgradePurchaseResult.InsufficientSkillPoints(status);
+        Assert.False(insufficient.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.InsufficientSkillPoints, insufficient.Status);
+
+        var maxRank = UpgradePurchaseResult.MaxRankReached(status);
+        Assert.False(maxRank.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, maxRank.Status);
+
+        var staleRank = UpgradePurchaseResult.StaleRank(status);
+        Assert.False(staleRank.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.StaleRank, staleRank.Status);
+
+        var staleEpoch = UpgradePurchaseResult.StaleResetEpoch(status);
+        Assert.False(staleEpoch.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.StaleResetEpoch, staleEpoch.Status);
+
+        var disposed = UpgradePurchaseResult.Disposed(status);
+        Assert.False(disposed.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Disposed, disposed.Status);
+
+        var busy = UpgradePurchaseResult.Busy(status);
+        Assert.False(busy.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Busy, busy.Status);
+
+        var cancelled = UpgradePurchaseResult.Cancelled(status);
+        Assert.False(cancelled.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Cancelled, cancelled.Status);
+
+        var ex = new InvalidOperationException("boom");
+        var error = UpgradePurchaseResult.Error("boom", ex, status);
+        Assert.False(error.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Error, error.Status);
+        Assert.Same(ex, error.Exception);
+    }
+
+    // =========================================================================
+    // 19. Slice 6A: Firewall Purchases and Deductions
+    // =========================================================================
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_Rank1_Deducts3SpAndUpdatesState()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: xp,
+            playerLevel: 5,
+            earnedSp: 5,
+            spentSp: 0,
+            availableSp: 5,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 0,
+            activatedFirewallRank: 0);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Success, result.Status);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(1, vm.CurrentPermanentCapacity);
+        Assert.Equal(2, vm.AvailableSkillPoints);
+        Assert.Equal(2, vm.NextFirewallRank);
+        Assert.Equal(20, vm.NextRequiredLevel);
+        Assert.Equal(8, vm.NextFirewallCost);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_Rank2_Deducts8SpAndUpdatesState()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(20);
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: xp,
+            playerLevel: 20,
+            earnedSp: 19,
+            spentSp: 3,
+            availableSp: 16,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 1,
+            activatedFirewallRank: 1);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Success, result.Status);
+        Assert.Equal(2, vm.CurrentFirewallRank);
+        Assert.Equal(2, vm.CurrentPermanentCapacity);
+        Assert.Equal(8, vm.AvailableSkillPoints);
+        Assert.Equal(3, vm.NextFirewallRank);
+        Assert.Equal(50, vm.NextRequiredLevel);
+        Assert.Equal(15, vm.NextFirewallCost);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_Rank3_Deducts15SpAndReachesMax()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(50);
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: xp,
+            playerLevel: 50,
+            earnedSp: 49,
+            spentSp: 11,
+            availableSp: 38,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 2,
+            activatedFirewallRank: 2);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Success, result.Status);
+        Assert.Equal(3, vm.CurrentFirewallRank);
+        Assert.Equal(3, vm.CurrentPermanentCapacity);
+        Assert.Equal(23, vm.AvailableSkillPoints);
+        Assert.True(vm.IsFirewallMaxRank);
+        Assert.False(vm.CanPurchaseFirewall);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_LevelLocked_ReturnsLockedLevel()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: 0,
+            playerLevel: 1,
+            earnedSp: 10,
+            spentSp: 0,
+            availableSp: 10,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 0,
+            activatedFirewallRank: 0);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.LockedLevel, result.Status);
+        Assert.Equal(0, vm.CurrentFirewallRank);
+        Assert.Equal(10, vm.AvailableSkillPoints);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_InsufficientSkillPoints_ReturnsInsufficientSkillPoints()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: xp,
+            playerLevel: 5,
+            earnedSp: 4,
+            spentSp: 2,
+            availableSp: 2,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 0,
+            activatedFirewallRank: 0);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.InsufficientSkillPoints, result.Status);
+        Assert.Equal(0, vm.CurrentFirewallRank);
+        Assert.Equal(2, vm.AvailableSkillPoints);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_MaxRankReached_ReturnsMaxRankReached()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(50);
+        await SetProgressionAsync(
+            store.StoragePath,
+            cumulativeXp: xp,
+            playerLevel: 50,
+            earnedSp: 49,
+            spentSp: 26,
+            availableSp: 23,
+            attackRank: 0,
+            resetEpoch: 0,
+            firewallRank: 3,
+            activatedFirewallRank: 3);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, result.Status);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_Disposed_ReturnsDisposed()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        vm.Dispose();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Disposed, result.Status);
+    }
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_Cancelled_ReturnsCancelledAndReleasesGate()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(store.StoragePath, xp, 5, 5, 0, 5, 0);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await vm.PurchaseFirewallUpgradeAsync(cts.Token);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpgradePurchaseStatus.Cancelled, result.Status);
+        Assert.False(vm.IsBusy);
+    }
+
+    // =========================================================================
+    // 20. Slice 6A: Shared Concurrency Gate and Cross-Skill Collisions
+    // =========================================================================
+
+    [Fact]
+    public async Task PurchaseFirewallUpgradeAsync_RapidDoubleClick_ReturnsBusy()
+    {
+        using var realStore = CreateStore();
+        await realStore.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(realStore.StoragePath, xp, 5, 5, 0, 5, 0);
+
+        var delayedStore = new ControllableDelayedUpgradeStore(realStore);
+        using var vm = new UpgradeTerminalViewModel(delayedStore);
+        await vm.InitializeAsync();
+
+        var click1 = vm.PurchaseFirewallUpgradeAsync();
+        await delayedStore.PurchaseEnteredSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var click2 = await vm.PurchaseFirewallUpgradeAsync();
+        Assert.Equal(UpgradePurchaseStatus.Busy, click2.Status);
+
+        delayedStore.ReleasePurchase();
+        var res1 = await click1;
+        Assert.Equal(UpgradePurchaseStatus.Success, res1.Status);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+    }
+
+    [Fact]
+    public async Task Purchase_CrossSkillCollision_AttackWhileFirewallBusy_ReturnsBusy()
+    {
+        using var realStore = CreateStore();
+        await realStore.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(realStore.StoragePath, xp, 5, 5, 0, 5, 0);
+
+        var delayedStore = new ControllableDelayedUpgradeStore(realStore);
+        using var vm = new UpgradeTerminalViewModel(delayedStore);
+        await vm.InitializeAsync();
+
+        var firewallClick = vm.PurchaseFirewallUpgradeAsync();
+        await delayedStore.PurchaseEnteredSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var attackClick = await vm.PurchaseUpgradeAsync();
+        Assert.Equal(UpgradePurchaseStatus.Busy, attackClick.Status);
+
+        delayedStore.ReleasePurchase();
+        var firewallRes = await firewallClick;
+        Assert.Equal(UpgradePurchaseStatus.Success, firewallRes.Status);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+    }
+
+    [Fact]
+    public async Task Purchase_CrossSkillCollision_FirewallWhileAttackBusy_ReturnsBusy()
+    {
+        using var realStore = CreateStore();
+        await realStore.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(realStore.StoragePath, xp, 5, 5, 0, 5, 0);
+
+        var delayedStore = new ControllableDelayedUpgradeStore(realStore);
+        using var vm = new UpgradeTerminalViewModel(delayedStore);
+        await vm.InitializeAsync();
+
+        var attackClick = vm.PurchaseUpgradeAsync();
+        await delayedStore.PurchaseEnteredSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var firewallClick = await vm.PurchaseFirewallUpgradeAsync();
+        Assert.Equal(UpgradePurchaseStatus.Busy, firewallClick.Status);
+
+        delayedStore.ReleasePurchase();
+        var attackRes = await attackClick;
+        Assert.Equal(UpgradePurchaseStatus.Success, attackRes.Status);
+        Assert.Equal(1, vm.CurrentAttackRank);
+    }
+
+    // =========================================================================
+    // 21. Slice 6A: Reactive State Reconciliation in Both Event Delivery Orders
+    // =========================================================================
+
+    [Fact]
+    public async Task ReactiveSnapshots_DeliveryOrderAttackThenFirewall_PreservesBothSkills()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(store.StoragePath, xp, 5, 5, 0, 5, 0, firewallRank: 0);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        await store.PurchaseAttackUpgradeAsync(0, 0);
+        await store.PurchaseFirewallUpgradeAsync(0, 0);
+
+        await Task.Delay(50);
+        await vm.RefreshAsync();
+
+        Assert.Equal(1, vm.CurrentAttackRank);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(1, vm.AvailableSkillPoints);
+    }
+
+    [Fact]
+    public async Task ReactiveSnapshots_DeliveryOrderFirewallThenAttack_PreservesBothSkills()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        long xp = CyberDefenseLevelPolicy.GetCumulativeXpThreshold(5);
+        await SetProgressionAsync(store.StoragePath, xp, 5, 5, 0, 5, 0, firewallRank: 0);
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        await store.PurchaseFirewallUpgradeAsync(0, 0);
+        await store.PurchaseAttackUpgradeAsync(0, 0);
+
+        await Task.Delay(50);
+        await vm.RefreshAsync();
+
+        Assert.Equal(1, vm.CurrentAttackRank);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(1, vm.AvailableSkillPoints);
     }
 }
