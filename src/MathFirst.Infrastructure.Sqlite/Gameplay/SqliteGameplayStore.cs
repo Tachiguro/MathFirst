@@ -3094,12 +3094,16 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 int currentSpentSp;
                 int currentAvailableSp;
                 int currentAttackRank;
+                int currentFirewallRank;
+                int currentConsecutiveEarlyDefeats;
+                bool isBeginnerAssistanceActive;
                 using (var progCmd = _connection.CreateCommand())
                 {
                     progCmd.Transaction = transaction;
                     progCmd.CommandText = @"
                         SELECT reset_epoch, store_revision, cumulative_xp, player_level,
-                               earned_sp, spent_sp, available_sp, attack_rank
+                               earned_sp, spent_sp, available_sp, attack_rank,
+                               firewall_rank, consecutive_early_defeats, is_beginner_assistance_active
                         FROM gameplay_progression
                         WHERE id = 1;
                     ";
@@ -3116,6 +3120,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     currentSpentSp = progReader.GetInt32(5);
                     currentAvailableSp = progReader.GetInt32(6);
                     currentAttackRank = progReader.GetInt32(7);
+                    currentFirewallRank = progReader.GetInt32(8);
+                    currentConsecutiveEarlyDefeats = progReader.GetInt32(9);
+                    isBeginnerAssistanceActive = progReader.GetInt32(10) == 1;
                 }
 
                 if (intent.ResetEpoch != currentEpoch)
@@ -3233,6 +3240,114 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 int effectiveDamageToApply = persistedIntent != null ? persistedIntent.EffectiveAttackDamage : intent.EffectiveAttackDamage;
                 var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: effectiveDamageToApply);
 
+                int nextConsecutiveEarlyDefeats = currentConsecutiveEarlyDefeats;
+                bool nextAssistanceActive = isBeginnerAssistanceActive;
+
+                if (transition.IsGameOver)
+                {
+                    bool sector1BossReachedAtGameOver = currentRunState.Sector == 1 &&
+                        currentRunState.CurrentOpponent.Kind == OpponentKind.Boss;
+
+                    nextConsecutiveEarlyDefeats = CyberDefenseBeginnerAssistancePolicy.GetConsecutiveEarlyDefeatsAfterGameOver(
+                        currentConsecutiveEarlyDefeats,
+                        currentRunState.Sector,
+                        sector1BossReachedAtGameOver);
+
+                    bool shouldActivate = CyberDefenseBeginnerAssistancePolicy.IsEligibleForActivation(
+                        nextConsecutiveEarlyDefeats,
+                        sector1BossReachedAtGameOver,
+                        currentFirewallRank,
+                        isBeginnerAssistanceActive);
+
+                    if (shouldActivate)
+                    {
+                        nextAssistanceActive = true;
+
+                        var assistedRebootState = CyberDefenseRunState.InitialRun(
+                            shieldCapacity: CyberDefenseBeginnerAssistancePolicy.EmergencyShieldCount);
+
+                        transition = new CyberDefenseCombatTransitionResult(
+                            transition.IsCorrect,
+                            transition.RequestedAttackDamage,
+                            transition.AppliedOpponentDamage,
+                            transition.ExcessOpponentDamage,
+                            transition.IncomingEnemyDamage,
+                            transition.AppliedPlayerDamage,
+                            transition.ExcessEnemyDamage,
+                            transition.PotentialHealing,
+                            transition.AppliedHealing,
+                            transition.IsOpponentDefeated,
+                            transition.IsSectorCompleted,
+                            transition.IsGameOver,
+                            assistedRebootState,
+                            transition.TerminalSnapshot,
+                            transition.ExecutedAttacksOnDefeatedOpponent,
+                            transition.DefeatedOpponentProvenance,
+                            transition.IsShieldAbsorbed,
+                            transition.AbsorbedEnemyDamage);
+                    }
+                }
+                else
+                {
+                    bool sector1Cleared = transition.IsSectorCompleted && currentRunState.Sector == 1;
+                    if (sector1Cleared)
+                    {
+                        if (CyberDefenseBeginnerAssistancePolicy.ShouldDeactivate(isBeginnerAssistanceActive, sector1Cleared: true, currentFirewallRank) || isBeginnerAssistanceActive)
+                        {
+                            nextAssistanceActive = false;
+                        }
+
+                        nextConsecutiveEarlyDefeats = 0;
+
+                        if (currentFirewallRank == 0)
+                        {
+                            var nextStateWithoutEmergencyShield = CyberDefenseRunState.CreateActive(
+                                transition.NextState.Sector,
+                                transition.NextState.OpponentIndex,
+                                transition.NextState.PlayerCurrentHp,
+                                transition.NextState.CurrentOpponent,
+                                shieldCapacity: 0,
+                                activeShields: 0,
+                                shieldRechargeUnits: 0);
+
+                            transition = new CyberDefenseCombatTransitionResult(
+                                transition.IsCorrect,
+                                transition.RequestedAttackDamage,
+                                transition.AppliedOpponentDamage,
+                                transition.ExcessOpponentDamage,
+                                transition.IncomingEnemyDamage,
+                                transition.AppliedPlayerDamage,
+                                transition.ExcessEnemyDamage,
+                                transition.PotentialHealing,
+                                transition.AppliedHealing,
+                                transition.IsOpponentDefeated,
+                                transition.IsSectorCompleted,
+                                transition.IsGameOver,
+                                nextStateWithoutEmergencyShield,
+                                transition.TerminalSnapshot,
+                                transition.ExecutedAttacksOnDefeatedOpponent,
+                                transition.DefeatedOpponentProvenance,
+                                transition.IsShieldAbsorbed,
+                                transition.AbsorbedEnemyDamage);
+                        }
+                    }
+                    else
+                    {
+                        bool reachedOrAtSector1Boss = (currentRunState.Sector == 1 && currentRunState.CurrentOpponent.Kind == OpponentKind.Boss) ||
+                            (currentRunState.Sector == 1 && transition.NextState.CurrentOpponent.Kind == OpponentKind.Boss);
+
+                        if (reachedOrAtSector1Boss)
+                        {
+                            nextConsecutiveEarlyDefeats = CyberDefenseBeginnerAssistancePolicy.GetConsecutiveEarlyDefeatsAfterSector1BossReached(currentConsecutiveEarlyDefeats);
+                        }
+                    }
+                }
+
+                if (CyberDefenseBeginnerAssistancePolicy.ShouldDeactivate(nextAssistanceActive, sector1Cleared: false, currentFirewallRank))
+                {
+                    nextAssistanceActive = false;
+                }
+
                 int awardedXp;
                 if (transition.IsOpponentDefeated)
                 {
@@ -3316,6 +3431,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             spent_sp = @spentSp,
                             available_sp = @availableSp,
                             attack_rank = @attackRank,
+                            consecutive_early_defeats = @consecutiveEarlyDefeats,
+                            is_beginner_assistance_active = @isBeginnerAssistanceActive,
                             updated_at = @now
                         WHERE id = 1;
                     ";
@@ -3326,6 +3443,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     updateProgCmd.Parameters.AddWithValue("@spentSp", newSpentSp);
                     updateProgCmd.Parameters.AddWithValue("@availableSp", newAvailableSp);
                     updateProgCmd.Parameters.AddWithValue("@attackRank", newAttackRank);
+                    updateProgCmd.Parameters.AddWithValue("@consecutiveEarlyDefeats", nextConsecutiveEarlyDefeats);
+                    updateProgCmd.Parameters.AddWithValue("@isBeginnerAssistanceActive", nextAssistanceActive ? 1 : 0);
                     updateProgCmd.Parameters.AddWithValue("@now", now.ToString("O"));
                     await updateProgCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
