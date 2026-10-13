@@ -12,6 +12,7 @@ public sealed class SimulationTelemetryAccumulator
     private readonly ulong _masterSeed;
     private readonly string _profileId;
     private readonly string _profileName;
+    private readonly bool _observeShields;
 
     private long _totalQuestions;
     private long _correctAnswers;
@@ -22,6 +23,7 @@ public sealed class SimulationTelemetryAccumulator
     private long _totalAppliedPlayerDamage;
     private int _totalOpponentDefeats;
     private int _totalSectorCompletions;
+    private long _totalShieldsAbsorbed;
 
     /// <summary>
     /// Initializes a new instance of <see cref="SimulationTelemetryAccumulator"/>.
@@ -30,7 +32,8 @@ public sealed class SimulationTelemetryAccumulator
         ulong masterSeed,
         string profileId,
         string profileName,
-        int startingSector)
+        int startingSector,
+        bool observeShields = false)
     {
         if (string.IsNullOrWhiteSpace(profileId))
         {
@@ -51,6 +54,7 @@ public sealed class SimulationTelemetryAccumulator
         _profileId = profileId;
         _profileName = profileName;
         _highestSectorReached = startingSector;
+        _observeShields = observeShields;
     }
 
     /// <summary>
@@ -76,6 +80,11 @@ public sealed class SimulationTelemetryAccumulator
 
             _totalAppliedOpponentDamage += transition.AppliedOpponentDamage;
             _totalAppliedPlayerDamage += transition.AppliedPlayerDamage;
+
+            if (transition.IsShieldAbsorbed)
+            {
+                _totalShieldsAbsorbed++;
+            }
 
             if (transition.IsOpponentDefeated)
             {
@@ -131,6 +140,7 @@ public sealed class SimulationTelemetryAccumulator
             totalAppliedOpponentDamage: _totalAppliedOpponentDamage,
             totalAppliedPlayerDamage: _totalAppliedPlayerDamage,
             totalOpponentDefeats: _totalOpponentDefeats,
-            totalSectorCompletions: _totalSectorCompletions);
+            totalSectorCompletions: _totalSectorCompletions,
+            totalShieldsAbsorbed: _observeShields ? _totalShieldsAbsorbed : null);
     }
 }
