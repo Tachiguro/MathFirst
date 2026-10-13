@@ -28,9 +28,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private int _activeOperations;
     private bool _resourcesCleanedUp;
     public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
+    public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
     private readonly object _notificationLock = new();
     private long _lastPublishedEpoch = -1;
     private long _lastPublishedRevision = -1;
+    private long _lastPublishedFirewallEpoch = -1;
+    private long _lastPublishedFirewallRevision = -1;
 
     private const string SchemaV5Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -1897,13 +1900,17 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
         }, cancellationToken).ConfigureAwait(false);
 
+        NotifyFirewallUpgradeSnapshotChanged(CyberDefenseFirewallUpgradeSnapshot.FromProgression(newProgression));
+
         return newProgression;
     }
 
-    public async Task<CyberDefenseRunState> ActivatePendingFirewallCapacityAsync(
+    public async Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(
+        int questionBoundTargetCapacity,
         long expectedResetEpoch,
         CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(questionBoundTargetCapacity);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
 
         return await ExecuteWithConnectionGateAsync(async ct =>
@@ -1949,24 +1956,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         $"Activation reset epoch {expectedResetEpoch} does not match current store reset epoch {currentEpoch}.");
                 }
 
-                // 4. Reject or safely defer activation while an older unsettled/recoverable gameplay intent exists
-                using (var pendingCmd = _connection.CreateCommand())
-                {
-                    pendingCmd.Transaction = transaction;
-                    pendingCmd.CommandText = @"
-                        SELECT COUNT(*)
-                        FROM gameplay_pending_intent
-                        WHERE reset_epoch = @epoch;
-                    ";
-                    pendingCmd.Parameters.AddWithValue("@epoch", currentEpoch);
-                    long pendingCount = Convert.ToInt64(await pendingCmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
-                    if (pendingCount > 0)
-                    {
-                        throw new InvalidOperationException("Cannot activate firewall capacity while unsettled combat intents exist.");
-                    }
-                }
-
-                // 5. Read current gameplay_run_state
+                // 4. Read current gameplay_run_state
                 int sector;
                 int opponentIndex;
                 int opponentHp;
@@ -2014,15 +2004,36 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     sector, opponentIndex, opponentHp, playerHp, opponentExecutedAttacks, provenance,
                     oldShieldCapacity, oldActiveShields, oldShieldRechargeUnits);
 
-                // 6. Capacity and recharge semantics
-                int targetCapacity = Math.Clamp(firewallRank, 0, CyberDefenseFirewallPolicy.MaxShieldCapacity);
+                // 5. Safely defer activation while an older unsettled/recoverable gameplay intent exists
+                using (var pendingCmd = _connection.CreateCommand())
+                {
+                    pendingCmd.Transaction = transaction;
+                    pendingCmd.CommandText = @"
+                        SELECT COUNT(*)
+                        FROM gameplay_pending_intent
+                        WHERE reset_epoch = @epoch;
+                    ";
+                    pendingCmd.Parameters.AddWithValue("@epoch", currentEpoch);
+                    long pendingCount = Convert.ToInt64(await pendingCmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+                    if (pendingCount > 0)
+                    {
+                        transaction.Commit();
+                        return CyberDefenseFirewallActivationResult.DeferredPendingIntent(
+                            currentRunState,
+                            "Cannot activate firewall capacity while unsettled combat intents exist.");
+                    }
+                }
+
+                // 6. Capacity and recharge semantics with question-bound target clamp
+                int effectiveTarget = Math.Min(firewallRank, questionBoundTargetCapacity);
+                int targetCapacity = Math.Clamp(effectiveTarget, 0, CyberDefenseFirewallPolicy.MaxShieldCapacity);
                 int delta = targetCapacity - oldShieldCapacity;
 
                 // Deterministic no-op if purchased capacity has already been activated or rank is 0
                 if (delta <= 0)
                 {
                     transaction.Commit();
-                    return currentRunState;
+                    return CyberDefenseFirewallActivationResult.AlreadyCurrent(currentRunState);
                 }
 
                 int newCapacity = targetCapacity;
@@ -2066,7 +2077,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 }
 
                 transaction.Commit();
-                return newRunState;
+                return CyberDefenseFirewallActivationResult.Applied(newRunState);
             }
             catch
             {
@@ -2292,6 +2303,46 @@ public sealed class SqliteGameplayStore : IGameplayStore
             _lastPublishedRevision = snapshot.StoreRevision;
 
             foreach (Action<CyberDefenseAttackUpgradeSnapshot> subscriber in handlers.GetInvocationList())
+            {
+                try
+                {
+                    subscriber(snapshot);
+                }
+                catch
+                {
+                    // Observer exception isolation: subscriber failures must never compromise store operations.
+                }
+            }
+        }
+    }
+
+    private void NotifyFirewallUpgradeSnapshotChanged(CyberDefenseFirewallUpgradeSnapshot snapshot)
+    {
+        var handlers = FirewallUpgradeSnapshotChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        lock (_notificationLock)
+        {
+            if (_lastPublishedFirewallEpoch >= 0)
+            {
+                if (snapshot.ResetEpoch < _lastPublishedFirewallEpoch)
+                {
+                    return;
+                }
+
+                if (snapshot.ResetEpoch == _lastPublishedFirewallEpoch && snapshot.StoreRevision <= _lastPublishedFirewallRevision)
+                {
+                    return;
+                }
+            }
+
+            _lastPublishedFirewallEpoch = snapshot.ResetEpoch;
+            _lastPublishedFirewallRevision = snapshot.StoreRevision;
+
+            foreach (Action<CyberDefenseFirewallUpgradeSnapshot> subscriber in handlers.GetInvocationList())
             {
                 try
                 {
@@ -3458,6 +3509,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         ArgumentOutOfRangeException.ThrowIfNegative(targetEpoch);
 
         CyberDefenseAttackUpgradeSnapshot? resetSnapshot = null;
+        CyberDefenseFirewallUpgradeSnapshot? resetFirewallSnapshot = null;
 
         await ExecuteWithConnectionGateAsync(async ct =>
         {
@@ -3556,6 +3608,19 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     playerLevel: 1,
                     resetEpoch: targetEpoch,
                     storeRevision: 1);
+
+                resetFirewallSnapshot = new CyberDefenseFirewallUpgradeSnapshot(
+                    currentFirewallRank: 0,
+                    nextFirewallRank: 1,
+                    requiredPlayerLevel: 5,
+                    nextRankCost: 3,
+                    availableSkillPoints: 0,
+                    playerLevel: 1,
+                    isLevelUnlocked: false,
+                    hasSufficientSkillPoints: false,
+                    canPurchaseNextRank: false,
+                    resetEpoch: targetEpoch,
+                    storeRevision: 1);
             }
             catch
             {
@@ -3567,6 +3632,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
         if (resetSnapshot != null)
         {
             NotifyAttackUpgradeSnapshotChanged(resetSnapshot);
+        }
+
+        if (resetFirewallSnapshot != null)
+        {
+            NotifyFirewallUpgradeSnapshotChanged(resetFirewallSnapshot);
         }
     }
 
@@ -3810,10 +3880,13 @@ public sealed class SqliteGameplayStore : IGameplayStore
         if (shouldCleanup)
         {
             AttackUpgradeSnapshotChanged = null;
+            FirewallUpgradeSnapshotChanged = null;
             lock (_notificationLock)
             {
                 _lastPublishedEpoch = -1;
                 _lastPublishedRevision = -1;
+                _lastPublishedFirewallEpoch = -1;
+                _lastPublishedFirewallRevision = -1;
             }
             CleanupResources();
         }

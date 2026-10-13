@@ -7,7 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using MathFirst.Application.Gameplay;
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Practice;
+using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 using MathFirst.Domain.CyberDefense;
+using MathFirst.Infrastructure.Sqlite;
 using MathFirst.Infrastructure.Sqlite.Gameplay;
 using Xunit;
 
@@ -126,6 +130,72 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
             resetEpoch: resetEpoch,
             createdAt: DateTimeOffset.UtcNow,
             effectiveAttackDamage: effectiveDamage);
+    }
+
+    private static SubmissionChangeSet CreateTestChangeSet(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long responseLatencyMs,
+        long practicePosition = 1,
+        long expectedRevision = 1)
+    {
+        var op = ArithmeticOperation.Addition;
+        var stripped = factId.StartsWith("add:", StringComparison.Ordinal) ? factId.Substring(4) : factId;
+        var parts = stripped.Split('+');
+        int left = int.Parse(parts[0]);
+        int right = int.Parse(parts[1]);
+        int answer = left + right;
+
+        var attempt = new AttemptRecord(
+            submissionId: submissionId,
+            factId: factId,
+            operation: op,
+            leftOperand: left,
+            rightOperand: right,
+            submittedAnswer: isCorrect ? answer : answer + 1,
+            correctAnswer: answer,
+            isCorrect: isCorrect,
+            isFluent: isCorrect,
+            responseLatencyMs: responseLatencyMs,
+            timestamp: DateTimeOffset.UtcNow,
+            outcome: isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect,
+            practicePosition: practicePosition);
+
+        var progression = LearnerProgression.CreateFresh();
+        progression.PracticePosition = practicePosition;
+        progression.CurriculumStage = CurriculumStage.Stage1_Addition;
+
+        var itemState = new ItemLearningState
+        {
+            FactId = factId,
+            Operation = op,
+            LeftOperand = left,
+            RightOperand = right,
+            TotalAttempts = 1,
+            CorrectAttempts = isCorrect ? 1 : 0,
+            IncorrectAttempts = isCorrect ? 0 : 1,
+            ConsecutiveCorrectStreak = isCorrect ? 1 : 0,
+            LastLatencyMs = responseLatencyMs,
+            RollingLatencyMs = responseLatencyMs,
+            FluentStreak = isCorrect ? 1 : 0,
+            IsProvisionallyMastered = false,
+            NeedsRemediation = !isCorrect,
+            RemediationDueOrder = 0,
+            LastPracticedOrder = (int)practicePosition,
+            LastPracticedAt = DateTimeOffset.UtcNow
+        };
+
+        var opProgressions = progression.OperationProgressions;
+
+        return new SubmissionChangeSet(
+            submissionId: submissionId,
+            ExpectedRevision: expectedRevision,
+            attempt: attempt,
+            updatedItemState: itemState,
+            updatedProgression: progression,
+            updatedFsrsState: null,
+            operationProgressions: opProgressions);
     }
 
     // =========================================================================
@@ -504,7 +574,7 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         await store.BeginOrGetResetIntentAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0));
+            store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0));
     }
 
     [Fact]
@@ -517,13 +587,13 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         await SetProgressionAsync(store, playerLevel: 5, earnedSp: 5, spentSp: 0, availableSp: 5, firewallRank: 1, resetEpoch: 2);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 1));
+            store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 1));
     }
 
     [Fact]
-    public async Task T14_FailureHandling_UnsettledPendingIntent_StoreRejectsActivation()
+    public async Task T14_FailureHandling_UnsettledPendingIntent_ReturnsDeferredPendingIntent()
     {
-        var dbPath = GetTempDbPath("reject_unsettled_intent");
+        var dbPath = GetTempDbPath("defer_unsettled_intent");
         using var store = new SqliteGameplayStore(dbPath);
         await store.InitializeAsync();
 
@@ -533,9 +603,9 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         var intent = CreateIntent("unsettled-intent-1");
         await store.StagePendingIntentAsync(intent);
 
-        // Store must reject activation while unsettled intent exists
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0));
+        // Store must defer activation while unsettled intent exists
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.DeferredPendingIntent, result.Status);
     }
 
     [Fact]
@@ -555,5 +625,132 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
             coordinator.ActivateQuestionBoundFirewallCapacityAsync(questionKey: 5));
 
         Assert.Null(ex);
+    }
+
+    // =========================================================================
+    // Category G: Remediation Regression Suites (BLK-01, BLK-02, MAJOR-01)
+    // =========================================================================
+
+    [Fact]
+    public async Task T16_BLK01_DelayedPresentationActivation_DoesNotReadFirewallRankPurchasedMidQuestion()
+    {
+        var dbPath = GetTempDbPath("blk01_delayed_activation");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await SetProgressionAsync(store, playerLevel: 5, earnedSp: 5, spentSp: 0, availableSp: 5, firewallRank: 0);
+
+        // Purchase Firewall Rank 1 mid-question
+        await store.PurchaseFirewallUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+
+        // Act: Execute activation bound to Q10's presentation-time entitlement (target capacity = 0)
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 0, expectedResetEpoch: 0);
+
+        // Assert: Must NOT activate Rank 1 capacity for Q10! Target was 0.
+        // Status must be AlreadyCurrent / NoOp, NOT Applied!
+        Assert.Equal(CyberDefenseFirewallActivationStatus.AlreadyCurrent, result.Status);
+        var runState = await store.GetRunStateAsync();
+        Assert.Equal(0, runState.ShieldCapacity);
+        Assert.Equal(0, runState.ActiveShields);
+    }
+
+    [Fact]
+    public async Task T17_BLK01_Coordinator_PurchaseDuringQ10_DoesNotRetroactivelyUpgradeQ10Entitlement()
+    {
+        var dbPath = GetTempDbPath("blk01_coordinator_q10");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+        var coordinator = new CyberDefenseCombatCoordinator(store, null);
+        await coordinator.InitializeAsync();
+
+        await SetProgressionAsync(store, playerLevel: 5, earnedSp: 5, spentSp: 0, availableSp: 5, firewallRank: 0);
+
+        // Q10 is presented when player has Rank 0
+        await coordinator.ActivateQuestionBoundFirewallCapacityAsync(questionKey: 10);
+
+        // Player purchases Rank 1 mid-question
+        await store.PurchaseFirewallUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+
+        // Run state must remain unshielded during Q10
+        var stateDuringQ10 = await store.GetRunStateAsync();
+        Assert.Equal(0, stateDuringQ10.ShieldCapacity);
+        Assert.Equal(0, stateDuringQ10.ActiveShields);
+
+        // Submission await for Q10 must NOT activate the shield
+        await coordinator.AwaitQuestionBoundFirewallActivationAsync(questionKey: 10);
+        var stateAfterAwait = await store.GetRunStateAsync();
+        Assert.Equal(0, stateAfterAwait.ShieldCapacity);
+        Assert.Equal(0, stateAfterAwait.ActiveShields);
+    }
+
+    [Fact]
+    public async Task T18_BLK02_SubmissionPath_DoesNotInitiateActivationForNewlyPurchasedShield()
+    {
+        var dbPath = GetTempDbPath("blk02_submission");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+        var coordinator = new CyberDefenseCombatCoordinator(store, null);
+        await coordinator.InitializeAsync();
+
+        await SetProgressionAsync(store, playerLevel: 5, earnedSp: 5, spentSp: 0, availableSp: 5, firewallRank: 0);
+
+        // Player purchases Rank 1 during Q10 without presentation activation having run
+        await store.PurchaseFirewallUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+
+        // At submission time, Home.razor calls AwaitQuestionBoundFirewallActivationAsync
+        // which must NOT initiate a new activation for Q10!
+        await coordinator.AwaitQuestionBoundFirewallActivationAsync(questionKey: 10);
+
+        // Store must remain at capacity 0
+        var state = await store.GetRunStateAsync();
+        Assert.Equal(0, state.ShieldCapacity);
+        Assert.Equal(0, state.ActiveShields);
+    }
+
+    [Fact]
+    public async Task T19_MAJOR01_UnsettledPendingIntent_ReturnsDeferredPendingIntent_AndRetriesSafelyAfterSettlement()
+    {
+        var dbPath = GetTempDbPath("major01_deferral_retry");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+        var learnerDbPath = Path.Combine(_testDirectory, "learner_" + Guid.NewGuid().ToString("N") + ".db");
+        using var learnerStore = new SqliteLearnerStore(learnerDbPath);
+        await learnerStore.InitializeAsync();
+        var consumer = new CyberDefenseSubmissionConsumer(store, learnerStore);
+        var coordinator = new CyberDefenseCombatCoordinator(store, consumer);
+        await coordinator.InitializeAsync();
+
+        // Level 5, Rank 1 purchased
+        await SetProgressionAsync(store, playerLevel: 5, earnedSp: 5, spentSp: 3, availableSp: 2, firewallRank: 1);
+
+        // Stage an unsettled intent for Q10
+        var q10Intent = CreateIntent("sub-q10", isCorrect: true);
+        await store.StagePendingIntentAsync(q10Intent);
+
+        // Q11 is presented while Q10 is unsettled:
+        // Direct store activation must return DeferredPendingIntent (NOT throw, NOT return Applied)
+        var storeResult = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.DeferredPendingIntent, storeResult.Status);
+
+        // Database run state must still be at capacity 0 (not activated yet)
+        var unactivatedState = await store.GetRunStateAsync();
+        Assert.Equal(0, unactivatedState.ShieldCapacity);
+
+        // Coordinator activation for Q11 also reports DeferredPendingIntent
+        var coordResult = await coordinator.ActivateQuestionBoundFirewallCapacityAsync(questionKey: 11);
+        Assert.NotNull(coordResult);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.DeferredPendingIntent, coordResult.Status);
+
+        // Now Q10 settles via consumption
+        var changeSet = CreateTestChangeSet("sub-q10", "add:1+1", true, 500);
+        await learnerStore.CommitSubmissionAsync(changeSet);
+        var consumptionResult = await coordinator.ConsumeCommittedAttemptAsync("sub-q10");
+        Assert.NotNull(consumptionResult);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, consumptionResult.Status);
+
+        // After settlement, Q11 activation retries safely and activates 1 shield!
+        var settledState = await store.GetRunStateAsync();
+        Assert.Equal(1, settledState.ShieldCapacity);
+        Assert.Equal(1, settledState.ActiveShields);
     }
 }

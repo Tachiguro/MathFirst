@@ -22,12 +22,15 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _stateLock = new();
     private readonly Dictionary<long, int> _boundQuestionDamage = new();
+    private readonly Dictionary<long, int> _boundQuestionFirewallRank = new();
     private readonly Dictionary<long, Task<int>> _inFlightQuestionBindings = new();
-    private readonly Dictionary<long, Task> _inFlightQuestionActivations = new();
+    private readonly Dictionary<long, Task<CyberDefenseFirewallActivationResult?>> _inFlightQuestionActivations = new();
     private long _lastActivatedQuestionKey = -1;
+    private long _deferredActivationQuestionKey = -1;
     private long _activeGeneration = 1;
     private long _activeResetEpoch = -1;
     private CyberDefenseAttackUpgradeSnapshot? _authoritativeSnapshot;
+    private CyberDefenseFirewallUpgradeSnapshot? _authoritativeFirewallSnapshot;
     private long _activeQuestionKey = -1;
     private long _lowestRetainedQuestionKey = -1;
     private CyberDefenseHudViewModel _currentViewModel = CyberDefenseHudViewModel.Initial();
@@ -42,6 +45,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         if (_gameplayStore != null)
         {
             _gameplayStore.AttackUpgradeSnapshotChanged += OnAttackUpgradeSnapshotChanged;
+            _gameplayStore.FirewallUpgradeSnapshotChanged += OnFirewallUpgradeSnapshotChanged;
         }
     }
 
@@ -58,9 +62,11 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         {
             _activeResetEpoch = snapshot.ResetEpoch;
             _boundQuestionDamage.Clear();
+            _boundQuestionFirewallRank.Clear();
             _inFlightQuestionBindings.Clear();
             _inFlightQuestionActivations.Clear();
             _lastActivatedQuestionKey = -1;
+            _deferredActivationQuestionKey = -1;
             _lowestRetainedQuestionKey = -1;
             _authoritativeSnapshot = snapshot;
             return true;
@@ -91,6 +97,52 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         return true;
     }
 
+    private bool TryApplyAuthoritativeFirewallSnapshot(CyberDefenseFirewallUpgradeSnapshot snapshot)
+    {
+        // 1. Monotonic reset epoch fence: Discard stale snapshot from older epoch
+        if (_activeResetEpoch >= 0 && snapshot.ResetEpoch < _activeResetEpoch)
+        {
+            return false;
+        }
+
+        // 2. Epoch transition: Clear old bindings when entering a newer epoch
+        if (_activeResetEpoch >= 0 && snapshot.ResetEpoch > _activeResetEpoch)
+        {
+            _activeResetEpoch = snapshot.ResetEpoch;
+            _boundQuestionDamage.Clear();
+            _boundQuestionFirewallRank.Clear();
+            _inFlightQuestionBindings.Clear();
+            _inFlightQuestionActivations.Clear();
+            _lastActivatedQuestionKey = -1;
+            _deferredActivationQuestionKey = -1;
+            _lowestRetainedQuestionKey = -1;
+            _authoritativeFirewallSnapshot = snapshot;
+            return true;
+        }
+
+        if (_activeResetEpoch < 0)
+        {
+            _activeResetEpoch = snapshot.ResetEpoch;
+        }
+
+        // 3. Monotonic revision fence within the same epoch
+        if (_authoritativeFirewallSnapshot != null && snapshot.ResetEpoch == _authoritativeFirewallSnapshot.ResetEpoch)
+        {
+            if (snapshot.StoreRevision < _authoritativeFirewallSnapshot.StoreRevision)
+            {
+                return false;
+            }
+
+            if (snapshot.StoreRevision == _authoritativeFirewallSnapshot.StoreRevision)
+            {
+                return true;
+            }
+        }
+
+        _authoritativeFirewallSnapshot = snapshot;
+        return true;
+    }
+
     private void OnAttackUpgradeSnapshotChanged(CyberDefenseAttackUpgradeSnapshot snapshot)
     {
         lock (_stateLock)
@@ -104,7 +156,6 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             // 2. For any question currently in flight (dispatched before this purchase committed),
             // bind immediately to the conservative baseline entitlement (damage 1)
             // to prevent retroactive damage upgrade across multiple purchases.
-            // (Replaces the unreliable CurrentAttackRank - 1 heuristic).
             if (_inFlightQuestionBindings.Count > 0)
             {
                 const int baselineDamage = 1;
@@ -116,6 +167,31 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                     }
                 }
             }
+        }
+    }
+
+    private void OnFirewallUpgradeSnapshotChanged(CyberDefenseFirewallUpgradeSnapshot snapshot)
+    {
+        lock (_stateLock)
+        {
+            int prePurchaseRank = _authoritativeFirewallSnapshot?.CurrentFirewallRank ?? 0;
+
+            // 1. For any question currently in flight whose activation hasn't bound a target yet,
+            // bind immediately to the pre-purchase authoritative rank so mid-flight purchases
+            // can never retroactively upgrade this question's entitlement!
+            if (_inFlightQuestionActivations.Count > 0)
+            {
+                foreach (var inFlightKey in _inFlightQuestionActivations.Keys)
+                {
+                    if (!_boundQuestionFirewallRank.ContainsKey(inFlightKey))
+                    {
+                        _boundQuestionFirewallRank[inFlightKey] = prePurchaseRank;
+                    }
+                }
+            }
+
+            // 2. Monotonic reset epoch and revision fence
+            TryApplyAuthoritativeFirewallSnapshot(snapshot);
         }
     }
 
@@ -148,6 +224,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             var recoveryResult = await _consumer.RecoverPendingIntentsAsync(cancellationToken).ConfigureAwait(false);
             var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
             var snapshot = await _gameplayStore.GetAttackUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var firewallSnapshot = await _gameplayStore.GetFirewallUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
             CyberDefenseReceiptRecord? latestReceipt = null;
             if (recoveryResult.Receipts.Count > 0)
@@ -164,6 +241,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
 
                 _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, latestReceipt, _feedbackRevision);
                 TryApplyAuthoritativeSnapshot(snapshot);
+                TryApplyAuthoritativeFirewallSnapshot(firewallSnapshot);
             }
         }
         catch
@@ -300,22 +378,22 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         }
     }
 
-    public Task ActivateQuestionBoundFirewallCapacityAsync(
+    public Task<CyberDefenseFirewallActivationResult?> ActivateQuestionBoundFirewallCapacityAsync(
         long questionKey,
         CancellationToken cancellationToken = default)
     {
         if (questionKey < 0 || _gameplayStore == null)
         {
-            return Task.CompletedTask;
+            return Task.FromResult<CyberDefenseFirewallActivationResult?>(null);
         }
 
-        Task? inFlightTask;
+        Task<CyberDefenseFirewallActivationResult?>? inFlightTask;
         lock (_stateLock)
         {
             // 1. If already activated for this question key or an older question, do not activate again.
             if (_lastActivatedQuestionKey >= 0 && questionKey <= _lastActivatedQuestionKey)
             {
-                return Task.CompletedTask;
+                return Task.FromResult<CyberDefenseFirewallActivationResult?>(null);
             }
 
             // 2. If activation for this questionKey is already in flight, return the existing task.
@@ -329,9 +407,35 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         return AwaitActivationAsync(inFlightTask, cancellationToken);
     }
 
-    private async Task PerformQuestionActivationAsync(long questionKey, long taskGeneration, long taskResetEpoch)
+    public Task AwaitQuestionBoundFirewallActivationAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default)
     {
-        CyberDefenseRunState? newRunState = null;
+        if (questionKey < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        Task<CyberDefenseFirewallActivationResult?>? inFlightTask;
+        lock (_stateLock)
+        {
+            _inFlightQuestionActivations.TryGetValue(questionKey, out inFlightTask);
+        }
+
+        if (inFlightTask == null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return AwaitActivationAsync(inFlightTask, cancellationToken);
+    }
+
+    private async Task<CyberDefenseFirewallActivationResult?> PerformQuestionActivationAsync(
+        long questionKey,
+        long taskGeneration,
+        long taskResetEpoch)
+    {
+        CyberDefenseFirewallActivationResult? result = null;
         try
         {
             long currentEpoch = taskResetEpoch;
@@ -340,9 +444,40 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                 currentEpoch = await _gameplayStore.GetResetEpochAsync().ConfigureAwait(false);
             }
 
+            int boundTarget = 0;
             if (_gameplayStore != null && currentEpoch >= 0)
             {
-                newRunState = await _gameplayStore.ActivatePendingFirewallCapacityAsync(currentEpoch).ConfigureAwait(false);
+                bool needSnapshotFetch = false;
+                lock (_stateLock)
+                {
+                    if (_boundQuestionFirewallRank.TryGetValue(questionKey, out var existingTarget))
+                    {
+                        boundTarget = existingTarget;
+                    }
+                    else
+                    {
+                        needSnapshotFetch = true;
+                    }
+                }
+
+                if (needSnapshotFetch)
+                {
+                    var snapshot = await _gameplayStore.GetFirewallUpgradeSnapshotAsync().ConfigureAwait(false);
+                    lock (_stateLock)
+                    {
+                        if (!_boundQuestionFirewallRank.TryGetValue(questionKey, out boundTarget))
+                        {
+                            boundTarget = snapshot.CurrentFirewallRank;
+                            _boundQuestionFirewallRank[questionKey] = boundTarget;
+                            TrimBoundQuestionFirewallRankHistory();
+                        }
+                        TryApplyAuthoritativeFirewallSnapshot(snapshot);
+                    }
+                }
+
+                result = await _gameplayStore.ActivatePendingFirewallCapacityAsync(
+                    boundTarget,
+                    currentEpoch).ConfigureAwait(false);
             }
         }
         catch
@@ -357,33 +492,143 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             // Generation fence: stale generation callback dropped
             if (taskGeneration != _activeGeneration)
             {
-                return;
+                return result;
             }
 
             // Epoch fence
             if (_activeResetEpoch >= 0 && taskResetEpoch >= 0 && taskResetEpoch != _activeResetEpoch)
             {
+                return result;
+            }
+
+            if (result != null)
+            {
+                if (result.Status == CyberDefenseFirewallActivationStatus.Applied ||
+                    result.Status == CyberDefenseFirewallActivationStatus.AlreadyCurrent)
+                {
+                    if (_deferredActivationQuestionKey == questionKey)
+                    {
+                        _deferredActivationQuestionKey = -1;
+                    }
+
+                    if (questionKey > _lastActivatedQuestionKey)
+                    {
+                        _lastActivatedQuestionKey = questionKey;
+                    }
+
+                    if (result.RunState != null)
+                    {
+                        _currentViewModel = CyberDefenseHudViewModel.FromRunState(result.RunState, null, _feedbackRevision);
+                    }
+                }
+                else if (result.Status == CyberDefenseFirewallActivationStatus.DeferredPendingIntent)
+                {
+                    _deferredActivationQuestionKey = questionKey;
+                }
+            }
+
+            return result;
+        }
+    }
+
+    private async Task TryRetryDeferredActivationAsync(CancellationToken cancellationToken)
+    {
+        if (_gameplayStore == null)
+        {
+            return;
+        }
+
+        long retryKey;
+        int boundTarget;
+        long currentEpoch;
+        lock (_stateLock)
+        {
+            retryKey = _deferredActivationQuestionKey;
+            if (retryKey < 0)
+            {
                 return;
             }
 
-            // If activation succeeded, update last activated question key and ViewModel
-            if (newRunState != null)
+            if (_lastActivatedQuestionKey >= retryKey)
             {
-                if (questionKey > _lastActivatedQuestionKey)
-                {
-                    _lastActivatedQuestionKey = questionKey;
-                }
+                _deferredActivationQuestionKey = -1;
+                return;
+            }
 
-                _currentViewModel = CyberDefenseHudViewModel.FromRunState(newRunState, null, _feedbackRevision);
+            if (!_boundQuestionFirewallRank.TryGetValue(retryKey, out boundTarget))
+            {
+                _deferredActivationQuestionKey = -1;
+                return;
+            }
+
+            currentEpoch = _activeResetEpoch;
+        }
+
+        try
+        {
+            if (currentEpoch < 0)
+            {
+                currentEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var retryResult = await _gameplayStore.ActivatePendingFirewallCapacityAsync(
+                boundTarget,
+                currentEpoch,
+                cancellationToken).ConfigureAwait(false);
+
+            lock (_stateLock)
+            {
+                if (retryResult.Status == CyberDefenseFirewallActivationStatus.Applied ||
+                    retryResult.Status == CyberDefenseFirewallActivationStatus.AlreadyCurrent)
+                {
+                    _deferredActivationQuestionKey = -1;
+                    if (retryKey > _lastActivatedQuestionKey)
+                    {
+                        _lastActivatedQuestionKey = retryKey;
+                    }
+
+                    if (retryResult.RunState != null)
+                    {
+                        _currentViewModel = CyberDefenseHudViewModel.FromRunState(
+                            retryResult.RunState,
+                            null,
+                            _feedbackRevision);
+                    }
+                }
+                else if (retryResult.Status != CyberDefenseFirewallActivationStatus.DeferredPendingIntent)
+                {
+                    _deferredActivationQuestionKey = -1;
+                }
+            }
+        }
+        catch
+        {
+            // Learning-first failure isolation: Retry failure must not crash or bubble up
+        }
+    }
+
+    private void TrimBoundQuestionFirewallRankHistory()
+    {
+        if (_boundQuestionFirewallRank.Count > MaxQuestionDamageHistory)
+        {
+            var keysToRemove = _boundQuestionFirewallRank.Keys
+                .Where(k => k != _activeQuestionKey && k != _deferredActivationQuestionKey)
+                .OrderBy(k => k)
+                .Take(_boundQuestionFirewallRank.Count - MaxQuestionDamageHistory)
+                .ToList();
+
+            foreach (var k in keysToRemove)
+            {
+                _boundQuestionFirewallRank.Remove(k);
             }
         }
     }
 
-    private static async Task AwaitActivationAsync(Task activationTask, CancellationToken cancellationToken)
+    private static async Task<CyberDefenseFirewallActivationResult?> AwaitActivationAsync(Task<CyberDefenseFirewallActivationResult?> activationTask, CancellationToken cancellationToken)
     {
         try
         {
-            await activationTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return await activationTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -392,6 +637,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         catch
         {
             // Learning-first failure isolation
+            return null;
         }
     }
 
@@ -512,6 +758,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                     _feedbackRevision++;
                     _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, result.Receipt, _feedbackRevision);
                 }
+
+                await TryRetryDeferredActivationAsync(cancellationToken).ConfigureAwait(false);
             }
             else if (result.Status == CyberDefenseConsumptionStatus.AlreadyConsumed && result.Receipt != null)
             {
@@ -520,6 +768,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                 {
                     _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
                 }
+
+                await TryRetryDeferredActivationAsync(cancellationToken).ConfigureAwait(false);
             }
             return result;
         }
@@ -550,10 +800,12 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         {
             var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
             var snapshot = await _gameplayStore.GetAttackUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var firewallSnapshot = await _gameplayStore.GetFirewallUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
             lock (_stateLock)
             {
                 _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
                 TryApplyAuthoritativeSnapshot(snapshot);
+                TryApplyAuthoritativeFirewallSnapshot(firewallSnapshot);
             }
         }
         catch
@@ -577,12 +829,15 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             _feedbackRevision = 0;
             _currentViewModel = CyberDefenseHudViewModel.Initial();
             _boundQuestionDamage.Clear();
+            _boundQuestionFirewallRank.Clear();
             _inFlightQuestionBindings.Clear();
             _inFlightQuestionActivations.Clear();
             _lastActivatedQuestionKey = -1;
+            _deferredActivationQuestionKey = -1;
             _activeQuestionKey = -1;
             _lowestRetainedQuestionKey = -1;
             _authoritativeSnapshot = null;
+            _authoritativeFirewallSnapshot = null;
         }
     }
 
@@ -591,6 +846,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         if (_gameplayStore != null)
         {
             _gameplayStore.AttackUpgradeSnapshotChanged -= OnAttackUpgradeSnapshotChanged;
+            _gameplayStore.FirewallUpgradeSnapshotChanged -= OnFirewallUpgradeSnapshotChanged;
         }
     }
 }

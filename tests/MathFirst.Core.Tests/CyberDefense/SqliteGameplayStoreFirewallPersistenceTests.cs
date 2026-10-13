@@ -445,11 +445,11 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
         using var store = new SqliteGameplayStore(dbPath);
         await store.InitializeAsync();
 
-        var state = await store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0);
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 0, expectedResetEpoch: 0);
 
-        Assert.Equal(0, state.ShieldCapacity);
-        Assert.Equal(0, state.ActiveShields);
-        Assert.Equal(0, state.ShieldRechargeUnits);
+        Assert.Equal(0, result.RunState!.ShieldCapacity);
+        Assert.Equal(0, result.RunState.ActiveShields);
+        Assert.Equal(0, result.RunState.ShieldRechargeUnits);
     }
 
     [Fact]
@@ -468,11 +468,11 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
             await cmd.ExecuteNonQueryAsync();
         });
 
-        var newState = await store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0);
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 2, expectedResetEpoch: 0);
 
-        Assert.Equal(2, newState.ShieldCapacity);
-        Assert.Equal(1, newState.ActiveShields);
-        Assert.Equal(15, newState.ShieldRechargeUnits);
+        Assert.Equal(2, result.RunState!.ShieldCapacity);
+        Assert.Equal(1, result.RunState.ActiveShields);
+        Assert.Equal(15, result.RunState.ShieldRechargeUnits);
     }
 
     [Fact]
@@ -485,7 +485,7 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
         await store.BeginOrGetResetIntentAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0));
+            store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0));
     }
 
     [Fact]
@@ -496,11 +496,11 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
         await store.InitializeAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 99));
+            store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 99));
     }
 
     [Fact]
-    public async Task ActivatePendingFirewallCapacityAsync_UnsettledIntent_ThrowsInvalidOperationException()
+    public async Task ActivatePendingFirewallCapacityAsync_UnsettledIntent_ReturnsDeferredPendingIntent()
     {
         var dbPath = GetTempDbPath("activate_unsettled_intent");
         using var store = new SqliteGameplayStore(dbPath);
@@ -509,7 +509,7 @@ public sealed class SqliteGameplayStoreFirewallPersistenceTests : IDisposable
         var intent = CreateIntent("sub-unsettled");
         await store.StagePendingIntentAsync(intent);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.ActivatePendingFirewallCapacityAsync(expectedResetEpoch: 0));
+        var result = await store.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity: 1, expectedResetEpoch: 0);
+        Assert.Equal(CyberDefenseFirewallActivationStatus.DeferredPendingIntent, result.Status);
     }
 }
