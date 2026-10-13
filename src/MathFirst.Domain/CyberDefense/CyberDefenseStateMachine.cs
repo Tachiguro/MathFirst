@@ -18,6 +18,46 @@ public static class CyberDefenseStateMachine
         if (!isCorrect)
         {
             int incomingEnemyDamage = CyberDefenseCombatPolicy.GetEnemyDamage(run.Sector, run.CurrentOpponent.Kind);
+
+            if (run.ActiveShields > 0)
+            {
+                int postAbsorptionActiveShields = checked(run.ActiveShields - 1);
+                var (nextActiveShields, nextRechargeUnits) = ApplyRecharge(
+                    run.ShieldCapacity,
+                    postAbsorptionActiveShields,
+                    run.ShieldRechargeUnits,
+                    CyberDefenseFirewallPolicy.IncorrectAttemptRechargeUnits);
+
+                var nextState = CyberDefenseRunState.CreateActive(
+                    run.Sector,
+                    run.OpponentIndex,
+                    run.PlayerCurrentHp,
+                    run.CurrentOpponent,
+                    run.ShieldCapacity,
+                    nextActiveShields,
+                    nextRechargeUnits);
+
+                return new CyberDefenseCombatTransitionResult(
+                    isCorrect: false,
+                    requestedAttackDamage: 0,
+                    appliedOpponentDamage: 0,
+                    excessOpponentDamage: 0,
+                    incomingEnemyDamage: incomingEnemyDamage,
+                    appliedPlayerDamage: 0,
+                    excessEnemyDamage: 0,
+                    potentialHealing: 0,
+                    appliedHealing: 0,
+                    isOpponentDefeated: false,
+                    isSectorCompleted: false,
+                    isGameOver: false,
+                    nextState: nextState,
+                    terminalSnapshot: null,
+                    executedAttacksOnDefeatedOpponent: null,
+                    defeatedOpponentProvenance: null,
+                    isShieldAbsorbed: true,
+                    absorbedEnemyDamage: incomingEnemyDamage);
+            }
+
             if (run.PlayerCurrentHp <= incomingEnemyDamage)
             {
                 int appliedPlayerDamage = run.PlayerCurrentHp;
@@ -31,7 +71,7 @@ public static class CyberDefenseStateMachine
                     run.CurrentOpponent.MaxHp,
                     playerCurrentHp: 0);
 
-                var rebootedNextState = CyberDefenseRunState.InitialRun();
+                var rebootedNextState = CyberDefenseRunState.InitialRun(run.ShieldCapacity);
 
                 return new CyberDefenseCombatTransitionResult(
                     isCorrect: false,
@@ -47,16 +87,29 @@ public static class CyberDefenseStateMachine
                     isSectorCompleted: false,
                     isGameOver: true,
                     nextState: rebootedNextState,
-                    terminalSnapshot: terminalSnapshot);
+                    terminalSnapshot: terminalSnapshot,
+                    executedAttacksOnDefeatedOpponent: null,
+                    defeatedOpponentProvenance: null,
+                    isShieldAbsorbed: false,
+                    absorbedEnemyDamage: 0);
             }
 
             int nextPlayerHp = checked(run.PlayerCurrentHp - incomingEnemyDamage);
 
-            var nextState = CyberDefenseRunState.CreateActive(
+            var (unabsorbedNextActiveShields, unabsorbedNextRechargeUnits) = ApplyRecharge(
+                run.ShieldCapacity,
+                run.ActiveShields,
+                run.ShieldRechargeUnits,
+                CyberDefenseFirewallPolicy.IncorrectAttemptRechargeUnits);
+
+            var survivedNextState = CyberDefenseRunState.CreateActive(
                 run.Sector,
                 run.OpponentIndex,
                 nextPlayerHp,
-                run.CurrentOpponent);
+                run.CurrentOpponent,
+                run.ShieldCapacity,
+                unabsorbedNextActiveShields,
+                unabsorbedNextRechargeUnits);
 
             return new CyberDefenseCombatTransitionResult(
                 isCorrect: false,
@@ -71,8 +124,12 @@ public static class CyberDefenseStateMachine
                 isOpponentDefeated: false,
                 isSectorCompleted: false,
                 isGameOver: false,
-                nextState: nextState,
-                terminalSnapshot: null);
+                nextState: survivedNextState,
+                terminalSnapshot: null,
+                executedAttacksOnDefeatedOpponent: null,
+                defeatedOpponentProvenance: null,
+                isShieldAbsorbed: false,
+                absorbedEnemyDamage: 0);
         }
 
         int requestedAttackDamage = effectiveAttackDamage;
@@ -82,6 +139,12 @@ public static class CyberDefenseStateMachine
         int appliedOpponentDamage = Math.Min(requestedAttackDamage, currentOpponentHp);
         int excessOpponentDamage = checked(requestedAttackDamage - appliedOpponentDamage);
         int remainingOpponentHp = checked(currentOpponentHp - appliedOpponentDamage);
+
+        var (correctNextActiveShields, correctNextRechargeUnits) = ApplyRecharge(
+            run.ShieldCapacity,
+            run.ActiveShields,
+            run.ShieldRechargeUnits,
+            CyberDefenseFirewallPolicy.CorrectAttemptRechargeUnits);
 
         if (remainingOpponentHp > 0)
         {
@@ -96,7 +159,10 @@ public static class CyberDefenseStateMachine
                 run.Sector,
                 run.OpponentIndex,
                 run.PlayerCurrentHp,
-                nextOpponent);
+                nextOpponent,
+                run.ShieldCapacity,
+                correctNextActiveShields,
+                correctNextRechargeUnits);
 
             return new CyberDefenseCombatTransitionResult(
                 isCorrect: true,
@@ -114,7 +180,9 @@ public static class CyberDefenseStateMachine
                 nextState: nextState,
                 terminalSnapshot: null,
                 executedAttacksOnDefeatedOpponent: null,
-                defeatedOpponentProvenance: null);
+                defeatedOpponentProvenance: null,
+                isShieldAbsorbed: false,
+                absorbedEnemyDamage: 0);
         }
         else
         {
@@ -155,7 +223,10 @@ public static class CyberDefenseStateMachine
                 nextSector,
                 nextOpponentIndex,
                 nextPlayerHp,
-                nextOpponent);
+                nextOpponent,
+                run.ShieldCapacity,
+                correctNextActiveShields,
+                correctNextRechargeUnits);
 
             return new CyberDefenseCombatTransitionResult(
                 isCorrect: true,
@@ -173,7 +244,38 @@ public static class CyberDefenseStateMachine
                 nextState: nextState,
                 terminalSnapshot: null,
                 executedAttacksOnDefeatedOpponent: nextExecutedAttacks,
-                defeatedOpponentProvenance: run.CurrentOpponent.Provenance);
+                defeatedOpponentProvenance: run.CurrentOpponent.Provenance,
+                isShieldAbsorbed: false,
+                absorbedEnemyDamage: 0);
         }
+    }
+
+    private static (int nextActiveShields, int nextRechargeUnits) ApplyRecharge(
+        int shieldCapacity,
+        int activeShields,
+        int shieldRechargeUnits,
+        int rechargeDelta)
+    {
+        if (shieldCapacity <= 0 || activeShields >= shieldCapacity || rechargeDelta <= 0)
+        {
+            return (activeShields, 0);
+        }
+
+        int totalUnits = checked(shieldRechargeUnits + rechargeDelta);
+        int threshold = CyberDefenseFirewallPolicy.RechargeThresholdUnits;
+
+        if (totalUnits >= threshold)
+        {
+            int restoredShields = checked(activeShields + 1);
+            if (restoredShields >= shieldCapacity)
+            {
+                return (shieldCapacity, 0);
+            }
+
+            int surplus = checked(totalUnits - threshold);
+            return (restoredShields, surplus);
+        }
+
+        return (activeShields, totalUnits);
     }
 }

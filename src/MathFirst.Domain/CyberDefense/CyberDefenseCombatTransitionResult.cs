@@ -18,6 +18,8 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
     public CyberDefenseTerminalRunSnapshot? TerminalSnapshot { get; }
     public int? ExecutedAttacksOnDefeatedOpponent { get; }
     public OpponentEncounterProvenance? DefeatedOpponentProvenance { get; }
+    public bool IsShieldAbsorbed { get; }
+    public int AbsorbedEnemyDamage { get; }
 
     public CyberDefenseCombatTransitionResult(
         bool isCorrect,
@@ -35,7 +37,9 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         CyberDefenseRunState nextState,
         CyberDefenseTerminalRunSnapshot? terminalSnapshot = null,
         int? executedAttacksOnDefeatedOpponent = null,
-        OpponentEncounterProvenance? defeatedOpponentProvenance = null)
+        OpponentEncounterProvenance? defeatedOpponentProvenance = null,
+        bool isShieldAbsorbed = false,
+        int absorbedEnemyDamage = 0)
     {
         ArgumentNullException.ThrowIfNull(nextState);
         ArgumentOutOfRangeException.ThrowIfNegative(requestedAttackDamage);
@@ -44,8 +48,23 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         ArgumentOutOfRangeException.ThrowIfNegative(incomingEnemyDamage);
         ArgumentOutOfRangeException.ThrowIfNegative(appliedPlayerDamage);
         ArgumentOutOfRangeException.ThrowIfNegative(excessEnemyDamage);
+        ArgumentOutOfRangeException.ThrowIfNegative(absorbedEnemyDamage);
         ArgumentOutOfRangeException.ThrowIfNegative(potentialHealing);
         ArgumentOutOfRangeException.ThrowIfNegative(appliedHealing);
+
+        if (isShieldAbsorbed && absorbedEnemyDamage <= 0)
+        {
+            throw new ArgumentException(
+                $"Absorbed enemy damage ({absorbedEnemyDamage}) must be positive when shield absorption is true.",
+                nameof(absorbedEnemyDamage));
+        }
+
+        if (!isShieldAbsorbed && absorbedEnemyDamage != 0)
+        {
+            throw new ArgumentException(
+                $"Absorbed enemy damage ({absorbedEnemyDamage}) must be zero when shield absorption is false.",
+                nameof(absorbedEnemyDamage));
+        }
 
         if (appliedOpponentDamage > requestedAttackDamage)
         {
@@ -68,10 +87,23 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
                 nameof(appliedPlayerDamage));
         }
 
-        if (excessEnemyDamage != checked(incomingEnemyDamage - appliedPlayerDamage))
+        if (absorbedEnemyDamage > incomingEnemyDamage)
         {
             throw new ArgumentException(
-                $"Excess enemy damage ({excessEnemyDamage}) must equal incoming enemy damage ({incomingEnemyDamage}) minus applied player damage ({appliedPlayerDamage}).",
+                $"Absorbed enemy damage ({absorbedEnemyDamage}) cannot exceed incoming enemy damage ({incomingEnemyDamage}).",
+                nameof(absorbedEnemyDamage));
+        }
+
+        if (checked(appliedPlayerDamage + absorbedEnemyDamage) > incomingEnemyDamage)
+        {
+            throw new ArgumentException(
+                $"Combined applied player damage ({appliedPlayerDamage}) and absorbed enemy damage ({absorbedEnemyDamage}) cannot exceed incoming enemy damage ({incomingEnemyDamage}).");
+        }
+
+        if (excessEnemyDamage != checked(incomingEnemyDamage - appliedPlayerDamage - absorbedEnemyDamage))
+        {
+            throw new ArgumentException(
+                $"Excess enemy damage ({excessEnemyDamage}) must equal incoming enemy damage ({incomingEnemyDamage}) minus applied player damage ({appliedPlayerDamage}) minus absorbed enemy damage ({absorbedEnemyDamage}).",
                 nameof(excessEnemyDamage));
         }
 
@@ -157,6 +189,8 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         TerminalSnapshot = terminalSnapshot;
         ExecutedAttacksOnDefeatedOpponent = executedAttacksOnDefeatedOpponent;
         DefeatedOpponentProvenance = defeatedOpponentProvenance;
+        IsShieldAbsorbed = isShieldAbsorbed;
+        AbsorbedEnemyDamage = absorbedEnemyDamage;
     }
 
     public bool Equals(CyberDefenseCombatTransitionResult? other)
@@ -178,7 +212,9 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
                Equals(NextState, other.NextState) &&
                Equals(TerminalSnapshot, other.TerminalSnapshot) &&
                ExecutedAttacksOnDefeatedOpponent == other.ExecutedAttacksOnDefeatedOpponent &&
-               DefeatedOpponentProvenance == other.DefeatedOpponentProvenance;
+               DefeatedOpponentProvenance == other.DefeatedOpponentProvenance &&
+               IsShieldAbsorbed == other.IsShieldAbsorbed &&
+               AbsorbedEnemyDamage == other.AbsorbedEnemyDamage;
     }
 
     public override bool Equals(object? obj) => Equals(obj as CyberDefenseCombatTransitionResult);
@@ -202,6 +238,8 @@ public sealed class CyberDefenseCombatTransitionResult : IEquatable<CyberDefense
         hash.Add(TerminalSnapshot);
         hash.Add(ExecutedAttacksOnDefeatedOpponent);
         hash.Add(DefeatedOpponentProvenance);
+        hash.Add(IsShieldAbsorbed);
+        hash.Add(AbsorbedEnemyDamage);
         return hash.ToHashCode();
     }
 
