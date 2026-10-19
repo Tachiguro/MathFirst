@@ -111,7 +111,7 @@ Agents operate in isolated, single-responsibility **Operation Modes** (defined i
 
 ## 6. Non-Delegable Operations
 
-The following actions require **explicit, affirmative user approval** and must never be executed autonomously by agents:
+The following actions require **explicit, affirmative user approval** and must never be executed autonomously by local coding agents. MathFirst's separate standing authorization for the coordinating ChatGPT applies only to the narrowly scoped PR merge exception described below:
 - Merging a Pull Request
 - Enabling auto-merge on GitHub
 - Branch or worktree deletion
@@ -125,6 +125,17 @@ The following actions require **explicit, affirmative user approval** and must n
 - Operations touching real private user data
 - Launching parallel writing agents or subagents
 - Material scope expansion
+
+### Coordinator-only PR merge delegation (MathFirst)
+
+The owner has expressly authorized the **coordinating ChatGPT**, not local coding agents, to decide and perform routine PR merges for **already approved MathFirst work** without asking for permission on every eligible PR. The project-specific standing delegation constitutes affirmative owner authorization **only when** the following fail-closed merge gate passes:
+
+1. Independently verify the repository, intended `main` base, live PR/head/base SHAs, mergeability, existing project scope and current branch/CI/branch-protection requirements.
+2. Confirm exact-candidate validation evidence, required test/build/security checks, review completion, and no unresolved BLOCKER/MAJOR, conflict, unknown material risk or stale HEAD.
+3. Merge directly via authorized GitHub tools only when every applicable gate is satisfied; never enable auto-merge. Any missing evidence, permission, or required platform confirmation is a **STOP**, not implicit approval.
+4. Read back merged PR state and resulting `main` SHA; record merge SHA and validation evidence in the implementation Issue; request separate local `POST_MERGE_SYNC_ONLY` (fast-forward only). Do not delete branches as part of merge.
+
+Coding agents remain **forbidden to autonomously merge PRs**. Releases, deployments, signing, data changes, deletion/history rewrite, scope expansion and additional costs still require separate affirmative approval. The central Blueprint and platform controls take precedence wherever stricter.
 
 ---
 

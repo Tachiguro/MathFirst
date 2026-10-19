@@ -18,7 +18,7 @@ All work in MathFirst is organized into small, bounded packages identified by a 
                                     └── [FULL_VALIDATION] (exact candidate HEAD)
                                             └── [PUSH_ONLY]
                                                     └── [PR_ONLY]
-                                                            └── [Manual User Merge]
+                                                            └── [Coordinator-Gated / Owner Merge]
                                                                     └── [POST_MERGE_SYNC_ONLY]
 ```
 
@@ -31,7 +31,7 @@ All work in MathFirst is organized into small, bounded packages identified by a 
                             └── [FULL_VALIDATION]
                                     └── [PUSH_ONLY]
                                             └── [PR_ONLY]
-                                                    └── [Manual User Merge]
+                                                    └── [Coordinator-Gated / Owner Merge]
                                                             └── [POST_MERGE_SYNC_ONLY]
 ```
 
@@ -97,17 +97,18 @@ Every completed package must pass a documentation reconciliation check in `DOCUM
 
 ---
 
-## 7. Push, Pull Request, and Manual Merge
+## 7. Push, Pull Request, and Coordinator-Gated Merge
 
 1. **`PUSH_ONLY`**: Push the validated task branch to `origin` using `git push -u origin <branch>`.
 2. **`PR_ONLY`**: Open a GitHub PR targeting `main` using the standard [.github/pull_request_template.md](../.github/pull_request_template.md).
-3. **Manual User Merge**: The repository owner manually reviews and merges the PR on GitHub. Agents do not merge PRs or enable auto-merge.
+3. **Coordinator-gated MathFirst merge:** The coordinating ChatGPT may merge an ordinary PR within previously approved MathFirst scope under the owner's project-specific standing approval, **only after** the fail-closed gate in [AGENTS.md](../AGENTS.md) §6 passes (exact candidate, reviews/tests/CI, current head/base, protection, privacy/security and unresolved findings). No auto-merge, agent-controlled merge, or scope expansion is implied.
+4. **Owner merge remains possible:** The repository owner may instead review and merge manually. Local coding agents must not merge PRs or enable auto-merge.
 
 ---
 
 ## 8. Post-Merge Synchronization (`POST_MERGE_SYNC_ONLY`)
 
-After the user manually merges the PR on GitHub:
+After an independently verified merge by the coordinator or repository owner:
 1. Switch to `main`: `git checkout main`
 2. Fast-forward only synchronization: `git pull --ff-only origin main`
    - *Fail-Closed Guard*: If fast-forward is not possible, the agent must **STOP** and report divergence. Never merge, rebase, reset, or auto-repair.

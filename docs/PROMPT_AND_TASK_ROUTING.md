@@ -23,7 +23,7 @@ Every coding agent prompt must specify exactly one primary **Operation Mode**. E
 | `PUSH_ONLY` | Pushing local branch/commit to remote origin. | `git push -u origin <branch>`. | Force-pushing, merging, deleting branches. |
 | `PR_ONLY` | Opening a GitHub Pull Request using PR template. | `gh pr create` with filled template. | Merging PR, enabling auto-merge. |
 | `FULL_VALIDATION` | Exact-candidate pre-push comprehensive verification. | Execute full verification suite on exact candidate HEAD against verified base. | Auto-repairing failures, modifying repository, pushing. |
-| `POST_MERGE_SYNC_ONLY` | Synchronizing local default branch after manual user PR merge. | `git checkout main`, `git pull --ff-only origin main`. | Modifying source code, committing to main, deleting branches without explicit user authorization. |
+| `POST_MERGE_SYNC_ONLY` | Synchronizing local default branch after verified coordinator-gated or owner PR merge. | `git checkout main`, `git pull --ff-only origin main`. | Modifying source code, committing to main, deleting branches without explicit user authorization. |
 
 > [!IMPORTANT]
 > In `POST_MERGE_SYNC_ONLY`, synchronization must be **fast-forward only** (`git pull --ff-only origin main`). If fast-forward is not possible, the agent must **STOP** and report divergence immediately without attempting merge, rebase, reset, or auto-repair. Branch deletion is never implied and requires explicit affirmative user approval.
@@ -40,13 +40,15 @@ Routine lifecycle steps within an approved package may be prepared and dispatche
 
 Each lifecycle phase must still run in its own isolated agent task with its distinct Operation Mode and prompt.
 
+**MathFirst coordinator-only PR merge delegation:** The owner explicitly authorizes the coordinating ChatGPT to merge PRs within previously approved MathFirst scope **without per-PR consent**, provided the [AGENTS.md](../AGENTS.md) §6 fail-closed merge gate confirms current base/head, candidate validation, review/CI, branch protections, data/security boundaries and no open material blockers. Record verified merge SHA in the implementation Issue and dispatch `POST_MERGE_SYNC_ONLY` as a separate local agent task. A coding agent must never autonomously merge, and auto-merge remains separately prohibited. This standing delegation does not authorize releases, branch deletion, destructive Git, new scope, device automation or extra costs.
+
 ---
 
 ## 3. Non-Delegable Operations Matrix
 
-The following operations always require **explicit affirmative user authorization** before execution:
+The following operations always require **explicit affirmative user authorization** before execution; the owner has already supplied a **MathFirst-only standing authorization** for coordinator-gated routine PR merges that satisfy [AGENTS.md](../AGENTS.md) §6:
 
-- Merging a Pull Request
+- Merging a Pull Request (local coding agents: forbidden; coordinating ChatGPT: only under the verified standing-authority gate)
 - Enabling GitHub auto-merge
 - Deleting local or remote branches
 - Deleting worktrees
