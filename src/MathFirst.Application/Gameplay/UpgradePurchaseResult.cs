@@ -12,7 +12,8 @@ public enum UpgradePurchaseStatus
     Busy,
     Disposed,
     Cancelled,
-    Error
+    Error,
+    LockedLevel
 }
 
 public sealed record UpgradePurchaseResult
@@ -62,4 +63,7 @@ public sealed record UpgradePurchaseResult
 
     public static UpgradePurchaseResult Error(string errorMessage, Exception? exception = null, UpgradeTerminalStatus? currentStatus = null) =>
         new(UpgradePurchaseStatus.Error, currentStatus, errorMessage, exception);
+
+    public static UpgradePurchaseResult LockedLevel(UpgradeTerminalStatus currentStatus, string? message = null) =>
+        new(UpgradePurchaseStatus.LockedLevel, currentStatus, message ?? "Player level requirement not met.", null);
 }

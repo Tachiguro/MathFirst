@@ -694,6 +694,68 @@ public class SimulationTelemetryContractTests
         Assert.Null(result.Telemetry.ShieldsAbsorbed);
     }
 
+    [Fact]
+    public void T28_ShieldAbsorption_SuppliesAuthoritativeMetric_WhenShieldsConfigured()
+    {
+        var startingState = CyberDefenseRunState.InitialRun(shieldCapacity: 1);
+        var zeroProfile = new SyntheticPlayerProfile(
+            id: "zero_acc",
+            name: "Zero Accuracy",
+            accuracyProbability: 0.0,
+            minSyntheticLatencyMilliseconds: 1000,
+            maxSyntheticLatencyMilliseconds: 1000);
+
+        var config = new SimulationRunConfig(
+            zeroProfile,
+            masterSeed: 123UL,
+            maxTurns: 1,
+            startingState: startingState);
+
+        var result = HeadlessCombatSimulator.Run(config);
+
+        Assert.NotNull(result.Telemetry.TotalShieldsAbsorbed);
+        Assert.Equal(1L, result.Telemetry.TotalShieldsAbsorbed);
+        Assert.Equal(1L, result.Telemetry.ShieldsAbsorbed);
+    }
+
+    [Fact]
+    public void T28_ShieldAbsorption_ReportsZero_WhenShieldsConfiguredAndPerfectAccuracy()
+    {
+        var startingState = CyberDefenseRunState.InitialRun(shieldCapacity: 1);
+        var config = new SimulationRunConfig(
+            SyntheticPlayerProfiles.ProfileA_Perfect,
+            masterSeed: 123UL,
+            maxTurns: 5,
+            startingState: startingState);
+
+        var result = HeadlessCombatSimulator.Run(config);
+
+        Assert.NotNull(result.Telemetry.TotalShieldsAbsorbed);
+        Assert.Equal(0L, result.Telemetry.TotalShieldsAbsorbed);
+        Assert.Equal(0L, result.Telemetry.ShieldsAbsorbed);
+    }
+
+    [Fact]
+    public void T28_ShieldAbsorption_ReportsZero_OnCancelledZeroTurnExecution_WhenShieldsObserved()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var startingState = CyberDefenseRunState.InitialRun(shieldCapacity: 1);
+        var config = new SimulationRunConfig(
+            SyntheticPlayerProfiles.ProfileA_Perfect,
+            masterSeed: 123UL,
+            maxTurns: 5,
+            startingState: startingState);
+
+        var result = HeadlessCombatSimulator.Run(config, cts.Token);
+
+        Assert.Equal(SimulationTerminationReason.Cancelled, result.TerminationReason);
+        Assert.Equal(0L, result.Telemetry.TotalQuestions);
+        Assert.NotNull(result.Telemetry.TotalShieldsAbsorbed);
+        Assert.Equal(0L, result.Telemetry.TotalShieldsAbsorbed);
+    }
+
     // =========================================================================
     // T29: Replay distance after defeat remains explicitly unavailable pending definition
     // =========================================================================

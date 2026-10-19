@@ -6,12 +6,27 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
     public int OpponentIndex { get; }
     public int PlayerCurrentHp { get; }
     public OpponentState CurrentOpponent { get; }
+    public int ShieldCapacity { get; }
+    public int ActiveShields { get; }
+    public int ShieldRechargeUnits { get; }
 
     public CyberDefenseRunState(
         int sector,
         int opponentIndex,
         int playerCurrentHp,
         OpponentState currentOpponent)
+        : this(sector, opponentIndex, playerCurrentHp, currentOpponent, 0, 0, 0)
+    {
+    }
+
+    public CyberDefenseRunState(
+        int sector,
+        int opponentIndex,
+        int playerCurrentHp,
+        OpponentState currentOpponent,
+        int shieldCapacity,
+        int activeShields,
+        int shieldRechargeUnits)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(sector, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(opponentIndex);
@@ -52,13 +67,55 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
                 nameof(currentOpponent));
         }
 
+        ArgumentOutOfRangeException.ThrowIfNegative(shieldCapacity);
+        if (shieldCapacity > CyberDefenseFirewallPolicy.MaxShieldCapacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(shieldCapacity),
+                shieldCapacity,
+                $"Shield capacity cannot exceed max capacity {CyberDefenseFirewallPolicy.MaxShieldCapacity}.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(activeShields);
+        if (activeShields > shieldCapacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(activeShields),
+                activeShields,
+                $"Active shields ({activeShields}) cannot exceed shield capacity ({shieldCapacity}).");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(shieldRechargeUnits);
+        if (activeShields == shieldCapacity && shieldRechargeUnits != 0)
+        {
+            throw new ArgumentException(
+                $"Shield recharge units must be 0 when active shields ({activeShields}) equal capacity ({shieldCapacity}).",
+                nameof(shieldRechargeUnits));
+        }
+
+        if (shieldCapacity > 0 && activeShields < shieldCapacity)
+        {
+            if (shieldRechargeUnits >= CyberDefenseFirewallPolicy.RechargeThresholdUnits)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(shieldRechargeUnits),
+                    shieldRechargeUnits,
+                    $"Shield recharge units ({shieldRechargeUnits}) must be less than threshold ({CyberDefenseFirewallPolicy.RechargeThresholdUnits}).");
+            }
+        }
+
         Sector = sector;
         OpponentIndex = opponentIndex;
         PlayerCurrentHp = playerCurrentHp;
         CurrentOpponent = currentOpponent;
+        ShieldCapacity = shieldCapacity;
+        ActiveShields = activeShields;
+        ShieldRechargeUnits = shieldRechargeUnits;
     }
 
-    public static CyberDefenseRunState InitialRun()
+    public static CyberDefenseRunState InitialRun() => InitialRun(shieldCapacity: 0);
+
+    public static CyberDefenseRunState InitialRun(int shieldCapacity)
     {
         var initialOpponent = new OpponentState(
             OpponentKind.Normal,
@@ -69,7 +126,10 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
             1,
             0,
             CyberDefenseCombatPolicy.PlayerMaxHp,
-            initialOpponent);
+            initialOpponent,
+            shieldCapacity,
+            activeShields: shieldCapacity,
+            shieldRechargeUnits: 0);
     }
 
     public static CyberDefenseRunState CreateActive(
@@ -78,11 +138,26 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
         int playerCurrentHp,
         OpponentState currentOpponent)
     {
+        return CreateActive(sector, opponentIndex, playerCurrentHp, currentOpponent, 0, 0, 0);
+    }
+
+    public static CyberDefenseRunState CreateActive(
+        int sector,
+        int opponentIndex,
+        int playerCurrentHp,
+        OpponentState currentOpponent,
+        int shieldCapacity,
+        int activeShields,
+        int shieldRechargeUnits)
+    {
         return new CyberDefenseRunState(
             sector,
             opponentIndex,
             playerCurrentHp,
-            currentOpponent);
+            currentOpponent,
+            shieldCapacity,
+            activeShields,
+            shieldRechargeUnits);
     }
 
     public static CyberDefenseRunState Rehydrate(
@@ -111,6 +186,29 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
         int playerCurrentHp,
         int opponentExecutedAttacks,
         OpponentEncounterProvenance provenance)
+    {
+        return Rehydrate(
+            sector,
+            opponentIndex,
+            opponentCurrentHp,
+            playerCurrentHp,
+            opponentExecutedAttacks,
+            provenance,
+            shieldCapacity: 0,
+            activeShields: 0,
+            shieldRechargeUnits: 0);
+    }
+
+    public static CyberDefenseRunState Rehydrate(
+        int sector,
+        int opponentIndex,
+        int opponentCurrentHp,
+        int playerCurrentHp,
+        int opponentExecutedAttacks,
+        OpponentEncounterProvenance provenance,
+        int shieldCapacity,
+        int activeShields,
+        int shieldRechargeUnits)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(sector, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(opponentIndex);
@@ -160,7 +258,10 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
             sector,
             opponentIndex,
             playerCurrentHp,
-            opponent);
+            opponent,
+            shieldCapacity,
+            activeShields,
+            shieldRechargeUnits);
     }
 
     public bool Equals(CyberDefenseRunState? other)
@@ -170,13 +271,16 @@ public sealed class CyberDefenseRunState : IEquatable<CyberDefenseRunState>
         return Sector == other.Sector &&
                OpponentIndex == other.OpponentIndex &&
                PlayerCurrentHp == other.PlayerCurrentHp &&
-               Equals(CurrentOpponent, other.CurrentOpponent);
+               Equals(CurrentOpponent, other.CurrentOpponent) &&
+               ShieldCapacity == other.ShieldCapacity &&
+               ActiveShields == other.ActiveShields &&
+               ShieldRechargeUnits == other.ShieldRechargeUnits;
     }
 
     public override bool Equals(object? obj) => Equals(obj as CyberDefenseRunState);
 
     public override int GetHashCode() =>
-        HashCode.Combine(Sector, OpponentIndex, PlayerCurrentHp, CurrentOpponent);
+        HashCode.Combine(Sector, OpponentIndex, PlayerCurrentHp, CurrentOpponent, ShieldCapacity, ActiveShields, ShieldRechargeUnits);
 
     public static bool operator ==(CyberDefenseRunState? left, CyberDefenseRunState? right) => Equals(left, right);
 

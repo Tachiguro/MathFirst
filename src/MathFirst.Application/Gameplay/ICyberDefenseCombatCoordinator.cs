@@ -2,6 +2,7 @@ namespace MathFirst.Application.Gameplay;
 
 using System.Threading;
 using System.Threading.Tasks;
+using MathFirst.Application.Persistence;
 
 /// <summary>
 /// Application boundary coordinating durable combat intent staging, post-learner-commit
@@ -33,6 +34,12 @@ public interface ICyberDefenseCombatCoordinator
     int GetBoundEffectiveAttackDamageOrDefault(
         long questionKey,
         int fallback = 1);
+    Task<CyberDefenseFirewallActivationResult?> ActivateQuestionBoundFirewallCapacityAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default);
+    Task AwaitQuestionBoundFirewallActivationAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default);
     Task<CyberDefenseConsumptionResult?> ConsumeCommittedAttemptAsync(
         string submissionId,
         CancellationToken cancellationToken = default);

@@ -328,7 +328,21 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Cancelled"] = "Purchase operation was cancelled.",
         ["UpgradeTerminal_Feedback_Error"] = "Failed to purchase upgrade.",
         ["UpgradeTerminal_IndicatorAction"] = "Upgrade ↑",
-        ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade Terminal: {0} Skill Points available"
+        ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade Terminal: {0} Skill Points available",
+        ["UpgradeTerminal_FirewallTitle"] = "Firewall Shield",
+        ["UpgradeTerminal_FirewallDescription"] = "Absorbs incoming damage. Recharges through practice and activates at the next question.",
+        ["UpgradeTerminal_PermanentRank"] = "Permanent Rank {0}",
+        ["UpgradeTerminal_CurrentCapacity"] = "Capacity: {0}",
+        ["UpgradeTerminal_NextCapacity"] = "Next: {0} capacity",
+        ["UpgradeTerminal_RequiredLevel"] = "Requires Player Level {0}",
+        ["UpgradeTerminal_LevelLocked"] = "Locked (Level {0})",
+        ["UpgradeTerminal_UpgradeFirewallAction"] = "Upgrade Firewall",
+        ["UpgradeTerminal_Feedback_FirewallSuccess"] = "Firewall upgraded successfully. New shield capacity will activate at the next question.",
+        ["UpgradeTerminal_FirewallActivationNotice"] = "Purchased shield capacity activates at the next question.",
+        ["UpgradeTerminal_Feedback_FirewallMaxRank"] = "Firewall is already at maximum rank.",
+        ["UpgradeTerminal_Feedback_LockedLevel"] = "Firewall upgrade is locked until the required player level is reached.",
+        ["UpgradeTerminal_Feedback_FirewallStaleRank"] = "Firewall rank was updated. Please try again.",
+        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -544,7 +558,21 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Cancelled"] = "Kaufvorgang wurde abgebrochen.",
         ["UpgradeTerminal_Feedback_Error"] = "Upgrade konnte nicht gekauft werden.",
         ["UpgradeTerminal_IndicatorAction"] = "Upgrade ↑",
-        ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade-Terminal: {0} Fähigkeitspunkte verfügbar"
+        ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade-Terminal: {0} Fähigkeitspunkte verfügbar",
+        ["UpgradeTerminal_FirewallTitle"] = "Firewall-Schild",
+        ["UpgradeTerminal_FirewallDescription"] = "Absorbiert eingehenden Schaden. Lädt sich durch Üben auf und aktiviert sich bei der nächsten Aufgabe.",
+        ["UpgradeTerminal_PermanentRank"] = "Permanenter Rang {0}",
+        ["UpgradeTerminal_CurrentCapacity"] = "Kapazität: {0}",
+        ["UpgradeTerminal_NextCapacity"] = "Nächste Stufe: {0} Kapazität",
+        ["UpgradeTerminal_RequiredLevel"] = "Erfordert Spielerstufe {0}",
+        ["UpgradeTerminal_LevelLocked"] = "Gesperrt (Stufe {0})",
+        ["UpgradeTerminal_UpgradeFirewallAction"] = "Firewall verbessern",
+        ["UpgradeTerminal_Feedback_FirewallSuccess"] = "Firewall erfolgreich verbessert. Neue Schildkapazität wird bei der nächsten Aufgabe aktiviert.",
+        ["UpgradeTerminal_FirewallActivationNotice"] = "Gekaufte Schildkapazität wird bei der nächsten Aufgabe aktiviert.",
+        ["UpgradeTerminal_Feedback_FirewallMaxRank"] = "Firewall hat bereits den Maximalrang erreicht.",
+        ["UpgradeTerminal_Feedback_LockedLevel"] = "Firewall-Upgrade ist gesperrt, bis die erforderliche Spielerstufe erreicht ist.",
+        ["UpgradeTerminal_Feedback_FirewallStaleRank"] = "Firewall-Rang wurde aktualisiert. Bitte erneut versuchen.",
+        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -760,6 +788,20 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Cancelled"] = "Покупка была отменена.",
         ["UpgradeTerminal_Feedback_Error"] = "Не удалось приобрести улучшение.",
         ["UpgradeTerminal_IndicatorAction"] = "Улучшения ↑",
-        ["UpgradeTerminal_IndicatorAriaLabel"] = "Терминал улучшений: доступно {0} очков навыков"
+        ["UpgradeTerminal_IndicatorAriaLabel"] = "Терминал улучшений: доступно {0} очков навыков",
+        ["UpgradeTerminal_FirewallTitle"] = "Щит файрвола",
+        ["UpgradeTerminal_FirewallDescription"] = "Поглощает входящий урон. Заряжается при решении задач и активируется со следующего вопроса.",
+        ["UpgradeTerminal_PermanentRank"] = "Постоянный ранг {0}",
+        ["UpgradeTerminal_CurrentCapacity"] = "Емкость: {0}",
+        ["UpgradeTerminal_NextCapacity"] = "Далее: емкость {0}",
+        ["UpgradeTerminal_RequiredLevel"] = "Требуется уровень игрока {0}",
+        ["UpgradeTerminal_LevelLocked"] = "Заблокировано (уровень {0})",
+        ["UpgradeTerminal_UpgradeFirewallAction"] = "Улучшить файрвол",
+        ["UpgradeTerminal_Feedback_FirewallSuccess"] = "Файрвол успешно улучшен. Новая емкость щита активируется со следующего вопроса.",
+        ["UpgradeTerminal_FirewallActivationNotice"] = "Купленная емкость щита активируется со следующего вопроса.",
+        ["UpgradeTerminal_Feedback_FirewallMaxRank"] = "Файрвол уже на максимальном ранге.",
+        ["UpgradeTerminal_Feedback_LockedLevel"] = "Улучшение файрвола заблокировано до достижения требуемого уровня игрока.",
+        ["UpgradeTerminal_Feedback_FirewallStaleRank"] = "Ранг файрвола изменился. Пожалуйста, повторите попытку.",
+        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}"
     };
 }

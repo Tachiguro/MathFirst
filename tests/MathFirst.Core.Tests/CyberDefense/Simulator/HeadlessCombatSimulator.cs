@@ -56,17 +56,24 @@ public static class HeadlessCombatSimulator
             throw new ArgumentNullException(nameof(config));
         }
 
+        bool observeShields = config.TrackShieldTelemetry ??
+            (config.StartingState.ShieldCapacity > 0 || config.EnableBeginnerAssistance || config.StartingAssistanceActive);
+
         var clock = new VirtualSimulationClock();
         var sampler = new SyntheticAttemptSampler(config.Profile, config.MasterSeed);
         var accumulator = new SimulationTelemetryAccumulator(
             config.MasterSeed,
             config.Profile.Id,
             config.Profile.Name,
-            config.StartingState.Sector);
+            config.StartingState.Sector,
+            observeShields: observeShields);
         CyberDefenseRunState currentState = config.StartingState;
         CyberDefenseTerminalRunSnapshot? lastTerminalSnapshot = null;
         long totalExecutedTurns = 0;
         int totalGameOvers = 0;
+        int consecutiveEarlyDefeats = config.StartingConsecutiveEarlyDefeats;
+        bool isAssistanceActive = config.StartingAssistanceActive;
+        int currentFirewallRank = config.PermanentFirewallRank;
 
         // Precedence 1: Honor already-requested cancellation before first turn.
         if (cancellationToken.IsCancellationRequested)
@@ -116,6 +123,114 @@ public static class HeadlessCombatSimulator
                 currentState,
                 attempt.IsCorrect,
                 config.Profile.EffectiveAttackDamage);
+
+            if (config.EnableBeginnerAssistance)
+            {
+                if (transition.IsGameOver)
+                {
+                    bool sector1BossReachedAtGameOver = currentState.Sector == 1 &&
+                        currentState.CurrentOpponent.Kind == OpponentKind.Boss;
+
+                    consecutiveEarlyDefeats = CyberDefenseBeginnerAssistancePolicy.GetConsecutiveEarlyDefeatsAfterGameOver(
+                        consecutiveEarlyDefeats,
+                        currentState.Sector,
+                        sector1BossReachedAtGameOver);
+
+                    bool shouldActivate = CyberDefenseBeginnerAssistancePolicy.IsEligibleForActivation(
+                        consecutiveEarlyDefeats,
+                        sector1BossReachedAtGameOver,
+                        currentFirewallRank,
+                        isAssistanceActive);
+
+                    if (shouldActivate)
+                    {
+                        isAssistanceActive = true;
+
+                        var assistedRebootState = CyberDefenseRunState.InitialRun(
+                            shieldCapacity: CyberDefenseBeginnerAssistancePolicy.EmergencyShieldCount);
+
+                        transition = new CyberDefenseCombatTransitionResult(
+                            transition.IsCorrect,
+                            transition.RequestedAttackDamage,
+                            transition.AppliedOpponentDamage,
+                            transition.ExcessOpponentDamage,
+                            transition.IncomingEnemyDamage,
+                            transition.AppliedPlayerDamage,
+                            transition.ExcessEnemyDamage,
+                            transition.PotentialHealing,
+                            transition.AppliedHealing,
+                            transition.IsOpponentDefeated,
+                            transition.IsSectorCompleted,
+                            transition.IsGameOver,
+                            assistedRebootState,
+                            transition.TerminalSnapshot,
+                            transition.ExecutedAttacksOnDefeatedOpponent,
+                            transition.DefeatedOpponentProvenance,
+                            transition.IsShieldAbsorbed,
+                            transition.AbsorbedEnemyDamage);
+                    }
+                }
+                else
+                {
+                    bool sector1Cleared = transition.IsSectorCompleted && currentState.Sector == 1;
+                    if (sector1Cleared)
+                    {
+                        if (CyberDefenseBeginnerAssistancePolicy.ShouldDeactivate(isAssistanceActive, sector1Cleared: true, currentFirewallRank) || isAssistanceActive)
+                        {
+                            isAssistanceActive = false;
+                        }
+
+                        consecutiveEarlyDefeats = 0;
+
+                        if (currentFirewallRank == 0)
+                        {
+                            var nextStateWithoutEmergencyShield = CyberDefenseRunState.CreateActive(
+                                transition.NextState.Sector,
+                                transition.NextState.OpponentIndex,
+                                transition.NextState.PlayerCurrentHp,
+                                transition.NextState.CurrentOpponent,
+                                shieldCapacity: 0,
+                                activeShields: 0,
+                                shieldRechargeUnits: 0);
+
+                            transition = new CyberDefenseCombatTransitionResult(
+                                transition.IsCorrect,
+                                transition.RequestedAttackDamage,
+                                transition.AppliedOpponentDamage,
+                                transition.ExcessOpponentDamage,
+                                transition.IncomingEnemyDamage,
+                                transition.AppliedPlayerDamage,
+                                transition.ExcessEnemyDamage,
+                                transition.PotentialHealing,
+                                transition.AppliedHealing,
+                                transition.IsOpponentDefeated,
+                                transition.IsSectorCompleted,
+                                transition.IsGameOver,
+                                nextStateWithoutEmergencyShield,
+                                transition.TerminalSnapshot,
+                                transition.ExecutedAttacksOnDefeatedOpponent,
+                                transition.DefeatedOpponentProvenance,
+                                transition.IsShieldAbsorbed,
+                                transition.AbsorbedEnemyDamage);
+                        }
+                    }
+                    else
+                    {
+                        bool reachedOrAtSector1Boss = (currentState.Sector == 1 && currentState.CurrentOpponent.Kind == OpponentKind.Boss) ||
+                            (currentState.Sector == 1 && transition.NextState.CurrentOpponent.Kind == OpponentKind.Boss);
+
+                        if (reachedOrAtSector1Boss)
+                        {
+                            consecutiveEarlyDefeats = CyberDefenseBeginnerAssistancePolicy.GetConsecutiveEarlyDefeatsAfterSector1BossReached(consecutiveEarlyDefeats);
+                        }
+                    }
+                }
+
+                if (CyberDefenseBeginnerAssistancePolicy.ShouldDeactivate(isAssistanceActive, sector1Cleared: false, currentFirewallRank))
+                {
+                    isAssistanceActive = false;
+                }
+            }
 
             // Step 9 & 10: Advance virtual clock, increment executed turns, and record telemetry.
             clock.Advance(attempt.SyntheticLatencyMilliseconds);

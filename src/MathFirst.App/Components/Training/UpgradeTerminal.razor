@@ -74,6 +74,58 @@
                     }
                 </div>
             </article>
+
+            <article class="upgrade-card firewall-upgrade-card" role="listitem" aria-labelledby="firewall-upgrade-title">
+                <div class="upgrade-card-header">
+                    <div class="upgrade-icon-slot firewall-icon-slot" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                    </div>
+                    <div class="upgrade-title-group">
+                        <h3 id="firewall-upgrade-title" class="upgrade-card-title">@EffectiveLocalizer["UpgradeTerminal_FirewallTitle"]</h3>
+                        <span class="upgrade-rank-badge">@EffectiveLocalizer["UpgradeTerminal_PermanentRank", EffectiveCurrentFirewallRank]</span>
+                    </div>
+                </div>
+
+                <p class="upgrade-card-desc">@EffectiveLocalizer["UpgradeTerminal_FirewallDescription"]</p>
+                <p class="upgrade-card-notice">@EffectiveLocalizer["UpgradeTerminal_FirewallActivationNotice"]</p>
+
+                <div class="upgrade-stats-grid">
+                    <div class="stat-cell current-stat">
+                        <span class="stat-name">@EffectiveLocalizer["UpgradeTerminal_CurrentCapacity", EffectiveCurrentPermanentCapacity]</span>
+                    </div>
+                    <div class="stat-cell next-stat">
+                        @if (IsFirewallMaxRank)
+                        {
+                            <span class="stat-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                        }
+                        else
+                        {
+                            <span class="stat-next">@EffectiveLocalizer["UpgradeTerminal_NextCapacity", EffectiveNextPermanentCapacity ?? 0]</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="upgrade-cost-row">
+                    @if (IsFirewallMaxRank)
+                    {
+                        <span class="cost-badge cost-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                    }
+                    else if (!IsFirewallLevelUnlocked)
+                    {
+                        <span class="cost-badge cost-locked">
+                            @EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextFirewallRequiredLevel ?? 0]
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="cost-badge @(HasSufficientFirewallSp ? "cost-affordable" : "cost-insufficient")">
+                            @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextFirewallCost ?? 0]
+                        </span>
+                    }
+                </div>
+            </article>
         </div>
 
         <!-- Accessible Live Announcement Region for Purchase Feedback -->
@@ -91,12 +143,21 @@
         <div class="upgrade-terminal-actions">
             <button type="button"
                     @ref="_purchaseButton"
-                    class="button button-primary practice-overlay-action upgrade-purchase-btn"
+                    class="button button-primary practice-overlay-action upgrade-purchase-btn attack-purchase-btn"
                     disabled="@IsPurchaseDisabled"
                     aria-disabled="@IsPurchaseDisabled"
                     aria-label="@PurchaseButtonAriaLabel"
                     @onclick="HandlePurchaseClick">
                 @PurchaseButtonText
+            </button>
+            <button type="button"
+                    @ref="_firewallPurchaseButton"
+                    class="button button-primary practice-overlay-action upgrade-purchase-btn firewall-purchase-btn"
+                    disabled="@IsFirewallPurchaseDisabled"
+                    aria-disabled="@IsFirewallPurchaseDisabled"
+                    aria-label="@FirewallPurchaseButtonAriaLabel"
+                    @onclick="HandleFirewallPurchaseClick">
+                @FirewallPurchaseButtonText
             </button>
             <button type="button"
                     @ref="_closeButton"
@@ -129,9 +190,11 @@
     public EventCallback OnClose { get; set; }
 
     private ElementReference _purchaseButton;
+    private ElementReference _firewallPurchaseButton;
     private ElementReference _closeButton;
     private UpgradeTerminalViewModel? _subscribedViewModel;
     private bool _isProcessingPurchase;
+    private bool _isProcessingFirewallPurchase;
     private bool _isDisposed;
     private bool _initialFocusSet;
     private string? _feedbackMessage;
@@ -148,15 +211,38 @@
     private bool IsMaxRank => ViewModel?.IsMaxRank ?? false;
     private bool CanAfford => ViewModel?.CanAfford ?? false;
 
+    private int EffectiveCurrentFirewallRank => ViewModel?.CurrentFirewallRank ?? 0;
+    private int EffectiveCurrentPermanentCapacity => ViewModel?.CurrentPermanentCapacity ?? 0;
+    private int? EffectiveNextPermanentCapacity => ViewModel?.NextPermanentCapacity;
+    private int? EffectiveNextFirewallCost => ViewModel?.NextFirewallCost;
+    private int? EffectiveNextFirewallRequiredLevel => ViewModel?.NextRequiredLevel;
+    private bool IsFirewallMaxRank => ViewModel?.IsFirewallMaxRank ?? false;
+    private bool IsFirewallLevelUnlocked => ViewModel?.IsFirewallLevelUnlocked ?? false;
+    private bool HasSufficientFirewallSp => ViewModel?.HasSufficientFirewallSkillPoints ?? false;
+    private bool CanPurchaseFirewall => ViewModel?.CanPurchaseFirewall ?? false;
+
     public bool IsPurchaseDisabled =>
         _isDisposed ||
         _isProcessingPurchase ||
+        _isProcessingFirewallPurchase ||
         ViewModel == null ||
         ViewModel.IsDisposed ||
         ViewModel.IsBusy ||
         ViewModel.IsMaxRank ||
         !ViewModel.HasSufficientSkillPoints ||
         !ViewModel.CanPurchase;
+
+    public bool IsFirewallPurchaseDisabled =>
+        _isDisposed ||
+        _isProcessingPurchase ||
+        _isProcessingFirewallPurchase ||
+        ViewModel == null ||
+        ViewModel.IsDisposed ||
+        ViewModel.IsBusy ||
+        ViewModel.IsFirewallMaxRank ||
+        !ViewModel.IsFirewallLevelUnlocked ||
+        !ViewModel.HasSufficientFirewallSkillPoints ||
+        !ViewModel.CanPurchaseFirewall;
 
     private string PurchaseButtonText
     {
@@ -174,6 +260,26 @@
         }
     }
 
+    private string FirewallPurchaseButtonText
+    {
+        get
+        {
+            if (ViewModel?.IsBusy == true || _isProcessingFirewallPurchase)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_Purchasing"];
+            }
+            if (IsFirewallMaxRank)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_MaxRank"];
+            }
+            if (!IsFirewallLevelUnlocked)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_LevelLocked", EffectiveNextFirewallRequiredLevel ?? 0];
+            }
+            return EffectiveLocalizer["UpgradeTerminal_UpgradeFirewallAction"];
+        }
+    }
+
     private string PurchaseButtonAriaLabel
     {
         get
@@ -183,6 +289,22 @@
                 return $"{EffectiveLocalizer["UpgradeTerminal_AttackTitle"]}: {EffectiveLocalizer["UpgradeTerminal_MaxRank"]}";
             }
             return $"{EffectiveLocalizer["UpgradeTerminal_UpgradeAction"]}: {EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCost ?? 0]}";
+        }
+    }
+
+    private string FirewallPurchaseButtonAriaLabel
+    {
+        get
+        {
+            if (IsFirewallMaxRank)
+            {
+                return $"{EffectiveLocalizer["UpgradeTerminal_FirewallTitle"]}: {EffectiveLocalizer["UpgradeTerminal_MaxRank"]}";
+            }
+            if (!IsFirewallLevelUnlocked)
+            {
+                return $"{EffectiveLocalizer["UpgradeTerminal_UpgradeFirewallAction"]}: {EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextFirewallRequiredLevel ?? 0]}";
+            }
+            return $"{EffectiveLocalizer["UpgradeTerminal_UpgradeFirewallAction"]}: {EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextFirewallCost ?? 0]}";
         }
     }
 
@@ -219,6 +341,10 @@
                 if (ViewModel?.CanPurchase == true)
                 {
                     await _purchaseButton.FocusAsync();
+                }
+                else if (ViewModel?.CanPurchaseFirewall == true)
+                {
+                    await _firewallPurchaseButton.FocusAsync();
                 }
                 else
                 {
@@ -273,7 +399,7 @@
         try
         {
             var result = await ViewModel.PurchaseUpgradeAsync();
-            ApplyPurchaseResult(result);
+            ApplyPurchaseResult(result, isFirewall: false);
         }
         catch (Exception)
         {
@@ -287,13 +413,48 @@
         }
     }
 
-    private void ApplyPurchaseResult(UpgradePurchaseResult result)
+    private async Task HandleFirewallPurchaseClick()
+    {
+        if (IsFirewallPurchaseDisabled || ViewModel == null)
+        {
+            return;
+        }
+
+        _isProcessingFirewallPurchase = true;
+        _feedbackMessage = null;
+        _feedbackKind = FeedbackKind.None;
+
+        try
+        {
+            var result = await ViewModel.PurchaseFirewallUpgradeAsync();
+            ApplyPurchaseResult(result, isFirewall: true);
+        }
+        catch (Exception)
+        {
+            _feedbackKind = FeedbackKind.Error;
+            _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Error"];
+        }
+        finally
+        {
+            _isProcessingFirewallPurchase = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyPurchaseResult(UpgradePurchaseResult result, bool isFirewall = false)
     {
         switch (result.Status)
         {
             case UpgradePurchaseStatus.Success:
                 _feedbackKind = FeedbackKind.Success;
-                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Success"];
+                _feedbackMessage = isFirewall
+                    ? EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallSuccess"]
+                    : EffectiveLocalizer["UpgradeTerminal_Feedback_Success"];
+                break;
+
+            case UpgradePurchaseStatus.LockedLevel:
+                _feedbackKind = FeedbackKind.Warning;
+                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_LockedLevel"];
                 break;
 
             case UpgradePurchaseStatus.InsufficientSkillPoints:
@@ -303,7 +464,9 @@
 
             case UpgradePurchaseStatus.StaleRank:
                 _feedbackKind = FeedbackKind.Warning;
-                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_StaleRank"];
+                _feedbackMessage = isFirewall
+                    ? EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallStaleRank"]
+                    : EffectiveLocalizer["UpgradeTerminal_Feedback_StaleRank"];
                 break;
 
             case UpgradePurchaseStatus.StaleResetEpoch:
@@ -313,7 +476,9 @@
 
             case UpgradePurchaseStatus.MaxRankReached:
                 _feedbackKind = FeedbackKind.Info;
-                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_MaxRankReached"];
+                _feedbackMessage = isFirewall
+                    ? EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallMaxRank"]
+                    : EffectiveLocalizer["UpgradeTerminal_Feedback_MaxRankReached"];
                 break;
 
             case UpgradePurchaseStatus.Busy:

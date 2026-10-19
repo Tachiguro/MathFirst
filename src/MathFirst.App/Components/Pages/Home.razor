@@ -1001,6 +1001,7 @@
                 var isCritical = Session.IsPaceCalibrationReady && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
                 var pendingContext = new PendingCombatContext(submissionId, wasEligibleAtSubmission, isCritical);
 
+                await CombatCoordinator.AwaitQuestionBoundFirewallActivationAsync(Session.FactInstanceRevision);
                 var boundDamage = await CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision);
 
                 await CombatCoordinator.StageIntentAsync(
@@ -1185,6 +1186,7 @@
     {
         if (Session.IsInitialized && Session.CurrentFact is not null)
         {
+            _ = CombatCoordinator.ActivateQuestionBoundFirewallCapacityAsync(Session.FactInstanceRevision);
             _ = CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision);
         }
     }

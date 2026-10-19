@@ -354,6 +354,90 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task UpgradeTerminal_OpenFromRunning_PurchaseFirewall_AndClose_PreservesTimingFactRevisionAndAnswerBuffer()
+    {
+        var clock = new FakeClock();
+        var session = await CreateAndStartSessionAsync(clock);
+
+        var dir = CreateTempDirectory();
+        var dbPath = Path.Combine(dir, "gameplay_firewall_integration.db");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        // Seed progression: Level 5, 5 SP (enough for rank 1 cost of 3 SP)
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath}"))
+        {
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE gameplay_progression
+                SET cumulative_xp = 500,
+                    player_level = 5,
+                    earned_sp = 5,
+                    spent_sp = 0,
+                    available_sp = 5,
+                    attack_rank = 0,
+                    firewall_rank = 0,
+                    activated_firewall_rank = 0
+                WHERE id = 1;
+            ";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        // 1. Learner actively thinks for 1,200 ms and enters partial answer "42"
+        clock.AdvanceMs(1200);
+        session.SetCurrentAnswerInput("42");
+
+        var initialFact = session.CurrentFact;
+        Assert.NotNull(initialFact);
+        var initialFactId = initialFact.Id;
+        var initialRevision = session.FactInstanceRevision;
+        Assert.Equal(1200, session.GetCurrentActiveElapsedMs());
+        Assert.Equal("42", session.CurrentAnswerInput);
+
+        // 2. Open Upgrade Terminal from Running:
+        bool wasTimingSuspendedByTerminal = session.IsTimingActive;
+        session.PauseItemTiming();
+        Assert.True(wasTimingSuspendedByTerminal);
+        Assert.False(session.IsTimingActive);
+
+        // 3. User spends 10,000 ms inside the terminal and purchases Firewall
+        clock.AdvanceMs(10000);
+        Assert.True(vm.CanPurchaseFirewall);
+        var purchaseResult = await vm.PurchaseFirewallUpgradeAsync();
+        Assert.Equal(UpgradePurchaseStatus.Success, purchaseResult.Status);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(1, vm.CurrentPermanentCapacity);
+        Assert.Equal(2, vm.AvailableSkillPoints);
+
+        // Active elapsed time must remain exactly 1,200 ms during terminal interaction
+        Assert.Equal(1200, session.GetCurrentActiveElapsedMs());
+
+        // 4. Close Upgrade Terminal:
+        if (wasTimingSuspendedByTerminal &&
+            session.IsAppForeground &&
+            session.PracticeGate == PracticeGateState.Running &&
+            session.InteractionState == SessionInteractionState.AwaitingAnswer)
+        {
+            session.ResumeItemTiming();
+        }
+
+        // 5. Verification after closing:
+        Assert.True(session.IsTimingActive, "Timing must be resumed after closing terminal.");
+        Assert.Equal(1200, session.GetCurrentActiveElapsedMs());
+        Assert.Equal("42", session.CurrentAnswerInput);
+        Assert.Equal(initialRevision, session.FactInstanceRevision);
+        Assert.Equal(initialFactId, session.CurrentFact?.Id);
+
+        // Additional practice time resumes normally
+        clock.AdvanceMs(800);
+        Assert.Equal(2000, session.GetCurrentActiveElapsedMs());
+    }
+
+    [Fact]
     public async Task UpgradeTerminal_InterruptionTelemetry_SetsAttemptInterruptedFlag()
     {
         var clock = new FakeClock();
@@ -820,6 +904,17 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
 
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));
+
+        public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseFirewallUpgradeSnapshot.FromProgression(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow)));
+
+        public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+
+        public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));
+
+        public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CyberDefenseFirewallActivationResult.Applied(CyberDefenseRunState.InitialRun()));
 
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<CyberDefenseReceiptRecord?>(null);
