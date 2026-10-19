@@ -23,7 +23,6 @@ public sealed record UpgradePurchaseResult
     public UpgradeTerminalStatus? StatusSnapshot { get; }
     public UpgradeTerminalStatus? UpdatedStatus => StatusSnapshot;
     public string? ErrorMessage { get; }
-    public string? Message => ErrorMessage;
     public Exception? Exception { get; }
 
     public UpgradePurchaseResult(

@@ -1608,7 +1608,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal(UpgradePurchaseStatus.LockedLevel, result.Status);
         Assert.Same(status, result.StatusSnapshot);
-        Assert.Equal("Player level insufficient.", result.Message);
+        Assert.Equal("Player level insufficient.", result.ErrorMessage);
         Assert.Null(result.Exception);
     }
 
