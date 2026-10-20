@@ -416,17 +416,79 @@ public sealed class CyberDefenseQuestionBoundModifierRanksTests
     [Theory]
     [InlineData(-1, 0)]
     [InlineData(0, -1)]
+    [InlineData(3, 0)]
     [InlineData(99, 0)]
     [InlineData(0, 99)]
-    public async Task StageIntent_OutOfRangeRanksFailClosedToRankZero(int crit, int od)
+    [InlineData(1, -1)]
+    [InlineData(2, 99)]
+    [InlineData(-1, 2)]
+    public async Task StageIntent_InvalidExplicitRanks_AreRejectedWithoutStagingToConsumer(int crit, int od)
+    {
+        var (coordinator, _, consumer) = Create(Snap(2, 2, 5));
+        await coordinator.InitializeAsync();
+
+        var exception = await Record.ExceptionAsync(() =>
+            coordinator.StageIntentAsync("sub-r", "add:1+1", true, 100, true, 1, crit, od));
+
+        Assert.Null(exception);
+        Assert.Empty(consumer.Staged);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 0)]
+    [InlineData(0, 1)]
+    [InlineData(2, 2)]
+    public async Task StageIntent_ValidExplicitRanks_AreStagedUnchanged(int crit, int od)
     {
         var (coordinator, _, consumer) = Create();
 
-        await coordinator.StageIntentAsync("sub-r", "add:1+1", true, 100, true, 1, crit, od);
+        await coordinator.StageIntentAsync("sub-valid", "add:1+1", true, 100, true, 2, crit, od);
+
+        var intent = Assert.Single(consumer.Staged);
+        Assert.Equal("sub-valid", intent.SubmissionId);
+        Assert.Equal(2, intent.EffectiveAttackDamage);
+        Assert.Equal(crit, intent.BoundCriticalStrikeRank);
+        Assert.Equal(od, intent.BoundOverdriveRank);
+    }
+
+    [Fact]
+    public async Task StageIntent_MissingPresentationBinding_DefaultsToZeroZero()
+    {
+        var (coordinator, _, consumer) = Create(Snap(2, 2, 5));
+        await coordinator.InitializeAsync();
+
+        var missingBinding = coordinator.GetBoundCombatModifierRanksOrDefault(999);
+        Assert.Equal(CyberDefenseQuestionBoundModifierRanks.Zero, missingBinding);
+
+        await coordinator.StageIntentAsync(
+            "sub-missing-binding",
+            "add:1+1",
+            true,
+            100,
+            true,
+            1,
+            missingBinding.BoundCriticalStrikeRank,
+            missingBinding.BoundOverdriveRank);
 
         var intent = Assert.Single(consumer.Staged);
         Assert.Equal(0, intent.BoundCriticalStrikeRank);
         Assert.Equal(0, intent.BoundOverdriveRank);
+    }
+
+    [Fact]
+    public async Task StageIntent_PreCanceledToken_DoesNotStageIntent_EvenWhenStoreIgnoresCancellation()
+    {
+        var (coordinator, _, consumer) = Create(Snap(1, 2, 5));
+        await coordinator.InitializeAsync();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var exception = await Record.ExceptionAsync(() =>
+            coordinator.StageIntentAsync("sub-canceled", "add:1+1", true, 100, true, 1, 1, 2, cts.Token));
+
+        Assert.Null(exception);
+        Assert.Empty(consumer.Staged);
     }
 
     [Fact]
@@ -861,6 +923,81 @@ public sealed class CyberDefenseQuestionBoundModifierRanksSqliteTests : IDisposa
             Assert.Null(await store2.GetReceiptAsync("sub-blocked"));
             Assert.Equal(before.PlayerCurrentHp, (await store2.GetRunStateAsync()).PlayerCurrentHp);
             Assert.NotNull(coordinator2.CurrentViewModel);
+        }
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, -1)]
+    [InlineData(3, 0)]
+    [InlineData(99, 0)]
+    [InlineData(0, 99)]
+    [InlineData(1, -1)]
+    [InlineData(2, 99)]
+    [InlineData(-1, 2)]
+    public async Task InvalidExplicitRanks_AreRejectedWithoutPendingRowReceiptOrStateMutation_WhileLearnerCommitSucceeds(int crit, int od)
+    {
+        var (store, learner, coordinator) = await OpenCoordinatorAsync();
+        using (store)
+        using (learner)
+        {
+            await SeedOwnedRanksOnlyAsync(2, 2);
+            var runBefore = await store.GetRunStateAsync();
+            var progBefore = await store.GetProgressionAsync();
+            var modBefore = await store.GetCombatModifierSnapshotAsync();
+            var revBefore = await store.GetStoreRevisionAsync();
+
+            var stageException = await Record.ExceptionAsync(() =>
+                coordinator.StageIntentAsync("sub-invalid", "add:1+1", true, 500, true, 1, crit, od));
+            Assert.Null(stageException);
+
+            // Learning-first isolation: learner submission still commits cleanly.
+            var commit = await learner.CommitSubmissionAsync(LearnerChangeSet("sub-invalid", "add:1+1", true, 500));
+            Assert.True(commit.IsSuccess);
+            Assert.NotNull(await learner.GetCommittedAttemptEvidenceAsync("sub-invalid"));
+
+            // No pending SQLite row (neither invalid nor altered 0/0) was inserted.
+            Assert.Null(await store.GetPendingIntentAsync("sub-invalid"));
+            Assert.Empty(await store.GetPendingIntentsAsync(0));
+            Assert.Equal(0, await ScalarLongAsync("SELECT COUNT(*) FROM gameplay_pending_intent;"));
+
+            // Consumption finds no pending intent, creates no receipt, and mutates no combat or progression state.
+            var consumeResult = await coordinator.ConsumeCommittedAttemptAsync("sub-invalid");
+            Assert.NotNull(consumeResult);
+            Assert.Equal(CyberDefenseConsumptionStatus.NoPendingIntent, consumeResult.Status);
+            Assert.Null(consumeResult.Receipt);
+            Assert.Null(await store.GetReceiptAsync("sub-invalid"));
+            Assert.Equal(0, await ScalarLongAsync("SELECT COUNT(*) FROM gameplay_receipt_ledger;"));
+
+            var runAfter = await store.GetRunStateAsync();
+            var progAfter = await store.GetProgressionAsync();
+            var modAfter = await store.GetCombatModifierSnapshotAsync();
+            var revAfter = await store.GetStoreRevisionAsync();
+
+            Assert.Equal(runBefore, runAfter);
+            Assert.Equal(progBefore, progAfter);
+            Assert.Equal(modBefore, modAfter);
+            Assert.Equal(revBefore, revAfter);
+        }
+    }
+
+    [Fact]
+    public async Task PreCanceledStageIntent_InsertsNoPendingSqliteRow_AndCreatesNoReceipt()
+    {
+        var (store, learner, coordinator) = await OpenCoordinatorAsync();
+        using (store)
+        using (learner)
+        {
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var stageException = await Record.ExceptionAsync(() =>
+                coordinator.StageIntentAsync("sub-cancel-sqlite", "add:1+1", true, 500, true, 1, 0, 0, cts.Token));
+            Assert.Null(stageException);
+
+            Assert.Null(await store.GetPendingIntentAsync("sub-cancel-sqlite"));
+            Assert.Equal(0, await ScalarLongAsync("SELECT COUNT(*) FROM gameplay_pending_intent;"));
+            Assert.Null(await store.GetReceiptAsync("sub-cancel-sqlite"));
         }
     }
 

@@ -377,22 +377,15 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         int boundOverdriveRank,
         CancellationToken cancellationToken = default)
     {
-        if (_gameplayStore == null || _consumer == null || string.IsNullOrWhiteSpace(submissionId))
+        if (_gameplayStore == null || _consumer == null || string.IsNullOrWhiteSpace(submissionId) || cancellationToken.IsCancellationRequested)
         {
             return;
         }
 
         try
         {
-            // Fail closed: ranks outside the approved range can only be a caller defect, never an entitlement.
-            if (boundCriticalStrikeRank < 0 || boundCriticalStrikeRank > CyberDefenseCriticalStrikePolicy.MaxRank ||
-                boundOverdriveRank < 0 || boundOverdriveRank > CyberDefenseOverdrivePolicy.MaxRank)
-            {
-                boundCriticalStrikeRank = 0;
-                boundOverdriveRank = 0;
-            }
-
             var resetEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             var intent = new CyberDefensePendingIntentRecord(
                 submissionId: submissionId,
                 factId: factId,
