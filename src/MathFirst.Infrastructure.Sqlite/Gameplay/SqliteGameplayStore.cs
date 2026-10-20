@@ -1059,12 +1059,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
         using (var pendingCmd = connection.CreateCommand())
         {
-            pendingCmd.CommandText = "SELECT bound_critical_strike_rank, bound_overdrive_rank FROM gameplay_pending_intent;";
+            pendingCmd.CommandText = @"
+                SELECT bound_critical_strike_rank, typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       bound_overdrive_rank, typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                FROM gameplay_pending_intent;";
             using var reader = await pendingCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                ValidateSchemaV7Value("gameplay_pending_intent", "bound_critical_strike_rank", reader.GetInt64(0), 0, CyberDefenseCriticalStrikePolicy.MaxRank);
-                ValidateSchemaV7Value("gameplay_pending_intent", "bound_overdrive_rank", reader.GetInt64(1), 0, CyberDefenseOverdrivePolicy.MaxRank);
+                _ = ReadPendingIntentRank(reader, 0, 1, "bound_critical_strike_rank", CyberDefenseCriticalStrikePolicy.MaxRank);
+                _ = ReadPendingIntentRank(reader, 2, 3, "bound_overdrive_rank", CyberDefenseOverdrivePolicy.MaxRank);
             }
         }
     }
@@ -3720,7 +3723,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 {
                     guardCmd.Transaction = transaction;
                     guardCmd.CommandText = @"
-                        SELECT r.is_pending, p.reset_epoch, p.attack_rank
+                        SELECT r.is_pending, p.reset_epoch, p.attack_rank,
+                               p.critical_strike_rank, typeof(p.critical_strike_rank) AS critical_strike_rank_type,
+                               p.overdrive_rank, typeof(p.overdrive_rank) AS overdrive_rank_type
                         FROM gameplay_reset_intent r
                         JOIN gameplay_progression p ON p.id = 1
                         WHERE r.id = 1;
@@ -3733,7 +3738,6 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     bool isResetPending = guardReader.GetInt32(0) == 1;
                     long currentEpoch = guardReader.GetInt64(1);
                     int currentAttackRank = guardReader.GetInt32(2);
-                    guardReader.Close();
 
                     if (isResetPending)
                     {
@@ -3746,11 +3750,29 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             $"Pending intent reset epoch {intent.ResetEpoch} does not match current store reset epoch {currentEpoch}.");
                     }
 
+                    int currentCriticalStrikeRank = (int)ReadModifierSnapshotInteger(
+                        guardReader, "critical_strike_rank", 0, CyberDefenseCriticalStrikePolicy.MaxRank);
+                    int currentOverdriveRank = (int)ReadModifierSnapshotInteger(
+                        guardReader, "overdrive_rank", 0, CyberDefenseOverdrivePolicy.MaxRank);
+                    guardReader.Close();
+
                     int maxEntitledDamage = CyberDefenseAttackUpgradePolicy.GetAttackDamage(currentAttackRank);
                     if (intent.EffectiveAttackDamage > maxEntitledDamage)
                     {
                         throw new InvalidOperationException(
                             $"Pending intent effective attack damage {intent.EffectiveAttackDamage} exceeds authoritative entitlement {maxEntitledDamage} for attack rank {currentAttackRank}.");
+                    }
+
+                    if (intent.BoundCriticalStrikeRank > currentCriticalStrikeRank)
+                    {
+                        throw new InvalidOperationException(
+                            $"Pending intent bound Critical Strike rank {intent.BoundCriticalStrikeRank} exceeds authoritative owned rank {currentCriticalStrikeRank}.");
+                    }
+
+                    if (intent.BoundOverdriveRank > currentOverdriveRank)
+                    {
+                        throw new InvalidOperationException(
+                            $"Pending intent bound Overdrive rank {intent.BoundOverdriveRank} exceeds authoritative owned rank {currentOverdriveRank}.");
                     }
                 }
 
@@ -3758,7 +3780,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 {
                     selectCmd.Transaction = transaction;
                     selectCmd.CommandText = @"
-                        SELECT fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, effective_attack_damage
+                        SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
+                               bound_critical_strike_rank, bound_overdrive_rank,
+                               typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
                         FROM gameplay_pending_intent
                         WHERE submission_id = @id;
                     ";
@@ -3766,19 +3791,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     using var reader = await selectCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
                     if (await reader.ReadAsync(ct).ConfigureAwait(false))
                     {
-                        string factId = reader.GetString(0);
-                        bool isCorrect = reader.GetInt32(1) == 1;
-                        bool isEligible = reader.GetInt32(2) == 1;
-                        long latency = reader.GetInt64(3);
-                        long epoch = reader.GetInt64(4);
-                        int damage = reader.GetInt32(5);
+                        var existingIntent = ReadPendingIntent(reader);
 
-                        if (!string.Equals(factId, intent.FactId, StringComparison.Ordinal) ||
-                            isCorrect != intent.IsCorrect ||
-                            isEligible != intent.IsEligible ||
-                            latency != intent.ResponseLatencyMs ||
-                            epoch != intent.ResetEpoch ||
-                            damage != intent.EffectiveAttackDamage)
+                        if (!HasMatchingPendingIntentPayload(existingIntent, intent))
                         {
                             throw new InvalidOperationException(
                                 $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
@@ -3794,9 +3809,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     insertCmd.Transaction = transaction;
                     insertCmd.CommandText = @"
                         INSERT INTO gameplay_pending_intent (
-                            submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
+                            submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at,
+                            effective_attack_damage, bound_critical_strike_rank, bound_overdrive_rank
                         ) VALUES (
-                            @submission_id, @fact_id, @is_correct, @is_eligible, @response_latency_ms, @reset_epoch, @created_at, @effective_attack_damage
+                            @submission_id, @fact_id, @is_correct, @is_eligible, @response_latency_ms, @reset_epoch, @created_at,
+                            @effective_attack_damage, @bound_critical_strike_rank, @bound_overdrive_rank
                         );
                     ";
                     insertCmd.Parameters.AddWithValue("@submission_id", intent.SubmissionId);
@@ -3807,6 +3824,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     insertCmd.Parameters.AddWithValue("@reset_epoch", intent.ResetEpoch);
                     insertCmd.Parameters.AddWithValue("@created_at", intent.CreatedAt.ToString("O"));
                     insertCmd.Parameters.AddWithValue("@effective_attack_damage", intent.EffectiveAttackDamage);
+                    insertCmd.Parameters.AddWithValue("@bound_critical_strike_rank", intent.BoundCriticalStrikeRank);
+                    insertCmd.Parameters.AddWithValue("@bound_overdrive_rank", intent.BoundOverdriveRank);
                     await insertCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
 
@@ -3831,7 +3850,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             using var cmd = _connection!.CreateCommand();
             cmd.CommandText = @"
-                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
+                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
+                       bound_critical_strike_rank, bound_overdrive_rank,
+                       typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
                 FROM gameplay_pending_intent
                 WHERE submission_id = @id;
             ";
@@ -3855,7 +3877,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             using var cmd = _connection!.CreateCommand();
             cmd.CommandText = @"
-                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
+                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
+                       bound_critical_strike_rank, bound_overdrive_rank,
+                       typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
                 FROM gameplay_pending_intent
                 WHERE reset_epoch = @epoch
                 ORDER BY created_at ASC, submission_id ASC;
@@ -3952,6 +3977,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             existingReceipt.IsEligible != intent.IsEligible ||
                             existingReceipt.ResponseLatencyMs != intent.ResponseLatencyMs ||
                             existingReceipt.ResetEpoch != intent.ResetEpoch ||
+                            intent.BoundCriticalStrikeRank != 0 ||
+                            intent.BoundOverdriveRank != 0 ||
                             (existingReceipt.ReceiptKind == CyberDefenseReceiptKind.Applied &&
                              existingReceipt.IsCorrect &&
                              existingReceipt.TransitionResult?.RequestedAttackDamage != intent.EffectiveAttackDamage))
@@ -4034,7 +4061,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 {
                     pendingCmd.Transaction = transaction;
                     pendingCmd.CommandText = @"
-                        SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
+                        SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
+                               bound_critical_strike_rank, bound_overdrive_rank,
+                               typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
                         FROM gameplay_pending_intent
                         WHERE submission_id = @id;
                     ";
@@ -4048,16 +4078,20 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
                 if (persistedIntent is not null)
                 {
-                    if (!string.Equals(persistedIntent.FactId, intent.FactId, StringComparison.Ordinal) ||
-                        persistedIntent.IsCorrect != intent.IsCorrect ||
-                        persistedIntent.IsEligible != intent.IsEligible ||
-                        persistedIntent.ResponseLatencyMs != intent.ResponseLatencyMs ||
-                        persistedIntent.ResetEpoch != intent.ResetEpoch ||
-                        persistedIntent.EffectiveAttackDamage != intent.EffectiveAttackDamage)
+                    if (!HasMatchingPendingIntentPayload(persistedIntent, intent))
                     {
                         throw new InvalidOperationException(
                             $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
                     }
+                }
+
+                int boundCriticalStrikeRank = persistedIntent?.BoundCriticalStrikeRank ?? intent.BoundCriticalStrikeRank;
+                int boundOverdriveRank = persistedIntent?.BoundOverdriveRank ?? intent.BoundOverdriveRank;
+                if (boundCriticalStrikeRank != 0 || boundOverdriveRank != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot apply combat attempt for submission '{intent.SubmissionId}' with nonzero question-bound modifier ranks " +
+                        $"(CriticalStrike={boundCriticalStrikeRank}, Overdrive={boundOverdriveRank}) before combat modifier execution is integrated.");
                 }
 
                 var now = DateTimeOffset.UtcNow;
@@ -4404,8 +4438,87 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
         }
 
+        int boundCriticalStrikeRank = 0;
+        if (reader.FieldCount > 8)
+        {
+            int? criticalTypeOrdinal = reader.FieldCount > 10 ? 10 : null;
+            boundCriticalStrikeRank = ReadPendingIntentRank(
+                reader,
+                valueOrdinal: 8,
+                typeOrdinal: criticalTypeOrdinal,
+                column: "bound_critical_strike_rank",
+                maxRank: CyberDefenseCriticalStrikePolicy.MaxRank);
+        }
+
+        int boundOverdriveRank = 0;
+        if (reader.FieldCount > 9)
+        {
+            int? overdriveTypeOrdinal = reader.FieldCount > 11 ? 11 : null;
+            boundOverdriveRank = ReadPendingIntentRank(
+                reader,
+                valueOrdinal: 9,
+                typeOrdinal: overdriveTypeOrdinal,
+                column: "bound_overdrive_rank",
+                maxRank: CyberDefenseOverdrivePolicy.MaxRank);
+        }
+
         return new CyberDefensePendingIntentRecord(
-            subId, factId, isCorrect, isEligible, latency, epoch, createdAt, effectiveAttackDamage);
+            subId,
+            factId,
+            isCorrect,
+            isEligible,
+            latency,
+            epoch,
+            createdAt,
+            effectiveAttackDamage,
+            boundCriticalStrikeRank,
+            boundOverdriveRank);
+    }
+
+    private static int ReadPendingIntentRank(
+        SqliteDataReader reader,
+        int valueOrdinal,
+        int? typeOrdinal,
+        string column,
+        int maxRank)
+    {
+        if (typeOrdinal is int explicitTypeOrdinal)
+        {
+            if (reader.IsDBNull(explicitTypeOrdinal) || reader.GetString(explicitTypeOrdinal) != "integer")
+            {
+                throw new InvalidOperationException(
+                    $"Pending intent table requires INTEGER storage for '{column}'.");
+            }
+        }
+
+        if (reader.IsDBNull(valueOrdinal) || reader.GetFieldType(valueOrdinal) != typeof(long))
+        {
+            throw new InvalidOperationException(
+                $"Pending intent table requires INTEGER storage for '{column}'.");
+        }
+
+        long value = reader.GetInt64(valueOrdinal);
+        if (value < 0 || value > maxRank)
+        {
+            throw new InvalidOperationException(
+                $"Existing database has invalid value {value} in 'gameplay_pending_intent.{column}': expected 0 to {maxRank}.");
+        }
+
+        return (int)value;
+    }
+
+    private static bool HasMatchingPendingIntentPayload(
+        CyberDefensePendingIntentRecord existing,
+        CyberDefensePendingIntentRecord candidate)
+    {
+        return string.Equals(existing.FactId, candidate.FactId, StringComparison.Ordinal) &&
+               existing.IsCorrect == candidate.IsCorrect &&
+               existing.IsEligible == candidate.IsEligible &&
+               existing.ResponseLatencyMs == candidate.ResponseLatencyMs &&
+               existing.ResetEpoch == candidate.ResetEpoch &&
+               existing.EffectiveAttackDamage == candidate.EffectiveAttackDamage &&
+               existing.BoundCriticalStrikeRank == candidate.BoundCriticalStrikeRank &&
+               existing.BoundOverdriveRank == candidate.BoundOverdriveRank;
     }
 
     public Task<GameplayResetIntentRecord> GetResetIntentAsync(CancellationToken cancellationToken = default)
