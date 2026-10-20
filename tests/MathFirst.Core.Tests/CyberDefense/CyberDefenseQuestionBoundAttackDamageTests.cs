@@ -1982,6 +1982,11 @@ internal sealed class ControllableDelayedGameplayStore : IGameplayStore
         add => _inner.FirewallUpgradeSnapshotChanged += value;
         remove => _inner.FirewallUpgradeSnapshotChanged -= value;
     }
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
     public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
         _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);

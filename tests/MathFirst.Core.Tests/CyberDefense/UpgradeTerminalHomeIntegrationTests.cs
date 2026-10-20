@@ -1086,6 +1086,7 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
             Task.FromResult(CyberDefenseFirewallUpgradeSnapshot.FromProgression(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow)));
 
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+        public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged { add { } remove { } }
 
         public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default)
         {

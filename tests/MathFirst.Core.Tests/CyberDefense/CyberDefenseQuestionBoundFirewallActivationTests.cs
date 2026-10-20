@@ -612,6 +612,11 @@ public sealed class CyberDefenseQuestionBoundFirewallActivationTests : IDisposab
         public string StoragePath => _inner.StoragePath;
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task InitializeAsync(CancellationToken cancellationToken = default) => _inner.InitializeAsync(cancellationToken);
         public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default) => _inner.GetRunStateAsync(cancellationToken);

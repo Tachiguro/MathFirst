@@ -77,6 +77,7 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow).ToFirewallUpgradeSnapshot());
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+        public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged { add { } remove { } }
         public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Simulated gameplay storage failure during modifier snapshot.");
 

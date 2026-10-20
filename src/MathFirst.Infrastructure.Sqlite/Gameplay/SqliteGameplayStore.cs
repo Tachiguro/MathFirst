@@ -29,11 +29,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
     private bool _resourcesCleanedUp;
     public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
     public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged;
     private readonly object _notificationLock = new();
     private long _lastPublishedEpoch = -1;
     private long _lastPublishedRevision = -1;
     private long _lastPublishedFirewallEpoch = -1;
     private long _lastPublishedFirewallRevision = -1;
+    private long _lastPublishedModifierEpoch = -1;
+    private long _lastPublishedModifierRevision = -1;
 
     private const string SchemaV6Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -2405,7 +2408,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             criticalStrike ? CyberDefenseCriticalStrikePolicy.MaxRank : CyberDefenseOverdrivePolicy.MaxRank);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
 
-        return ExecuteWithConnectionGateAsync(async ct =>
+        var committedPurchase = ExecuteWithConnectionGateAsync(async ct =>
         {
             // Immediate BEGIN serializes validation and writes against other SQLite connections too.
             using var transaction = _connection!.BeginTransaction();
@@ -2515,6 +2518,69 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 throw;
             }
         }, cancellationToken);
+
+        return PublishCombatModifierSnapshotAfterCommitAsync(committedPurchase);
+    }
+
+    // The purchase task completes only after its transaction committed and the connection gate was
+    // released, so subscribers run outside the gate and can never observe uncommitted state.
+    private async Task<CyberDefenseCombatModifierSnapshot> PublishCombatModifierSnapshotAfterCommitAsync(
+        Task<CyberDefenseCombatModifierSnapshot> committedPurchase)
+    {
+        var snapshot = await committedPurchase.ConfigureAwait(false);
+        NotifyCombatModifierSnapshotChanged(snapshot);
+        return snapshot;
+    }
+
+    private async Task PublishResetBaselineAfterClearAsync(
+        Task clearTask, Func<CyberDefenseCombatModifierSnapshot?> getBaseline)
+    {
+        await clearTask.ConfigureAwait(false);
+        var baseline = getBaseline();
+        if (baseline != null)
+        {
+            NotifyCombatModifierSnapshotChanged(baseline);
+        }
+    }
+
+    private void NotifyCombatModifierSnapshotChanged(CyberDefenseCombatModifierSnapshot snapshot)
+    {
+        var handlers = CombatModifierSnapshotChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        lock (_notificationLock)
+        {
+            if (_lastPublishedModifierEpoch >= 0)
+            {
+                if (snapshot.ResetEpoch < _lastPublishedModifierEpoch)
+                {
+                    return;
+                }
+
+                if (snapshot.ResetEpoch == _lastPublishedModifierEpoch && snapshot.StoreRevision <= _lastPublishedModifierRevision)
+                {
+                    return;
+                }
+            }
+
+            _lastPublishedModifierEpoch = snapshot.ResetEpoch;
+            _lastPublishedModifierRevision = snapshot.StoreRevision;
+
+            foreach (Action<CyberDefenseCombatModifierSnapshot> subscriber in handlers.GetInvocationList())
+            {
+                try
+                {
+                    subscriber(snapshot);
+                }
+                catch
+                {
+                    // Observer exception isolation: subscriber failures must never compromise a committed purchase.
+                }
+            }
+        }
     }
 
     private static long ReadModifierSnapshotInteger(SqliteDataReader reader, string column, long min, long max)
@@ -4775,7 +4841,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
     {
         ArgumentOutOfRangeException.ThrowIfNegative(targetEpoch);
 
-        return ExecuteWithConnectionGateAsync(async ct =>
+        CyberDefenseCombatModifierSnapshot? resetBaseline = null;
+
+        var clearTask = ExecuteWithConnectionGateAsync(async ct =>
         {
             using (var pragmaCmd = _connection!.CreateCommand())
             {
@@ -4838,7 +4906,20 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     await updateCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
 
+                // Read the coherent post-reset baseline inside the same transaction (intent is no longer
+                // pending here). Publication happens only after commit and after the gate is released.
+                CyberDefenseCombatModifierSnapshot? candidateBaseline = null;
+                try
+                {
+                    candidateBaseline = await ReadCombatModifierSnapshotAsync(_connection, transaction, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // An unreadable baseline is never published; coordinators stay conservative.
+                }
+
                 transaction.Commit();
+                resetBaseline = candidateBaseline;
 
                 using (var restoreCmd = _connection.CreateCommand())
                 {
@@ -4859,6 +4940,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 throw;
             }
         }, cancellationToken);
+
+        return PublishResetBaselineAfterClearAsync(clearTask, () => resetBaseline);
     }
 
     public static GameplayResetIntentRecord ReadResetIntent(SqliteDataReader reader)
@@ -5012,12 +5095,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             AttackUpgradeSnapshotChanged = null;
             FirewallUpgradeSnapshotChanged = null;
+            CombatModifierSnapshotChanged = null;
             lock (_notificationLock)
             {
                 _lastPublishedEpoch = -1;
                 _lastPublishedRevision = -1;
                 _lastPublishedFirewallEpoch = -1;
                 _lastPublishedFirewallRevision = -1;
+                _lastPublishedModifierEpoch = -1;
+                _lastPublishedModifierRevision = -1;
             }
             CleanupResources();
         }

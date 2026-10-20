@@ -1293,6 +1293,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
@@ -1371,6 +1376,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
@@ -1436,6 +1446,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
@@ -1517,6 +1532,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
@@ -1571,6 +1591,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
@@ -1621,6 +1646,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
         public async Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)

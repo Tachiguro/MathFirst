@@ -31,6 +31,11 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     private long _activeResetEpoch = -1;
     private CyberDefenseAttackUpgradeSnapshot? _authoritativeSnapshot;
     private CyberDefenseFirewallUpgradeSnapshot? _authoritativeFirewallSnapshot;
+    private readonly Dictionary<long, CyberDefenseQuestionBoundModifierRanks> _boundQuestionModifierRanks = new();
+    private CyberDefenseCombatModifierSnapshot? _authoritativeModifierSnapshot;
+    private long _lowestRetainedModifierQuestionKey = -1;
+    private bool _modifierWarmupInFlight;
+    private bool _disposed;
     private long _activeQuestionKey = -1;
     private long _lowestRetainedQuestionKey = -1;
     private CyberDefenseHudViewModel _currentViewModel = CyberDefenseHudViewModel.Initial();
@@ -46,6 +51,72 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         {
             _gameplayStore.AttackUpgradeSnapshotChanged += OnAttackUpgradeSnapshotChanged;
             _gameplayStore.FirewallUpgradeSnapshotChanged += OnFirewallUpgradeSnapshotChanged;
+            _gameplayStore.CombatModifierSnapshotChanged += OnCombatModifierSnapshotChanged;
+        }
+    }
+
+    // Caller holds _stateLock. Everything scoped to a reset epoch is dropped together; the modifier
+    // cache belongs to the old epoch too and must be re-established by an authoritative snapshot.
+    private void ResetEpochScopedState()
+    {
+        _boundQuestionDamage.Clear();
+        _boundQuestionFirewallRank.Clear();
+        _boundQuestionModifierRanks.Clear();
+        _inFlightQuestionBindings.Clear();
+        _inFlightQuestionActivations.Clear();
+        _lastActivatedQuestionKey = -1;
+        _deferredActivationQuestionKey = -1;
+        _lowestRetainedQuestionKey = -1;
+        _lowestRetainedModifierQuestionKey = -1;
+        _authoritativeModifierSnapshot = null;
+    }
+
+    private bool TryApplyAuthoritativeModifierSnapshot(CyberDefenseCombatModifierSnapshot snapshot)
+    {
+        // 1. Monotonic reset epoch fence: stale epochs never apply.
+        if (_activeResetEpoch >= 0 && snapshot.ResetEpoch < _activeResetEpoch)
+        {
+            return false;
+        }
+
+        // 2. Epoch transition: invalidate every old binding; old callbacks can never restore them.
+        if (_activeResetEpoch >= 0 && snapshot.ResetEpoch > _activeResetEpoch)
+        {
+            _activeResetEpoch = snapshot.ResetEpoch;
+            ResetEpochScopedState();
+            _authoritativeModifierSnapshot = snapshot;
+            return true;
+        }
+
+        if (_activeResetEpoch < 0)
+        {
+            _activeResetEpoch = snapshot.ResetEpoch;
+        }
+
+        // 3. Monotonic revision fence within the epoch: delayed reads/callbacks never regress the cache.
+        if (_authoritativeModifierSnapshot != null && snapshot.ResetEpoch == _authoritativeModifierSnapshot.ResetEpoch)
+        {
+            if (snapshot.StoreRevision <= _authoritativeModifierSnapshot.StoreRevision)
+            {
+                return snapshot.StoreRevision == _authoritativeModifierSnapshot.StoreRevision;
+            }
+        }
+
+        _authoritativeModifierSnapshot = snapshot;
+        return true;
+    }
+
+    private void OnCombatModifierSnapshotChanged(CyberDefenseCombatModifierSnapshot snapshot)
+    {
+        lock (_stateLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            // Only the cache moves. Existing question bindings are never rewritten by an event.
+            TryApplyAuthoritativeModifierSnapshot(snapshot);
         }
     }
 
@@ -61,13 +132,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         if (_activeResetEpoch >= 0 && snapshot.ResetEpoch > _activeResetEpoch)
         {
             _activeResetEpoch = snapshot.ResetEpoch;
-            _boundQuestionDamage.Clear();
-            _boundQuestionFirewallRank.Clear();
-            _inFlightQuestionBindings.Clear();
-            _inFlightQuestionActivations.Clear();
-            _lastActivatedQuestionKey = -1;
-            _deferredActivationQuestionKey = -1;
-            _lowestRetainedQuestionKey = -1;
+            ResetEpochScopedState();
             _authoritativeSnapshot = snapshot;
             return true;
         }
@@ -109,13 +174,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         if (_activeResetEpoch >= 0 && snapshot.ResetEpoch > _activeResetEpoch)
         {
             _activeResetEpoch = snapshot.ResetEpoch;
-            _boundQuestionDamage.Clear();
-            _boundQuestionFirewallRank.Clear();
-            _inFlightQuestionBindings.Clear();
-            _inFlightQuestionActivations.Clear();
-            _lastActivatedQuestionKey = -1;
-            _deferredActivationQuestionKey = -1;
-            _lowestRetainedQuestionKey = -1;
+            ResetEpochScopedState();
             _authoritativeFirewallSnapshot = snapshot;
             return true;
         }
@@ -234,6 +293,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
             var snapshot = await _gameplayStore.GetAttackUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
             var firewallSnapshot = await _gameplayStore.GetFirewallUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var modifierSnapshot = await TryReadModifierSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
 
             lock (_stateLock)
@@ -246,6 +306,10 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                 _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, latestReceipt, _feedbackRevision);
                 TryApplyAuthoritativeSnapshot(snapshot);
                 TryApplyAuthoritativeFirewallSnapshot(firewallSnapshot);
+                if (modifierSnapshot != null && !_disposed)
+                {
+                    TryApplyAuthoritativeModifierSnapshot(modifierSnapshot);
+                }
             }
         }
         catch
@@ -281,6 +345,27 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             cancellationToken);
     }
 
+    public Task StageIntentAsync(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long latencyMs,
+        bool isEligibleAtSubmission,
+        int effectiveAttackDamage,
+        CancellationToken cancellationToken = default)
+    {
+        return StageIntentAsync(
+            submissionId,
+            factId,
+            isCorrect,
+            latencyMs,
+            isEligibleAtSubmission,
+            effectiveAttackDamage,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            cancellationToken);
+    }
+
     public async Task StageIntentAsync(
         string submissionId,
         string factId,
@@ -288,6 +373,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         long latencyMs,
         bool isEligibleAtSubmission,
         int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank,
         CancellationToken cancellationToken = default)
     {
         if (_gameplayStore == null || _consumer == null || string.IsNullOrWhiteSpace(submissionId))
@@ -297,6 +384,14 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
 
         try
         {
+            // Fail closed: ranks outside the approved range can only be a caller defect, never an entitlement.
+            if (boundCriticalStrikeRank < 0 || boundCriticalStrikeRank > CyberDefenseCriticalStrikePolicy.MaxRank ||
+                boundOverdriveRank < 0 || boundOverdriveRank > CyberDefenseOverdrivePolicy.MaxRank)
+            {
+                boundCriticalStrikeRank = 0;
+                boundOverdriveRank = 0;
+            }
+
             var resetEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
             var intent = new CyberDefensePendingIntentRecord(
                 submissionId: submissionId,
@@ -306,13 +401,165 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                 responseLatencyMs: latencyMs,
                 resetEpoch: resetEpoch,
                 createdAt: DateTimeOffset.UtcNow,
-                effectiveAttackDamage: Math.Max(1, effectiveAttackDamage));
+                effectiveAttackDamage: Math.Max(1, effectiveAttackDamage),
+                boundCriticalStrikeRank: boundCriticalStrikeRank,
+                boundOverdriveRank: boundOverdriveRank);
 
             await _consumer.StageIntentAsync(intent, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
             // Learning-first failure isolation: Staging failure must not prevent learner progress commit.
+        }
+    }
+
+    public Task<CyberDefenseQuestionBoundModifierRanks> GetOrBindCombatModifierRanksAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<CyberDefenseQuestionBoundModifierRanks>(cancellationToken);
+        }
+
+        if (questionKey < 0)
+        {
+            return Task.FromResult(CyberDefenseQuestionBoundModifierRanks.Zero);
+        }
+
+        long warmupGeneration = -1;
+        CyberDefenseQuestionBoundModifierRanks bound;
+        lock (_stateLock)
+        {
+            if (_disposed)
+            {
+                return Task.FromResult(CyberDefenseQuestionBoundModifierRanks.Zero);
+            }
+
+            _activeQuestionKey = questionKey;
+
+            // 1. Immutable once bound.
+            if (_boundQuestionModifierRanks.TryGetValue(questionKey, out var existing))
+            {
+                return Task.FromResult(existing);
+            }
+
+            // 2. An evicted historical question must never be rebound at newer purchase ranks.
+            if (_lowestRetainedModifierQuestionKey >= 0 && questionKey < _lowestRetainedModifierQuestionKey)
+            {
+                return Task.FromResult(CyberDefenseQuestionBoundModifierRanks.Zero);
+            }
+
+            // 3. Coherent cached snapshot of the active epoch: bind synchronously at the presentation boundary.
+            if (_authoritativeModifierSnapshot != null &&
+                (_activeResetEpoch < 0 || _authoritativeModifierSnapshot.ResetEpoch == _activeResetEpoch))
+            {
+                bound = new CyberDefenseQuestionBoundModifierRanks(
+                    _authoritativeModifierSnapshot.CriticalStrikeRank,
+                    _authoritativeModifierSnapshot.OverdriveRank);
+            }
+            else
+            {
+                // 4. Cold/uncertain cache: conservative 0/0 now. A warm-up only benefits FUTURE questions.
+                bound = CyberDefenseQuestionBoundModifierRanks.Zero;
+                if (_gameplayStore != null && !_modifierWarmupInFlight)
+                {
+                    _modifierWarmupInFlight = true;
+                    warmupGeneration = _activeGeneration;
+                }
+            }
+
+            _boundQuestionModifierRanks[questionKey] = bound;
+            TrimBoundQuestionModifierRanksHistory();
+        }
+
+        if (warmupGeneration >= 0)
+        {
+            _ = WarmModifierSnapshotAsync(warmupGeneration);
+        }
+
+        return Task.FromResult(bound);
+    }
+
+    public CyberDefenseQuestionBoundModifierRanks GetBoundCombatModifierRanksOrDefault(long questionKey)
+    {
+        if (questionKey < 0)
+        {
+            return CyberDefenseQuestionBoundModifierRanks.Zero;
+        }
+
+        lock (_stateLock)
+        {
+            return _boundQuestionModifierRanks.TryGetValue(questionKey, out var ranks)
+                ? ranks
+                : CyberDefenseQuestionBoundModifierRanks.Zero;
+        }
+    }
+
+    private async Task WarmModifierSnapshotAsync(long taskGeneration)
+    {
+        CyberDefenseCombatModifierSnapshot? snapshot = null;
+        try
+        {
+            snapshot = await _gameplayStore!.GetCombatModifierSnapshotAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // Failure isolation: a failed warm-up leaves the cache cold; questions stay conservative.
+        }
+
+        lock (_stateLock)
+        {
+            if (taskGeneration != _activeGeneration)
+            {
+                // InvalidateState already cleared the in-flight flag for the newer generation.
+                return;
+            }
+
+            _modifierWarmupInFlight = false;
+            if (snapshot != null && !_disposed)
+            {
+                // Affects only questions presented after this point; bound questions are never touched.
+                TryApplyAuthoritativeModifierSnapshot(snapshot);
+            }
+        }
+    }
+
+    private async Task<CyberDefenseCombatModifierSnapshot?> TryReadModifierSnapshotAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _gameplayStore!.GetCombatModifierSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // A pending reset or unreadable modifier state keeps the cache cold; Attack/Firewall paths are unaffected.
+            return null;
+        }
+    }
+
+    private void TrimBoundQuestionModifierRanksHistory()
+    {
+        if (_boundQuestionModifierRanks.Count > MaxQuestionDamageHistory)
+        {
+            var keysToRemove = _boundQuestionModifierRanks.Keys
+                .Where(k => k != _activeQuestionKey)
+                .OrderBy(k => k)
+                .Take(_boundQuestionModifierRanks.Count - MaxQuestionDamageHistory)
+                .ToList();
+
+            foreach (var k in keysToRemove)
+            {
+                _boundQuestionModifierRanks.Remove(k);
+                if (_lowestRetainedModifierQuestionKey < 0 || k >= _lowestRetainedModifierQuestionKey)
+                {
+                    _lowestRetainedModifierQuestionKey = k + 1;
+                }
+            }
         }
     }
 
@@ -880,11 +1127,16 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             var runState = await _gameplayStore.GetRunStateAsync(cancellationToken).ConfigureAwait(false);
             var snapshot = await _gameplayStore.GetAttackUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
             var firewallSnapshot = await _gameplayStore.GetFirewallUpgradeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var modifierSnapshot = await TryReadModifierSnapshotAsync(cancellationToken).ConfigureAwait(false);
             lock (_stateLock)
             {
                 _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, null, _feedbackRevision);
                 TryApplyAuthoritativeSnapshot(snapshot);
                 TryApplyAuthoritativeFirewallSnapshot(firewallSnapshot);
+                if (modifierSnapshot != null && !_disposed)
+                {
+                    TryApplyAuthoritativeModifierSnapshot(modifierSnapshot);
+                }
             }
         }
         catch
@@ -909,23 +1161,37 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             _currentViewModel = CyberDefenseHudViewModel.Initial();
             _boundQuestionDamage.Clear();
             _boundQuestionFirewallRank.Clear();
+            _boundQuestionModifierRanks.Clear();
             _inFlightQuestionBindings.Clear();
             _inFlightQuestionActivations.Clear();
             _lastActivatedQuestionKey = -1;
             _deferredActivationQuestionKey = -1;
             _activeQuestionKey = -1;
             _lowestRetainedQuestionKey = -1;
+            _lowestRetainedModifierQuestionKey = -1;
+            _modifierWarmupInFlight = false;
             _authoritativeSnapshot = null;
             _authoritativeFirewallSnapshot = null;
+            _authoritativeModifierSnapshot = null;
         }
     }
 
     public void Dispose()
     {
+        lock (_stateLock)
+        {
+            _disposed = true;
+            _activeGeneration++;
+            _boundQuestionModifierRanks.Clear();
+            _authoritativeModifierSnapshot = null;
+            _modifierWarmupInFlight = false;
+        }
+
         if (_gameplayStore != null)
         {
             _gameplayStore.AttackUpgradeSnapshotChanged -= OnAttackUpgradeSnapshotChanged;
             _gameplayStore.FirewallUpgradeSnapshotChanged -= OnFirewallUpgradeSnapshotChanged;
+            _gameplayStore.CombatModifierSnapshotChanged -= OnCombatModifierSnapshotChanged;
         }
     }
 }

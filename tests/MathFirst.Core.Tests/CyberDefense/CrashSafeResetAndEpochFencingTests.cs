@@ -528,6 +528,7 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+        public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged { add { } remove { } }
         public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Modifier snapshots are unsupported by this startup-failure test store.");
 
@@ -576,6 +577,11 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
             add => inner.FirewallUpgradeSnapshotChanged += value;
             remove => inner.FirewallUpgradeSnapshotChanged -= value;
         }
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => inner.CombatModifierSnapshotChanged += value;
+        remove => inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
             inner.GetCombatModifierSnapshotAsync(cancellationToken);
 
