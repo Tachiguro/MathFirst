@@ -623,7 +623,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }
     }
 
-    private async Task<T> ExecuteWithConnectionGateAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken)
+    private async Task<T> ExecuteWithConnectionGateAsync<T>(Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken, bool initialize = true)
     {
         RegisterOperation();
         try
@@ -632,7 +632,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
             try
             {
                 ThrowIfDisposed();
-                await EnsureInitializedCoreAsync(cancellationToken).ConfigureAwait(false);
+                if (initialize)
+                {
+                    await EnsureInitializedCoreAsync(cancellationToken).ConfigureAwait(false);
+                }
+                else if (!_isInitialized || _connection == null)
+                {
+                    throw new InvalidOperationException("Initialize the Gameplay Store explicitly before reading a combat modifier snapshot.");
+                }
                 return await action(cancellationToken).ConfigureAwait(false);
             }
             finally
@@ -2266,6 +2273,128 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 firewallRank,
                 activatedFirewallRank);
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Restores purchased modifier ranks and run state from one consistent, validated V7 read.
+    /// Requires explicit <see cref="InitializeAsync"/> first: reading cannot create/migrate a database.
+    /// Throws <see cref="InvalidOperationException"/> for corrupt state or a pending reset; never
+    /// repairs data or activates a rank. Pending-intent bindings and receipt evidence are not read.
+    /// </summary>
+    public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        return ExecuteWithConnectionGateAsync(async ct =>
+        {
+            // Deferred BEGIN acquires no write reservation. The joined read establishes the SQLite
+            // snapshot for progression, run state and reset context, including external connections.
+            using var transaction = _connection!.BeginTransaction(deferred: true);
+            CyberDefenseCombatModifierSnapshot snapshot;
+            using (var cmd = _connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = @"
+                    SELECT p.critical_strike_rank, typeof(p.critical_strike_rank) AS critical_strike_rank_type,
+                           p.overdrive_rank, typeof(p.overdrive_rank) AS overdrive_rank_type,
+                           p.store_revision, typeof(p.store_revision) AS store_revision_type,
+                           p.reset_epoch, typeof(p.reset_epoch) AS reset_epoch_type,
+                           rs.critical_correct_attack_count, typeof(rs.critical_correct_attack_count) AS critical_correct_attack_count_type,
+                           rs.overdrive_streak, typeof(rs.overdrive_streak) AS overdrive_streak_type,
+                           rs.overdrive_remaining_bonus_attacks, typeof(rs.overdrive_remaining_bonus_attacks) AS overdrive_remaining_bonus_attacks_type,
+                           rs.reset_epoch AS run_reset_epoch, typeof(rs.reset_epoch) AS run_reset_epoch_type,
+                           r.is_pending, typeof(r.is_pending) AS is_pending_type,
+                           r.current_epoch, typeof(r.current_epoch) AS current_epoch_type,
+                           r.target_epoch, typeof(r.target_epoch) AS target_epoch_type,
+                           r.created_at, r.updated_at
+                    FROM gameplay_progression p
+                    JOIN gameplay_run_state rs ON rs.id = 1
+                    JOIN gameplay_reset_intent r ON r.id = 1
+                    WHERE p.id = 1;";
+                using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing authoritative progression, run state or reset intent row for combat modifier snapshot.");
+                }
+
+                int criticalRank = (int)ReadModifierSnapshotInteger(reader, "critical_strike_rank", 0, CyberDefenseCriticalStrikePolicy.MaxRank);
+                int overdriveRank = (int)ReadModifierSnapshotInteger(reader, "overdrive_rank", 0, CyberDefenseOverdrivePolicy.MaxRank);
+                long revision = ReadModifierSnapshotInteger(reader, "store_revision", 1, long.MaxValue);
+                long epoch = ReadModifierSnapshotInteger(reader, "reset_epoch", 0, long.MaxValue);
+                int count = (int)ReadModifierSnapshotInteger(reader, "critical_correct_attack_count", 0, int.MaxValue);
+                int streak = (int)ReadModifierSnapshotInteger(reader, "overdrive_streak", 0, int.MaxValue);
+                int remaining = (int)ReadModifierSnapshotInteger(reader, "overdrive_remaining_bonus_attacks", 0, CyberDefenseOverdrivePolicy.Rank1BonusAttackCount);
+                long runEpoch = ReadModifierSnapshotInteger(reader, "run_reset_epoch", 0, long.MaxValue);
+                bool isPending = ReadModifierSnapshotInteger(reader, "is_pending", 0, 1) == 1;
+                long currentEpoch = ReadModifierSnapshotInteger(reader, "current_epoch", 0, long.MaxValue);
+                long targetEpoch = ReadModifierSnapshotInteger(reader, "target_epoch", 0, long.MaxValue);
+                DateTimeOffset? createdAt = reader.IsDBNull(reader.GetOrdinal("created_at"))
+                    ? null : ReadModifierSnapshotTimestamp(reader, "created_at");
+                DateTimeOffset updatedAt = ReadModifierSnapshotTimestamp(reader, "updated_at");
+
+                if (isPending ? targetEpoch <= currentEpoch || createdAt == null || createdAt > updatedAt
+                              : targetEpoch != currentEpoch || createdAt != null)
+                {
+                    throw new InvalidOperationException("Invalid reset intent metadata for combat modifier snapshot.");
+                }
+                if (isPending)
+                {
+                    // Both pre-reset and already-reset gameplay rows stay fenced until intent clear.
+                    throw new InvalidOperationException("Combat modifier snapshot is unavailable while a reset is pending.");
+                }
+                if (epoch != runEpoch || epoch != currentEpoch)
+                {
+                    throw new InvalidOperationException("Inconsistent progression, run state and reset intent epochs for combat modifier snapshot.");
+                }
+                if (criticalRank == 0 && count != 0)
+                {
+                    throw new InvalidOperationException("Critical Strike rank 0 cannot have a nonzero critical_correct_attack_count.");
+                }
+                if (overdriveRank == 0 && (streak != 0 || remaining != 0))
+                {
+                    throw new InvalidOperationException("Overdrive rank 0 cannot have an overdrive_streak or armed window.");
+                }
+
+                // V7 cannot prove purchase provenance. Rank 1 streak 4 legitimately survives a
+                // promotion to rank 2 and arms on the NEXT correct answer (Slice 6 / Issue #90).
+                // Allow idle 0..4 at either enabled rank; atomic purchases must preserve provenance.
+                if (remaining == 0 ? streak > 4
+                                   : streak != CyberDefenseOverdrivePolicy.Rank1BonusAttackCount - remaining)
+                {
+                    throw new InvalidOperationException("Invalid Overdrive streak/window combination for combat modifier snapshot.");
+                }
+
+                snapshot = new CyberDefenseCombatModifierSnapshot(
+                    criticalRank, overdriveRank, new CyberDefenseCombatModifierState(count, streak, remaining),
+                    revision, epoch, new GameplayResetIntentRecord(false, currentEpoch, targetEpoch, createdAt, updatedAt));
+            }
+            transaction.Commit();
+            return snapshot;
+        }, cancellationToken, initialize: false);
+    }
+
+    private static long ReadModifierSnapshotInteger(SqliteDataReader reader, string column, long min, long max)
+    {
+        // INTEGER affinity and range CHECKs do not guarantee the source storage class. In particular,
+        // GetInt64 can truncate REAL values. Verify typeof BEFORE any numeric conversion or narrowing.
+        if (reader.GetString(reader.GetOrdinal(column + "_type")) != "integer")
+        {
+            throw new InvalidOperationException($"Combat modifier snapshot requires INTEGER storage for '{column}'.");
+        }
+        long value = reader.GetInt64(reader.GetOrdinal(column));
+        if (value < min || value > max)
+        {
+            throw new InvalidOperationException($"Combat modifier snapshot has invalid '{column}': expected {min} to {max}.");
+        }
+        return value;
+    }
+
+    private static DateTimeOffset ReadModifierSnapshotTimestamp(SqliteDataReader reader, string column)
+    {
+        if (reader.GetValue(reader.GetOrdinal(column)) is not string text
+            || !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp))
+        {
+            throw new InvalidOperationException($"Invalid '{column}' timestamp in combat modifier snapshot reset context.");
+        }
+        return timestamp;
     }
 
     public async Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default)
