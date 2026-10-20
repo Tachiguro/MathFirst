@@ -15,7 +15,7 @@ using Microsoft.Data.Sqlite;
 public sealed class SqliteGameplayStore : IGameplayStore
 {
     public const string DefaultDatabaseFileName = "mathfirst_gameplay.db";
-    public const int DefaultSchemaVersion = 6;
+    public const int DefaultSchemaVersion = 7;
     public const string DefaultEconomyVersion = "ECONOMY_V1";
 
     private readonly string _connectionString;
@@ -245,6 +245,72 @@ public sealed class SqliteGameplayStore : IGameplayStore
         CREATE INDEX IF NOT EXISTS ix_gameplay_pending_intent_epoch_created
             ON gameplay_pending_intent(reset_epoch, created_at);
     ";
+
+    // Gameplay Schema V7 (MF-CYBER-007): additive Critical Strike and Overdrive persistence foundation.
+    // The same column definitions are appended to fresh databases (after SchemaV6Ddl) and to migrated V6
+    // databases, so both paths produce identical tables. Order is significant and must never change.
+    //
+    // - gameplay_progression: permanent purchased ranks (0 = not purchased).
+    // - gameplay_run_state: active-run modifier state (Critical phase counter, Overdrive streak, armed window).
+    // - gameplay_pending_intent: skill ranks bound at the question boundary. effective_attack_damage keeps its
+    //   existing meaning of BASE Attack damage and is never replaced by composed bonus damage.
+    // - gameplay_receipt_ledger: nullable immutable damage and rank-binding evidence, written all-or-nothing.
+    //   Legacy receipts keep NULL because their historical modifier context is unknown.
+    //
+    // Cross-table invariants are intentionally not expressed in SQL because they span the progression and
+    // run-state rows; the later restore and transaction paths must reject violations fail-closed:
+    // - critical_strike_rank = 0 requires critical_correct_attack_count = 0 (DEC-007-01).
+    // - overdrive_rank = 0 requires overdrive_streak = 0 and overdrive_remaining_bonus_attacks = 0 (OD-1).
+    // - overdrive_streak stays below CyberDefenseOverdrivePolicy.GetTriggerThreshold(overdrive_rank) (DEC-007-02).
+    // - A Critical Strike rank change resets critical_correct_attack_count to 0 atomically with the purchase.
+    // - Game-over and epoch reset clear all run modifier state; an incorrect answer clears the Overdrive
+    //   streak and any armed window even when Firewall absorbs the damage (DEC-007-03).
+    // - For a correct V7-evidenced receipt, requested_attack_damage equals
+    //   CyberDefenseDamageCompositionPolicy.GetEffectiveDamage(base_attack_damage, critical_bonus_percent, overdrive_bonus_percent).
+    private static readonly (string Table, string Column, string Definition)[] SchemaV7AddedColumns =
+    [
+        ("gameplay_progression", "critical_strike_rank",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (critical_strike_rank >= 0 AND critical_strike_rank <= 2)"),
+        ("gameplay_progression", "overdrive_rank",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (overdrive_rank >= 0 AND overdrive_rank <= 2)"),
+        ("gameplay_run_state", "critical_correct_attack_count",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (critical_correct_attack_count >= 0 AND critical_correct_attack_count <= 2147483647)"),
+        ("gameplay_run_state", "overdrive_streak",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (overdrive_streak >= 0 AND overdrive_streak <= 2147483647)"),
+        ("gameplay_run_state", "overdrive_remaining_bonus_attacks",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (overdrive_remaining_bonus_attacks >= 0 AND overdrive_remaining_bonus_attacks <= 2)"),
+        ("gameplay_pending_intent", "bound_critical_strike_rank",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (bound_critical_strike_rank >= 0 AND bound_critical_strike_rank <= 2)"),
+        ("gameplay_pending_intent", "bound_overdrive_rank",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (bound_overdrive_rank >= 0 AND bound_overdrive_rank <= 2)"),
+        ("gameplay_receipt_ledger", "base_attack_damage",
+            "INTEGER CHECK (base_attack_damage IS NULL OR base_attack_damage >= 1)"),
+        ("gameplay_receipt_ledger", "bound_critical_strike_rank",
+            "INTEGER CHECK (bound_critical_strike_rank IS NULL OR (bound_critical_strike_rank >= 0 AND bound_critical_strike_rank <= 2))"),
+        ("gameplay_receipt_ledger", "bound_overdrive_rank",
+            "INTEGER CHECK (bound_overdrive_rank IS NULL OR (bound_overdrive_rank >= 0 AND bound_overdrive_rank <= 2))"),
+        ("gameplay_receipt_ledger", "critical_bonus_percent",
+            "INTEGER CHECK (critical_bonus_percent IS NULL OR (critical_bonus_percent >= 0 AND critical_bonus_percent <= 100))"),
+        ("gameplay_receipt_ledger", "overdrive_bonus_percent",
+            @"INTEGER CHECK (overdrive_bonus_percent IS NULL OR (overdrive_bonus_percent >= 0 AND overdrive_bonus_percent <= 50))
+            CHECK (
+                (base_attack_damage IS NULL AND
+                 bound_critical_strike_rank IS NULL AND
+                 bound_overdrive_rank IS NULL AND
+                 critical_bonus_percent IS NULL AND
+                 overdrive_bonus_percent IS NULL)
+                OR
+                (receipt_kind = 'Applied' AND
+                 base_attack_damage IS NOT NULL AND
+                 bound_critical_strike_rank IS NOT NULL AND
+                 bound_overdrive_rank IS NOT NULL AND
+                 critical_bonus_percent IS NOT NULL AND
+                 overdrive_bonus_percent IS NOT NULL AND
+                 (critical_bonus_percent = 0 OR bound_critical_strike_rank >= 1) AND
+                 (overdrive_bonus_percent = 0 OR bound_overdrive_rank >= 1) AND
+                 (is_correct = 1 OR (critical_bonus_percent = 0 AND overdrive_bonus_percent = 0)))
+            )")
+    ];
 
     private const string SchemaV5Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -699,6 +765,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 await ddlCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
 
+            await AddSchemaV7ColumnsAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+
             var now = DateTimeOffset.UtcNow.ToString("O");
             var initialRun = CyberDefenseRunState.InitialRun();
 
@@ -706,7 +774,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 seedCmd.Transaction = transaction;
                 seedCmd.CommandText = @"
-                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '6');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '7');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('store_revision', '1');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('reset_epoch', '0');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
@@ -808,6 +876,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
@@ -815,21 +884,29 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
             await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 5)
         {
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+        }
+        else if (version == 6)
+        {
+            await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
         }
 
         using (var colCmd = connection.CreateCommand())
@@ -925,6 +1002,72 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 throw new InvalidOperationException("Existing database is missing row in 'gameplay_reset_intent'.");
             }
+        }
+
+        await ValidateSchemaV7ModifierStateAsync(connection, cancellationToken).ConfigureAwait(false);
+    }
+
+    // Primitive-range validation of the V7 modifier columns on open. SQL CHECK constraints normally make these
+    // unreachable; this fails closed if they were bypassed. Cross-table rank/modifier consistency is enforced by
+    // the later restore path (see SchemaV7AddedColumns).
+    private static async Task ValidateSchemaV7ModifierStateAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using (var probeCmd = connection.CreateCommand())
+        {
+            probeCmd.CommandText = @"
+                SELECT base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
+                       critical_bonus_percent, overdrive_bonus_percent
+                FROM gameplay_receipt_ledger LIMIT 0;";
+            await probeCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        using (var progCmd = connection.CreateCommand())
+        {
+            progCmd.CommandText = "SELECT critical_strike_rank, overdrive_rank FROM gameplay_progression WHERE id = 1;";
+            using var reader = await progCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidOperationException("Existing database is missing row in 'gameplay_progression'.");
+            }
+
+            ValidateSchemaV7Value("gameplay_progression", "critical_strike_rank", reader.GetInt64(0), 0, CyberDefenseCriticalStrikePolicy.MaxRank);
+            ValidateSchemaV7Value("gameplay_progression", "overdrive_rank", reader.GetInt64(1), 0, CyberDefenseOverdrivePolicy.MaxRank);
+        }
+
+        using (var runCmd = connection.CreateCommand())
+        {
+            runCmd.CommandText = @"
+                SELECT critical_correct_attack_count, overdrive_streak, overdrive_remaining_bonus_attacks
+                FROM gameplay_run_state WHERE id = 1;";
+            using var reader = await runCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidOperationException("Existing database is missing active run state row in 'gameplay_run_state'.");
+            }
+
+            ValidateSchemaV7Value("gameplay_run_state", "critical_correct_attack_count", reader.GetInt64(0), 0, int.MaxValue);
+            ValidateSchemaV7Value("gameplay_run_state", "overdrive_streak", reader.GetInt64(1), 0, int.MaxValue);
+            ValidateSchemaV7Value("gameplay_run_state", "overdrive_remaining_bonus_attacks", reader.GetInt64(2), 0, CyberDefenseOverdrivePolicy.Rank1BonusAttackCount);
+        }
+
+        using (var pendingCmd = connection.CreateCommand())
+        {
+            pendingCmd.CommandText = "SELECT bound_critical_strike_rank, bound_overdrive_rank FROM gameplay_pending_intent;";
+            using var reader = await pendingCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                ValidateSchemaV7Value("gameplay_pending_intent", "bound_critical_strike_rank", reader.GetInt64(0), 0, CyberDefenseCriticalStrikePolicy.MaxRank);
+                ValidateSchemaV7Value("gameplay_pending_intent", "bound_overdrive_rank", reader.GetInt64(1), 0, CyberDefenseOverdrivePolicy.MaxRank);
+            }
+        }
+    }
+
+    private static void ValidateSchemaV7Value(string table, string column, long value, long min, long max)
+    {
+        if (value < min || value > max)
+        {
+            throw new InvalidOperationException(
+                $"Existing database has invalid value {value} in '{table}.{column}': expected {min} to {max}.");
         }
     }
 
@@ -1945,6 +2088,61 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             try { transaction.Rollback(); } catch { }
             throw;
+        }
+    }
+
+    private static async Task MigrateV6ToV7Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 1. Purely additive: no table is rebuilt and no existing value is rewritten. New ranks and run
+            //    counters take their zero defaults, pending intents bind to rank 0 and legacy receipts keep
+            //    NULL modifier evidence, so no Critical Strike or Overdrive progress is fabricated.
+            await AddSchemaV7ColumnsAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+
+            // 2. Update schema version to 7
+            using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = "UPDATE gameplay_schema_info SET value = '7' WHERE key = 'schema_version';";
+                await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    private static async Task AddSchemaV7ColumnsAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
+    {
+        foreach (var (table, column, definition) in SchemaV7AddedColumns)
+        {
+            using (var probeCmd = connection.CreateCommand())
+            {
+                probeCmd.Transaction = transaction;
+                probeCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info(@table) WHERE name = @column;";
+                probeCmd.Parameters.AddWithValue("@table", table);
+                probeCmd.Parameters.AddWithValue("@column", column);
+                long existing = Convert.ToInt64(await probeCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+                if (existing != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Malformed gameplay database: Schema V7 column '{table}.{column}' already exists before migration. " +
+                        "Migration aborted to prevent data corruption.");
+                }
+            }
+
+            using (var alterCmd = connection.CreateCommand())
+            {
+                alterCmd.Transaction = transaction;
+                alterCmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+                await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -4096,6 +4294,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             shield_capacity = 0,
                             active_shields = 0,
                             shield_recharge_units = 0,
+                            critical_correct_attack_count = 0,
+                            overdrive_streak = 0,
+                            overdrive_remaining_bonus_attacks = 0,
                             reset_epoch = @targetEpoch,
                             updated_at = @now
                         WHERE id = 1;
@@ -4114,6 +4315,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             consecutive_early_defeats = 0,
                             is_beginner_assistance_active = 0,
                             activated_firewall_rank = 0,
+                            critical_strike_rank = 0,
+                            overdrive_rank = 0,
                             updated_at = @now
                         WHERE id = 1;
 

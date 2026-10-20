@@ -510,7 +510,7 @@ public sealed class SqliteGameplayStoreSchemaV4MigrationTests : IDisposable
     [Fact]
     public async Task T01_FreshGameplayStore_InitializesSchemaV4()
     {
-        Assert.Equal(6, SqliteGameplayStore.DefaultSchemaVersion);
+        Assert.Equal(7, SqliteGameplayStore.DefaultSchemaVersion);
 
         var dbPath = GetTempDbPath("t01_fresh_v4");
         using var store = new SqliteGameplayStore(dbPath);
@@ -522,7 +522,7 @@ public sealed class SqliteGameplayStoreSchemaV4MigrationTests : IDisposable
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
         var version = (string?)await cmd.ExecuteScalarAsync();
-        Assert.Equal("6", version);
+        Assert.Equal("7", version);
 
         // Verify column in table info
         var columns = await GetTableColumnsAsync(connection, "gameplay_pending_intent");
@@ -550,7 +550,7 @@ public sealed class SqliteGameplayStoreSchemaV4MigrationTests : IDisposable
         using (var cmd = connection.CreateCommand())
         {
             cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-            Assert.Equal("6", (string?)await cmd.ExecuteScalarAsync());
+            Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
         }
 
         using (var countCmd = connection.CreateCommand())
@@ -603,7 +603,7 @@ public sealed class SqliteGameplayStoreSchemaV4MigrationTests : IDisposable
             await conn.OpenAsync();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-            Assert.Equal("6", (string?)await cmd.ExecuteScalarAsync());
+            Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
         }
 
         // V2 -> V4
@@ -620,7 +620,7 @@ public sealed class SqliteGameplayStoreSchemaV4MigrationTests : IDisposable
             await conn.OpenAsync();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-            Assert.Equal("6", (string?)await cmd.ExecuteScalarAsync());
+            Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
         }
     }
 
