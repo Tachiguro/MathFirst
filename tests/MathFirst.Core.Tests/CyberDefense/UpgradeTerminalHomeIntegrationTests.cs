@@ -21,6 +21,49 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
     private readonly List<string> _tempDirs = new();
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ModifierTerminal_PurchasePreservesLearnerSnapshotQuestionInputAndTiming(bool critical)
+    {
+        var clock = new FakeClock();
+        using var learner = new InMemoryLearnerStore();
+        var session = await CreateAndStartSessionAsync(clock, learner);
+        session.SetCurrentAnswerInput("7");
+        var fact = session.CurrentFact;
+        var revision = session.FactInstanceRevision;
+        var snapshot = await learner.LoadSnapshotAsync();
+        int writesBefore = learner.MutationCount;
+        clock.AdvanceMs(1200);
+        session.PauseItemTiming();
+        var elapsed = session.GetCurrentActiveElapsedMs();
+        var directory = CreateTempDirectory();
+        using var store = new SqliteGameplayStore(Path.Combine(directory, "synthetic-gameplay.db"));
+        await store.InitializeAsync();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = 80, earned_sp = 79, spent_sp = 0, available_sp = 79 WHERE id = 1;";
+            command.Parameters.AddWithValue("@xp", CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
+            await command.ExecuteNonQueryAsync();
+        }
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        clock.AdvanceMs(15000);
+        var result = critical ? await vm.PurchaseCriticalStrikeUpgradeAsync() : await vm.PurchaseOverdriveUpgradeAsync();
+        Assert.True(result.IsSuccess);
+        Assert.Same(snapshot, await learner.LoadSnapshotAsync());
+        Assert.Equal(writesBefore, learner.MutationCount);
+        Assert.Same(fact, session.CurrentFact);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("7", session.CurrentAnswerInput);
+        Assert.Equal(elapsed, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsTimingActive);
+        session.ResumeItemTiming();
+        Assert.True(session.IsTimingActive);
+    }
+
+    [Theory]
     [InlineData("PurchaseCriticalStrikeUpgradeAsync")]
     [InlineData("PurchaseOverdriveUpgradeAsync")]
     public async Task ModifierContract_TestStoreRejectsUnsupportedPurchases(string operation)
@@ -90,6 +133,7 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         public string StoragePath => "inmemory://learner";
 
         private LearnerSnapshot _snapshot;
+        public int MutationCount { get; private set; }
 
         public InMemoryLearnerStore(LearnerSnapshot? initialSnapshot = null)
         {
@@ -115,14 +159,20 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
 
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(PersistenceResult.Success(_snapshot.Revision + 1));
+            CancellationToken cancellationToken = default)
+        {
+            MutationCount++;
+            return Task.FromResult(PersistenceResult.Success(_snapshot.Revision + 1));
+        }
 
         public Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(_snapshot);
 
-        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default)
+        {
+            MutationCount++;
+            return Task.CompletedTask;
+        }
 
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
