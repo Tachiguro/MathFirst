@@ -10,8 +10,10 @@ namespace MathFirst.Domain.CyberDefense;
 /// answers leave that count unchanged. Overdrive resolves the current attack against the window armed
 /// before it, then advances the streak and, at the rank's threshold, restarts the streak at zero and
 /// arms one window for the next attacks. Both ranks use the same window size and percentage
-/// (DEC-007-04). The Overdrive streak advances regardless of the Overdrive rank, as in the original
-/// pure model; only arming requires a purchased rank.
+/// (DEC-007-04). Only correct answers given while Overdrive rank is at least 1 count toward its
+/// streak (OD-1): at rank 0 the streak stays 0, so no pre-purchase progress can be banked, while a
+/// rank 1 to rank 2 upgrade keeps the streak earned at rank 1. An armed window at rank 0 is invalid
+/// input and is rejected rather than resolved.
 /// </summary>
 public static class CyberDefenseCombatModifierTransition
 {
@@ -20,9 +22,11 @@ public static class CyberDefenseCombatModifierTransition
     /// window attack), advances the Critical counter while Critical Strike is active (the current
     /// attack counts toward its own trigger; throws <see cref="OverflowException"/> instead of
     /// wrapping) and the Overdrive streak (saturating), and arms a new window when the streak reaches
-    /// the Overdrive threshold. An incorrect answer keeps the Critical counter, resets the streak,
-    /// cancels any remaining window attacks and never receives a bonus.
-    /// Throws <see cref="ArgumentOutOfRangeException"/> for an invalid rank.
+    /// the Overdrive threshold; at Overdrive rank 0 the streak stays 0. An incorrect answer keeps the
+    /// Critical counter, resets the streak, cancels any remaining window attacks and never receives a
+    /// bonus.
+    /// Throws <see cref="ArgumentOutOfRangeException"/> for an invalid rank and
+    /// <see cref="ArgumentException"/> for an armed Overdrive window at Overdrive rank 0.
     /// </summary>
     public static CyberDefenseCombatModifierOutcome ResolveAttempt(
         CyberDefenseCombatModifierState state,
@@ -34,6 +38,13 @@ public static class CyberDefenseCombatModifierTransition
         ArgumentOutOfRangeException.ThrowIfGreaterThan(criticalStrikeRank, CyberDefenseCriticalStrikePolicy.MaxRank);
         ArgumentOutOfRangeException.ThrowIfNegative(overdriveRank);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(overdriveRank, CyberDefenseOverdrivePolicy.MaxRank);
+
+        if (overdriveRank == 0 && state.OverdriveRemainingBonusAttacks > 0)
+        {
+            throw new ArgumentException(
+                $"An armed Overdrive window ({state.OverdriveRemainingBonusAttacks} attacks remaining) requires a purchased Overdrive rank.",
+                nameof(state));
+        }
 
         if (!isCorrect)
         {
@@ -58,7 +69,10 @@ public static class CyberDefenseCombatModifierTransition
         // DEC-007-04: rank 2 keeps the rank 1 percentage and window size.
         int overdriveBonusPercent = CyberDefenseOverdrivePolicy.GetRank1AttackBonusPercent(state.OverdriveRemainingBonusAttacks);
         int nextRemaining = CyberDefenseOverdrivePolicy.ConsumeBonusAttack(state.OverdriveRemainingBonusAttacks);
-        int nextStreak = CyberDefenseOverdrivePolicy.GetStreakAfterAnswer(state.OverdriveStreak, true);
+        // OD-1: answers before Overdrive is purchased never count toward its streak.
+        int nextStreak = overdriveRank > 0
+            ? CyberDefenseOverdrivePolicy.GetStreakAfterAnswer(state.OverdriveStreak, true)
+            : 0;
 
         // The state invariant keeps the streak below any threshold while a window is active, so arming
         // never overlaps or extends an existing window.

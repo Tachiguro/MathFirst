@@ -301,13 +301,23 @@ public class CyberDefenseCombatModifierTransitionTests
         // incorrect answer would land on a trigger ordinal; the active window would grant Overdrive.
         foreach (int count in new[] { 3, 4, 8, 9, 19 })
         {
-            foreach (var window in new[] { (0, 2), (1, 1), (2, 0) })
+            for (int overdriveRank = 0; overdriveRank <= CyberDefenseOverdrivePolicy.MaxRank; overdriveRank++)
             {
-                var outcome = Resolve(new CyberDefenseCombatModifierState(count, window.Item1, window.Item2), false, rank, rank);
+                foreach (var window in new[] { (0, 2), (1, 1), (2, 0) })
+                {
+                    // An armed window without a purchased Overdrive rank is rejected (see the
+                    // rank 0 armed-window tests below).
+                    if (overdriveRank == 0 && window.Item2 > 0)
+                    {
+                        continue;
+                    }
 
-                Assert.False(outcome.IsCriticalStrike);
-                Assert.Equal(0, outcome.CriticalBonusPercent);
-                Assert.Equal(0, outcome.OverdriveBonusPercent);
+                    var outcome = Resolve(new CyberDefenseCombatModifierState(count, window.Item1, window.Item2), false, rank, overdriveRank);
+
+                    Assert.False(outcome.IsCriticalStrike);
+                    Assert.Equal(0, outcome.CriticalBonusPercent);
+                    Assert.Equal(0, outcome.OverdriveBonusPercent);
+                }
             }
         }
     }
@@ -323,9 +333,9 @@ public class CyberDefenseCombatModifierTransitionTests
     [Fact]
     public void CriticalCount_IsNotResetByIncorrectAnswers_SoTriggerIsStillOnFourthCorrect()
     {
-        var state = Run(CyberDefenseCombatModifierState.Initial, 2, 0, true, true, false, true);
+        var state = Run(CyberDefenseCombatModifierState.Initial, 2, 1, true, true, false, true);
 
-        var fourthCorrect = Resolve(state, true, 2);
+        var fourthCorrect = Resolve(state, true, 2, 1);
 
         Assert.True(fourthCorrect.IsCriticalStrike);
         Assert.Equal(100, fourthCorrect.CriticalBonusPercent);
@@ -460,16 +470,175 @@ public class CyberDefenseCombatModifierTransitionTests
         }
     }
 
-    [Fact]
-    public void Overdrive_Rank0_NeverArmsOrGrantsBonus()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Overdrive_Rank0_NeverAccumulatesStreakArmsOrGrantsBonus(int criticalRank)
     {
-        var outcomes = Collect(0, 0, 20);
+        var outcomes = Collect(criticalRank, 0, 20);
 
         Assert.All(outcomes, o =>
         {
             Assert.Equal(0, o.OverdriveBonusPercent);
+            Assert.Equal(0, o.NextState.OverdriveStreak);
             Assert.Equal(0, o.NextState.OverdriveRemainingBonusAttacks);
         });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(100)]
+    [InlineData(int.MaxValue - 1)]
+    [InlineData(int.MaxValue)]
+    public void Overdrive_Rank0_ResultHasZeroStreakForAnyStoredStreakAndAnswer(int storedStreak)
+    {
+        foreach (bool correct in new[] { true, false })
+        {
+            var outcome = Resolve(new CyberDefenseCombatModifierState(1, storedStreak, 0), correct, 1, 0);
+
+            Assert.Equal(0, outcome.NextState.OverdriveStreak);
+            Assert.Equal(0, outcome.NextState.OverdriveRemainingBonusAttacks);
+            Assert.Equal(0, outcome.OverdriveBonusPercent);
+            Assert.Equal(correct ? 2 : 1, outcome.NextState.CriticalCorrectAttackCount);
+        }
+    }
+
+    // ---- OD-1: no pre-purchase Overdrive streak ----
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(19)]
+    [InlineData(100)]
+    public void OverdrivePurchase_Rank1_RequiresFiveNewConsecutiveCorrectAnswers(int correctAnswersBeforePurchase)
+    {
+        var beforePurchase = Run(
+            CyberDefenseCombatModifierState.Initial,
+            0,
+            0,
+            Enumerable.Repeat(true, correctAnswersBeforePurchase).ToArray());
+
+        var afterPurchase = Collect(beforePurchase, 0, 1, 8);
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert.Equal(new CyberDefenseCombatModifierState(0, i + 1, 0), afterPurchase[i].NextState);
+        }
+
+        Assert.Equal(new CyberDefenseCombatModifierState(0, 0, 2), afterPurchase[4].NextState);
+        Assert.Equal(new[] { 0, 0, 0, 0, 0, 50, 50, 0 }, afterPurchase.Select(o => o.OverdriveBonusPercent));
+    }
+
+    [Fact]
+    public void OverdrivePurchase_Rank1_FromInterruptedPrePurchaseStreakStillRequiresFiveNewAnswers()
+    {
+        var beforePurchase = Run(CyberDefenseCombatModifierState.Initial, 1, 0, true, true, false, true, true, true, true);
+
+        var afterPurchase = Collect(beforePurchase, 1, 1, 5);
+
+        Assert.All(afterPurchase.Take(4), o => Assert.Equal(0, o.NextState.OverdriveRemainingBonusAttacks));
+        Assert.Equal(2, afterPurchase[4].NextState.OverdriveRemainingBonusAttacks);
+        Assert.All(afterPurchase, o => Assert.Equal(0, o.OverdriveBonusPercent));
+    }
+
+    [Theory]
+    [InlineData(1, 3)]
+    [InlineData(2, 2)]
+    [InlineData(3, 1)]
+    [InlineData(4, 1)]
+    public void OverdriveUpgrade_Rank1ToRank2_PreservesProgressEarnedWhileActive(int answersAtRank1, int answersToArmAtRank2)
+    {
+        var atRank1 = Run(CyberDefenseCombatModifierState.Initial, 0, 1, Enumerable.Repeat(true, answersAtRank1).ToArray());
+        Assert.Equal(new CyberDefenseCombatModifierState(0, answersAtRank1, 0), atRank1);
+
+        var atRank2 = Collect(atRank1, 0, 2, answersToArmAtRank2 + 2);
+
+        Assert.All(atRank2.Take(answersToArmAtRank2 - 1), o => Assert.Equal(0, o.NextState.OverdriveRemainingBonusAttacks));
+        Assert.Equal(new CyberDefenseCombatModifierState(0, 0, 2), atRank2[answersToArmAtRank2 - 1].NextState);
+        Assert.Equal(50, atRank2[answersToArmAtRank2].OverdriveBonusPercent);
+        Assert.Equal(50, atRank2[answersToArmAtRank2 + 1].OverdriveBonusPercent);
+    }
+
+    [Fact]
+    public void OverdriveUpgrade_PrePurchaseAnswersDoNotCarryThroughRank1IntoRank2()
+    {
+        var beforePurchase = Run(CyberDefenseCombatModifierState.Initial, 0, 0, Enumerable.Repeat(true, 10).ToArray());
+        var atRank1 = Run(beforePurchase, 0, 1, true, true);
+
+        var atRank2 = Collect(atRank1, 0, 2, 2);
+
+        Assert.Equal(new CyberDefenseCombatModifierState(0, 3, 0), atRank2[0].NextState);
+        Assert.Equal(new CyberDefenseCombatModifierState(0, 0, 2), atRank2[1].NextState);
+    }
+
+    // ---- Rank 0 armed window fails closed ----
+
+    [Theory]
+    [InlineData(0, 2, true)]
+    [InlineData(0, 2, false)]
+    [InlineData(1, 1, true)]
+    [InlineData(1, 1, false)]
+    public void Overdrive_Rank0ArmedWindow_IsRejectedForCorrectAndIncorrectAnswers(int streak, int remaining, bool isCorrect)
+    {
+        for (int criticalRank = 0; criticalRank <= CyberDefenseCriticalStrikePolicy.MaxRank; criticalRank++)
+        {
+            var state = new CyberDefenseCombatModifierState(4, streak, remaining);
+
+            var exception = Assert.Throws<ArgumentException>(() => Resolve(state, isCorrect, criticalRank, 0));
+
+            Assert.Equal("state", exception.ParamName);
+        }
+    }
+
+    [Fact]
+    public void Overdrive_Rank0ArmedWindow_IsRejectedBeforeTheAttemptIsResolved()
+    {
+        // A resolved correct attempt at this Critical count would overflow; the invalid window must
+        // be rejected first.
+        var state = new CyberDefenseCombatModifierState(int.MaxValue, 0, 2);
+
+        Assert.Throws<ArgumentException>(() => Resolve(state, true, 1, 0));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Overdrive_ArmedWindow_RemainsValidWhileOverdriveIsPurchased(int overdriveRank)
+    {
+        var outcome = Resolve(new CyberDefenseCombatModifierState(0, 0, 2), true, 0, overdriveRank);
+
+        Assert.Equal(50, outcome.OverdriveBonusPercent);
+        Assert.Equal(new CyberDefenseCombatModifierState(0, 1, 1), outcome.NextState);
+    }
+
+    // ---- Trigger threshold versus window length ----
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void OverdriveTriggerThreshold_ExceedsBonusWindowLength(int overdriveRank)
+    {
+        // A window attack advances the streak by one, so a threshold above the window length keeps a
+        // new window from arming while one is still active.
+        Assert.True(
+            CyberDefenseOverdrivePolicy.GetTriggerThreshold(overdriveRank) > CyberDefenseOverdrivePolicy.Rank1BonusAttackCount,
+            $"Overdrive rank {overdriveRank} threshold must exceed the bonus window length.");
+    }
+
+    [Fact]
+    public void OverdriveTriggerThreshold_ExceedsBonusWindowLengthForEveryPurchasableRank()
+    {
+        for (int rank = 1; rank <= CyberDefenseOverdrivePolicy.MaxRank; rank++)
+        {
+            Assert.InRange(
+                CyberDefenseOverdrivePolicy.GetTriggerThreshold(rank),
+                CyberDefenseOverdrivePolicy.Rank1BonusAttackCount + 1,
+                int.MaxValue);
+        }
     }
 
     // ---- DEC-007-03: incorrect answers cancel Overdrive ----
@@ -515,23 +684,28 @@ public class CyberDefenseCombatModifierTransitionTests
         Assert.Equal(0, outcome.NextState.OverdriveRemainingBonusAttacks);
     }
 
-    [Fact]
-    public void OverdriveStreak_SaturatesAtMaxValueWhileOverdriveIsNotPurchased()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void OverdriveStreak_AtMaxValueArmsWithoutOverflowWhileOverdriveIsPurchased(int overdriveRank)
     {
-        var outcome = Resolve(new CyberDefenseCombatModifierState(1, int.MaxValue, 0), true, 1);
+        var outcome = Resolve(new CyberDefenseCombatModifierState(1, int.MaxValue, 0), true, 1, overdriveRank);
 
-        Assert.Equal(int.MaxValue, outcome.NextState.OverdriveStreak);
-        Assert.Equal(2, outcome.NextState.CriticalCorrectAttackCount);
+        Assert.Equal(new CyberDefenseCombatModifierState(2, 0, 2), outcome.NextState);
+        Assert.Equal(0, outcome.OverdriveBonusPercent);
     }
 
-    [Fact]
-    public void OverdriveStreak_MatchesExistingOverdrivePolicyWithoutActiveWindow()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void OverdriveStreak_MatchesExistingOverdrivePolicyBelowThresholdWhilePurchased(int overdriveRank)
     {
-        foreach (int streak in new[] { 0, 1, 4, 5, 100, int.MaxValue - 1, int.MaxValue })
+        int threshold = CyberDefenseOverdrivePolicy.GetTriggerThreshold(overdriveRank);
+        for (int streak = 0; streak < threshold - 1; streak++)
         {
             foreach (bool correct in new[] { true, false })
             {
-                var outcome = Resolve(new CyberDefenseCombatModifierState(0, streak, 0), correct, 0, 0);
+                var outcome = Resolve(new CyberDefenseCombatModifierState(0, streak, 0), correct, 0, overdriveRank);
 
                 Assert.Equal(CyberDefenseOverdrivePolicy.GetStreakAfterAnswer(streak, correct), outcome.NextState.OverdriveStreak);
             }
