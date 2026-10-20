@@ -838,15 +838,19 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             Assert.False(incorrect.IsCorrect);
             Assert.Equal(2, incorrect.EffectiveAttackDamage);
 
-            // Recovery replays the migrated intent with its preserved base Attack damage only.
+            // Recovery replays the migrated intent with its preserved base Attack damage and rank-0 V7 modifier metadata.
             var receipt = await store.ApplyAttemptTransactionAsync(correct);
             Assert.Equal(CyberDefenseReceiptKind.Applied, receipt.ReceiptKind);
             Assert.Equal(2, receipt.TransitionResult!.RequestedAttackDamage);
+            Assert.Equal(2, receipt.BaseAttackDamage);
+            Assert.Equal(0, receipt.BoundCriticalStrikeRank);
+            Assert.Equal(0, receipt.BoundOverdriveRank);
+            Assert.Equal(0, receipt.CriticalBonusPercent);
+            Assert.Equal(0, receipt.OverdriveBonusPercent);
             Assert.Null(await store.GetPendingIntentAsync("sub-pending-correct"));
         }
 
-        // Receipt insertion is unchanged in this slice: new receipts carry no V7 metadata yet.
-        Assert.Equal(new object?[] { null, null, null, null, null }, await ReadReceiptMetadataAsync(dbPath, "sub-pending-correct"));
+        Assert.Equal(new object?[] { 2L, 0L, 0L, 0L, 0L }, await ReadReceiptMetadataAsync(dbPath, "sub-pending-correct"));
         Assert.Equal(new long[] { 0, 0 }, await ReadModifierRanksAsync(dbPath));
         Assert.Equal(new long[] { 0, 0, 0 }, await ReadModifierRunStateAsync(dbPath));
     }
@@ -1072,11 +1076,16 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             var receipt = await store.ApplyAttemptTransactionAsync(intent);
             Assert.Equal(1, receipt.TransitionResult!.RequestedAttackDamage);
             Assert.Equal(1, receipt.TransitionResult.AppliedOpponentDamage);
+            Assert.Equal(1, receipt.BaseAttackDamage);
+            Assert.Equal(0, receipt.BoundCriticalStrikeRank);
+            Assert.Equal(0, receipt.BoundOverdriveRank);
+            Assert.Equal(0, receipt.CriticalBonusPercent);
+            Assert.Equal(0, receipt.OverdriveBonusPercent);
             Assert.Equal(6, receipt.AwardedXp);
             Assert.Equal(receipt, await store.ApplyAttemptTransactionAsync(intent));
         }
 
-        Assert.Equal(new object?[] { null, null, null, null, null }, await ReadReceiptMetadataAsync(dbPath, "sub-fresh"));
+        Assert.Equal(new object?[] { 1L, 0L, 0L, 0L, 0L }, await ReadReceiptMetadataAsync(dbPath, "sub-fresh"));
         Assert.Equal(new long[] { 0, 0 }, await ReadModifierRanksAsync(dbPath));
         Assert.Equal(new long[] { 0, 0, 0 }, await ReadModifierRunStateAsync(dbPath));
     }

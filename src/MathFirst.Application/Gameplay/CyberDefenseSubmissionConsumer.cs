@@ -2,7 +2,6 @@ namespace MathFirst.Application.Gameplay;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MathFirst.Application.Persistence;
@@ -42,6 +41,12 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
         var existingReceipt = await _gameplayStore.GetReceiptAsync(submissionId, cancellationToken).ConfigureAwait(false);
         if (existingReceipt is not null)
         {
+            var leftoverIntent = await _gameplayStore.GetPendingIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
+            if (leftoverIntent is not null)
+            {
+                existingReceipt = await _gameplayStore.ApplyAttemptTransactionAsync(leftoverIntent, cancellationToken).ConfigureAwait(false);
+            }
+
             return CyberDefenseConsumptionResult.AlreadyConsumed(existingReceipt);
         }
 
@@ -72,6 +77,13 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
                 $"Pending intent reset epoch {intent.ResetEpoch} does not match current store reset epoch {currentEpoch}.");
         }
 
+        var pendingIntents = await _gameplayStore.GetPendingIntentsAsync(currentEpoch, cancellationToken).ConfigureAwait(false);
+        if (pendingIntents.Count > 0 && !string.Equals(pendingIntents[0].SubmissionId, submissionId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Cannot consume pending intent '{submissionId}' out of order while head pending intent '{pendingIntents[0].SubmissionId}' is unsettled.");
+        }
+
         var receipt = await _gameplayStore.ApplyAttemptTransactionAsync(intent, cancellationToken).ConfigureAwait(false);
         return CyberDefenseConsumptionResult.Success(receipt);
     }
@@ -87,13 +99,12 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
         var currentEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
         var pendingIntents = await _gameplayStore.GetPendingIntentsAsync(currentEpoch, cancellationToken).ConfigureAwait(false);
 
-
         if (pendingIntents.Count == 0)
         {
             return CyberDefenseRecoveryResult.Empty();
         }
 
-        var confirmedList = new List<(CyberDefensePendingIntentRecord Intent, CommittedLearnerAttemptEvidence Evidence)>();
+        var confirmedList = new List<CyberDefensePendingIntentRecord>();
         var receipts = new List<CyberDefenseReceiptRecord>();
 
         foreach (var intent in pendingIntents)
@@ -101,15 +112,15 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
             var existingReceipt = await _gameplayStore.GetReceiptAsync(intent.SubmissionId, cancellationToken).ConfigureAwait(false);
             if (existingReceipt is not null)
             {
-                await _gameplayStore.ClearPendingIntentAsync(intent.SubmissionId, cancellationToken).ConfigureAwait(false);
-                receipts.Add(existingReceipt);
+                var replayed = await _gameplayStore.ApplyAttemptTransactionAsync(intent, cancellationToken).ConfigureAwait(false);
+                receipts.Add(replayed);
                 continue;
             }
 
             var evidence = await _learnerStore.GetCommittedAttemptEvidenceAsync(intent.SubmissionId, cancellationToken).ConfigureAwait(false);
             if (evidence is null)
             {
-                // Learner commit not verified yet or in flight. Stop recovery to maintain sequence order.
+                // Learner commit not verified yet or in flight. Stop recovery at the first uncommitted head.
                 break;
             }
 
@@ -121,18 +132,12 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
                     $"Pending intent for submission '{intent.SubmissionId}' does not match committed learner evidence.");
             }
 
-            confirmedList.Add((intent, evidence));
+            confirmedList.Add(intent);
         }
 
-        var sortedConfirmed = confirmedList
-            .OrderBy(x => x.Evidence.PracticePosition ?? long.MaxValue)
-            .ThenBy(x => x.Evidence.Timestamp)
-            .ThenBy(x => x.Intent.SubmissionId, StringComparer.Ordinal)
-            .ToList();
-
-        foreach (var item in sortedConfirmed)
+        foreach (var intent in confirmedList)
         {
-            var receipt = await _gameplayStore.ApplyAttemptTransactionAsync(item.Intent, cancellationToken).ConfigureAwait(false);
+            var receipt = await _gameplayStore.ApplyAttemptTransactionAsync(intent, cancellationToken).ConfigureAwait(false);
             receipts.Add(receipt);
         }
 

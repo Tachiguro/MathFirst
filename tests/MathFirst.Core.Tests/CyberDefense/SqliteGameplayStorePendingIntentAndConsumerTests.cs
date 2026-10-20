@@ -378,15 +378,19 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         await store.StagePendingIntentAsync(intent2);
         await store.StagePendingIntentAsync(intent1);
 
-        // Recover: Must process sub-1 (pos 1) first, then sub-2 (pos 2)
+        // Out-of-order execution of sub-1 before head sub-2 is rejected by the transaction-level ordering barrier
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(intent1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-1"));
+
+        // Recover: Must preserve deterministic pending-intent staging order (sub-2 first, then sub-1)
         var recoveryResult = await consumer.RecoverPendingIntentsAsync();
         Assert.Equal(2, recoveryResult.RecoveredCount);
-        Assert.Equal("sub-1", recoveryResult.Receipts[0].SubmissionId);
-        Assert.Equal("sub-2", recoveryResult.Receipts[1].SubmissionId);
+        Assert.Equal("sub-2", recoveryResult.Receipts[0].SubmissionId);
+        Assert.Equal("sub-1", recoveryResult.Receipts[1].SubmissionId);
 
         // Initial HP of Opponent 0 in Sector 1 is 2.
-        // After sub-1 (1 dmg): Opponent HP becomes 1.
-        // After sub-2 (1 dmg): Opponent HP becomes 0 -> Defeated! Next opponent is index 1.
+        // After sub-2 (1 dmg): Opponent HP becomes 1.
+        // After sub-1 (1 dmg): Opponent HP becomes 0 -> Defeated! Next opponent is index 1.
         var finalRun = await store.GetRunStateAsync();
         Assert.Equal(1, finalRun.OpponentIndex);
     }

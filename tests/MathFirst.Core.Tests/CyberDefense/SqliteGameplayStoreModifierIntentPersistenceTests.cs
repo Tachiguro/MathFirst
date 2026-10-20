@@ -898,10 +898,15 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
         Assert.True(appliedReceipt.TransitionResult.IsOpponentDefeated);
         Assert.Null(await store.GetPendingIntentAsync("sub-rank0-correct"));
 
-        // Receipt V7 modifier columns remain NULL in Slice 13A, and run modifier counters remain 0.
+        // Receipt V7 modifier columns record rank-0 metadata on Applied receipts while run modifier counters remain 0.
         var modifierSnapshot = await store.GetCombatModifierSnapshotAsync();
         Assert.Equal(CyberDefenseCombatModifierState.Initial, modifierSnapshot.ModifierState);
-        Assert.Null(await ScalarRawAsync("SELECT base_attack_damage FROM gameplay_receipt_ledger WHERE submission_id = 'sub-rank0-correct';"));
+        Assert.Equal(2, appliedReceipt.BaseAttackDamage);
+        Assert.Equal(0, appliedReceipt.BoundCriticalStrikeRank);
+        Assert.Equal(0, appliedReceipt.BoundOverdriveRank);
+        Assert.Equal(0, appliedReceipt.CriticalBonusPercent);
+        Assert.Equal(0, appliedReceipt.OverdriveBonusPercent);
+        Assert.Equal(2L, await ScalarRawAsync("SELECT base_attack_damage FROM gameplay_receipt_ledger WHERE submission_id = 'sub-rank0-correct';"));
 
         var calmRankZero = CreateIntent(
             submissionId: "sub-rank0-calm",
@@ -915,6 +920,8 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
         var calmReceipt = await store.ApplyAttemptTransactionAsync(calmRankZero);
         Assert.Equal(CyberDefenseReceiptKind.CalmModeSuppressed, calmReceipt.ReceiptKind);
         Assert.Null(calmReceipt.TransitionResult);
+        Assert.Null(calmReceipt.BaseAttackDamage);
+        Assert.Null(await ScalarRawAsync("SELECT base_attack_damage FROM gameplay_receipt_ledger WHERE submission_id = 'sub-rank0-calm';"));
         Assert.Null(await store.GetPendingIntentAsync("sub-rank0-calm"));
     }
 
@@ -974,10 +981,7 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
         var gameplayDumpBefore = await DumpDatabaseAsync(dbPath);
         var learnerDumpBefore = await DumpDatabaseAsync(learnerPath);
 
-        // 1. Direct ApplyAttemptTransactionAsync fails closed.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(intent));
-
-        // 2. Crafted rank-zero call for the same submission ID also fails closed due to staged conflict.
+        // 1. Crafted rank-zero call for the same submission ID fails closed due to staged conflict.
         var craftedRankZero = CreateIntent(
             submissionId: submissionId,
             factId: "add:1+1",
@@ -990,9 +994,18 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
             boundOverdriveRank: 0);
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(craftedRankZero));
 
-        // 3. Consumer ConsumeAttemptAsync and RecoverPendingIntentsAsync fail closed without deleting the staged intent.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync(submissionId));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.RecoverPendingIntentsAsync());
+        // 2. Unstaged nonzero-rank intent or out-of-order attempt while head is staged also fails closed.
+        var unstagedOther = CreateIntent(
+            submissionId: submissionId + "-unstaged",
+            factId: "add:1+1",
+            isCorrect: isCorrect,
+            isEligible: isEligible,
+            responseLatencyMs: 450,
+            resetEpoch: 0,
+            effectiveAttackDamage: 2,
+            boundCriticalStrikeRank: boundCrit,
+            boundOverdriveRank: boundOd);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(unstagedOther));
 
         // Staged intent remains durable with original ranks; no receipt written; gameplay and learner DBs untouched.
         var durableIntent = await store.GetPendingIntentAsync(submissionId);
@@ -1001,7 +1014,36 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
         Assert.Equal(gameplayDumpBefore, await DumpDatabaseAsync(dbPath));
         Assert.Equal(learnerDumpBefore, await DumpDatabaseAsync(learnerPath));
 
-        // Learner snapshot and FSRS state remain intact.
+        // 3. Valid staged nonzero-rank intent executes atomically via consumer and writes V7 receipt metadata.
+        var consumed = await consumer.ConsumeAttemptAsync(submissionId);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, consumed.Status);
+        Assert.NotNull(consumed.Receipt);
+        Assert.Null(await store.GetPendingIntentAsync(submissionId));
+
+        if (isEligible)
+        {
+            Assert.Equal(CyberDefenseReceiptKind.Applied, consumed.Receipt.ReceiptKind);
+            Assert.Equal(2, consumed.Receipt.BaseAttackDamage);
+            Assert.Equal(boundCrit, consumed.Receipt.BoundCriticalStrikeRank);
+            Assert.Equal(boundOd, consumed.Receipt.BoundOverdriveRank);
+            Assert.Equal(0, consumed.Receipt.CriticalBonusPercent);
+            Assert.Equal(0, consumed.Receipt.OverdriveBonusPercent);
+        }
+        else
+        {
+            Assert.Equal(CyberDefenseReceiptKind.CalmModeSuppressed, consumed.Receipt.ReceiptKind);
+            Assert.Null(consumed.Receipt.BaseAttackDamage);
+            Assert.Null(consumed.Receipt.BoundCriticalStrikeRank);
+            Assert.Null(consumed.Receipt.BoundOverdriveRank);
+            Assert.Null(consumed.Receipt.CriticalBonusPercent);
+            Assert.Null(consumed.Receipt.OverdriveBonusPercent);
+        }
+
+        // 4. Replay is idempotent and learner snapshot/FSRS state remain intact.
+        var replayed = await store.ApplyAttemptTransactionAsync(intent);
+        Assert.Equal(consumed.Receipt, replayed);
+        Assert.Equal(learnerDumpBefore, await DumpDatabaseAsync(learnerPath));
+
         var learnerSnapshot = await learnerStore.LoadSnapshotAsync();
         Assert.Equal(1, learnerSnapshot.Progression.PracticePosition);
         Assert.True(learnerSnapshot.FsrsStates.ContainsKey("add:1+1"));

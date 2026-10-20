@@ -885,43 +885,142 @@ public sealed class CyberDefenseQuestionBoundModifierRanksSqliteTests : IDisposa
     public async Task NonzeroRankIntents_RemainDurablyBlocked_WithoutReceiptOrCombatMutation_AndSurviveReopen()
     {
         var (store, learner, coordinator) = await OpenCoordinatorAsync();
-        CyberDefenseRunState before;
+        CyberDefenseReceiptRecord appliedReceipt;
+        CyberDefenseRunState runAfterApplied;
+        CyberDefenseProgressionRecord progAfterApplied;
+        CyberDefenseCombatModifierSnapshot modAfterApplied;
+        long revisionAfterApplied;
+
         using (store)
         using (learner)
         {
-            await SeedOwnedRanksOnlyAsync(1, 0);
-            before = await store.GetRunStateAsync();
+            await ExecuteAsync("""
+                UPDATE gameplay_progression
+                SET critical_strike_rank = 1, overdrive_rank = 2, attack_rank = 1
+                WHERE id = 1;
+                UPDATE gameplay_run_state
+                SET critical_correct_attack_count = 4, overdrive_streak = 2, overdrive_remaining_bonus_attacks = 0
+                WHERE id = 1;
+                """);
 
-            await coordinator.StageIntentAsync("sub-blocked", "add:1+1", true, 500, true, 1, 1, 0);
-            var commit = await learner.CommitSubmissionAsync(LearnerChangeSet("sub-blocked", "add:1+1", true, 500));
-            Assert.True(commit.IsSuccess);
+            var consumer = new CyberDefenseSubmissionConsumer(store, learner);
 
-            Assert.Null(await coordinator.ConsumeCommittedAttemptAsync("sub-blocked")); // guard rejects, learner untouched
-            var guard = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                new CyberDefenseSubmissionConsumer(store, learner).ConsumeAttemptAsync("sub-blocked"));
-            Assert.Contains("before combat modifier execution is integrated", guard.Message, StringComparison.Ordinal);
+            // 1. Properly staged nonzero-rank intent: before learner commit, no combat transaction is applied.
+            await coordinator.StageIntentAsync("sub-nonzero-1", "add:1+1", true, 500, true, 2, 1, 2);
+            var uncommittedHead = await coordinator.ConsumeCommittedAttemptAsync("sub-nonzero-1");
+            Assert.NotNull(uncommittedHead);
+            Assert.Equal(CyberDefenseConsumptionStatus.UncommittedLearnerAttempt, uncommittedHead.Status);
+            Assert.Null(uncommittedHead.Receipt);
+            Assert.Null(await store.GetReceiptAsync("sub-nonzero-1"));
+            Assert.NotNull(await store.GetPendingIntentAsync("sub-nonzero-1"));
 
-            var pending = await store.GetPendingIntentAsync("sub-blocked");
-            Assert.NotNull(pending);
-            Assert.Equal(1, pending.BoundCriticalStrikeRank);
-            Assert.Null(await store.GetReceiptAsync("sub-blocked"));
-            var after = await store.GetRunStateAsync();
-            Assert.Equal(before.PlayerCurrentHp, after.PlayerCurrentHp);
-            Assert.Equal(before.CurrentOpponent.CurrentHp, after.CurrentOpponent.CurrentHp);
-            Assert.Equal(before.OpponentIndex, after.OpponentIndex);
-            Assert.Equal(0, (await store.GetCombatModifierSnapshotAsync()).ModifierState.CriticalCorrectAttackCount);
+            // Commit matching learner evidence and consume the nonzero-rank intent.
+            var commit1 = await learner.CommitSubmissionAsync(LearnerChangeSet("sub-nonzero-1", "add:1+1", true, 500, expectedRevision: 1, practicePosition: 1));
+            Assert.True(commit1.IsSuccess);
+
+            var consumed = await coordinator.ConsumeCommittedAttemptAsync("sub-nonzero-1");
+            Assert.NotNull(consumed);
+            Assert.Equal(CyberDefenseConsumptionStatus.Success, consumed.Status);
+            Assert.NotNull(consumed.Receipt);
+            appliedReceipt = consumed.Receipt;
+
+            // Exactly one authoritative receipt is written with the question-bound ranks and policies.
+            Assert.Equal(1L, await ScalarLongAsync("SELECT COUNT(*) FROM gameplay_receipt_ledger;"));
+            Assert.Equal(appliedReceipt, await store.GetReceiptAsync("sub-nonzero-1"));
+            Assert.Equal(CyberDefenseReceiptKind.Applied, appliedReceipt.ReceiptKind);
+            Assert.Equal(2, appliedReceipt.BaseAttackDamage);
+            Assert.Equal(1, appliedReceipt.BoundCriticalStrikeRank);
+            Assert.Equal(2, appliedReceipt.BoundOverdriveRank);
+            Assert.Equal(50, appliedReceipt.CriticalBonusPercent);
+            Assert.Equal(0, appliedReceipt.OverdriveBonusPercent);
+            Assert.Equal(3, appliedReceipt.TransitionResult!.RequestedAttackDamage); // ceil(2 * 150 / 100) = 3
+            Assert.Equal(2, appliedReceipt.TransitionResult.AppliedOpponentDamage);
+            Assert.True(appliedReceipt.TransitionResult.IsOpponentDefeated);
+
+            // Pending intent is removed atomically and modifier/combat/progression state advances once.
+            Assert.Null(await store.GetPendingIntentAsync("sub-nonzero-1"));
+            Assert.Empty(await store.GetPendingIntentsAsync(0));
+
+            runAfterApplied = await store.GetRunStateAsync();
+            progAfterApplied = await store.GetProgressionAsync();
+            modAfterApplied = await store.GetCombatModifierSnapshotAsync();
+            revisionAfterApplied = await store.GetStoreRevisionAsync();
+
+            Assert.Equal(1, runAfterApplied.OpponentIndex);
+            Assert.Equal(5, modAfterApplied.ModifierState.CriticalCorrectAttackCount);
+            Assert.Equal(3, modAfterApplied.ModifierState.OverdriveStreak);
+            Assert.Equal(0, modAfterApplied.ModifierState.OverdriveRemainingBonusAttacks);
+
+            // Repeated consumption returns the same receipt without duplicate transition, XP/SP, or modifier progress.
+            var replay1 = await coordinator.ConsumeCommittedAttemptAsync("sub-nonzero-1");
+            Assert.NotNull(replay1);
+            Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, replay1.Status);
+            Assert.Equal(appliedReceipt, replay1.Receipt);
+
+            var replay2 = await consumer.ConsumeAttemptAsync("sub-nonzero-1");
+            Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, replay2.Status);
+            Assert.Equal(appliedReceipt, replay2.Receipt);
+
+            Assert.Equal(1L, await ScalarLongAsync("SELECT COUNT(*) FROM gameplay_receipt_ledger;"));
+            Assert.Equal(runAfterApplied, await store.GetRunStateAsync());
+            Assert.Equal(progAfterApplied, await store.GetProgressionAsync());
+            Assert.Equal(modAfterApplied, await store.GetCombatModifierSnapshotAsync());
+            Assert.Equal(revisionAfterApplied, await store.GetStoreRevisionAsync());
+
+            // 2. Uncommitted head + out-of-order committed tail + rejected conflicting attempt:
+            var tHead = DateTimeOffset.UtcNow;
+            var tTail = tHead.AddSeconds(5);
+            var uncommittedIntent = new CyberDefensePendingIntentRecord("sub-uncommitted", "add:0+1", true, true, 400, 0, tHead, 2, 1, 2);
+            var outOfOrderIntent = new CyberDefensePendingIntentRecord("sub-out-of-order", "add:1+0", true, true, 450, 0, tTail, 2, 1, 2);
+            await store.StagePendingIntentAsync(uncommittedIntent);
+            await store.StagePendingIntentAsync(outOfOrderIntent);
+
+            var commitTail = await learner.CommitSubmissionAsync(LearnerChangeSet("sub-out-of-order", "add:1+0", true, 450, expectedRevision: 2, practicePosition: 2));
+            Assert.True(commitTail.IsSuccess);
+
+            // Uncommitted learner attempt: no combat transaction applied, no receipt created, pending order preserved.
+            var uncommittedRes = await consumer.ConsumeAttemptAsync("sub-uncommitted");
+            Assert.Equal(CyberDefenseConsumptionStatus.UncommittedLearnerAttempt, uncommittedRes.Status);
+            Assert.Null(uncommittedRes.Receipt);
+
+            // Rejected or out-of-order attempt: fails closed with zero mutations and no loss of pending evidence.
+            await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-out-of-order"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(outOfOrderIntent));
+            Assert.Null(await coordinator.ConsumeCommittedAttemptAsync("sub-out-of-order"));
+
+            var conflictingHead = new CyberDefensePendingIntentRecord("sub-uncommitted", "add:0+1", true, true, 400, 0, tHead, 2, 0, 0);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(conflictingHead));
+
+            var recoveryWhileHeadUncommitted = await consumer.RecoverPendingIntentsAsync();
+            Assert.Equal(0, recoveryWhileHeadUncommitted.RecoveredCount);
+
+            Assert.Equal(runAfterApplied, await store.GetRunStateAsync());
+            Assert.Equal(progAfterApplied, await store.GetProgressionAsync());
+            Assert.Equal(modAfterApplied, await store.GetCombatModifierSnapshotAsync());
+            Assert.Equal(revisionAfterApplied, await store.GetStoreRevisionAsync());
+            Assert.Equal(1L, await ScalarLongAsync("SELECT COUNT(*) FROM gameplay_receipt_ledger;"));
+            Assert.Null(await store.GetReceiptAsync("sub-uncommitted"));
+            Assert.Null(await store.GetReceiptAsync("sub-out-of-order"));
+
+            var pendingOrder = await store.GetPendingIntentsAsync(0);
+            Assert.Equal(["sub-uncommitted", "sub-out-of-order"], pendingOrder.Select(x => x.SubmissionId).ToArray());
         }
 
-        // Startup recovery after a restart neither consumes nor discards the blocked intent.
+        // 3. Reopening the database preserves the committed receipt, state, and pending-intent queue.
         var (store2, learner2, coordinator2) = await OpenCoordinatorAsync();
         using (store2)
         using (learner2)
         {
-            var pending = await store2.GetPendingIntentAsync("sub-blocked");
-            Assert.NotNull(pending);
-            Assert.Equal(1, pending.BoundCriticalStrikeRank);
-            Assert.Null(await store2.GetReceiptAsync("sub-blocked"));
-            Assert.Equal(before.PlayerCurrentHp, (await store2.GetRunStateAsync()).PlayerCurrentHp);
+            Assert.Equal(appliedReceipt, await store2.GetReceiptAsync("sub-nonzero-1"));
+            Assert.Equal(runAfterApplied, await store2.GetRunStateAsync());
+            Assert.Equal(progAfterApplied, await store2.GetProgressionAsync());
+            Assert.Equal(modAfterApplied, await store2.GetCombatModifierSnapshotAsync());
+            Assert.Equal(revisionAfterApplied, await store2.GetStoreRevisionAsync());
+
+            var pendingAfterReopen = await store2.GetPendingIntentsAsync(0);
+            Assert.Equal(["sub-uncommitted", "sub-out-of-order"], pendingAfterReopen.Select(x => x.SubmissionId).ToArray());
+            Assert.Null(await store2.GetReceiptAsync("sub-uncommitted"));
+            Assert.Null(await store2.GetReceiptAsync("sub-out-of-order"));
             Assert.NotNull(coordinator2.CurrentViewModel);
         }
     }
@@ -1022,7 +1121,13 @@ public sealed class CyberDefenseQuestionBoundModifierRanksSqliteTests : IDisposa
         }
     }
 
-    private static SubmissionChangeSet LearnerChangeSet(string submissionId, string factId, bool isCorrect, long latencyMs)
+    private static SubmissionChangeSet LearnerChangeSet(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long latencyMs,
+        long expectedRevision = 1,
+        long practicePosition = 1)
     {
         var parts = factId["add:".Length..].Split('+');
         int left = int.Parse(parts[0]);
@@ -1041,9 +1146,9 @@ public sealed class CyberDefenseQuestionBoundModifierRanksSqliteTests : IDisposa
             responseLatencyMs: latencyMs,
             timestamp: DateTimeOffset.UtcNow,
             outcome: isCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect,
-            practicePosition: 1);
+            practicePosition: practicePosition);
         var progression = LearnerProgression.CreateFresh();
-        progression.PracticePosition = 1;
+        progression.PracticePosition = practicePosition;
         progression.CurriculumStage = CurriculumStage.Stage1_Addition;
         var itemState = new ItemLearningState
         {
@@ -1058,12 +1163,12 @@ public sealed class CyberDefenseQuestionBoundModifierRanksSqliteTests : IDisposa
             LastLatencyMs = latencyMs,
             RollingLatencyMs = latencyMs,
             FluentStreak = isCorrect ? 1 : 0,
-            LastPracticedOrder = 1,
+            LastPracticedOrder = (int)practicePosition,
             LastPracticedAt = DateTimeOffset.UtcNow
         };
         return new SubmissionChangeSet(
             submissionId: submissionId,
-            ExpectedRevision: 1,
+            ExpectedRevision: expectedRevision,
             attempt: attempt,
             updatedItemState: itemState,
             updatedProgression: progression,

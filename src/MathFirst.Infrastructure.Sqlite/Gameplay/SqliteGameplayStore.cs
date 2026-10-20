@@ -1025,10 +1025,33 @@ public sealed class SqliteGameplayStore : IGameplayStore
         using (var probeCmd = connection.CreateCommand())
         {
             probeCmd.CommandText = @"
-                SELECT base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
-                       critical_bonus_percent, overdrive_bonus_percent
-                FROM gameplay_receipt_ledger LIMIT 0;";
-            await probeCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                SELECT submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                       response_latency_ms, reset_epoch, processed_at,
+                       requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                       incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                       potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                       is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                       next_player_current_hp, terminal_sector, terminal_opponent_index,
+                       terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                       terminal_player_current_hp,
+                       next_opponent_executed_attacks, executed_attacks_on_defeated_opponent,
+                       awarded_xp, player_level_after, cumulative_xp_after,
+                       next_opponent_encounter_provenance, defeated_opponent_encounter_provenance,
+                       is_shield_absorbed, absorbed_enemy_damage,
+                       next_shield_capacity, next_active_shields, next_shield_recharge_units,
+                       base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
+                       critical_bonus_percent, overdrive_bonus_percent,
+                       typeof(base_attack_damage) AS base_attack_damage_type,
+                       typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                       typeof(critical_bonus_percent) AS critical_bonus_percent_type,
+                       typeof(overdrive_bonus_percent) AS overdrive_bonus_percent_type
+                FROM gameplay_receipt_ledger;";
+            using var reader = await probeCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                _ = ReadReceiptRecord(reader);
+            }
         }
 
         using (var progCmd = connection.CreateCommand())
@@ -3343,7 +3366,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
                        awarded_xp, player_level_after, cumulative_xp_after,
                        next_opponent_encounter_provenance, defeated_opponent_encounter_provenance,
                        is_shield_absorbed, absorbed_enemy_damage,
-                       next_shield_capacity, next_active_shields, next_shield_recharge_units
+                       next_shield_capacity, next_active_shields, next_shield_recharge_units,
+                       base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
+                       critical_bonus_percent, overdrive_bonus_percent,
+                       typeof(base_attack_damage) AS base_attack_damage_type,
+                       typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                       typeof(critical_bonus_percent) AS critical_bonus_percent_type,
+                       typeof(overdrive_bonus_percent) AS overdrive_bonus_percent_type
                 FROM gameplay_receipt_ledger
                 WHERE submission_id = @submissionId;
             ";
@@ -3411,7 +3441,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 awarded_xp, player_level_after, cumulative_xp_after,
                 next_opponent_encounter_provenance, defeated_opponent_encounter_provenance,
                 is_shield_absorbed, absorbed_enemy_damage,
-                next_shield_capacity, next_active_shields, next_shield_recharge_units
+                next_shield_capacity, next_active_shields, next_shield_recharge_units,
+                base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
+                critical_bonus_percent, overdrive_bonus_percent
             ) VALUES (
                 @submission_id, @receipt_kind, @fact_id, @is_correct, @is_eligible,
                 @response_latency_ms, @reset_epoch, @processed_at,
@@ -3426,7 +3458,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 @awarded_xp, @player_level_after, @cumulative_xp_after,
                 @next_opponent_encounter_provenance, @defeated_opponent_encounter_provenance,
                 @is_shield_absorbed, @absorbed_enemy_damage,
-                @next_shield_capacity, @next_active_shields, @next_shield_recharge_units
+                @next_shield_capacity, @next_active_shields, @next_shield_recharge_units,
+                @base_attack_damage, @bound_critical_strike_rank, @bound_overdrive_rank,
+                @critical_bonus_percent, @overdrive_bonus_percent
             );
         ";
 
@@ -3490,6 +3524,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
             cmd.Parameters.AddWithValue("@next_shield_capacity", t.NextState.ShieldCapacity);
             cmd.Parameters.AddWithValue("@next_active_shields", t.NextState.ActiveShields);
             cmd.Parameters.AddWithValue("@next_shield_recharge_units", t.NextState.ShieldRechargeUnits);
+            cmd.Parameters.AddWithValue("@base_attack_damage", (object?)receipt.BaseAttackDamage ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@bound_critical_strike_rank", (object?)receipt.BoundCriticalStrikeRank ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@bound_overdrive_rank", (object?)receipt.BoundOverdriveRank ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@critical_bonus_percent", (object?)receipt.CriticalBonusPercent ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@overdrive_bonus_percent", (object?)receipt.OverdriveBonusPercent ?? DBNull.Value);
         }
         else
         {
@@ -3526,6 +3565,11 @@ public sealed class SqliteGameplayStore : IGameplayStore
             cmd.Parameters.AddWithValue("@next_shield_capacity", DBNull.Value);
             cmd.Parameters.AddWithValue("@next_active_shields", DBNull.Value);
             cmd.Parameters.AddWithValue("@next_shield_recharge_units", DBNull.Value);
+            cmd.Parameters.AddWithValue("@base_attack_damage", DBNull.Value);
+            cmd.Parameters.AddWithValue("@bound_critical_strike_rank", DBNull.Value);
+            cmd.Parameters.AddWithValue("@bound_overdrive_rank", DBNull.Value);
+            cmd.Parameters.AddWithValue("@critical_bonus_percent", DBNull.Value);
+            cmd.Parameters.AddWithValue("@overdrive_bonus_percent", DBNull.Value);
         }
     }
 
@@ -3555,11 +3599,23 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
         if (kind == CyberDefenseReceiptKind.CalmModeSuppressed)
         {
-            for (int i = 8; i <= 40; i++)
+            int maxNullOrdinal = reader.FieldCount >= 46 ? 45 : 40;
+            for (int i = 8; i <= maxNullOrdinal; i++)
             {
                 if (!reader.IsDBNull(i))
                 {
                     throw new InvalidOperationException($"CalmModeSuppressed receipt row contains non-null combat transition column at index {i}.");
+                }
+            }
+
+            if (reader.FieldCount >= 51)
+            {
+                for (int i = 46; i <= 50; i++)
+                {
+                    if (reader.IsDBNull(i) || reader.GetString(i) != "null")
+                    {
+                        throw new InvalidOperationException($"CalmModeSuppressed receipt row contains non-null V7 combat modifier column at index {i - 5}.");
+                    }
                 }
             }
 
@@ -3768,12 +3824,142 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 throw new InvalidOperationException($"Invalid combat transition result in receipt ledger: {ex.Message}", ex);
             }
 
-            return CyberDefenseReceiptRecord.CreateApplied(
-                subId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, processedAt, transitionResult,
-                awardedXp, playerLevelAfter, cumulativeXpAfter);
+            int? baseAttackDamage = null;
+            int? boundCriticalStrikeRank = null;
+            int? boundOverdriveRank = null;
+            int? criticalBonusPercent = null;
+            int? overdriveBonusPercent = null;
+
+            if (reader.FieldCount >= 46)
+            {
+                bool anyModifierPresent = !reader.IsDBNull(41) ||
+                                          !reader.IsDBNull(42) ||
+                                          !reader.IsDBNull(43) ||
+                                          !reader.IsDBNull(44) ||
+                                          !reader.IsDBNull(45);
+                bool allModifierPresent = !reader.IsDBNull(41) &&
+                                          !reader.IsDBNull(42) &&
+                                          !reader.IsDBNull(43) &&
+                                          !reader.IsDBNull(44) &&
+                                          !reader.IsDBNull(45);
+
+                if (anyModifierPresent && !allModifierPresent)
+                {
+                    throw new InvalidOperationException(
+                        "Inconsistent V7 combat modifier metadata in receipt ledger row: base_attack_damage, bound ranks, and bonus percentages must all be non-null if any is present.");
+                }
+
+                if (!anyModifierPresent && reader.FieldCount >= 51)
+                {
+                    for (int i = 46; i <= 50; i++)
+                    {
+                        if (reader.IsDBNull(i) || reader.GetString(i) != "null")
+                        {
+                            throw new InvalidOperationException(
+                                $"Inconsistent V7 combat modifier storage class at index {i} in receipt ledger.");
+                        }
+                    }
+                }
+                else if (allModifierPresent)
+                {
+                    baseAttackDamage = ReadReceiptModifierInteger(
+                        reader,
+                        valueOrdinal: 41,
+                        typeOrdinal: reader.FieldCount > 46 ? 46 : null,
+                        column: "base_attack_damage",
+                        min: 1,
+                        max: int.MaxValue);
+                    boundCriticalStrikeRank = ReadReceiptModifierInteger(
+                        reader,
+                        valueOrdinal: 42,
+                        typeOrdinal: reader.FieldCount > 47 ? 47 : null,
+                        column: "bound_critical_strike_rank",
+                        min: 0,
+                        max: CyberDefenseCriticalStrikePolicy.MaxRank);
+                    boundOverdriveRank = ReadReceiptModifierInteger(
+                        reader,
+                        valueOrdinal: 43,
+                        typeOrdinal: reader.FieldCount > 48 ? 48 : null,
+                        column: "bound_overdrive_rank",
+                        min: 0,
+                        max: CyberDefenseOverdrivePolicy.MaxRank);
+                    criticalBonusPercent = ReadReceiptModifierInteger(
+                        reader,
+                        valueOrdinal: 44,
+                        typeOrdinal: reader.FieldCount > 49 ? 49 : null,
+                        column: "critical_bonus_percent",
+                        min: 0,
+                        max: CyberDefenseCriticalStrikePolicy.GetBonusPercent(CyberDefenseCriticalStrikePolicy.MaxRank));
+                    overdriveBonusPercent = ReadReceiptModifierInteger(
+                        reader,
+                        valueOrdinal: 45,
+                        typeOrdinal: reader.FieldCount > 50 ? 50 : null,
+                        column: "overdrive_bonus_percent",
+                        min: 0,
+                        max: CyberDefenseOverdrivePolicy.Rank1BonusPercent);
+                }
+            }
+
+            try
+            {
+                return CyberDefenseReceiptRecord.CreateApplied(
+                    subId,
+                    factId,
+                    isCorrect,
+                    isEligible,
+                    responseLatencyMs,
+                    resetEpoch,
+                    processedAt,
+                    transitionResult,
+                    awardedXp,
+                    playerLevelAfter,
+                    cumulativeXpAfter,
+                    baseAttackDamage,
+                    boundCriticalStrikeRank,
+                    boundOverdriveRank,
+                    criticalBonusPercent,
+                    overdriveBonusPercent);
+            }
+            catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
+            {
+                throw new InvalidOperationException($"Invalid receipt record in receipt ledger: {ex.Message}", ex);
+            }
         }
 
         throw new InvalidOperationException($"Unsupported receipt kind '{kind}'.");
+    }
+
+    private static int ReadReceiptModifierInteger(
+        SqliteDataReader reader,
+        int valueOrdinal,
+        int? typeOrdinal,
+        string column,
+        int min,
+        int max)
+    {
+        if (typeOrdinal is int explicitTypeOrdinal)
+        {
+            if (reader.IsDBNull(explicitTypeOrdinal) || reader.GetString(explicitTypeOrdinal) != "integer")
+            {
+                throw new InvalidOperationException(
+                    $"Receipt ledger table requires INTEGER storage for '{column}'.");
+            }
+        }
+
+        if (reader.IsDBNull(valueOrdinal) || reader.GetFieldType(valueOrdinal) != typeof(long))
+        {
+            throw new InvalidOperationException(
+                $"Receipt ledger table requires INTEGER storage for '{column}'.");
+        }
+
+        long value = reader.GetInt64(valueOrdinal);
+        if (value < min || value > max)
+        {
+            throw new InvalidOperationException(
+                $"Existing database has invalid value {value} in 'gameplay_receipt_ledger.{column}': expected {min} to {max}.");
+        }
+
+        return (int)value;
     }
 
     public Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default)
@@ -3960,6 +4146,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 list.Add(ReadPendingIntent(reader));
             }
 
+            list.Sort(ComparePendingIntentsDeterministically);
             return (IReadOnlyList<CyberDefensePendingIntentRecord>)list;
         }, cancellationToken);
     }
@@ -4027,7 +4214,14 @@ public sealed class SqliteGameplayStore : IGameplayStore
                                awarded_xp, player_level_after, cumulative_xp_after,
                                next_opponent_encounter_provenance, defeated_opponent_encounter_provenance,
                                is_shield_absorbed, absorbed_enemy_damage,
-                               next_shield_capacity, next_active_shields, next_shield_recharge_units
+                               next_shield_capacity, next_active_shields, next_shield_recharge_units,
+                               base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
+                               critical_bonus_percent, overdrive_bonus_percent,
+                               typeof(base_attack_damage) AS base_attack_damage_type,
+                               typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                               typeof(critical_bonus_percent) AS critical_bonus_percent_type,
+                               typeof(overdrive_bonus_percent) AS overdrive_bonus_percent_type
                         FROM gameplay_receipt_ledger
                         WHERE submission_id = @id;
                     ";
@@ -4038,16 +4232,59 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         var existingReceipt = ReadReceiptRecord(receiptReader);
                         receiptReader.Close();
 
-                        if (!string.Equals(existingReceipt.FactId, intent.FactId, StringComparison.Ordinal) ||
+                        CyberDefensePendingIntentRecord? leftoverPending = null;
+                        using (var pendingCheckCmd = _connection.CreateCommand())
+                        {
+                            pendingCheckCmd.Transaction = transaction;
+                            pendingCheckCmd.CommandText = @"
+                                SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
+                                       bound_critical_strike_rank, bound_overdrive_rank,
+                                       typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                                FROM gameplay_pending_intent
+                                WHERE submission_id = @id;
+                            ";
+                            pendingCheckCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                            using var pendingCheckReader = await pendingCheckCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                            if (await pendingCheckReader.ReadAsync(ct).ConfigureAwait(false))
+                            {
+                                leftoverPending = ReadPendingIntent(pendingCheckReader);
+                            }
+                        }
+
+                        if (leftoverPending is not null && !HasMatchingPendingIntentPayload(leftoverPending, intent))
+                        {
+                            throw new InvalidOperationException(
+                                $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
+                        }
+
+                        bool isConflictingReceipt =
+                            !string.Equals(existingReceipt.FactId, intent.FactId, StringComparison.Ordinal) ||
                             existingReceipt.IsCorrect != intent.IsCorrect ||
                             existingReceipt.IsEligible != intent.IsEligible ||
                             existingReceipt.ResponseLatencyMs != intent.ResponseLatencyMs ||
-                            existingReceipt.ResetEpoch != intent.ResetEpoch ||
-                            intent.BoundCriticalStrikeRank != 0 ||
-                            intent.BoundOverdriveRank != 0 ||
-                            (existingReceipt.ReceiptKind == CyberDefenseReceiptKind.Applied &&
-                             existingReceipt.IsCorrect &&
-                             existingReceipt.TransitionResult?.RequestedAttackDamage != intent.EffectiveAttackDamage))
+                            existingReceipt.ResetEpoch != intent.ResetEpoch;
+
+                        if (!isConflictingReceipt && existingReceipt.ReceiptKind == CyberDefenseReceiptKind.Applied)
+                        {
+                            if (existingReceipt.BaseAttackDamage.HasValue)
+                            {
+                                isConflictingReceipt =
+                                    existingReceipt.BaseAttackDamage.Value != intent.EffectiveAttackDamage ||
+                                    existingReceipt.BoundCriticalStrikeRank != intent.BoundCriticalStrikeRank ||
+                                    existingReceipt.BoundOverdriveRank != intent.BoundOverdriveRank;
+                            }
+                            else
+                            {
+                                isConflictingReceipt =
+                                    intent.BoundCriticalStrikeRank != 0 ||
+                                    intent.BoundOverdriveRank != 0 ||
+                                    (existingReceipt.IsCorrect &&
+                                     existingReceipt.TransitionResult?.RequestedAttackDamage != intent.EffectiveAttackDamage);
+                            }
+                        }
+
+                        if (isConflictingReceipt)
                         {
                             throw new InvalidOperationException(
                                 $"Conflicting receipt already exists for submission '{intent.SubmissionId}'.");
@@ -4079,6 +4316,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 int currentConsecutiveEarlyDefeats;
                 bool isBeginnerAssistanceActive;
                 int currentActivatedFirewallRank;
+                int currentCriticalStrikeRank;
+                int currentOverdriveRank;
                 using (var progCmd = _connection.CreateCommand())
                 {
                     progCmd.Transaction = transaction;
@@ -4086,7 +4325,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         SELECT reset_epoch, store_revision, cumulative_xp, player_level,
                                earned_sp, spent_sp, available_sp, attack_rank,
                                firewall_rank, consecutive_early_defeats, is_beginner_assistance_active,
-                               activated_firewall_rank
+                               activated_firewall_rank,
+                               critical_strike_rank, typeof(critical_strike_rank) AS critical_strike_rank_type,
+                               overdrive_rank, typeof(overdrive_rank) AS overdrive_rank_type
                         FROM gameplay_progression
                         WHERE id = 1;
                     ";
@@ -4107,6 +4348,16 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     currentConsecutiveEarlyDefeats = progReader.GetInt32(9);
                     isBeginnerAssistanceActive = progReader.GetInt32(10) == 1;
                     currentActivatedFirewallRank = progReader.GetInt32(11);
+                    currentCriticalStrikeRank = (int)ReadModifierSnapshotInteger(
+                        progReader,
+                        "critical_strike_rank",
+                        0,
+                        CyberDefenseCriticalStrikePolicy.MaxRank);
+                    currentOverdriveRank = (int)ReadModifierSnapshotInteger(
+                        progReader,
+                        "overdrive_rank",
+                        0,
+                        CyberDefenseOverdrivePolicy.MaxRank);
                 }
 
                 if (intent.ResetEpoch != currentEpoch)
@@ -4122,7 +4373,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         $"Attempt effective attack damage {intent.EffectiveAttackDamage} exceeds authoritative entitlement {maxEntitledDamage} for attack rank {currentAttackRank}.");
                 }
 
-                CyberDefensePendingIntentRecord? persistedIntent = null;
+                var pendingForEpoch = new List<CyberDefensePendingIntentRecord>();
                 using (var pendingCmd = _connection.CreateCommand())
                 {
                     pendingCmd.Transaction = transaction;
@@ -4132,13 +4383,26 @@ public sealed class SqliteGameplayStore : IGameplayStore
                                typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
                                typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
                         FROM gameplay_pending_intent
-                        WHERE submission_id = @id;
+                        WHERE reset_epoch = @epoch
+                        ORDER BY created_at ASC, submission_id ASC;
                     ";
-                    pendingCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
+                    pendingCmd.Parameters.AddWithValue("@epoch", currentEpoch);
                     using var pendingReader = await pendingCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-                    if (await pendingReader.ReadAsync(ct).ConfigureAwait(false))
+                    while (await pendingReader.ReadAsync(ct).ConfigureAwait(false))
                     {
-                        persistedIntent = ReadPendingIntent(pendingReader);
+                        pendingForEpoch.Add(ReadPendingIntent(pendingReader));
+                    }
+                }
+
+                pendingForEpoch.Sort(ComparePendingIntentsDeterministically);
+
+                CyberDefensePendingIntentRecord? persistedIntent = null;
+                for (int i = 0; i < pendingForEpoch.Count; i++)
+                {
+                    if (string.Equals(pendingForEpoch[i].SubmissionId, intent.SubmissionId, StringComparison.Ordinal))
+                    {
+                        persistedIntent = pendingForEpoch[i];
+                        break;
                     }
                 }
 
@@ -4149,15 +4413,133 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         throw new InvalidOperationException(
                             $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
                     }
+
+                    if (!string.Equals(pendingForEpoch[0].SubmissionId, intent.SubmissionId, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot apply pending intent '{intent.SubmissionId}' out of order while earlier pending intent '{pendingForEpoch[0].SubmissionId}' remains staged.");
+                    }
+                }
+                else
+                {
+                    if (intent.BoundCriticalStrikeRank != 0 || intent.BoundOverdriveRank != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot apply unstaged attempt '{intent.SubmissionId}' with nonzero question-bound modifier ranks " +
+                            $"(CriticalStrike={intent.BoundCriticalStrikeRank}, Overdrive={intent.BoundOverdriveRank}) without a durably staged pending intent.");
+                    }
+
+                    bool hasModifierContext = currentCriticalStrikeRank != 0 || currentOverdriveRank != 0;
+                    if (!hasModifierContext)
+                    {
+                        for (int i = 0; i < pendingForEpoch.Count; i++)
+                        {
+                            if (pendingForEpoch[i].BoundCriticalStrikeRank != 0 || pendingForEpoch[i].BoundOverdriveRank != 0)
+                            {
+                                hasModifierContext = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (pendingForEpoch.Count > 0 && hasModifierContext)
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot apply unstaged attempt '{intent.SubmissionId}' while earlier pending intent '{pendingForEpoch[0].SubmissionId}' remains staged.");
+                    }
                 }
 
                 int boundCriticalStrikeRank = persistedIntent?.BoundCriticalStrikeRank ?? intent.BoundCriticalStrikeRank;
                 int boundOverdriveRank = persistedIntent?.BoundOverdriveRank ?? intent.BoundOverdriveRank;
-                if (boundCriticalStrikeRank != 0 || boundOverdriveRank != 0)
+                if (boundCriticalStrikeRank > currentCriticalStrikeRank)
                 {
                     throw new InvalidOperationException(
-                        $"Cannot apply combat attempt for submission '{intent.SubmissionId}' with nonzero question-bound modifier ranks " +
-                        $"(CriticalStrike={boundCriticalStrikeRank}, Overdrive={boundOverdriveRank}) before combat modifier execution is integrated.");
+                        $"Attempt question-bound Critical Strike rank {boundCriticalStrikeRank} exceeds owned Critical Strike rank {currentCriticalStrikeRank}.");
+                }
+
+                if (boundOverdriveRank > currentOverdriveRank)
+                {
+                    throw new InvalidOperationException(
+                        $"Attempt question-bound Overdrive rank {boundOverdriveRank} exceeds owned Overdrive rank {currentOverdriveRank}.");
+                }
+
+                // 3. Load and validate active run state and modifier counters
+                CyberDefenseRunState currentRunState;
+                CyberDefenseCombatModifierState currentModifierState;
+                using (var runCmd = _connection.CreateCommand())
+                {
+                    runCmd.Transaction = transaction;
+                    runCmd.CommandText = @"
+                        SELECT sector, opponent_index, opponent_current_hp, player_current_hp,
+                               opponent_executed_attacks, opponent_encounter_provenance,
+                               shield_capacity, active_shields, shield_recharge_units,
+                               critical_correct_attack_count, typeof(critical_correct_attack_count) AS critical_correct_attack_count_type,
+                               overdrive_streak, typeof(overdrive_streak) AS overdrive_streak_type,
+                               overdrive_remaining_bonus_attacks, typeof(overdrive_remaining_bonus_attacks) AS overdrive_remaining_bonus_attacks_type
+                        FROM gameplay_run_state WHERE id = 1;
+                    ";
+                    using var runReader = await runCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    if (!await runReader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        throw new InvalidOperationException("Missing active run state row in 'gameplay_run_state'.");
+                    }
+                    int sector = runReader.GetInt32(0);
+                    int oppIndex = runReader.GetInt32(1);
+                    int oppHp = runReader.GetInt32(2);
+                    int playerHp = runReader.GetInt32(3);
+                    int oppExecutedAttacks = runReader.GetInt32(4);
+                    string oppProvStr = runReader.GetString(5);
+                    int shieldCapacity = runReader.GetInt32(6);
+                    int activeShields = runReader.GetInt32(7);
+                    int shieldRechargeUnits = runReader.GetInt32(8);
+
+                    int criticalCorrectAttackCount = (int)ReadModifierSnapshotInteger(
+                        runReader,
+                        "critical_correct_attack_count",
+                        0,
+                        int.MaxValue);
+                    int overdriveStreak = (int)ReadModifierSnapshotInteger(
+                        runReader,
+                        "overdrive_streak",
+                        0,
+                        int.MaxValue);
+                    int overdriveRemainingBonusAttacks = (int)ReadModifierSnapshotInteger(
+                        runReader,
+                        "overdrive_remaining_bonus_attacks",
+                        0,
+                        CyberDefenseOverdrivePolicy.Rank1BonusAttackCount);
+
+                    if (currentCriticalStrikeRank == 0 && criticalCorrectAttackCount != 0)
+                    {
+                        throw new InvalidOperationException(
+                            "Existing database has non-zero critical_correct_attack_count while critical_strike_rank is 0.");
+                    }
+
+                    if (currentOverdriveRank == 0 && (overdriveStreak != 0 || overdriveRemainingBonusAttacks != 0))
+                    {
+                        throw new InvalidOperationException(
+                            "Existing database has non-zero Overdrive counters while overdrive_rank is 0.");
+                    }
+
+                    if (overdriveRemainingBonusAttacks == 0
+                        ? overdriveStreak > 4
+                        : overdriveStreak != CyberDefenseOverdrivePolicy.Rank1BonusAttackCount - overdriveRemainingBonusAttacks)
+                    {
+                        throw new InvalidOperationException(
+                            $"Existing database has incompatible Overdrive state: overdrive_streak={overdriveStreak}, overdrive_remaining_bonus_attacks={overdriveRemainingBonusAttacks}.");
+                    }
+
+                    if (!Enum.TryParse<OpponentEncounterProvenance>(oppProvStr, ignoreCase: false, out var oppProv))
+                    {
+                        throw new InvalidOperationException($"Invalid opponent_encounter_provenance '{oppProvStr}' in gameplay_run_state.");
+                    }
+                    currentRunState = CyberDefenseRunState.Rehydrate(
+                        sector, oppIndex, oppHp, playerHp, oppExecutedAttacks, oppProv,
+                        shieldCapacity, activeShields, shieldRechargeUnits);
+                    currentModifierState = new CyberDefenseCombatModifierState(
+                        criticalCorrectAttackCount,
+                        overdriveStreak,
+                        overdriveRemainingBonusAttacks);
                 }
 
                 var now = DateTimeOffset.UtcNow;
@@ -4193,43 +4575,25 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     return receipt;
                 }
 
-                // 3. Applied Combat Attempt
-                CyberDefenseRunState currentRunState;
-                using (var runCmd = _connection.CreateCommand())
-                {
-                    runCmd.Transaction = transaction;
-                    runCmd.CommandText = @"
-                        SELECT sector, opponent_index, opponent_current_hp, player_current_hp,
-                               opponent_executed_attacks, opponent_encounter_provenance,
-                               shield_capacity, active_shields, shield_recharge_units
-                        FROM gameplay_run_state WHERE id = 1;
-                    ";
-                    using var runReader = await runCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-                    if (!await runReader.ReadAsync(ct).ConfigureAwait(false))
-                    {
-                        throw new InvalidOperationException("Missing active run state row in 'gameplay_run_state'.");
-                    }
-                    int sector = runReader.GetInt32(0);
-                    int oppIndex = runReader.GetInt32(1);
-                    int oppHp = runReader.GetInt32(2);
-                    int playerHp = runReader.GetInt32(3);
-                    int oppExecutedAttacks = runReader.GetInt32(4);
-                    string oppProvStr = runReader.GetString(5);
-                    int shieldCapacity = runReader.GetInt32(6);
-                    int activeShields = runReader.GetInt32(7);
-                    int shieldRechargeUnits = runReader.GetInt32(8);
+                // 4. Applied Combat Attempt
+                int baseAttackDamage = persistedIntent?.EffectiveAttackDamage ?? intent.EffectiveAttackDamage;
+                var modifierOutcome = CyberDefenseCombatModifierTransition.ResolveAttempt(
+                    currentModifierState,
+                    intent.IsCorrect,
+                    boundCriticalStrikeRank,
+                    boundOverdriveRank);
+                int composedAttackDamage = CyberDefenseDamageCompositionPolicy.GetEffectiveDamage(
+                    baseAttackDamage,
+                    modifierOutcome.CriticalBonusPercent,
+                    modifierOutcome.OverdriveBonusPercent);
 
-                    if (!Enum.TryParse<OpponentEncounterProvenance>(oppProvStr, ignoreCase: false, out var oppProv))
-                    {
-                        throw new InvalidOperationException($"Invalid opponent_encounter_provenance '{oppProvStr}' in gameplay_run_state.");
-                    }
-                    currentRunState = CyberDefenseRunState.Rehydrate(
-                        sector, oppIndex, oppHp, playerHp, oppExecutedAttacks, oppProv,
-                        shieldCapacity, activeShields, shieldRechargeUnits);
-                }
-
-                int effectiveDamageToApply = persistedIntent != null ? persistedIntent.EffectiveAttackDamage : intent.EffectiveAttackDamage;
-                var transition = CyberDefenseStateMachine.ApplyAttempt(currentRunState, intent.IsCorrect, effectiveAttackDamage: effectiveDamageToApply);
+                var transition = CyberDefenseStateMachine.ApplyAttempt(
+                    currentRunState,
+                    intent.IsCorrect,
+                    effectiveAttackDamage: composedAttackDamage);
+                var nextModifierState = transition.IsGameOver
+                    ? CyberDefenseCombatModifierTransition.ResetRunModifiers()
+                    : modifierOutcome.NextState;
 
                 int nextConsecutiveEarlyDefeats = currentConsecutiveEarlyDefeats;
                 bool nextAssistanceActive = isBeginnerAssistanceActive;
@@ -4393,6 +4757,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             shield_capacity = @shieldCapacity,
                             active_shields = @activeShields,
                             shield_recharge_units = @shieldRechargeUnits,
+                            critical_correct_attack_count = @criticalCorrectAttackCount,
+                            overdrive_streak = @overdriveStreak,
+                            overdrive_remaining_bonus_attacks = @overdriveRemainingBonusAttacks,
                             updated_at = @now
                         WHERE id = 1;
                     ";
@@ -4405,6 +4772,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     updateRunCmd.Parameters.AddWithValue("@shieldCapacity", transition.NextState.ShieldCapacity);
                     updateRunCmd.Parameters.AddWithValue("@activeShields", transition.NextState.ActiveShields);
                     updateRunCmd.Parameters.AddWithValue("@shieldRechargeUnits", transition.NextState.ShieldRechargeUnits);
+                    updateRunCmd.Parameters.AddWithValue("@criticalCorrectAttackCount", nextModifierState.CriticalCorrectAttackCount);
+                    updateRunCmd.Parameters.AddWithValue("@overdriveStreak", nextModifierState.OverdriveStreak);
+                    updateRunCmd.Parameters.AddWithValue("@overdriveRemainingBonusAttacks", nextModifierState.OverdriveRemainingBonusAttacks);
                     updateRunCmd.Parameters.AddWithValue("@now", now.ToString("O"));
                     await updateRunCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
@@ -4451,7 +4821,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     transition,
                     awardedXp: awardedXp,
                     playerLevelAfter: newPlayerLevel,
-                    cumulativeXpAfter: newCumulativeXp);
+                    cumulativeXpAfter: newCumulativeXp,
+                    baseAttackDamage: baseAttackDamage,
+                    boundCriticalStrikeRank: boundCriticalStrikeRank,
+                    boundOverdriveRank: boundOverdriveRank,
+                    criticalBonusPercent: modifierOutcome.CriticalBonusPercent,
+                    overdriveBonusPercent: modifierOutcome.OverdriveBonusPercent);
 
                 using (var insertReceiptCmd = _connection.CreateCommand())
                 {
@@ -4477,6 +4852,19 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 throw;
             }
         }, cancellationToken);
+    }
+
+    private static int ComparePendingIntentsDeterministically(
+        CyberDefensePendingIntentRecord left,
+        CyberDefensePendingIntentRecord right)
+    {
+        int timeComparison = left.CreatedAt.CompareTo(right.CreatedAt);
+        if (timeComparison != 0)
+        {
+            return timeComparison;
+        }
+
+        return StringComparer.Ordinal.Compare(left.SubmissionId, right.SubmissionId);
     }
 
     public static CyberDefensePendingIntentRecord ReadPendingIntent(SqliteDataReader reader)
