@@ -110,7 +110,7 @@
                 {
                     <div class="battle-feedback-overlay crit-feedback-overlay" aria-hidden="true">
                         <div class="feedback-badge-group">
-                            <span class="battle-feedback-badge badge-crit">@Localizer["CyberDefense_Feedback_Crit"]</span>
+                            <span class="battle-feedback-badge badge-crit">@Localizer["CyberDefense_Feedback_CriticalHit"]</span>
                             <span class="damage-number crit-damage">-@EffectiveModel.LastAppliedOpponentDamage HP</span>
                         </div>
                     </div>
@@ -238,18 +238,21 @@
 
     private string ArtworkFeedbackClass => EffectiveModel.LastFeedback switch
     {
+        CyberDefenseFeedbackKind.CriticalHit => "feedback-crit-active",
         CyberDefenseFeedbackKind.Hit => "feedback-hit-active",
         _ => string.Empty
     };
 
     private string OpponentFeedbackClass => EffectiveModel.LastFeedback switch
     {
+        CyberDefenseFeedbackKind.CriticalHit => "opponent-crit-recoil",
         CyberDefenseFeedbackKind.Hit => "opponent-hit-recoil",
         _ => string.Empty
     };
 
     private string RadarFeedbackClass => EffectiveModel.LastFeedback switch
     {
+        CyberDefenseFeedbackKind.CriticalHit => "radar-crit-burst",
         CyberDefenseFeedbackKind.Hit => "radar-hit-burst",
         _ => string.Empty
     };

@@ -151,7 +151,8 @@ public sealed class CyberDefenseUiContractTests
         Assert.Contains("CombatCoordinator", home, StringComparison.Ordinal);
         Assert.Contains("<CyberDefenseHud", home, StringComparison.Ordinal);
         Assert.Contains("CombatCoordinator.ConsumeCommittedAttemptAsync", home, StringComparison.Ordinal);
-        Assert.Contains("PendingCombatContext", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("PendingCombatContext", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("var isCritical", home, StringComparison.Ordinal);
 
         // Settings access preserved
         Assert.Contains("href=\"settings\"", home, StringComparison.Ordinal);
@@ -606,13 +607,25 @@ public sealed class CyberDefenseUiContractTests
             @"var\s+isCritical\s*=\s*(?<expr>[^;]+);",
             RegexOptions.Singleline);
 
-        Assert.True(match.Success, "Home.razor must declare isCritical variable.");
-        var expr = match.Groups["expr"].Value;
+        Assert.False(match.Success, "Home.razor must not declare speed-based isCritical variable in active runtime.");
+        Assert.DoesNotContain("PendingCombatContext", home, StringComparison.Ordinal);
+        Assert.DoesNotMatch(@"eval\.LatencyMs\s*<=\s*Session\.CurrentFactCriticalHitThresholdMs", home);
+        Assert.Contains("boundCriticalStrikeRank: boundModifierRanks.BoundCriticalStrikeRank", home, StringComparison.Ordinal);
+        Assert.Contains("boundOverdriveRank: boundModifierRanks.BoundOverdriveRank", home, StringComparison.Ordinal);
 
-        Assert.Contains("Session.IsPaceCalibrationReady", expr, StringComparison.Ordinal);
-        Assert.Contains("Session.CurrentFactCriticalHitThresholdMs", expr, StringComparison.Ordinal);
-        Assert.DoesNotContain("Session.CurrentFactEasyThresholdMs", expr, StringComparison.Ordinal);
-        Assert.Contains("<=", expr, StringComparison.Ordinal);
+        var hudPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor");
+        var hud = File.ReadAllText(hudPath);
+        Assert.Contains("@Localizer[\"CyberDefense_Feedback_CriticalHit\"]", hud, StringComparison.Ordinal);
+        Assert.DoesNotContain("@Localizer[\"CyberDefense_Feedback_Crit\"]", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseFeedbackKind.CriticalHit => \"feedback-crit-active\"", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseFeedbackKind.CriticalHit => \"opponent-crit-recoil\"", hud, StringComparison.Ordinal);
+        Assert.Contains("CyberDefenseFeedbackKind.CriticalHit => \"radar-crit-burst\"", hud, StringComparison.Ordinal);
+
+
+
+
+
+
     }
 
     [Fact]

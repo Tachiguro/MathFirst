@@ -182,7 +182,9 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
 
             if (tr.AppliedOpponentDamage > 0)
             {
-                lastFeedback = CyberDefenseFeedbackKind.Hit;
+                lastFeedback = latestReceipt.IsCorrect && latestReceipt.CriticalBonusPercent is > 0
+                    ? CyberDefenseFeedbackKind.CriticalHit
+                    : CyberDefenseFeedbackKind.Hit;
             }
         }
 
