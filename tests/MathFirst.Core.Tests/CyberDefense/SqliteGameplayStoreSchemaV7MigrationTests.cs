@@ -39,7 +39,7 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
     {
         try
         {
-            SqliteConnection.ClearAllPools();
+            // Stores clear their own pool on disposal; OpenRaw disables pooling.
             if (Directory.Exists(_testDirectory))
             {
                 Directory.Delete(_testDirectory, recursive: true);

@@ -20,6 +20,34 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
 {
     private readonly List<string> _tempDirs = new();
 
+    [Theory]
+    [InlineData("PurchaseCriticalStrikeUpgradeAsync")]
+    [InlineData("PurchaseOverdriveUpgradeAsync")]
+    public async Task ModifierContract_TestStoreRejectsUnsupportedPurchases(string operation)
+    {
+        using IGameplayStore store = new TestGameplayStore();
+        var method = typeof(IGameplayStore).GetMethod(operation);
+        Assert.NotNull(method);
+        var purchase = method.CreateDelegate<Func<int, long, CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>>(store);
+        await Assert.ThrowsAsync<NotSupportedException>(() => purchase(0, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ModifierContract_TestStoreSnapshotIsDeterministicAndHonorsCancellation()
+    {
+        using IGameplayStore store = new TestGameplayStore();
+        var method = typeof(IGameplayStore).GetMethod("GetCombatModifierSnapshotAsync");
+        Assert.NotNull(method);
+        var read = method.CreateDelegate<Func<CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>>(store);
+        var expected = new CyberDefenseCombatModifierSnapshot(0, 0, CyberDefenseCombatModifierState.Initial, 1, 0,
+            new GameplayResetIntentRecord(false, 0, 0, null, DateTimeOffset.UnixEpoch));
+        Assert.Equal(expected, await read(CancellationToken.None));
+        Assert.Equal(expected, await read(CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read(cancellation.Token));
+    }
+
     private string CreateTempDirectory()
     {
         var dir = Path.Combine(Path.GetTempPath(), "MathFirst_Tests_UpgradeHomeIntegration_" + Guid.NewGuid().ToString("N"));
@@ -909,6 +937,18 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
             Task.FromResult(CyberDefenseFirewallUpgradeSnapshot.FromProgression(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow)));
 
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new CyberDefenseCombatModifierSnapshot(0, 0, CyberDefenseCombatModifierState.Initial, 1, 0,
+                new GameplayResetIntentRecord(false, 0, 0, null, DateTimeOffset.UnixEpoch)));
+        }
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Combat modifier purchases are unsupported by this test store.");
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Combat modifier purchases are unsupported by this test store.");
 
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));

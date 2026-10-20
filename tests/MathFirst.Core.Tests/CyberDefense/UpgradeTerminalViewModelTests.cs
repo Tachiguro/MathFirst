@@ -744,6 +744,25 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             return await _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         }
 
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            PurchaseCallCount++;
+            PurchaseEnteredSignal.TrySetResult(true);
+            await _purchaseRelease.Task;
+            return await _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        }
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            PurchaseCallCount++;
+            PurchaseEnteredSignal.TrySetResult(true);
+            await _purchaseRelease.Task;
+            return await _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        }
+
         public async Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             PurchaseCallCount++;
@@ -800,6 +819,19 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             throw new InvalidOperationException("Simulated store failure: disk I/O error");
         }
 
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated store failure: disk I/O error");
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated store failure: disk I/O error");
+        }
+
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Simulated store failure: disk I/O error");
@@ -848,6 +880,19 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw _exceptionToThrow;
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw _exceptionToThrow;
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             throw _exceptionToThrow;
         }
@@ -912,6 +957,13 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
@@ -955,6 +1007,13 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
@@ -1000,6 +1059,23 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public async Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             var result = await _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+            _onCommitted();
+            return result;
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            var result = await _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+            _onCommitted();
+            return result;
+        }
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            var result = await _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
             _onCommitted();
             return result;
         }

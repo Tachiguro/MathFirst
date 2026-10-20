@@ -679,8 +679,6 @@ public sealed class SqliteGameplayStoreSchemaTests : IDisposable
             await Assert.ThrowsAnyAsync<Exception>(() => store.InitializeAsync());
         }
 
-        SqliteConnection.ClearAllPools();
-
         // File remains what it was, not partially written SQLite
         var bytes = await File.ReadAllBytesAsync(dbPath);
         Assert.Equal([0x42, 0x43, 0x44], bytes);

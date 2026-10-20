@@ -6,6 +6,14 @@ using MathFirst.Domain.CyberDefense;
 using MathFirst.Infrastructure.Sqlite.Gameplay;
 using Microsoft.Data.Sqlite;
 
+// Other SQLite fixtures clear process-wide pools. Keep this suite's pooled store setup
+// isolated from that cleanup; its explicit concurrent-connection tests still run concurrently.
+[CollectionDefinition("Combat modifier purchase SQLite isolation", DisableParallelization = true)]
+public sealed class CombatModifierPurchaseSqliteIsolationCollection
+{
+}
+
+[Collection("Combat modifier purchase SQLite isolation")]
 public sealed class SqliteGameplayStoreCombatModifierPurchaseTests : IDisposable
 {
     private const string Timestamp = "2026-10-20T08:00:00.0000000+00:00";
@@ -13,6 +21,83 @@ public sealed class SqliteGameplayStoreCombatModifierPurchaseTests : IDisposable
     private string DatabasePath => Path.Combine(_directory, "synthetic.db");
 
     public SqliteGameplayStoreCombatModifierPurchaseTests() => Directory.CreateDirectory(_directory);
+
+    // Reflection keeps the missing application contract compilable during behavioral RED.
+    // Delegates are bound to interface methods, so invocation exercises real interface dispatch.
+    private static System.Reflection.MethodInfo ContractMethod(string name, params Type[] parameterTypes)
+    {
+        var method = typeof(IGameplayStore).GetMethod(name, parameterTypes);
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<CyberDefenseCombatModifierSnapshot>), method.ReturnType);
+        Assert.True(method.IsAbstract); // No default implementation hiding an incomplete store.
+        Assert.True(method.GetParameters()[^1].HasDefaultValue);
+        return method;
+    }
+
+    [Theory]
+    [InlineData("GetCombatModifierSnapshotAsync", false)]
+    [InlineData("PurchaseCriticalStrikeUpgradeAsync", true)]
+    [InlineData("PurchaseOverdriveUpgradeAsync", true)]
+    public void ApplicationContract_ExposesExactConcreteModifierOperation(string name, bool purchase)
+    {
+        Type[] parameters = purchase
+            ? [typeof(int), typeof(long), typeof(CancellationToken)]
+            : [typeof(CancellationToken)];
+        var method = ContractMethod(name, parameters);
+        var concrete = typeof(SqliteGameplayStore).GetMethod(name, parameters);
+        Assert.NotNull(concrete);
+        Assert.Equal(concrete.ReturnType, method.ReturnType);
+        Assert.Equal(concrete.GetParameters().Select(p => p.Name), method.GetParameters().Select(p => p.Name));
+        var mapping = typeof(SqliteGameplayStore).GetInterfaceMap(typeof(IGameplayStore));
+        int index = Array.IndexOf(mapping.InterfaceMethods, method);
+        Assert.True(index >= 0);
+        Assert.Equal(concrete, mapping.TargetMethods[index]);
+    }
+
+    [Fact]
+    public async Task ApplicationContract_InitialSnapshotIsAccessibleWithoutMutation()
+    {
+        using IGameplayStore store = await OpenAsync();
+        var before = await DumpAsync();
+        var read = ContractMethod("GetCombatModifierSnapshotAsync", typeof(CancellationToken))
+            .CreateDelegate<Func<CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>>(store);
+        var snapshot = await read(CancellationToken.None);
+        Assert.Equal(0, snapshot.CriticalStrikeRank);
+        Assert.Equal(0, snapshot.OverdriveRank);
+        Assert.Equal(CyberDefenseCombatModifierState.Initial, snapshot.ModifierState);
+        Assert.Equal(1, snapshot.StoreRevision);
+        Assert.Equal(0, snapshot.ResetEpoch);
+        Assert.False(snapshot.ResetIntent.IsPending);
+        Assert.Equal(before, await DumpAsync());
+    }
+
+    [Theory]
+    [InlineData(true, 0, 12, 6)]
+    [InlineData(true, 1, 50, 12)]
+    [InlineData(false, 0, 20, 5)]
+    [InlineData(false, 1, 80, 10)]
+    public async Task ApplicationContract_PurchasesEachRankWithExactCost(bool critical, int rank, int level, int cost)
+    {
+        using IGameplayStore store = await OpenAsync();
+        await SeedAsync(critical, rank, level, cost);
+        var unrelatedBefore = await DumpAsync(excludePurchaseColumns: true);
+        var purchase = ContractMethod(critical ? "PurchaseCriticalStrikeUpgradeAsync" : "PurchaseOverdriveUpgradeAsync",
+                typeof(int), typeof(long), typeof(CancellationToken))
+            .CreateDelegate<Func<int, long, CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>>(store);
+        var result = await purchase(rank, 2, CancellationToken.None);
+        Assert.Equal(rank + 1, critical ? result.CriticalStrikeRank : result.OverdriveRank);
+        Assert.Equal(42, result.StoreRevision);
+        Assert.Equal(2, result.ResetEpoch);
+        var progression = await store.GetProgressionAsync();
+        Assert.Equal(7 + cost, progression.SpentSkillPoints);
+        Assert.Equal(0, progression.AvailableSkillPoints);
+        Assert.Equal(critical ? 0 : 7, result.ModifierState.CriticalCorrectAttackCount);
+        Assert.Equal(critical || rank > 0 ? 3 : 0, result.ModifierState.OverdriveStreak);
+        Assert.Equal(0, result.ModifierState.OverdriveRemainingBonusAttacks);
+        Assert.Equal(unrelatedBefore, await DumpAsync(excludePurchaseColumns: true));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => purchase(rank, 2, CancellationToken.None));
+        Assert.Equal(progression, await store.GetProgressionAsync());
+    }
 
     public void Dispose()
     {
@@ -51,7 +136,7 @@ public sealed class SqliteGameplayStoreCombatModifierPurchaseTests : IDisposable
         UPDATE gameplay_reset_intent SET current_epoch = 2, target_epoch = 2, updated_at = '{Timestamp}';
         """);
 
-    private static Task<CyberDefenseCombatModifierSnapshot> PurchaseAsync(SqliteGameplayStore store, bool critical, int rank = 0, long epoch = 2,
+    private static Task<CyberDefenseCombatModifierSnapshot> PurchaseAsync(IGameplayStore store, bool critical, int rank = 0, long epoch = 2,
         CancellationToken cancellationToken = default) => critical
         ? store.PurchaseCriticalStrikeUpgradeAsync(rank, epoch, cancellationToken)
         : store.PurchaseOverdriveUpgradeAsync(rank, epoch, cancellationToken);

@@ -17,8 +17,55 @@ public sealed class SqliteGameplayStoreModifierSnapshotTests : IDisposable
 
     public void Dispose()
     {
-        SqliteConnection.ClearAllPools();
+        // Stores clear their own pool on disposal; raw fixture connections are not pooled.
         Directory.Delete(_directory, recursive: true);
+    }
+
+    [Theory]
+    [InlineData("modifier-snapshot")]
+    [InlineData("schema-v7")]
+    [InlineData("corrupt-schema")]
+    public async Task FixtureCleanup_PreservesUnrelatedPooledConnection(string cleanup)
+    {
+        using var unrelated = new SqliteConnection($"Data Source={DatabasePath};Pooling=True");
+        try
+        {
+            await unrelated.OpenAsync();
+            var handle = unrelated.Handle!;
+            unrelated.Close();
+            Assert.False(handle.IsClosed);
+
+            switch (cleanup)
+            {
+                case "modifier-snapshot":
+                    using (var fixture = new SqliteGameplayStoreModifierSnapshotTests()) { }
+                    break;
+                case "schema-v7":
+                    using (var fixture = new SqliteGameplayStoreSchemaV7MigrationTests()) { }
+                    break;
+                case "corrupt-schema":
+                    using (var fixture = new SqliteGameplayStoreSchemaTests())
+                    {
+                        await fixture.SchemaV1_InitializationFailure_DoesNotLeavePartiallyVersionedSchema();
+                    }
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(cleanup));
+            }
+
+            // This fixture does not own the other database's idle native handle.
+            Assert.False(handle.IsClosed);
+            await unrelated.OpenAsync();
+            Assert.Same(handle, unrelated.Handle);
+            using var command = unrelated.CreateCommand();
+            command.CommandText = "SELECT 42;";
+            Assert.Equal(42L, await command.ExecuteScalarAsync());
+        }
+        finally
+        {
+            unrelated.Close();
+            SqliteConnection.ClearPool(unrelated);
+        }
     }
 
     private async Task<SqliteGameplayStore> OpenStoreAsync()
