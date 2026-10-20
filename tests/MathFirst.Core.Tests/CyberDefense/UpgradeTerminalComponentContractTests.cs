@@ -76,7 +76,31 @@ public sealed class UpgradeTerminalComponentContractTests
             "UpgradeTerminal_Feedback_FirewallMaxRank",
             "UpgradeTerminal_Feedback_LockedLevel",
             "UpgradeTerminal_Feedback_FirewallStaleRank",
-            "UpgradeTerminal_FirewallPurchaseAriaLabel"
+            "UpgradeTerminal_FirewallPurchaseAriaLabel",
+            "UpgradeTerminal_NextRank",
+            "UpgradeTerminal_CriticalStrikeTitle",
+            "UpgradeTerminal_CriticalStrikeDescription",
+            "UpgradeTerminal_CriticalStrikeEffect_Rank0",
+            "UpgradeTerminal_CriticalStrikeEffect_Rank1",
+            "UpgradeTerminal_CriticalStrikeEffect_Rank2",
+            "UpgradeTerminal_UpgradeCriticalStrikeAction",
+            "UpgradeTerminal_CriticalStrikePurchaseAriaLabel",
+            "UpgradeTerminal_Feedback_CriticalStrikeSuccess",
+            "UpgradeTerminal_Feedback_CriticalStrikeMaxRank",
+            "UpgradeTerminal_Feedback_CriticalStrikeLockedLevel",
+            "UpgradeTerminal_Feedback_CriticalStrikeStaleRank",
+            "UpgradeTerminal_OverdriveTitle",
+            "UpgradeTerminal_OverdriveDescription",
+            "UpgradeTerminal_OverdriveNotice",
+            "UpgradeTerminal_OverdriveEffect_Rank0",
+            "UpgradeTerminal_OverdriveEffect_Rank1",
+            "UpgradeTerminal_OverdriveEffect_Rank2",
+            "UpgradeTerminal_UpgradeOverdriveAction",
+            "UpgradeTerminal_OverdrivePurchaseAriaLabel",
+            "UpgradeTerminal_Feedback_OverdriveSuccess",
+            "UpgradeTerminal_Feedback_OverdriveMaxRank",
+            "UpgradeTerminal_Feedback_OverdriveLockedLevel",
+            "UpgradeTerminal_Feedback_OverdriveStaleRank"
         ];
 
         foreach (var key in requiredKeys)
@@ -161,7 +185,31 @@ public sealed class UpgradeTerminalComponentContractTests
             "UpgradeTerminal_NextCapacity",
             "UpgradeTerminal_RequiredLevel",
             "UpgradeTerminal_LevelLocked",
-            "UpgradeTerminal_FirewallPurchaseAriaLabel"
+            "UpgradeTerminal_FirewallPurchaseAriaLabel",
+            "UpgradeTerminal_NextRank",
+            "UpgradeTerminal_CriticalStrikeTitle",
+            "UpgradeTerminal_CriticalStrikeDescription",
+            "UpgradeTerminal_CriticalStrikeEffect_Rank0",
+            "UpgradeTerminal_CriticalStrikeEffect_Rank1",
+            "UpgradeTerminal_CriticalStrikeEffect_Rank2",
+            "UpgradeTerminal_UpgradeCriticalStrikeAction",
+            "UpgradeTerminal_CriticalStrikePurchaseAriaLabel",
+            "UpgradeTerminal_Feedback_CriticalStrikeSuccess",
+            "UpgradeTerminal_Feedback_CriticalStrikeMaxRank",
+            "UpgradeTerminal_Feedback_CriticalStrikeLockedLevel",
+            "UpgradeTerminal_Feedback_CriticalStrikeStaleRank",
+            "UpgradeTerminal_OverdriveTitle",
+            "UpgradeTerminal_OverdriveDescription",
+            "UpgradeTerminal_OverdriveNotice",
+            "UpgradeTerminal_OverdriveEffect_Rank0",
+            "UpgradeTerminal_OverdriveEffect_Rank1",
+            "UpgradeTerminal_OverdriveEffect_Rank2",
+            "UpgradeTerminal_UpgradeOverdriveAction",
+            "UpgradeTerminal_OverdrivePurchaseAriaLabel",
+            "UpgradeTerminal_Feedback_OverdriveSuccess",
+            "UpgradeTerminal_Feedback_OverdriveMaxRank",
+            "UpgradeTerminal_Feedback_OverdriveLockedLevel",
+            "UpgradeTerminal_Feedback_OverdriveStaleRank"
         ];
 
         foreach (var key in templateKeys)
@@ -384,5 +432,211 @@ public sealed class UpgradeTerminalComponentContractTests
         // Initial focus targets purchase button when affordable, close button otherwise
         Assert.Contains("_purchaseButton.FocusAsync()", content, StringComparison.Ordinal);
         Assert.Contains("_closeButton.FocusAsync()", content, StringComparison.Ordinal);
+        Assert.Contains("_firewallPurchaseButton.FocusAsync()", content, StringComparison.Ordinal);
+        Assert.Contains("_criticalStrikePurchaseButton.FocusAsync()", content, StringComparison.Ordinal);
+        Assert.Contains("_overdrivePurchaseButton.FocusAsync()", content, StringComparison.Ordinal);
+    }
+
+    // =========================================================================
+    // 4. Slice 12: Critical Strike and Overdrive Terminal UI Contracts
+    // =========================================================================
+
+    [Fact]
+    public void UpgradeTerminal_Markup_RendersAllFourSkillCardsAndPurchaseControls()
+    {
+        var content = ReadUpgradeTerminalRazor();
+
+        // All four skill card identifiers remain present
+        Assert.Contains("attack-upgrade-card", content, StringComparison.Ordinal);
+        Assert.Contains("firewall-upgrade-card", content, StringComparison.Ordinal);
+        Assert.Contains("critical-strike-upgrade-card", content, StringComparison.Ordinal);
+        Assert.Contains("overdrive-upgrade-card", content, StringComparison.Ordinal);
+
+        // Exactly four listitem cards
+        var listItemMatches = Regex.Matches(content, @"<article\s+class=""upgrade-card\b[^""]*""\s+role=""listitem""");
+        Assert.Equal(4, listItemMatches.Count);
+
+        // Accessible headings for all four cards
+        Assert.Contains("id=\"attack-upgrade-title\"", content, StringComparison.Ordinal);
+        Assert.Contains("id=\"firewall-upgrade-title\"", content, StringComparison.Ordinal);
+        Assert.Contains("id=\"critical-strike-upgrade-title\"", content, StringComparison.Ordinal);
+        Assert.Contains("id=\"overdrive-upgrade-title\"", content, StringComparison.Ordinal);
+
+        // Dedicated purchase buttons for all four skills + Close button
+        Assert.Contains("attack-purchase-btn", content, StringComparison.Ordinal);
+        Assert.Contains("firewall-purchase-btn", content, StringComparison.Ordinal);
+        Assert.Contains("critical-strike-purchase-btn", content, StringComparison.Ordinal);
+        Assert.Contains("overdrive-purchase-btn", content, StringComparison.Ordinal);
+        Assert.Contains("upgrade-close-btn", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UpgradeTerminal_BindsAuthoritativeCriticalStrikeAndOverdrivePropertiesAndActions()
+    {
+        var content = ReadUpgradeTerminalRazor();
+
+        // Critical Strike bindings
+        Assert.Contains("EffectiveCurrentCriticalStrikeRank", content, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNextCriticalStrikeRank", content, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNextCriticalStrikeRequiredLevel", content, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNextCriticalStrikeCost", content, StringComparison.Ordinal);
+        Assert.Contains("IsCriticalStrikeMaxRank", content, StringComparison.Ordinal);
+        Assert.Contains("IsCriticalStrikeLevelUnlocked", content, StringComparison.Ordinal);
+        Assert.Contains("HasSufficientCriticalStrikeSp", content, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.PurchaseCriticalStrikeUpgradeAsync()", content, StringComparison.Ordinal);
+        Assert.Contains("@onclick=\"HandleCriticalStrikePurchaseClick\"", content, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"@IsCriticalStrikePurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"@IsCriticalStrikePurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@CriticalStrikePurchaseButtonAriaLabel\"", content, StringComparison.Ordinal);
+
+        // Overdrive bindings
+        Assert.Contains("EffectiveCurrentOverdriveRank", content, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNextOverdriveRank", content, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNextOverdriveRequiredLevel", content, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNextOverdriveCost", content, StringComparison.Ordinal);
+        Assert.Contains("IsOverdriveMaxRank", content, StringComparison.Ordinal);
+        Assert.Contains("IsOverdriveLevelUnlocked", content, StringComparison.Ordinal);
+        Assert.Contains("HasSufficientOverdriveSp", content, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.PurchaseOverdriveUpgradeAsync()", content, StringComparison.Ordinal);
+        Assert.Contains("@onclick=\"HandleOverdrivePurchaseClick\"", content, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"@IsOverdrivePurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-disabled=\"@IsOverdrivePurchaseDisabled\"", content, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@OverdrivePurchaseButtonAriaLabel\"", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UpgradeTerminal_SharedBusyGate_DisablesAllFourPurchaseButtonsWhenAnyPurchaseInFlight()
+    {
+        var content = ReadUpgradeTerminalRazor();
+
+        Assert.Contains("_isProcessingCriticalStrikePurchase", content, StringComparison.Ordinal);
+        Assert.Contains("_isProcessingOverdrivePurchase", content, StringComparison.Ordinal);
+
+        Assert.Contains("!ViewModel.IsCriticalStrikeLevelUnlocked", content, StringComparison.Ordinal);
+        Assert.Contains("!ViewModel.HasSufficientCriticalStrikeSkillPoints", content, StringComparison.Ordinal);
+        Assert.Contains("!ViewModel.CanPurchaseCriticalStrike", content, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.IsCriticalStrikeMaxRank", content, StringComparison.Ordinal);
+
+        Assert.Contains("!ViewModel.IsOverdriveLevelUnlocked", content, StringComparison.Ordinal);
+        Assert.Contains("!ViewModel.HasSufficientOverdriveSkillPoints", content, StringComparison.Ordinal);
+        Assert.Contains("!ViewModel.CanPurchaseOverdrive", content, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.IsOverdriveMaxRank", content, StringComparison.Ordinal);
+
+        // Localized feedback keys for Critical Strike and Overdrive must be mapped in ApplyPurchaseResult
+        Assert.Contains("UpgradeTerminal_Feedback_CriticalStrikeSuccess", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_CriticalStrikeMaxRank", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_CriticalStrikeLockedLevel", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_CriticalStrikeStaleRank", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_OverdriveSuccess", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_OverdriveMaxRank", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_OverdriveLockedLevel", content, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_Feedback_OverdriveStaleRank", content, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("en", "Critical Strike", "Upgrade Critical Strike", "Overdrive", "Upgrade Overdrive", "Next: Rank 2")]
+    [InlineData("de", "Kritischer Treffer", "Kritischen Treffer verbessern", "Overdrive", "Overdrive verbessern", "Nächste Stufe: Rang 2")]
+    [InlineData("ru", "Критический удар", "Улучшить критический удар", "Овердрайв", "Улучшить овердрайв", "Далее: ранг 2")]
+    public void UpgradeTerminal_Localization_CriticalStrikeAndOverdriveTitlesActionsAndNextRank_MatchAllLocales(
+        string languageCode,
+        string expectedCritTitle,
+        string expectedCritAction,
+        string expectedOverdriveTitle,
+        string expectedOverdriveAction,
+        string expectedNextRank)
+    {
+        var localizer = new LocalizationService();
+        localizer.ApplyLanguagePreference(languageCode);
+
+        Assert.Equal(expectedCritTitle, localizer["UpgradeTerminal_CriticalStrikeTitle"]);
+        Assert.Equal(expectedCritAction, localizer["UpgradeTerminal_UpgradeCriticalStrikeAction"]);
+        Assert.Equal(expectedOverdriveTitle, localizer["UpgradeTerminal_OverdriveTitle"]);
+        Assert.Equal(expectedOverdriveAction, localizer["UpgradeTerminal_UpgradeOverdriveAction"]);
+        Assert.Equal(expectedNextRank, localizer["UpgradeTerminal_NextRank", 2]);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("ru")]
+    public void UpgradeTerminal_CriticalStrikeAndOverdriveCopy_ExplainsApprovedBalanceAndNeverMentionsReactionSpeedOrCriticalWindow(
+        string languageCode)
+    {
+        var razor = ReadUpgradeTerminalRazor();
+        Assert.DoesNotContain("CriticalWindow", razor, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Critical Window", razor, StringComparison.OrdinalIgnoreCase);
+
+        var localizer = new LocalizationService();
+        localizer.ApplyLanguagePreference(languageCode);
+
+        var critDesc = localizer["UpgradeTerminal_CriticalStrikeDescription"];
+        var critR1 = localizer["UpgradeTerminal_CriticalStrikeEffect_Rank1"];
+        var critR2 = localizer["UpgradeTerminal_CriticalStrikeEffect_Rank2"];
+        var overdriveDesc = localizer["UpgradeTerminal_OverdriveDescription"];
+        var overdriveNotice = localizer["UpgradeTerminal_OverdriveNotice"];
+        var overdriveR1 = localizer["UpgradeTerminal_OverdriveEffect_Rank1"];
+        var overdriveR2 = localizer["UpgradeTerminal_OverdriveEffect_Rank2"];
+
+        // Approved Critical Strike numbers: Level 12, 6 SP, 5th, +50%; Level 50, 12 SP, 4th, +100%
+        Assert.Contains("12", critDesc, StringComparison.Ordinal);
+        Assert.Contains("6", critDesc, StringComparison.Ordinal);
+        Assert.Contains("5", critDesc, StringComparison.Ordinal);
+        Assert.Contains("50", critDesc, StringComparison.Ordinal);
+        Assert.Contains("50", critR1, StringComparison.Ordinal);
+        Assert.Contains("5", critR1, StringComparison.Ordinal);
+        Assert.Contains("100", critDesc, StringComparison.Ordinal);
+        Assert.Contains("4", critR2, StringComparison.Ordinal);
+        Assert.Contains("100", critR2, StringComparison.Ordinal);
+
+        // Approved Overdrive numbers: Level 20, 5 SP, 5 consecutive, +50%, 2 attacks; Level 80, 10 SP, 4 consecutive
+        Assert.Contains("20", overdriveDesc, StringComparison.Ordinal);
+        Assert.Contains("5", overdriveDesc, StringComparison.Ordinal);
+        Assert.Contains("80", overdriveDesc, StringComparison.Ordinal);
+        Assert.Contains("10", overdriveDesc, StringComparison.Ordinal);
+        Assert.Contains("50", overdriveDesc, StringComparison.Ordinal);
+        Assert.Contains("2", overdriveDesc, StringComparison.Ordinal);
+        Assert.Contains("5", overdriveR1, StringComparison.Ordinal);
+        Assert.Contains("50", overdriveR1, StringComparison.Ordinal);
+        Assert.Contains("2", overdriveR1, StringComparison.Ordinal);
+        Assert.Contains("4", overdriveR2, StringComparison.Ordinal);
+        Assert.Contains("50", overdriveR2, StringComparison.Ordinal);
+        Assert.Contains("2", overdriveR2, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(overdriveNotice));
+        Assert.NotEqual("UpgradeTerminal_OverdriveNotice", overdriveNotice);
+
+        // Never describe Critical Strike as reaction-speed-based
+        string[] forbiddenSpeedTerms =
+        [
+            "reaction",
+            "reaktion",
+            "реакц",
+            "speed",
+            "schnell",
+            "скорост",
+            "fast",
+            "timer",
+            "таймер",
+            "Critical Window",
+            "Kritisches Fenster",
+            "Критическое окно"
+        ];
+
+        foreach (var term in forbiddenSpeedTerms)
+        {
+            Assert.DoesNotContain(term, critDesc, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(term, critR1, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(term, critR2, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public void UpgradeTerminal_Css_SupportsFourCardScrollLayoutWithoutHidingCloseAction()
+    {
+        var css = ReadUpgradeTerminalCss();
+
+        Assert.Contains(".critical-strike-icon-slot", css, StringComparison.Ordinal);
+        Assert.Contains(".overdrive-icon-slot", css, StringComparison.Ordinal);
+        Assert.Contains("overflow-y: auto", css, StringComparison.Ordinal);
+        Assert.Contains(".upgrade-close-btn", css, StringComparison.Ordinal);
     }
 }

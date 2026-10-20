@@ -63,6 +63,105 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         Assert.True(session.IsTimingActive);
     }
 
+    [Fact]
+    public async Task ModifierTerminal_AllFourSkills_RankProgressionFeedbackAndLearningIsolation_WorkTogether()
+    {
+        var clock = new FakeClock();
+        using var learner = new InMemoryLearnerStore();
+        var session = await CreateAndStartSessionAsync(clock, learner);
+        session.SetCurrentAnswerInput("19");
+        var fact = session.CurrentFact;
+        var revision = session.FactInstanceRevision;
+        var snapshot = await learner.LoadSnapshotAsync();
+        int writesBefore = learner.MutationCount;
+
+        clock.AdvanceMs(950);
+        session.PauseItemTiming();
+        var elapsed = session.GetCurrentActiveElapsedMs();
+
+        var directory = CreateTempDirectory();
+        using var store = new SqliteGameplayStore(Path.Combine(directory, "synthetic-gameplay-all-four.db"));
+        await store.InitializeAsync();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = 80, earned_sp = 79, spent_sp = 0, available_sp = 79 WHERE id = 1;";
+            command.Parameters.AddWithValue("@xp", CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
+            await command.ExecuteNonQueryAsync();
+        }
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        // Initial Rank 0 projections for Critical Strike (Lvl 12, 6 SP) and Overdrive (Lvl 20, 5 SP)
+        Assert.Equal(0, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(1, vm.NextCriticalStrikeRank);
+        Assert.Equal(12, vm.NextCriticalStrikeRequiredLevel);
+        Assert.Equal(6, vm.NextCriticalStrikeCost);
+        Assert.True(vm.CanPurchaseCriticalStrike);
+
+        Assert.Equal(0, vm.CurrentOverdriveRank);
+        Assert.Equal(1, vm.NextOverdriveRank);
+        Assert.Equal(20, vm.NextOverdriveRequiredLevel);
+        Assert.Equal(5, vm.NextOverdriveCost);
+        Assert.True(vm.CanPurchaseOverdrive);
+
+        // Purchase Rank 1 Critical Strike (6 SP) and Rank 1 Overdrive (5 SP)
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseCriticalStrikeUpgradeAsync()).Status);
+        Assert.Equal(1, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(2, vm.NextCriticalStrikeRank);
+        Assert.Equal(50, vm.NextCriticalStrikeRequiredLevel);
+        Assert.Equal(12, vm.NextCriticalStrikeCost);
+
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseOverdriveUpgradeAsync()).Status);
+        Assert.Equal(1, vm.CurrentOverdriveRank);
+        Assert.Equal(2, vm.NextOverdriveRank);
+        Assert.Equal(80, vm.NextOverdriveRequiredLevel);
+        Assert.Equal(10, vm.NextOverdriveCost);
+
+        // Purchase Rank 2 Critical Strike (12 SP) and Rank 2 Overdrive (10 SP) -> Max Rank
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseCriticalStrikeUpgradeAsync()).Status);
+        Assert.Equal(2, vm.CurrentCriticalStrikeRank);
+        Assert.True(vm.IsCriticalStrikeMaxRank);
+        Assert.False(vm.CanPurchaseCriticalStrike);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, (await vm.PurchaseCriticalStrikeUpgradeAsync()).Status);
+
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseOverdriveUpgradeAsync()).Status);
+        Assert.Equal(2, vm.CurrentOverdriveRank);
+        Assert.True(vm.IsOverdriveMaxRank);
+        Assert.False(vm.CanPurchaseOverdrive);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, (await vm.PurchaseOverdriveUpgradeAsync()).Status);
+
+        // Attack (1 SP) and Firewall (3 SP) still work alongside modifier upgrades
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseUpgradeAsync()).Status);
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseFirewallUpgradeAsync()).Status);
+        Assert.Equal(1, vm.CurrentAttackRank);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(79 - (6 + 5 + 12 + 10 + 1 + 3), vm.AvailableSkillPoints);
+
+        // Localized feedback keys exist in en/de/ru
+        var localizer = new LocalizationService();
+        foreach (var lang in new[] { "en", "de", "ru" })
+        {
+            localizer.ApplyLanguagePreference(lang);
+            Assert.NotEqual("UpgradeTerminal_Feedback_CriticalStrikeSuccess", localizer["UpgradeTerminal_Feedback_CriticalStrikeSuccess"]);
+            Assert.NotEqual("UpgradeTerminal_Feedback_OverdriveSuccess", localizer["UpgradeTerminal_Feedback_OverdriveSuccess"]);
+        }
+
+        // Verify complete learning isolation
+        clock.AdvanceMs(8000);
+        Assert.Same(snapshot, await learner.LoadSnapshotAsync());
+        Assert.Equal(writesBefore, learner.MutationCount);
+        Assert.Same(fact, session.CurrentFact);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("19", session.CurrentAnswerInput);
+        Assert.Equal(elapsed, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsTimingActive);
+        session.ResumeItemTiming();
+        Assert.True(session.IsTimingActive);
+    }
+
     [Theory]
     [InlineData("PurchaseCriticalStrikeUpgradeAsync")]
     [InlineData("PurchaseOverdriveUpgradeAsync")]

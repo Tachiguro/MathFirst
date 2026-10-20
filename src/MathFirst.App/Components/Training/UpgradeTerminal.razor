@@ -126,6 +126,108 @@
                     }
                 </div>
             </article>
+
+            <article class="upgrade-card critical-strike-upgrade-card" role="listitem" aria-labelledby="critical-strike-upgrade-title">
+                <div class="upgrade-card-header">
+                    <div class="upgrade-icon-slot critical-strike-icon-slot" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="22" y1="12" x2="18" y2="12" />
+                            <line x1="6" y1="12" x2="2" y2="12" />
+                            <line x1="12" y1="6" x2="12" y2="2" />
+                            <line x1="12" y1="22" x2="12" y2="18" />
+                        </svg>
+                    </div>
+                    <div class="upgrade-title-group">
+                        <h3 id="critical-strike-upgrade-title" class="upgrade-card-title">@EffectiveLocalizer["UpgradeTerminal_CriticalStrikeTitle"]</h3>
+                        <span class="upgrade-rank-badge">@EffectiveLocalizer["UpgradeTerminal_CurrentRank", EffectiveCurrentCriticalStrikeRank]</span>
+                    </div>
+                </div>
+
+                <p class="upgrade-card-desc">@EffectiveLocalizer["UpgradeTerminal_CriticalStrikeDescription"]</p>
+
+                <div class="upgrade-stats-grid">
+                    <div class="stat-cell current-stat">
+                        <span class="stat-name">@CurrentCriticalStrikeEffectText</span>
+                    </div>
+                    <div class="stat-cell next-stat">
+                        @if (IsCriticalStrikeMaxRank)
+                        {
+                            <span class="stat-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                        }
+                        else
+                        {
+                            <span class="stat-next">@EffectiveLocalizer["UpgradeTerminal_NextRank", EffectiveNextCriticalStrikeRank ?? 0] — @NextCriticalStrikeEffectText</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="upgrade-cost-row">
+                    @if (IsCriticalStrikeMaxRank)
+                    {
+                        <span class="cost-badge cost-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                    }
+                    else
+                    {
+                        <span class="cost-badge @(IsCriticalStrikeLevelUnlocked ? "cost-affordable" : "cost-locked")">
+                            @EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextCriticalStrikeRequiredLevel ?? 0]
+                        </span>
+                        <span class="cost-badge @(HasSufficientCriticalStrikeSp ? "cost-affordable" : "cost-insufficient")">
+                            @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCriticalStrikeCost ?? 0]
+                        </span>
+                    }
+                </div>
+            </article>
+
+            <article class="upgrade-card overdrive-upgrade-card" role="listitem" aria-labelledby="overdrive-upgrade-title">
+                <div class="upgrade-card-header">
+                    <div class="upgrade-icon-slot overdrive-icon-slot" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="13 17 18 12 13 7" />
+                            <polyline points="6 17 11 12 6 7" />
+                        </svg>
+                    </div>
+                    <div class="upgrade-title-group">
+                        <h3 id="overdrive-upgrade-title" class="upgrade-card-title">@EffectiveLocalizer["UpgradeTerminal_OverdriveTitle"]</h3>
+                        <span class="upgrade-rank-badge">@EffectiveLocalizer["UpgradeTerminal_CurrentRank", EffectiveCurrentOverdriveRank]</span>
+                    </div>
+                </div>
+
+                <p class="upgrade-card-desc">@EffectiveLocalizer["UpgradeTerminal_OverdriveDescription"]</p>
+                <p class="upgrade-card-notice">@EffectiveLocalizer["UpgradeTerminal_OverdriveNotice"]</p>
+
+                <div class="upgrade-stats-grid">
+                    <div class="stat-cell current-stat">
+                        <span class="stat-name">@CurrentOverdriveEffectText</span>
+                    </div>
+                    <div class="stat-cell next-stat">
+                        @if (IsOverdriveMaxRank)
+                        {
+                            <span class="stat-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                        }
+                        else
+                        {
+                            <span class="stat-next">@EffectiveLocalizer["UpgradeTerminal_NextRank", EffectiveNextOverdriveRank ?? 0] — @NextOverdriveEffectText</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="upgrade-cost-row">
+                    @if (IsOverdriveMaxRank)
+                    {
+                        <span class="cost-badge cost-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
+                    }
+                    else
+                    {
+                        <span class="cost-badge @(IsOverdriveLevelUnlocked ? "cost-affordable" : "cost-locked")">
+                            @EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextOverdriveRequiredLevel ?? 0]
+                        </span>
+                        <span class="cost-badge @(HasSufficientOverdriveSp ? "cost-affordable" : "cost-insufficient")">
+                            @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextOverdriveCost ?? 0]
+                        </span>
+                    }
+                </div>
+            </article>
         </div>
 
         <!-- Accessible Live Announcement Region for Purchase Feedback -->
@@ -160,6 +262,24 @@
                 @FirewallPurchaseButtonText
             </button>
             <button type="button"
+                    @ref="_criticalStrikePurchaseButton"
+                    class="button button-primary practice-overlay-action upgrade-purchase-btn critical-strike-purchase-btn"
+                    disabled="@IsCriticalStrikePurchaseDisabled"
+                    aria-disabled="@IsCriticalStrikePurchaseDisabled"
+                    aria-label="@CriticalStrikePurchaseButtonAriaLabel"
+                    @onclick="HandleCriticalStrikePurchaseClick">
+                @CriticalStrikePurchaseButtonText
+            </button>
+            <button type="button"
+                    @ref="_overdrivePurchaseButton"
+                    class="button button-primary practice-overlay-action upgrade-purchase-btn overdrive-purchase-btn"
+                    disabled="@IsOverdrivePurchaseDisabled"
+                    aria-disabled="@IsOverdrivePurchaseDisabled"
+                    aria-label="@OverdrivePurchaseButtonAriaLabel"
+                    @onclick="HandleOverdrivePurchaseClick">
+                @OverdrivePurchaseButtonText
+            </button>
+            <button type="button"
                     @ref="_closeButton"
                     class="button button-secondary practice-overlay-action upgrade-close-btn"
                     aria-label="@EffectiveLocalizer["UpgradeTerminal_CloseAction"]"
@@ -180,6 +300,14 @@
         Info
     }
 
+    private enum SkillFeedbackTarget
+    {
+        Attack,
+        Firewall,
+        CriticalStrike,
+        Overdrive
+    }
+
     [Parameter]
     public UpgradeTerminalViewModel? ViewModel { get; set; }
 
@@ -191,10 +319,14 @@
 
     private ElementReference _purchaseButton;
     private ElementReference _firewallPurchaseButton;
+    private ElementReference _criticalStrikePurchaseButton;
+    private ElementReference _overdrivePurchaseButton;
     private ElementReference _closeButton;
     private UpgradeTerminalViewModel? _subscribedViewModel;
     private bool _isProcessingPurchase;
     private bool _isProcessingFirewallPurchase;
+    private bool _isProcessingCriticalStrikePurchase;
+    private bool _isProcessingOverdrivePurchase;
     private bool _isDisposed;
     private bool _initialFocusSet;
     private string? _feedbackMessage;
@@ -221,10 +353,58 @@
     private bool HasSufficientFirewallSp => ViewModel?.HasSufficientFirewallSkillPoints ?? false;
     private bool CanPurchaseFirewall => ViewModel?.CanPurchaseFirewall ?? false;
 
+    private int EffectiveCurrentCriticalStrikeRank => ViewModel?.CurrentCriticalStrikeRank ?? 0;
+    private int? EffectiveNextCriticalStrikeRank => ViewModel?.NextCriticalStrikeRank;
+    private int? EffectiveNextCriticalStrikeRequiredLevel => ViewModel?.NextCriticalStrikeRequiredLevel;
+    private int? EffectiveNextCriticalStrikeCost => ViewModel?.NextCriticalStrikeCost;
+    private bool IsCriticalStrikeMaxRank => ViewModel?.IsCriticalStrikeMaxRank ?? false;
+    private bool IsCriticalStrikeLevelUnlocked => ViewModel?.IsCriticalStrikeLevelUnlocked ?? false;
+    private bool HasSufficientCriticalStrikeSp => ViewModel?.HasSufficientCriticalStrikeSkillPoints ?? false;
+    private bool CanPurchaseCriticalStrike => ViewModel?.CanPurchaseCriticalStrike ?? false;
+
+    private int EffectiveCurrentOverdriveRank => ViewModel?.CurrentOverdriveRank ?? 0;
+    private int? EffectiveNextOverdriveRank => ViewModel?.NextOverdriveRank;
+    private int? EffectiveNextOverdriveRequiredLevel => ViewModel?.NextOverdriveRequiredLevel;
+    private int? EffectiveNextOverdriveCost => ViewModel?.NextOverdriveCost;
+    private bool IsOverdriveMaxRank => ViewModel?.IsOverdriveMaxRank ?? false;
+    private bool IsOverdriveLevelUnlocked => ViewModel?.IsOverdriveLevelUnlocked ?? false;
+    private bool HasSufficientOverdriveSp => ViewModel?.HasSufficientOverdriveSkillPoints ?? false;
+    private bool CanPurchaseOverdrive => ViewModel?.CanPurchaseOverdrive ?? false;
+
+    private string CurrentCriticalStrikeEffectText => EffectiveCurrentCriticalStrikeRank switch
+    {
+        1 => EffectiveLocalizer["UpgradeTerminal_CriticalStrikeEffect_Rank1"],
+        2 => EffectiveLocalizer["UpgradeTerminal_CriticalStrikeEffect_Rank2"],
+        _ => EffectiveLocalizer["UpgradeTerminal_CriticalStrikeEffect_Rank0"]
+    };
+
+    private string NextCriticalStrikeEffectText => EffectiveNextCriticalStrikeRank switch
+    {
+        1 => EffectiveLocalizer["UpgradeTerminal_CriticalStrikeEffect_Rank1"],
+        2 => EffectiveLocalizer["UpgradeTerminal_CriticalStrikeEffect_Rank2"],
+        _ => EffectiveLocalizer["UpgradeTerminal_MaxRank"]
+    };
+
+    private string CurrentOverdriveEffectText => EffectiveCurrentOverdriveRank switch
+    {
+        1 => EffectiveLocalizer["UpgradeTerminal_OverdriveEffect_Rank1"],
+        2 => EffectiveLocalizer["UpgradeTerminal_OverdriveEffect_Rank2"],
+        _ => EffectiveLocalizer["UpgradeTerminal_OverdriveEffect_Rank0"]
+    };
+
+    private string NextOverdriveEffectText => EffectiveNextOverdriveRank switch
+    {
+        1 => EffectiveLocalizer["UpgradeTerminal_OverdriveEffect_Rank1"],
+        2 => EffectiveLocalizer["UpgradeTerminal_OverdriveEffect_Rank2"],
+        _ => EffectiveLocalizer["UpgradeTerminal_MaxRank"]
+    };
+
     public bool IsPurchaseDisabled =>
         _isDisposed ||
         _isProcessingPurchase ||
         _isProcessingFirewallPurchase ||
+        _isProcessingCriticalStrikePurchase ||
+        _isProcessingOverdrivePurchase ||
         ViewModel == null ||
         ViewModel.IsDisposed ||
         ViewModel.IsBusy ||
@@ -236,6 +416,8 @@
         _isDisposed ||
         _isProcessingPurchase ||
         _isProcessingFirewallPurchase ||
+        _isProcessingCriticalStrikePurchase ||
+        _isProcessingOverdrivePurchase ||
         ViewModel == null ||
         ViewModel.IsDisposed ||
         ViewModel.IsBusy ||
@@ -243,6 +425,34 @@
         !ViewModel.IsFirewallLevelUnlocked ||
         !ViewModel.HasSufficientFirewallSkillPoints ||
         !ViewModel.CanPurchaseFirewall;
+
+    public bool IsCriticalStrikePurchaseDisabled =>
+        _isDisposed ||
+        _isProcessingPurchase ||
+        _isProcessingFirewallPurchase ||
+        _isProcessingCriticalStrikePurchase ||
+        _isProcessingOverdrivePurchase ||
+        ViewModel == null ||
+        ViewModel.IsDisposed ||
+        ViewModel.IsBusy ||
+        ViewModel.IsCriticalStrikeMaxRank ||
+        !ViewModel.IsCriticalStrikeLevelUnlocked ||
+        !ViewModel.HasSufficientCriticalStrikeSkillPoints ||
+        !ViewModel.CanPurchaseCriticalStrike;
+
+    public bool IsOverdrivePurchaseDisabled =>
+        _isDisposed ||
+        _isProcessingPurchase ||
+        _isProcessingFirewallPurchase ||
+        _isProcessingCriticalStrikePurchase ||
+        _isProcessingOverdrivePurchase ||
+        ViewModel == null ||
+        ViewModel.IsDisposed ||
+        ViewModel.IsBusy ||
+        ViewModel.IsOverdriveMaxRank ||
+        !ViewModel.IsOverdriveLevelUnlocked ||
+        !ViewModel.HasSufficientOverdriveSkillPoints ||
+        !ViewModel.CanPurchaseOverdrive;
 
     private string PurchaseButtonText
     {
@@ -280,6 +490,46 @@
         }
     }
 
+    private string CriticalStrikePurchaseButtonText
+    {
+        get
+        {
+            if (ViewModel?.IsBusy == true || _isProcessingCriticalStrikePurchase)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_Purchasing"];
+            }
+            if (IsCriticalStrikeMaxRank)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_MaxRank"];
+            }
+            if (!IsCriticalStrikeLevelUnlocked)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_LevelLocked", EffectiveNextCriticalStrikeRequiredLevel ?? 0];
+            }
+            return EffectiveLocalizer["UpgradeTerminal_UpgradeCriticalStrikeAction"];
+        }
+    }
+
+    private string OverdrivePurchaseButtonText
+    {
+        get
+        {
+            if (ViewModel?.IsBusy == true || _isProcessingOverdrivePurchase)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_Purchasing"];
+            }
+            if (IsOverdriveMaxRank)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_MaxRank"];
+            }
+            if (!IsOverdriveLevelUnlocked)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_LevelLocked", EffectiveNextOverdriveRequiredLevel ?? 0];
+            }
+            return EffectiveLocalizer["UpgradeTerminal_UpgradeOverdriveAction"];
+        }
+    }
+
     private string PurchaseButtonAriaLabel
     {
         get
@@ -305,6 +555,56 @@
                 return $"{EffectiveLocalizer["UpgradeTerminal_UpgradeFirewallAction"]}: {EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextFirewallRequiredLevel ?? 0]}";
             }
             return $"{EffectiveLocalizer["UpgradeTerminal_UpgradeFirewallAction"]}: {EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextFirewallCost ?? 0]}";
+        }
+    }
+
+    private string CriticalStrikePurchaseButtonAriaLabel
+    {
+        get
+        {
+            if (IsCriticalStrikeMaxRank)
+            {
+                return EffectiveLocalizer[
+                    "UpgradeTerminal_CriticalStrikePurchaseAriaLabel",
+                    EffectiveLocalizer["UpgradeTerminal_CriticalStrikeTitle"],
+                    EffectiveLocalizer["UpgradeTerminal_MaxRank"]];
+            }
+            if (!IsCriticalStrikeLevelUnlocked)
+            {
+                return EffectiveLocalizer[
+                    "UpgradeTerminal_CriticalStrikePurchaseAriaLabel",
+                    EffectiveLocalizer["UpgradeTerminal_UpgradeCriticalStrikeAction"],
+                    EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextCriticalStrikeRequiredLevel ?? 0]];
+            }
+            return EffectiveLocalizer[
+                "UpgradeTerminal_CriticalStrikePurchaseAriaLabel",
+                EffectiveLocalizer["UpgradeTerminal_UpgradeCriticalStrikeAction"],
+                EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCriticalStrikeCost ?? 0]];
+        }
+    }
+
+    private string OverdrivePurchaseButtonAriaLabel
+    {
+        get
+        {
+            if (IsOverdriveMaxRank)
+            {
+                return EffectiveLocalizer[
+                    "UpgradeTerminal_OverdrivePurchaseAriaLabel",
+                    EffectiveLocalizer["UpgradeTerminal_OverdriveTitle"],
+                    EffectiveLocalizer["UpgradeTerminal_MaxRank"]];
+            }
+            if (!IsOverdriveLevelUnlocked)
+            {
+                return EffectiveLocalizer[
+                    "UpgradeTerminal_OverdrivePurchaseAriaLabel",
+                    EffectiveLocalizer["UpgradeTerminal_UpgradeOverdriveAction"],
+                    EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextOverdriveRequiredLevel ?? 0]];
+            }
+            return EffectiveLocalizer[
+                "UpgradeTerminal_OverdrivePurchaseAriaLabel",
+                EffectiveLocalizer["UpgradeTerminal_UpgradeOverdriveAction"],
+                EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextOverdriveCost ?? 0]];
         }
     }
 
@@ -345,6 +645,14 @@
                 else if (ViewModel?.CanPurchaseFirewall == true)
                 {
                     await _firewallPurchaseButton.FocusAsync();
+                }
+                else if (ViewModel?.CanPurchaseCriticalStrike == true)
+                {
+                    await _criticalStrikePurchaseButton.FocusAsync();
+                }
+                else if (ViewModel?.CanPurchaseOverdrive == true)
+                {
+                    await _overdrivePurchaseButton.FocusAsync();
                 }
                 else
                 {
@@ -399,7 +707,7 @@
         try
         {
             var result = await ViewModel.PurchaseUpgradeAsync();
-            ApplyPurchaseResult(result, isFirewall: false);
+            ApplyPurchaseResult(result, SkillFeedbackTarget.Attack);
         }
         catch (Exception)
         {
@@ -427,7 +735,7 @@
         try
         {
             var result = await ViewModel.PurchaseFirewallUpgradeAsync();
-            ApplyPurchaseResult(result, isFirewall: true);
+            ApplyPurchaseResult(result, SkillFeedbackTarget.Firewall);
         }
         catch (Exception)
         {
@@ -441,20 +749,85 @@
         }
     }
 
-    private void ApplyPurchaseResult(UpgradePurchaseResult result, bool isFirewall = false)
+    private async Task HandleCriticalStrikePurchaseClick()
+    {
+        if (IsCriticalStrikePurchaseDisabled || ViewModel == null)
+        {
+            return;
+        }
+
+        _isProcessingCriticalStrikePurchase = true;
+        _feedbackMessage = null;
+        _feedbackKind = FeedbackKind.None;
+
+        try
+        {
+            var result = await ViewModel.PurchaseCriticalStrikeUpgradeAsync();
+            ApplyPurchaseResult(result, SkillFeedbackTarget.CriticalStrike);
+        }
+        catch (Exception)
+        {
+            _feedbackKind = FeedbackKind.Error;
+            _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Error"];
+        }
+        finally
+        {
+            _isProcessingCriticalStrikePurchase = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandleOverdrivePurchaseClick()
+    {
+        if (IsOverdrivePurchaseDisabled || ViewModel == null)
+        {
+            return;
+        }
+
+        _isProcessingOverdrivePurchase = true;
+        _feedbackMessage = null;
+        _feedbackKind = FeedbackKind.None;
+
+        try
+        {
+            var result = await ViewModel.PurchaseOverdriveUpgradeAsync();
+            ApplyPurchaseResult(result, SkillFeedbackTarget.Overdrive);
+        }
+        catch (Exception)
+        {
+            _feedbackKind = FeedbackKind.Error;
+            _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_Error"];
+        }
+        finally
+        {
+            _isProcessingOverdrivePurchase = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyPurchaseResult(UpgradePurchaseResult result, SkillFeedbackTarget target)
     {
         switch (result.Status)
         {
             case UpgradePurchaseStatus.Success:
                 _feedbackKind = FeedbackKind.Success;
-                _feedbackMessage = isFirewall
-                    ? EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallSuccess"]
-                    : EffectiveLocalizer["UpgradeTerminal_Feedback_Success"];
+                _feedbackMessage = target switch
+                {
+                    SkillFeedbackTarget.Firewall => EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallSuccess"],
+                    SkillFeedbackTarget.CriticalStrike => EffectiveLocalizer["UpgradeTerminal_Feedback_CriticalStrikeSuccess"],
+                    SkillFeedbackTarget.Overdrive => EffectiveLocalizer["UpgradeTerminal_Feedback_OverdriveSuccess"],
+                    _ => EffectiveLocalizer["UpgradeTerminal_Feedback_Success"]
+                };
                 break;
 
             case UpgradePurchaseStatus.LockedLevel:
                 _feedbackKind = FeedbackKind.Warning;
-                _feedbackMessage = EffectiveLocalizer["UpgradeTerminal_Feedback_LockedLevel"];
+                _feedbackMessage = target switch
+                {
+                    SkillFeedbackTarget.CriticalStrike => EffectiveLocalizer["UpgradeTerminal_Feedback_CriticalStrikeLockedLevel"],
+                    SkillFeedbackTarget.Overdrive => EffectiveLocalizer["UpgradeTerminal_Feedback_OverdriveLockedLevel"],
+                    _ => EffectiveLocalizer["UpgradeTerminal_Feedback_LockedLevel"]
+                };
                 break;
 
             case UpgradePurchaseStatus.InsufficientSkillPoints:
@@ -464,9 +837,13 @@
 
             case UpgradePurchaseStatus.StaleRank:
                 _feedbackKind = FeedbackKind.Warning;
-                _feedbackMessage = isFirewall
-                    ? EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallStaleRank"]
-                    : EffectiveLocalizer["UpgradeTerminal_Feedback_StaleRank"];
+                _feedbackMessage = target switch
+                {
+                    SkillFeedbackTarget.Firewall => EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallStaleRank"],
+                    SkillFeedbackTarget.CriticalStrike => EffectiveLocalizer["UpgradeTerminal_Feedback_CriticalStrikeStaleRank"],
+                    SkillFeedbackTarget.Overdrive => EffectiveLocalizer["UpgradeTerminal_Feedback_OverdriveStaleRank"],
+                    _ => EffectiveLocalizer["UpgradeTerminal_Feedback_StaleRank"]
+                };
                 break;
 
             case UpgradePurchaseStatus.StaleResetEpoch:
@@ -476,9 +853,13 @@
 
             case UpgradePurchaseStatus.MaxRankReached:
                 _feedbackKind = FeedbackKind.Info;
-                _feedbackMessage = isFirewall
-                    ? EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallMaxRank"]
-                    : EffectiveLocalizer["UpgradeTerminal_Feedback_MaxRankReached"];
+                _feedbackMessage = target switch
+                {
+                    SkillFeedbackTarget.Firewall => EffectiveLocalizer["UpgradeTerminal_Feedback_FirewallMaxRank"],
+                    SkillFeedbackTarget.CriticalStrike => EffectiveLocalizer["UpgradeTerminal_Feedback_CriticalStrikeMaxRank"],
+                    SkillFeedbackTarget.Overdrive => EffectiveLocalizer["UpgradeTerminal_Feedback_OverdriveMaxRank"],
+                    _ => EffectiveLocalizer["UpgradeTerminal_Feedback_MaxRankReached"]
+                };
                 break;
 
             case UpgradePurchaseStatus.Busy:
