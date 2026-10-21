@@ -19,6 +19,7 @@ public sealed record CyberDefensePendingIntentRecord
     public int EffectiveAttackDamage { get; }
     public int BoundCriticalStrikeRank { get; }
     public int BoundOverdriveRank { get; }
+    public long? PracticePosition { get; }
 
     public CyberDefensePendingIntentRecord(
         string submissionId,
@@ -38,7 +39,8 @@ public sealed record CyberDefensePendingIntentRecord
             createdAt,
             effectiveAttackDamage: 1,
             boundCriticalStrikeRank: 0,
-            boundOverdriveRank: 0)
+            boundOverdriveRank: 0,
+            practicePosition: null)
     {
     }
 
@@ -61,7 +63,8 @@ public sealed record CyberDefensePendingIntentRecord
             createdAt,
             effectiveAttackDamage,
             boundCriticalStrikeRank: 0,
-            boundOverdriveRank: 0)
+            boundOverdriveRank: 0,
+            practicePosition: null)
     {
     }
 
@@ -76,6 +79,33 @@ public sealed record CyberDefensePendingIntentRecord
         int effectiveAttackDamage,
         int boundCriticalStrikeRank,
         int boundOverdriveRank)
+        : this(
+            submissionId,
+            factId,
+            isCorrect,
+            isEligible,
+            responseLatencyMs,
+            resetEpoch,
+            createdAt,
+            effectiveAttackDamage,
+            boundCriticalStrikeRank,
+            boundOverdriveRank,
+            practicePosition: null)
+    {
+    }
+
+    public CyberDefensePendingIntentRecord(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        bool isEligible,
+        long responseLatencyMs,
+        long resetEpoch,
+        DateTimeOffset createdAt,
+        int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank,
+        long? practicePosition)
     {
         if (string.IsNullOrWhiteSpace(submissionId))
         {
@@ -103,6 +133,14 @@ public sealed record CyberDefensePendingIntentRecord
         ArgumentOutOfRangeException.ThrowIfNegative(boundOverdriveRank);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(boundOverdriveRank, CyberDefenseOverdrivePolicy.MaxRank);
 
+        if (practicePosition.HasValue && practicePosition.Value < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(practicePosition),
+                practicePosition,
+                "Practice position must be at least 1 when specified.");
+        }
+
         SubmissionId = submissionId;
         FactId = factId;
         IsCorrect = isCorrect;
@@ -113,5 +151,30 @@ public sealed record CyberDefensePendingIntentRecord
         EffectiveAttackDamage = effectiveAttackDamage;
         BoundCriticalStrikeRank = boundCriticalStrikeRank;
         BoundOverdriveRank = boundOverdriveRank;
+        PracticePosition = practicePosition;
+    }
+
+    public CyberDefensePendingIntentRecord WithPracticePosition(long practicePosition)
+    {
+        if (practicePosition < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(practicePosition),
+                practicePosition,
+                "Practice position must be at least 1.");
+        }
+
+        return new CyberDefensePendingIntentRecord(
+            SubmissionId,
+            FactId,
+            IsCorrect,
+            IsEligible,
+            ResponseLatencyMs,
+            ResetEpoch,
+            CreatedAt,
+            EffectiveAttackDamage,
+            BoundCriticalStrikeRank,
+            BoundOverdriveRank,
+            practicePosition);
     }
 }

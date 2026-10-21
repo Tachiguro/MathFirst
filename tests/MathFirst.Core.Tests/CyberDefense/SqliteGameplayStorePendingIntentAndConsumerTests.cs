@@ -378,15 +378,14 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         await store.StagePendingIntentAsync(intent2);
         await store.StagePendingIntentAsync(intent1);
 
-        // Out-of-order execution of sub-1 before head sub-2 is rejected by the transaction-level ordering barrier
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(intent1));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-1"));
+        // Out-of-order execution of sub-2 (pos 2) before head sub-1 (pos 1) is rejected even though sub-2 has an earlier timestamp
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-2"));
 
-        // Recover: Must preserve deterministic pending-intent staging order (sub-2 first, then sub-1)
+        // Recover: Must use authoritative learner PracticePosition order (sub-1 at pos 1 first, then sub-2 at pos 2)
         var recoveryResult = await consumer.RecoverPendingIntentsAsync();
         Assert.Equal(2, recoveryResult.RecoveredCount);
-        Assert.Equal("sub-2", recoveryResult.Receipts[0].SubmissionId);
-        Assert.Equal("sub-1", recoveryResult.Receipts[1].SubmissionId);
+        Assert.Equal("sub-1", recoveryResult.Receipts[0].SubmissionId);
+        Assert.Equal("sub-2", recoveryResult.Receipts[1].SubmissionId);
 
         // Initial HP of Opponent 0 in Sector 1 is 2.
         // After sub-2 (1 dmg): Opponent HP becomes 1.
@@ -782,5 +781,335 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         Assert.Equal(1, snapshot.Progression.PracticePosition);
         Assert.True(snapshot.ItemStates.ContainsKey("add:1+1"));
         Assert.Equal(1, snapshot.ItemStates["add:1+1"].CorrectAttempts);
+    }
+
+    [Fact]
+    public async Task Ordering_EqualTimestampsWithReverseSortedGuids_UsesPracticePositionOrder()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        using var learnerStore = CreateLearnerStore();
+        await learnerStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learnerStore);
+        var equalTimestamp = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        // Attempt 1 has lexicographically larger SubmissionId ("sub-zzzz") at PracticePosition 1.
+        // Attempt 2 has lexicographically smaller SubmissionId ("sub-aaaa") at PracticePosition 2.
+        var intentPos1 = new CyberDefensePendingIntentRecord("sub-zzzz", "add:1+1", true, true, 400, 0, equalTimestamp);
+        var intentPos2 = new CyberDefensePendingIntentRecord("sub-aaaa", "add:1+0", true, true, 450, 0, equalTimestamp);
+        await store.StagePendingIntentAsync(intentPos1);
+        await store.StagePendingIntentAsync(intentPos2);
+
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-zzzz", "add:1+1", true, 400, 1, 1))).IsSuccess);
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-aaaa", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        // Attempting to consume PracticePosition 2 ("sub-aaaa") before PracticePosition 1 ("sub-zzzz") must be rejected.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-aaaa"));
+
+        // Consuming PracticePosition 1 ("sub-zzzz") succeeds first, followed by PracticePosition 2 ("sub-aaaa").
+        var first = await consumer.ConsumeAttemptAsync("sub-zzzz");
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, first.Status);
+        Assert.Equal("sub-zzzz", first.Receipt!.SubmissionId);
+        Assert.Equal(1, first.Receipt.TransitionResult!.NextState.CurrentOpponent.CurrentHp);
+
+        var second = await consumer.ConsumeAttemptAsync("sub-aaaa");
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, second.Status);
+        Assert.Equal("sub-aaaa", second.Receipt!.SubmissionId);
+        Assert.True(second.Receipt.TransitionResult!.IsOpponentDefeated);
+    }
+
+    [Fact]
+    public async Task Ordering_DifferentUtcOffsetsSameInstant_UsesPracticePositionOrder()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        using var learnerStore = CreateLearnerStore();
+        await learnerStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learnerStore);
+
+        // Both timestamps represent 2026-10-20T12:00:00Z, but with different UTC offsets (+02:00 vs -05:00).
+        var tOffsetPlus2 = new DateTimeOffset(2026, 10, 20, 14, 0, 0, TimeSpan.FromHours(2));
+        var tOffsetMinus5 = new DateTimeOffset(2026, 10, 20, 7, 0, 0, TimeSpan.FromHours(-5));
+
+        var intentPos1 = new CyberDefensePendingIntentRecord("sub-z-pos1", "add:1+1", true, true, 400, 0, tOffsetPlus2);
+        var intentPos2 = new CyberDefensePendingIntentRecord("sub-a-pos2", "add:1+0", true, true, 450, 0, tOffsetMinus5);
+        await store.StagePendingIntentAsync(intentPos2);
+        await store.StagePendingIntentAsync(intentPos1);
+
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-z-pos1", "add:1+1", true, 400, 1, 1))).IsSuccess);
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-a-pos2", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        var recovery = await consumer.RecoverPendingIntentsAsync();
+        Assert.Equal(2, recovery.RecoveredCount);
+        Assert.Equal("sub-z-pos1", recovery.Receipts[0].SubmissionId);
+        Assert.Equal("sub-a-pos2", recovery.Receipts[1].SubmissionId);
+    }
+
+    [Fact]
+    public async Task Ordering_EarlierUncommittedAttempt_BlocksLaterCommittedAttempt_EvenWhenLaterHasEarlierTimestampAndSmallerGuid()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        using var learnerStore = CreateLearnerStore();
+        await learnerStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learnerStore);
+        var tEarlier = new DateTimeOffset(2026, 10, 20, 11, 55, 0, TimeSpan.Zero);
+        var tLater = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        // Advance learnerStore to revision 2 / practicePosition 1 via an initial settled attempt,
+        // or commit sub-a-committed as the next learner attempt while sub-z-uncommitted remains uncommitted.
+        var warmup = new CyberDefensePendingIntentRecord("sub-warmup", "add:0+0", true, false, 300, 0, tEarlier.AddMinutes(-5));
+        await store.StagePendingIntentAsync(warmup);
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-warmup", "add:0+0", true, 300, 1, 1))).IsSuccess);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, (await consumer.ConsumeAttemptAsync("sub-warmup")).Status);
+
+        // sub-z-uncommitted is staged with tLater and uncommitted in learner store.
+        // sub-a-committed is staged with tEarlier and committed in learner store at PracticePosition 2.
+        var intentPos1Uncommitted = new CyberDefensePendingIntentRecord("sub-z-uncommitted", "add:1+1", true, true, 400, 0, tLater);
+        var intentPos2Committed = new CyberDefensePendingIntentRecord("sub-a-committed", "add:1+0", true, true, 450, 0, tEarlier);
+        await store.StagePendingIntentAsync(intentPos2Committed);
+        await store.StagePendingIntentAsync(intentPos1Uncommitted);
+
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-a-committed", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        // Later committed attempt (PracticePosition 2) must not overtake the earlier uncommitted attempt.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-a-committed"));
+
+        var recovery = await consumer.RecoverPendingIntentsAsync();
+        Assert.Equal(0, recovery.RecoveredCount);
+
+        Assert.Equal(CyberDefenseRunState.InitialRun(), await store.GetRunStateAsync());
+        Assert.Equal(1, await store.GetStoreRevisionAsync());
+        Assert.Null(await store.GetReceiptAsync("sub-a-committed"));
+        Assert.Null(await store.GetReceiptAsync("sub-z-uncommitted"));
+        Assert.Equal(2, (await store.GetPendingIntentsAsync(0)).Count);
+    }
+
+    [Fact]
+    public async Task UnstagedBypass_RankZeroDirectCall_IsRejectedWheneverPendingQueueExists_RegardlessOfOwnedRanksOrPlayerLevel()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+
+        // Stage a rank 0/0 pending intent in a fresh rank 0/0 level 1 store.
+        var stagedHead = new CyberDefensePendingIntentRecord("sub-staged-head", "add:1+1", true, true, 400, 0, DateTimeOffset.UtcNow);
+        await store.StagePendingIntentAsync(stagedHead);
+
+        // An unstaged rank 0/0 direct call must NOT bypass the existing pending queue.
+        var unstagedDirect = new CyberDefensePendingIntentRecord("sub-unstaged-bypass", "add:1+0", true, true, 450, 0, DateTimeOffset.UtcNow.AddMinutes(-10));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(unstagedDirect));
+
+        Assert.Equal(CyberDefenseRunState.InitialRun(), await store.GetRunStateAsync());
+        Assert.Equal(1, await store.GetStoreRevisionAsync());
+        Assert.Null(await store.GetReceiptAsync("sub-unstaged-bypass"));
+        Assert.NotNull(await store.GetPendingIntentAsync("sub-staged-head"));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0, 0, 1)]
+    [InlineData(1, 0, 0, 0, 20)]
+    [InlineData(0, 1, 0, 0, 50)]
+    [InlineData(2, 2, 0, 0, 80)]
+    [InlineData(2, 2, 1, 0, 80)]
+    [InlineData(2, 2, 0, 1, 80)]
+    [InlineData(2, 2, 2, 2, 80)]
+    public async Task UnstagedBypass_DirectCallBlockedAcrossOwnedAndBoundRanksAndPlayerLevels_WheneverPendingQueueExists(
+        int ownedCrit, int ownedOd, int boundCrit, int boundOd, int playerLevel)
+    {
+        var dir = CreateTempDirectory();
+        var dbPath = Path.Combine(dir, "bypass_matrix.db");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        using (var conn = new SqliteConnection($"Data Source={dbPath};Pooling=False"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"UPDATE gameplay_progression SET critical_strike_rank = {ownedCrit}, overdrive_rank = {ownedOd}, player_level = {playerLevel}, earned_sp = {playerLevel - 1}, available_sp = {playerLevel - 1} WHERE id = 1;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var staged = new CyberDefensePendingIntentRecord("sub-staged-1", "add:1+1", true, true, 400, 0, DateTimeOffset.UtcNow, 1, boundCrit, boundOd, practicePosition: 1);
+        await store.StagePendingIntentAsync(staged);
+
+        var unstagedZero = new CyberDefensePendingIntentRecord("sub-unstaged-zero", "add:1+0", true, true, 300, 0, DateTimeOffset.UtcNow.AddMinutes(-10), 1, 0, 0, practicePosition: 1);
+        var unstagedBound = new CyberDefensePendingIntentRecord("sub-unstaged-bound", "add:1+0", true, true, 300, 0, DateTimeOffset.UtcNow.AddMinutes(-10), 1, boundCrit, boundOd, practicePosition: 1);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(unstagedZero));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(unstagedBound));
+
+        Assert.Equal(CyberDefenseRunState.InitialRun(), await store.GetRunStateAsync());
+        Assert.Equal(1, await store.GetStoreRevisionAsync());
+        Assert.Null(await store.GetReceiptAsync("sub-unstaged-zero"));
+        Assert.Null(await store.GetReceiptAsync("sub-unstaged-bound"));
+        Assert.NotNull(await store.GetPendingIntentAsync("sub-staged-1"));
+    }
+
+    [Fact]
+    public async Task EvidenceVerification_PrecommitPositionMatchesCommittedEvidence_AndConflictingCommittedPositionIsRejectedWithoutMutation()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        using var learnerStore = CreateLearnerStore();
+        await learnerStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learnerStore);
+
+        // 1. Precommit position (1) matches committed learner evidence (1) -> succeeds.
+        var matchingIntent = new CyberDefensePendingIntentRecord("sub-pos-match", "add:1+1", true, true, 400, 0, DateTimeOffset.UtcNow, 1, 0, 0, practicePosition: 1);
+        await store.StagePendingIntentAsync(matchingIntent);
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-pos-match", "add:1+1", true, 400, 1, 1))).IsSuccess);
+
+        var ok = await consumer.ConsumeAttemptAsync("sub-pos-match");
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, ok.Status);
+        Assert.NotNull(ok.Receipt);
+
+        var runBeforeMismatch = await store.GetRunStateAsync();
+        var progBeforeMismatch = await store.GetProgressionAsync();
+        var revBeforeMismatch = await store.GetStoreRevisionAsync();
+
+        // 2. Precommit candidate position (3) differs from committed learner position (2) -> rejected without combat mutation.
+        var mismatchIntent = new CyberDefensePendingIntentRecord("sub-pos-mismatch", "add:1+0", true, true, 450, 0, DateTimeOffset.UtcNow, 1, 0, 0, practicePosition: 3);
+        await store.StagePendingIntentAsync(mismatchIntent);
+        Assert.True((await learnerStore.CommitSubmissionAsync(CreateTestChangeSet("sub-pos-mismatch", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-pos-mismatch"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.RecoverPendingIntentsAsync());
+
+        Assert.Equal(runBeforeMismatch, await store.GetRunStateAsync());
+        Assert.Equal(progBeforeMismatch, await store.GetProgressionAsync());
+        Assert.Equal(revBeforeMismatch, await store.GetStoreRevisionAsync());
+        Assert.Null(await store.GetReceiptAsync("sub-pos-mismatch"));
+        Assert.NotNull(await store.GetPendingIntentAsync("sub-pos-mismatch"));
+    }
+
+    [Fact]
+    public async Task DuplicateStaging_ConflictingPracticePositionForSameSubmissionOrSameEpoch_FailsClosed()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        var now = DateTimeOffset.UtcNow;
+
+        var original = new CyberDefensePendingIntentRecord("sub-pos-1", "add:1+1", true, true, 400, 0, now, 1, 0, 0, practicePosition: 1);
+        await store.StagePendingIntentAsync(original);
+
+        // Same SubmissionId with identical PracticePosition is idempotent.
+        await store.StagePendingIntentAsync(original);
+
+        // Same SubmissionId with conflicting PracticePosition (2 vs 1, or null vs 1) is rejected.
+        var conflictSameSub = new CyberDefensePendingIntentRecord("sub-pos-1", "add:1+1", true, true, 400, 0, now, 1, 0, 0, practicePosition: 2);
+        var conflictNullPos = new CyberDefensePendingIntentRecord("sub-pos-1", "add:1+1", true, true, 400, 0, now, 1, 0, 0, practicePosition: null);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.StagePendingIntentAsync(conflictSameSub));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.StagePendingIntentAsync(conflictNullPos));
+
+        // Different SubmissionId in the same epoch with duplicate PracticePosition (1) is rejected.
+        var conflictOtherSubSamePos = new CyberDefensePendingIntentRecord("sub-pos-dup", "add:1+0", true, true, 450, 0, now, 1, 0, 0, practicePosition: 1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.StagePendingIntentAsync(conflictOtherSubSamePos));
+
+        var stored = await store.GetPendingIntentAsync("sub-pos-1");
+        Assert.Equal(original, stored);
+        Assert.Null(await store.GetPendingIntentAsync("sub-pos-dup"));
+    }
+
+    [Fact]
+    public async Task CrashAndReopen_PreservesPracticePositionOrdering_AndConcurrentConsumersRespectQueueHead()
+    {
+        var dir = CreateTempDirectory();
+        var gameplayPath = Path.Combine(dir, "crash_reopen_gameplay.db");
+        var learnerPath = Path.Combine(dir, "crash_reopen_learner.db");
+
+        var tBase = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        using (var store = new SqliteGameplayStore(gameplayPath))
+        using (var learner = new SqliteLearnerStore(learnerPath))
+        {
+            await store.InitializeAsync();
+            await learner.InitializeAsync();
+
+            // Stage pos 2 first (earlier timestamp, smaller GUID) and pos 1 second (later timestamp, larger GUID).
+            var iPos2 = new CyberDefensePendingIntentRecord("sub-a-pos2", "add:1+0", true, true, 450, 0, tBase, 1, 0, 0, practicePosition: 2);
+            var iPos1 = new CyberDefensePendingIntentRecord("sub-z-pos1", "add:1+1", true, true, 400, 0, tBase.AddSeconds(30), 1, 0, 0, practicePosition: 1);
+            await store.StagePendingIntentAsync(iPos2);
+            await store.StagePendingIntentAsync(iPos1);
+
+            Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet("sub-z-pos1", "add:1+1", true, 400, 1, 1))).IsSuccess);
+            Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet("sub-a-pos2", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+            await store.CloseAsync();
+            await learner.CloseAsync();
+        }
+
+        using var reopenedStore1 = new SqliteGameplayStore(gameplayPath);
+        using var reopenedStore2 = new SqliteGameplayStore(gameplayPath);
+        using var reopenedLearner = new SqliteLearnerStore(learnerPath);
+        await reopenedStore1.InitializeAsync();
+        await reopenedStore2.InitializeAsync();
+        await reopenedLearner.InitializeAsync();
+
+        var pending = await reopenedStore1.GetPendingIntentsAsync(0);
+        Assert.Equal(["sub-z-pos1", "sub-a-pos2"], pending.Select(x => x.SubmissionId).ToArray());
+
+        var consumer1 = new CyberDefenseSubmissionConsumer(reopenedStore1, reopenedLearner);
+        var consumer2 = new CyberDefenseSubmissionConsumer(reopenedStore2, reopenedLearner);
+
+        // Concurrent consumption of the head intent across two consumers produces one authoritative transition.
+        var results = await Task.WhenAll(
+            Task.Run(() => consumer1.ConsumeAttemptAsync("sub-z-pos1")),
+            Task.Run(() => consumer2.ConsumeAttemptAsync("sub-z-pos1")));
+
+        Assert.All(results, r => Assert.NotNull(r.Receipt));
+        Assert.Equal(results[0].Receipt, results[1].Receipt);
+
+        // Now pos 2 is at the queue head and consumes cleanly.
+        var second = await consumer1.ConsumeAttemptAsync("sub-a-pos2");
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, second.Status);
+        Assert.Empty(await reopenedStore1.GetPendingIntentsAsync(0));
+    }
+
+    [Fact]
+    public async Task LegacyV7PendingRows_ReconcileDurablyWhenCommitted_AndFailClosedWithoutDataLossWhenUnpositionedHeadIsUnresolved()
+    {
+        var dir = CreateTempDirectory();
+        var gameplayPath = Path.Combine(dir, "legacy_v7_reconcile.db");
+        var learnerPath = Path.Combine(dir, "legacy_v7_learner.db");
+
+        using var store = new SqliteGameplayStore(gameplayPath);
+        using var learner = new SqliteLearnerStore(learnerPath);
+        await store.InitializeAsync();
+        await learner.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+        var t0 = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        // 1. Legacy V7 row (practice_position IS NULL) alongside positioned row (practice_position = 2), where legacy row is uncommitted.
+        var legacyUncommitted = new CyberDefensePendingIntentRecord("sub-z-legacy", "add:1+1", true, true, 400, 0, t0.AddMinutes(5), 1, 0, 0, practicePosition: null);
+        var positionedLater = new CyberDefensePendingIntentRecord("sub-a-pos2", "add:1+0", true, true, 450, 0, t0, 1, 0, 0, practicePosition: 2);
+        await store.StagePendingIntentAsync(positionedLater);
+        await store.StagePendingIntentAsync(legacyUncommitted);
+
+        // Unknown-position legacy row sorts BEFORE positioned row so it cannot be overtaken.
+        var queueBeforeReconcile = await store.GetPendingIntentsAsync(0);
+        Assert.Equal(["sub-z-legacy", "sub-a-pos2"], queueBeforeReconcile.Select(x => x.SubmissionId).ToArray());
+        Assert.Null(queueBeforeReconcile[0].PracticePosition);
+        Assert.Equal(2L, queueBeforeReconcile[1].PracticePosition);
+
+        // Commit sub-z-legacy at PracticePosition 1 and sub-a-pos2 at PracticePosition 2.
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet("sub-z-legacy", "add:1+1", true, 400, 1, 1))).IsSuccess);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet("sub-a-pos2", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        // Attempting to consume sub-a-pos2 first is rejected without mutating or deleting pending rows.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync("sub-a-pos2"));
+        Assert.Equal(2, (await store.GetPendingIntentsAsync(0)).Count);
+
+        // Consuming sub-z-legacy reconciles its PracticePosition from committed learner evidence and applies it first.
+        var first = await consumer.ConsumeAttemptAsync("sub-z-legacy");
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, first.Status);
+
+        var second = await consumer.ConsumeAttemptAsync("sub-a-pos2");
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, second.Status);
+        Assert.Empty(await store.GetPendingIntentsAsync(0));
     }
 }

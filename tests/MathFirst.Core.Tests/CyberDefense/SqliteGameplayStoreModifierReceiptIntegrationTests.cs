@@ -593,4 +593,79 @@ public sealed class SqliteGameplayStoreModifierReceiptIntegrationTests : IDispos
         using var reopened = new SqliteGameplayStore(GameplayDbPath);
         await Assert.ThrowsAsync<InvalidOperationException>(() => reopened.InitializeAsync());
     }
+
+    [Fact]
+    public async Task Ordering_EarlierPracticePosition_ReceivesCriticalStrikeTrigger_WhenTimestampsAreEqualAndGuidsReversed()
+    {
+        using var store = await OpenStoreAsync();
+        using var learner = await OpenLearnerStoreAsync();
+        await ExecuteRawAsync("""
+            UPDATE gameplay_progression
+            SET critical_strike_rank = 1, attack_rank = 1
+            WHERE id = 1;
+            UPDATE gameplay_run_state
+            SET critical_correct_attack_count = 4
+            WHERE id = 1;
+            """);
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+        var equalTime = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        // PracticePosition 1 ("sub-z-pos1") is the 5th correct attack and MUST receive the +50% Critical Strike bonus.
+        // PracticePosition 2 ("sub-a-pos2") is the 6th correct attack and MUST receive 0% Critical Strike bonus.
+        var intentPos1 = new CyberDefensePendingIntentRecord("sub-z-pos1", "add:1+1", true, true, 400, 0, equalTime, effectiveAttackDamage: 2, boundCriticalStrikeRank: 1, boundOverdriveRank: 0);
+        var intentPos2 = new CyberDefensePendingIntentRecord("sub-a-pos2", "add:1+0", true, true, 450, 0, equalTime, effectiveAttackDamage: 2, boundCriticalStrikeRank: 1, boundOverdriveRank: 0);
+        await store.StagePendingIntentAsync(intentPos2);
+        await store.StagePendingIntentAsync(intentPos1);
+
+        Assert.True((await learner.CommitSubmissionAsync(CreateLearnerChangeSet("sub-z-pos1", "add:1+1", true, 400, 1, 1))).IsSuccess);
+        Assert.True((await learner.CommitSubmissionAsync(CreateLearnerChangeSet("sub-a-pos2", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        var recovery = await consumer.RecoverPendingIntentsAsync();
+        Assert.Equal(2, recovery.RecoveredCount);
+        Assert.Equal("sub-z-pos1", recovery.Receipts[0].SubmissionId);
+        Assert.Equal(50, recovery.Receipts[0].CriticalBonusPercent);
+        Assert.Equal(3, recovery.Receipts[0].TransitionResult!.RequestedAttackDamage);
+
+        Assert.Equal("sub-a-pos2", recovery.Receipts[1].SubmissionId);
+        Assert.Equal(0, recovery.Receipts[1].CriticalBonusPercent);
+        Assert.Equal(2, recovery.Receipts[1].TransitionResult!.RequestedAttackDamage);
+    }
+
+    [Fact]
+    public async Task Ordering_WrongAnswerAtEarlierPracticePosition_ResetsOverdriveBeforeLaterCorrectAnswer_WhenTimestampsAreEqualAndGuidsReversed()
+    {
+        using var store = await OpenStoreAsync();
+        using var learner = await OpenLearnerStoreAsync();
+        await ExecuteRawAsync("""
+            UPDATE gameplay_progression
+            SET overdrive_rank = 1, attack_rank = 1
+            WHERE id = 1;
+            UPDATE gameplay_run_state
+            SET overdrive_streak = 4, overdrive_remaining_bonus_attacks = 0
+            WHERE id = 1;
+            """);
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+        var equalTime = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+
+        // PracticePosition 1 ("sub-z-wrong") is an INCORRECT answer -> resets Overdrive streak from 4 to 0.
+        // PracticePosition 2 ("sub-a-correct") is a CORRECT answer -> advances Overdrive streak from 0 to 1 (does NOT arm Overdrive!).
+        var intentPos1Wrong = new CyberDefensePendingIntentRecord("sub-z-wrong", "add:1+1", false, true, 400, 0, equalTime, effectiveAttackDamage: 2, boundCriticalStrikeRank: 0, boundOverdriveRank: 1);
+        var intentPos2Correct = new CyberDefensePendingIntentRecord("sub-a-correct", "add:1+0", true, true, 450, 0, equalTime, effectiveAttackDamage: 2, boundCriticalStrikeRank: 0, boundOverdriveRank: 1);
+        await store.StagePendingIntentAsync(intentPos2Correct);
+        await store.StagePendingIntentAsync(intentPos1Wrong);
+
+        Assert.True((await learner.CommitSubmissionAsync(CreateLearnerChangeSet("sub-z-wrong", "add:1+1", false, 400, 1, 1))).IsSuccess);
+        Assert.True((await learner.CommitSubmissionAsync(CreateLearnerChangeSet("sub-a-correct", "add:1+0", true, 450, 2, 2))).IsSuccess);
+
+        var recovery = await consumer.RecoverPendingIntentsAsync();
+        Assert.Equal(2, recovery.RecoveredCount);
+        Assert.Equal("sub-z-wrong", recovery.Receipts[0].SubmissionId);
+        Assert.Equal("sub-a-correct", recovery.Receipts[1].SubmissionId);
+
+        var snapshot = await store.GetCombatModifierSnapshotAsync();
+        Assert.Equal(1, snapshot.ModifierState.OverdriveStreak);
+        Assert.Equal(0, snapshot.ModifierState.OverdriveRemainingBonusAttacks);
+    }
 }

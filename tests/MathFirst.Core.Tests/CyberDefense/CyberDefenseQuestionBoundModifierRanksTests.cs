@@ -513,10 +513,40 @@ public sealed class CyberDefenseQuestionBoundModifierRanksTests
         Assert.Contains("boundCriticalStrikeRank:", submitSection, StringComparison.Ordinal);
         Assert.Contains("boundOverdriveRank:", submitSection, StringComparison.Ordinal);
         Assert.Contains("effectiveAttackDamage: boundDamage", submitSection, StringComparison.Ordinal);
+        Assert.Contains("practicePosition: eval.ChangeSet.Attempt.PracticePosition", submitSection, StringComparison.Ordinal);
 
         int stage = submitSection.IndexOf("StageIntentAsync(", StringComparison.Ordinal);
         Assert.True(submitSection.IndexOf("GetBoundCombatModifierRanksOrDefault(", StringComparison.Ordinal) < stage);
         Assert.True(home.IndexOf("ConsumeCommittedAttemptAsync(submissionId)", commit, StringComparison.Ordinal) > commit);
+    }
+
+    [Fact]
+    public async Task StageIntent_WithPracticePosition_ForwardsPracticePositionToConsumer_AndRejectsNonPositiveValues()
+    {
+        var (coordinator, _, consumer) = Create(Snap(2, 2, 5));
+        await coordinator.InitializeAsync();
+
+        await coordinator.StageIntentAsync(
+            "sub-pos-7",
+            "add:2+3",
+            true,
+            420,
+            true,
+            effectiveAttackDamage: 2,
+            boundCriticalStrikeRank: 1,
+            boundOverdriveRank: 2,
+            practicePosition: 7);
+
+        var staged = Assert.Single(consumer.Staged);
+        Assert.Equal("sub-pos-7", staged.SubmissionId);
+        Assert.Equal(7L, staged.PracticePosition);
+        Assert.Equal(1, staged.BoundCriticalStrikeRank);
+        Assert.Equal(2, staged.BoundOverdriveRank);
+
+        // Non-positive practicePosition (0 or negative) is rejected without staging.
+        await coordinator.StageIntentAsync("sub-pos-0", "add:1+1", true, 300, true, 1, 0, 0, practicePosition: 0);
+        await coordinator.StageIntentAsync("sub-pos-neg", "add:1+1", true, 300, true, 1, 0, 0, practicePosition: -5);
+        Assert.Single(consumer.Staged);
     }
 
     private static string RepoPath(params string[] segments)
@@ -1119,6 +1149,52 @@ public sealed class CyberDefenseQuestionBoundModifierRanksSqliteTests : IDisposa
             Assert.NotNull(await store.GetReceiptAsync("sub-zero"));
             Assert.Null(await store.GetPendingIntentAsync("sub-zero"));
         }
+    }
+
+    [Fact]
+    public async Task EndToEnd_StageIntentWithProposedPracticePosition_PersistsAcrossDuplicateStagingReopenRecoveryAndConsumption()
+    {
+        var (store, learner, coordinator) = await OpenCoordinatorAsync();
+        using (store)
+        using (learner)
+        {
+            await SeedOwnedRanksOnlyAsync(1, 1);
+
+            var cs1 = LearnerChangeSet("sub-z-pos1", "add:1+1", true, 400, expectedRevision: 1, practicePosition: 1);
+            var cs2 = LearnerChangeSet("sub-a-pos2", "add:1+0", true, 450, expectedRevision: 2, practicePosition: 2);
+
+            // Stage pos 2 first, then pos 1 later (so pos 2 has an earlier CreatedAt timestamp and lexicographically smaller GUID).
+            await coordinator.StageIntentAsync("sub-a-pos2", "add:1+0", true, 450, true, 1, 1, 1, cs2.Attempt.PracticePosition);
+            await Task.Delay(15);
+            await coordinator.StageIntentAsync("sub-z-pos1", "add:1+1", true, 400, true, 1, 1, 1, cs1.Attempt.PracticePosition);
+
+            // Duplicate staging with identical PracticePosition is idempotent; conflicting PracticePosition is rejected.
+            await coordinator.StageIntentAsync("sub-z-pos1", "add:1+1", true, 400, true, 1, 1, 1, cs1.Attempt.PracticePosition);
+            await coordinator.StageIntentAsync("sub-z-pos1", "add:1+1", true, 400, true, 1, 1, 1, practicePosition: 99);
+
+            var p1 = await store.GetPendingIntentAsync("sub-z-pos1");
+            Assert.NotNull(p1);
+            Assert.Equal(1L, p1.PracticePosition);
+            Assert.Equal(1L, await ScalarLongAsync("SELECT practice_position FROM gameplay_pending_intent WHERE submission_id = 'sub-z-pos1';"));
+
+            Assert.True((await learner.CommitSubmissionAsync(cs1)).IsSuccess);
+            Assert.True((await learner.CommitSubmissionAsync(cs2)).IsSuccess);
+        }
+
+        // Reopen database: PracticePosition ordering is preserved and recovery consumes pos 1 before pos 2.
+        using var reopenedStore = await OpenAsync();
+        using var reopenedLearner = new SqliteLearnerStore(LearnerPath);
+        await reopenedLearner.InitializeAsync();
+
+        var pendingAfterReopen = await reopenedStore.GetPendingIntentsAsync(0);
+        Assert.Equal(["sub-z-pos1", "sub-a-pos2"], pendingAfterReopen.Select(x => x.SubmissionId).ToArray());
+        Assert.Equal([1L, 2L], pendingAfterReopen.Select(x => x.PracticePosition!.Value).ToArray());
+
+        var consumer = new CyberDefenseSubmissionConsumer(reopenedStore, reopenedLearner);
+        var recovery = await consumer.RecoverPendingIntentsAsync();
+        Assert.Equal(2, recovery.RecoveredCount);
+        Assert.Equal("sub-z-pos1", recovery.Receipts[0].SubmissionId);
+        Assert.Equal("sub-a-pos2", recovery.Receipts[1].SubmissionId);
     }
 
     private static SubmissionChangeSet LearnerChangeSet(

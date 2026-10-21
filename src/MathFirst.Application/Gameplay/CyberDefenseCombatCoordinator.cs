@@ -366,6 +366,30 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             cancellationToken);
     }
 
+    public Task StageIntentAsync(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long latencyMs,
+        bool isEligibleAtSubmission,
+        int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank,
+        CancellationToken cancellationToken = default)
+    {
+        return StageIntentAsync(
+            submissionId,
+            factId,
+            isCorrect,
+            latencyMs,
+            isEligibleAtSubmission,
+            effectiveAttackDamage,
+            boundCriticalStrikeRank,
+            boundOverdriveRank,
+            practicePosition: null,
+            cancellationToken);
+    }
+
     public async Task StageIntentAsync(
         string submissionId,
         string factId,
@@ -375,6 +399,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         int effectiveAttackDamage,
         int boundCriticalStrikeRank,
         int boundOverdriveRank,
+        long? practicePosition,
         CancellationToken cancellationToken = default)
     {
         if (_gameplayStore == null || _consumer == null || string.IsNullOrWhiteSpace(submissionId) || cancellationToken.IsCancellationRequested)
@@ -396,7 +421,8 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                 createdAt: DateTimeOffset.UtcNow,
                 effectiveAttackDamage: Math.Max(1, effectiveAttackDamage),
                 boundCriticalStrikeRank: boundCriticalStrikeRank,
-                boundOverdriveRank: boundOverdriveRank);
+                boundOverdriveRank: boundOverdriveRank,
+                practicePosition: practicePosition);
 
             await _consumer.StageIntentAsync(intent, cancellationToken).ConfigureAwait(false);
         }

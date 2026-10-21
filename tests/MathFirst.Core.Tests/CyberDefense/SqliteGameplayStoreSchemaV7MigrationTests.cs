@@ -1089,4 +1089,35 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
         Assert.Equal(new long[] { 0, 0 }, await ReadModifierRanksAsync(dbPath));
         Assert.Equal(new long[] { 0, 0, 0 }, await ReadModifierRunStateAsync(dbPath));
     }
+
+    [Fact]
+    public async Task V22_PendingIntentPracticePosition_SupportsNullablePositiveInteger_AndRejectsInvalidValuesAndDuplicatePositionsOnReopen()
+    {
+        var dbPath = await CreateFreshStoreAsync("v22_practice_position");
+        await ExecuteRawAsync(dbPath, LegacyAppliedReceiptInsertSql);
+
+        // CHECK constraint rejects 0 and negative values, accepts NULL and positive integers.
+        await AssertConstraintViolationAsync(dbPath, "UPDATE gameplay_pending_intent SET practice_position = 0 WHERE submission_id = 'sub-pending';");
+        await AssertConstraintViolationAsync(dbPath, "UPDATE gameplay_pending_intent SET practice_position = -1 WHERE submission_id = 'sub-pending';");
+        await ExecuteRawAsync(dbPath, "UPDATE gameplay_pending_intent SET practice_position = 5 WHERE submission_id = 'sub-pending';");
+        Assert.Equal(5L, (long)(await ScalarRawAsync(dbPath, "SELECT practice_position FROM gameplay_pending_intent WHERE submission_id = 'sub-pending';"))!);
+
+        // Bypassing constraints with non-positive value or duplicate epoch practice_position fails closed on reopen.
+        await ExecuteRawAsync(dbPath, "PRAGMA ignore_check_constraints = ON; UPDATE gameplay_pending_intent SET practice_position = 0 WHERE submission_id = 'sub-pending';");
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("practice_position", ex.Message, StringComparison.Ordinal);
+        }
+
+        await ExecuteRawAsync(dbPath, @"
+            UPDATE gameplay_pending_intent SET practice_position = 1 WHERE submission_id = 'sub-pending';
+            INSERT INTO gameplay_pending_intent (submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage, bound_critical_strike_rank, bound_overdrive_rank, practice_position)
+            VALUES ('sub-pending-dup-pos', '3+4', 1, 1, 1500, 0, '2026-10-19T07:59:00.0000000+00:00', 1, 0, 0, 1);");
+        using (var storeDup = new SqliteGameplayStore(dbPath))
+        {
+            var exDup = await Assert.ThrowsAsync<InvalidOperationException>(() => storeDup.InitializeAsync());
+            Assert.Contains("practice_position", exDup.Message, StringComparison.Ordinal);
+        }
+    }
 }

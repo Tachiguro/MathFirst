@@ -286,6 +286,8 @@ public sealed class SqliteGameplayStore : IGameplayStore
             "INTEGER NOT NULL DEFAULT 0 CHECK (bound_critical_strike_rank >= 0 AND bound_critical_strike_rank <= 2)"),
         ("gameplay_pending_intent", "bound_overdrive_rank",
             "INTEGER NOT NULL DEFAULT 0 CHECK (bound_overdrive_rank >= 0 AND bound_overdrive_rank <= 2)"),
+        ("gameplay_pending_intent", "practice_position",
+            "INTEGER CHECK (practice_position IS NULL OR practice_position >= 1)"),
         ("gameplay_receipt_ledger", "base_attack_damage",
             "INTEGER CHECK (base_attack_damage IS NULL OR base_attack_damage >= 1)"),
         ("gameplay_receipt_ledger", "bound_critical_strike_rank",
@@ -918,6 +920,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
         {
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
         }
+        else if (version == 7)
+        {
+            await EnsureSchemaV7PendingIntentPracticePositionColumnAsync(connection, cancellationToken).ConfigureAwait(false);
+        }
 
         using (var colCmd = connection.CreateCommand())
         {
@@ -1086,15 +1092,47 @@ public sealed class SqliteGameplayStore : IGameplayStore
         using (var pendingCmd = connection.CreateCommand())
         {
             pendingCmd.CommandText = @"
-                SELECT bound_critical_strike_rank, typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
-                       bound_overdrive_rank, typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                SELECT reset_epoch,
+                       bound_critical_strike_rank, typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       bound_overdrive_rank, typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                       practice_position, typeof(practice_position) AS practice_position_type
                 FROM gameplay_pending_intent;";
+            var seenPositionsByEpoch = new Dictionary<long, HashSet<long>>();
             using var reader = await pendingCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                _ = ReadPendingIntentRank(reader, 0, 1, "bound_critical_strike_rank", CyberDefenseCriticalStrikePolicy.MaxRank);
-                _ = ReadPendingIntentRank(reader, 2, 3, "bound_overdrive_rank", CyberDefenseOverdrivePolicy.MaxRank);
+                long epoch = reader.GetInt64(0);
+                _ = ReadPendingIntentRank(reader, 1, 2, "bound_critical_strike_rank", CyberDefenseCriticalStrikePolicy.MaxRank);
+                _ = ReadPendingIntentRank(reader, 3, 4, "bound_overdrive_rank", CyberDefenseOverdrivePolicy.MaxRank);
+                long? practicePosition = ReadPendingIntentPracticePosition(reader, 5, 6);
+                if (practicePosition.HasValue)
+                {
+                    if (!seenPositionsByEpoch.TryGetValue(epoch, out var positions))
+                    {
+                        positions = new HashSet<long>();
+                        seenPositionsByEpoch[epoch] = positions;
+                    }
+
+                    if (!positions.Add(practicePosition.Value))
+                    {
+                        throw new InvalidOperationException(
+                            $"Existing database has conflicting duplicate practice_position {practicePosition.Value} in 'gameplay_pending_intent' for epoch {epoch}.");
+                    }
+                }
             }
+        }
+    }
+
+    private static async Task EnsureSchemaV7PendingIntentPracticePositionColumnAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var probeCmd = connection.CreateCommand();
+        probeCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('gameplay_pending_intent') WHERE name = 'practice_position';";
+        long existing = Convert.ToInt64(await probeCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+        if (existing == 0)
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE gameplay_pending_intent ADD COLUMN practice_position INTEGER CHECK (practice_position IS NULL OR practice_position >= 1);";
+            await alterCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -4035,7 +4073,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
                                bound_critical_strike_rank, bound_overdrive_rank,
                                typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
-                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                               practice_position,
+                               typeof(practice_position) AS practice_position_type
                         FROM gameplay_pending_intent
                         WHERE submission_id = @id;
                     ";
@@ -4044,16 +4084,67 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     if (await reader.ReadAsync(ct).ConfigureAwait(false))
                     {
                         var existingIntent = ReadPendingIntent(reader);
+                        reader.Close();
 
-                        if (!HasMatchingPendingIntentPayload(existingIntent, intent))
+                        if (!HasMatchingPendingIntentCorePayload(existingIntent, intent))
                         {
                             throw new InvalidOperationException(
                                 $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
                         }
 
+                        if (existingIntent.PracticePosition.HasValue)
+                        {
+                            if (!intent.PracticePosition.HasValue || intent.PracticePosition.Value != existingIntent.PracticePosition.Value)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Conflicting pending intent practice position already staged for submission '{intent.SubmissionId}'.");
+                            }
+
+                            transaction.Commit();
+                            return;
+                        }
+
+                        if (!intent.PracticePosition.HasValue)
+                        {
+                            transaction.Commit();
+                            return;
+                        }
+
+                        await EnsureNoConflictingPracticePositionInEpochAsync(
+                            _connection,
+                            transaction,
+                            intent.ResetEpoch,
+                            intent.PracticePosition.Value,
+                            intent.SubmissionId,
+                            ct).ConfigureAwait(false);
+
+                        using (var reconcileCmd = _connection.CreateCommand())
+                        {
+                            reconcileCmd.Transaction = transaction;
+                            reconcileCmd.CommandText = @"
+                                UPDATE gameplay_pending_intent
+                                SET practice_position = @practice_position
+                                WHERE submission_id = @submission_id;
+                            ";
+                            reconcileCmd.Parameters.AddWithValue("@practice_position", intent.PracticePosition.Value);
+                            reconcileCmd.Parameters.AddWithValue("@submission_id", intent.SubmissionId);
+                            await reconcileCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                        }
+
                         transaction.Commit();
                         return;
                     }
+                }
+
+                if (intent.PracticePosition.HasValue)
+                {
+                    await EnsureNoConflictingPracticePositionInEpochAsync(
+                        _connection,
+                        transaction,
+                        intent.ResetEpoch,
+                        intent.PracticePosition.Value,
+                        intent.SubmissionId,
+                        ct).ConfigureAwait(false);
                 }
 
                 using (var insertCmd = _connection.CreateCommand())
@@ -4062,10 +4153,10 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     insertCmd.CommandText = @"
                         INSERT INTO gameplay_pending_intent (
                             submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at,
-                            effective_attack_damage, bound_critical_strike_rank, bound_overdrive_rank
+                            effective_attack_damage, bound_critical_strike_rank, bound_overdrive_rank, practice_position
                         ) VALUES (
                             @submission_id, @fact_id, @is_correct, @is_eligible, @response_latency_ms, @reset_epoch, @created_at,
-                            @effective_attack_damage, @bound_critical_strike_rank, @bound_overdrive_rank
+                            @effective_attack_damage, @bound_critical_strike_rank, @bound_overdrive_rank, @practice_position
                         );
                     ";
                     insertCmd.Parameters.AddWithValue("@submission_id", intent.SubmissionId);
@@ -4078,6 +4169,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     insertCmd.Parameters.AddWithValue("@effective_attack_damage", intent.EffectiveAttackDamage);
                     insertCmd.Parameters.AddWithValue("@bound_critical_strike_rank", intent.BoundCriticalStrikeRank);
                     insertCmd.Parameters.AddWithValue("@bound_overdrive_rank", intent.BoundOverdriveRank);
+                    insertCmd.Parameters.AddWithValue("@practice_position", (object?)intent.PracticePosition ?? DBNull.Value);
                     await insertCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
 
@@ -4105,7 +4197,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
                        bound_critical_strike_rank, bound_overdrive_rank,
                        typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
-                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                       practice_position,
+                       typeof(practice_position) AS practice_position_type
                 FROM gameplay_pending_intent
                 WHERE submission_id = @id;
             ";
@@ -4132,7 +4226,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
                        bound_critical_strike_rank, bound_overdrive_rank,
                        typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
-                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                       practice_position,
+                       typeof(practice_position) AS practice_position_type
                 FROM gameplay_pending_intent
                 WHERE reset_epoch = @epoch
                 ORDER BY created_at ASC, submission_id ASC;
@@ -4146,7 +4242,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 list.Add(ReadPendingIntent(reader));
             }
 
-            list.Sort(ComparePendingIntentsDeterministically);
+            ValidateAndSortPendingIntents(list);
             return (IReadOnlyList<CyberDefensePendingIntentRecord>)list;
         }, cancellationToken);
     }
@@ -4240,7 +4336,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                                 SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
                                        bound_critical_strike_rank, bound_overdrive_rank,
                                        typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
-                                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                                       practice_position,
+                                       typeof(practice_position) AS practice_position_type
                                 FROM gameplay_pending_intent
                                 WHERE submission_id = @id;
                             ";
@@ -4252,10 +4350,16 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             }
                         }
 
-                        if (leftoverPending is not null && !HasMatchingPendingIntentPayload(leftoverPending, intent))
+                        if (leftoverPending is not null)
                         {
-                            throw new InvalidOperationException(
-                                $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
+                            if (!HasMatchingPendingIntentCorePayload(leftoverPending, intent) ||
+                                (leftoverPending.PracticePosition.HasValue &&
+                                 intent.PracticePosition.HasValue &&
+                                 leftoverPending.PracticePosition.Value != intent.PracticePosition.Value))
+                            {
+                                throw new InvalidOperationException(
+                                    $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
+                            }
                         }
 
                         bool isConflictingReceipt =
@@ -4381,7 +4485,9 @@ public sealed class SqliteGameplayStore : IGameplayStore
                         SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage,
                                bound_critical_strike_rank, bound_overdrive_rank,
                                typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
-                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type
+                               typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                               practice_position,
+                               typeof(practice_position) AS practice_position_type
                         FROM gameplay_pending_intent
                         WHERE reset_epoch = @epoch
                         ORDER BY created_at ASC, submission_id ASC;
@@ -4394,13 +4500,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     }
                 }
 
-                pendingForEpoch.Sort(ComparePendingIntentsDeterministically);
+                ValidateAndSortPendingIntents(pendingForEpoch);
 
+                int persistedIndex = -1;
                 CyberDefensePendingIntentRecord? persistedIntent = null;
                 for (int i = 0; i < pendingForEpoch.Count; i++)
                 {
                     if (string.Equals(pendingForEpoch[i].SubmissionId, intent.SubmissionId, StringComparison.Ordinal))
                     {
+                        persistedIndex = i;
                         persistedIntent = pendingForEpoch[i];
                         break;
                     }
@@ -4408,10 +4516,30 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
                 if (persistedIntent is not null)
                 {
-                    if (!HasMatchingPendingIntentPayload(persistedIntent, intent))
+                    if (!HasMatchingPendingIntentCorePayload(persistedIntent, intent))
                     {
                         throw new InvalidOperationException(
                             $"Conflicting pending intent already staged for submission '{intent.SubmissionId}'.");
+                    }
+
+                    if (persistedIntent.PracticePosition.HasValue)
+                    {
+                        if (!intent.PracticePosition.HasValue || intent.PracticePosition.Value != persistedIntent.PracticePosition.Value)
+                        {
+                            throw new InvalidOperationException(
+                                $"Pending intent practice position for submission '{intent.SubmissionId}' does not match the authoritative staged intent.");
+                        }
+                    }
+                    else if (intent.PracticePosition.HasValue)
+                    {
+                        persistedIntent = persistedIntent.WithPracticePosition(intent.PracticePosition.Value);
+                        pendingForEpoch[persistedIndex] = persistedIntent;
+                        ValidateAndSortPendingIntents(pendingForEpoch);
+                    }
+                    else if (pendingForEpoch.Exists(p => p.PracticePosition.HasValue))
+                    {
+                        throw new InvalidOperationException(
+                            $"Cannot apply legacy unpositioned pending intent '{intent.SubmissionId}' while positioned pending intents exist without reconciling its authoritative PracticePosition.");
                     }
 
                     if (!string.Equals(pendingForEpoch[0].SubmissionId, intent.SubmissionId, StringComparison.Ordinal))
@@ -4429,20 +4557,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                             $"(CriticalStrike={intent.BoundCriticalStrikeRank}, Overdrive={intent.BoundOverdriveRank}) without a durably staged pending intent.");
                     }
 
-                    bool hasModifierContext = currentCriticalStrikeRank != 0 || currentOverdriveRank != 0;
-                    if (!hasModifierContext)
-                    {
-                        for (int i = 0; i < pendingForEpoch.Count; i++)
-                        {
-                            if (pendingForEpoch[i].BoundCriticalStrikeRank != 0 || pendingForEpoch[i].BoundOverdriveRank != 0)
-                            {
-                                hasModifierContext = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (pendingForEpoch.Count > 0 && hasModifierContext)
+                    if (pendingForEpoch.Count > 0)
                     {
                         throw new InvalidOperationException(
                             $"Cannot apply unstaged attempt '{intent.SubmissionId}' while earlier pending intent '{pendingForEpoch[0].SubmissionId}' remains staged.");
@@ -4854,10 +4969,82 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }, cancellationToken);
     }
 
-    private static int ComparePendingIntentsDeterministically(
+    private static async Task EnsureNoConflictingPracticePositionInEpochAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long resetEpoch,
+        long practicePosition,
+        string submissionId,
+        CancellationToken ct)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = @"
+            SELECT submission_id, practice_position, typeof(practice_position) AS practice_position_type
+            FROM gameplay_pending_intent
+            WHERE reset_epoch = @epoch;
+        ";
+        cmd.Parameters.AddWithValue("@epoch", resetEpoch);
+        using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            string otherSubId = reader.GetString(0);
+            long? existingPos = ReadPendingIntentPracticePosition(reader, 1, 2);
+            if (!string.Equals(otherSubId, submissionId, StringComparison.Ordinal) &&
+                existingPos.HasValue &&
+                existingPos.Value == practicePosition)
+            {
+                throw new InvalidOperationException(
+                    $"Conflicting duplicate practice_position {practicePosition} already staged in 'gameplay_pending_intent' for epoch {resetEpoch} (submission '{otherSubId}').");
+            }
+        }
+    }
+
+    private static void ValidateAndSortPendingIntents(List<CyberDefensePendingIntentRecord> intents)
+    {
+        HashSet<long>? seenPositions = null;
+        for (int i = 0; i < intents.Count; i++)
+        {
+            if (intents[i].PracticePosition is long pos)
+            {
+                seenPositions ??= new HashSet<long>();
+                if (!seenPositions.Add(pos))
+                {
+                    throw new InvalidOperationException(
+                        $"Conflicting duplicate practice_position {pos} in 'gameplay_pending_intent' for epoch {intents[i].ResetEpoch}.");
+                }
+            }
+        }
+
+        intents.Sort(ComparePendingIntentsDeterministically);
+    }
+
+    internal static int ComparePendingIntentsDeterministically(
         CyberDefensePendingIntentRecord left,
         CyberDefensePendingIntentRecord right)
     {
+        if (left.PracticePosition.HasValue && right.PracticePosition.HasValue)
+        {
+            int positionComparison = left.PracticePosition.Value.CompareTo(right.PracticePosition.Value);
+            if (positionComparison != 0)
+            {
+                return positionComparison;
+            }
+
+            return StringComparer.Ordinal.Compare(left.SubmissionId, right.SubmissionId);
+        }
+
+        // Unknown-position legacy rows must never be placed after newer positioned rows.
+        if (!left.PracticePosition.HasValue && right.PracticePosition.HasValue)
+        {
+            return -1;
+        }
+
+        if (left.PracticePosition.HasValue && !right.PracticePosition.HasValue)
+        {
+            return 1;
+        }
+
         int timeComparison = left.CreatedAt.CompareTo(right.CreatedAt);
         if (timeComparison != 0)
         {
@@ -4916,6 +5103,16 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 maxRank: CyberDefenseOverdrivePolicy.MaxRank);
         }
 
+        long? practicePosition = null;
+        if (reader.FieldCount > 12)
+        {
+            int? positionTypeOrdinal = reader.FieldCount > 13 ? 13 : null;
+            practicePosition = ReadPendingIntentPracticePosition(
+                reader,
+                valueOrdinal: 12,
+                typeOrdinal: positionTypeOrdinal);
+        }
+
         return new CyberDefensePendingIntentRecord(
             subId,
             factId,
@@ -4926,7 +5123,54 @@ public sealed class SqliteGameplayStore : IGameplayStore
             createdAt,
             effectiveAttackDamage,
             boundCriticalStrikeRank,
-            boundOverdriveRank);
+            boundOverdriveRank,
+            practicePosition);
+    }
+
+    private static long? ReadPendingIntentPracticePosition(
+        SqliteDataReader reader,
+        int valueOrdinal,
+        int? typeOrdinal)
+    {
+        if (typeOrdinal is int explicitTypeOrdinal)
+        {
+            if (reader.IsDBNull(explicitTypeOrdinal))
+            {
+                return null;
+            }
+
+            string storageType = reader.GetString(explicitTypeOrdinal);
+            if (string.Equals(storageType, "null", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (!string.Equals(storageType, "integer", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Pending intent table requires NULL or INTEGER storage for 'practice_position'.");
+            }
+        }
+
+        if (reader.IsDBNull(valueOrdinal))
+        {
+            return null;
+        }
+
+        if (reader.GetFieldType(valueOrdinal) != typeof(long))
+        {
+            throw new InvalidOperationException(
+                "Pending intent table requires NULL or INTEGER storage for 'practice_position'.");
+        }
+
+        long value = reader.GetInt64(valueOrdinal);
+        if (value < 1)
+        {
+            throw new InvalidOperationException(
+                $"Existing database has invalid value {value} in 'gameplay_pending_intent.practice_position': expected >= 1.");
+        }
+
+        return value;
     }
 
     private static int ReadPendingIntentRank(
@@ -4961,7 +5205,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         return (int)value;
     }
 
-    private static bool HasMatchingPendingIntentPayload(
+    private static bool HasMatchingPendingIntentCorePayload(
         CyberDefensePendingIntentRecord existing,
         CyberDefensePendingIntentRecord candidate)
     {

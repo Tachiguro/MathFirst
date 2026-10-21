@@ -1012,7 +1012,8 @@
                     isEligibleAtSubmission: wasEligibleAtSubmission,
                     effectiveAttackDamage: boundDamage,
                     boundCriticalStrikeRank: boundModifierRanks.BoundCriticalStrikeRank,
-                    boundOverdriveRank: boundModifierRanks.BoundOverdriveRank);
+                    boundOverdriveRank: boundModifierRanks.BoundOverdriveRank,
+                    practicePosition: eval.ChangeSet.Attempt.PracticePosition);
 
                 HapticService.PerformCue(eval.IsCorrect ? HapticFeedbackCue.Correct : HapticFeedbackCue.Incorrect);
 

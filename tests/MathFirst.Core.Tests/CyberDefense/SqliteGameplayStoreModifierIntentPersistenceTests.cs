@@ -740,6 +740,9 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
     [InlineData("bound_overdrive_rank", "'1'", "text")]
     [InlineData("bound_critical_strike_rank", "NULL", "null")]
     [InlineData("bound_overdrive_rank", "NULL", "null")]
+    [InlineData("practice_position", "1.0", "real")]
+    [InlineData("practice_position", "'1'", "text")]
+    [InlineData("practice_position", "X'01'", "blob")]
     public async Task PendingIntent_AffinityBypassedIntegralRealNumericTextOrNull_FailsClosedWithoutCoercion(
         string column, string sqlValue, string expectedType)
     {
@@ -755,7 +758,8 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
             SELECT submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at,
                    effective_attack_damage,
                    bound_critical_strike_rank + 0 AS bound_critical_strike_rank,
-                   bound_overdrive_rank + 0 AS bound_overdrive_rank
+                   bound_overdrive_rank + 0 AS bound_overdrive_rank,
+                   practice_position + 0 AS practice_position
             FROM corrupt_pending_fixture;
             DROP TABLE corrupt_pending_fixture;
             UPDATE gameplay_pending_intent SET {column} = {sqlValue};
