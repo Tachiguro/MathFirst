@@ -4500,6 +4500,15 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     }
                 }
 
+                // A display/recovery sort is not execution authority for legacy rows. Require
+                // durable positions for the entire multi-intent queue before any combat mutation
+                // or caller-supplied reconciliation can influence its head.
+                if (pendingForEpoch.Count > 1 && pendingForEpoch.Exists(p => !p.PracticePosition.HasValue))
+                {
+                    throw new InvalidOperationException(
+                        "Cannot apply an ambiguously ordered pending queue without durable authoritative PracticePosition values.");
+                }
+
                 ValidateAndSortPendingIntents(pendingForEpoch);
 
                 int persistedIndex = -1;

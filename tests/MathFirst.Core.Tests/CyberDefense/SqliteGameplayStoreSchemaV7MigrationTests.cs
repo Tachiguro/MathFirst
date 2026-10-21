@@ -6,8 +6,10 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using MathFirst.Application.Gameplay;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain;
+using MathFirst.Domain.Curriculum;
 using MathFirst.Infrastructure.Sqlite.Gameplay;
 using Microsoft.Data.Sqlite;
 using Xunit;
@@ -819,6 +821,11 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
     {
         var dbPath = GetTempDbPath("v12_pending");
         await SeedRawV6DatabaseAsync(dbPath);
+        // Use canonical, initially unlocked facts so matching learner commits satisfy the real store contract.
+        await ExecuteRawAsync(dbPath, """
+            UPDATE gameplay_pending_intent SET fact_id = 'add:1+1' WHERE submission_id = 'sub-pending-correct';
+            UPDATE gameplay_pending_intent SET fact_id = 'add:1+0' WHERE submission_id = 'sub-pending-incorrect';
+            """);
 
         using (var store = new SqliteGameplayStore(dbPath))
         {
@@ -827,7 +834,7 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             var pending = await store.GetPendingIntentsAsync(SeededResetEpoch);
             Assert.Equal(2, pending.Count);
             var correct = Assert.Single(pending, p => p.SubmissionId == "sub-pending-correct");
-            Assert.Equal("3+4", correct.FactId);
+            Assert.Equal("add:1+1", correct.FactId);
             Assert.True(correct.IsCorrect);
             Assert.True(correct.IsEligible);
             Assert.Equal(1500, correct.ResponseLatencyMs);
@@ -837,9 +844,76 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             var incorrect = Assert.Single(pending, p => p.SubmissionId == "sub-pending-incorrect");
             Assert.False(incorrect.IsCorrect);
             Assert.Equal(2, incorrect.EffectiveAttackDamage);
+            Assert.All(pending, item =>
+            {
+                Assert.Null(item.PracticePosition);
+                Assert.Equal(0, item.BoundCriticalStrikeRank);
+                Assert.Equal(0, item.BoundOverdriveRank);
+            });
 
-            // Recovery replays the migrated intent with its preserved base Attack damage and rank-0 V7 modifier metadata.
-            var receipt = await store.ApplyAttemptTransactionAsync(correct);
+            var progressionBefore = await store.GetProgressionAsync();
+            var runBefore = await store.GetRunStateAsync();
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(correct));
+            Assert.Equal(progressionBefore, await store.GetProgressionAsync());
+            Assert.Equal(runBefore, await store.GetRunStateAsync());
+            Assert.Equal(pending, await store.GetPendingIntentsAsync(SeededResetEpoch));
+            Assert.Null(await store.GetReceiptAsync(correct.SubmissionId));
+            Assert.Null(await store.GetReceiptAsync(incorrect.SubmissionId));
+
+            // Committed mathematical order deliberately opposes the unchanged legacy timestamps.
+            using var learner = new SqliteLearnerStore(GetTempDbPath("v12_learner"));
+            await learner.InitializeAsync();
+            foreach (var (intent, position) in new[] { (incorrect, 1L), (correct, 2L) })
+            {
+                var parts = intent.FactId.Substring(4).Split('+');
+                int left = int.Parse(parts[0], CultureInfo.InvariantCulture);
+                int right = int.Parse(parts[1], CultureInfo.InvariantCulture);
+                int answer = left + right;
+                var attempt = new AttemptRecord(
+                    intent.SubmissionId, intent.FactId, ArithmeticOperation.Addition, left, right,
+                    intent.IsCorrect ? answer : answer + 1, answer, intent.IsCorrect, intent.IsCorrect,
+                    intent.ResponseLatencyMs, intent.CreatedAt,
+                    intent.IsCorrect ? AttemptOutcome.Correct : AttemptOutcome.Incorrect,
+                    practicePosition: position);
+                var progression = LearnerProgression.CreateFresh();
+                progression.PracticePosition = position;
+                progression.CurriculumStage = CurriculumStage.Stage1_Addition;
+                var item = new ItemLearningState
+                {
+                    FactId = intent.FactId,
+                    Operation = ArithmeticOperation.Addition,
+                    LeftOperand = left,
+                    RightOperand = right,
+                    TotalAttempts = 1,
+                    CorrectAttempts = intent.IsCorrect ? 1 : 0,
+                    IncorrectAttempts = intent.IsCorrect ? 0 : 1,
+                    ConsecutiveCorrectStreak = intent.IsCorrect ? 1 : 0,
+                    LastLatencyMs = intent.ResponseLatencyMs,
+                    RollingLatencyMs = intent.ResponseLatencyMs,
+                    FluentStreak = intent.IsCorrect ? 1 : 0,
+                    NeedsRemediation = !intent.IsCorrect,
+                    LastPracticedOrder = (int)position,
+                    LastPracticedAt = intent.CreatedAt
+                };
+                Assert.True((await learner.CommitSubmissionAsync(new SubmissionChangeSet(
+                    intent.SubmissionId, position, attempt, item, progression))).IsSuccess);
+            }
+
+            var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync(correct.SubmissionId));
+            Assert.Equal(pending, await store.GetPendingIntentsAsync(SeededResetEpoch));
+            Assert.Equal(runBefore, await store.GetRunStateAsync());
+            var first = await consumer.ConsumeAttemptAsync(incorrect.SubmissionId);
+            Assert.Equal(CyberDefenseConsumptionStatus.Success, first.Status);
+            Assert.False(first.Receipt!.IsCorrect);
+            Assert.Null(await store.GetPendingIntentAsync(incorrect.SubmissionId));
+            await store.CloseAsync();
+            await store.InitializeAsync();
+            Assert.Equal(correct.WithPracticePosition(2), await store.GetPendingIntentAsync(correct.SubmissionId));
+
+            // Recovery preserves base Attack damage and rank-0 V7 metadata after durable reconciliation.
+            var receipt = Assert.Single((await consumer.RecoverPendingIntentsAsync()).Receipts);
+            Assert.Equal(correct.SubmissionId, receipt.SubmissionId);
             Assert.Equal(CyberDefenseReceiptKind.Applied, receipt.ReceiptKind);
             Assert.Equal(2, receipt.TransitionResult!.RequestedAttackDamage);
             Assert.Equal(2, receipt.BaseAttackDamage);
@@ -848,6 +922,17 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             Assert.Equal(0, receipt.CriticalBonusPercent);
             Assert.Equal(0, receipt.OverdriveBonusPercent);
             Assert.Null(await store.GetPendingIntentAsync("sub-pending-correct"));
+            Assert.Empty(await store.GetPendingIntentsAsync(SeededResetEpoch));
+            var progressionAfter = await store.GetProgressionAsync();
+            var runAfter = await store.GetRunStateAsync();
+            Assert.Equal(first.Receipt, (await consumer.ConsumeAttemptAsync(incorrect.SubmissionId)).Receipt);
+            Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, (await consumer.ConsumeAttemptAsync(correct.SubmissionId)).Status);
+            Assert.Equal(receipt, await store.ApplyAttemptTransactionAsync(correct));
+            Assert.Equal(0, (await consumer.RecoverPendingIntentsAsync()).RecoveredCount);
+            Assert.Equal(progressionAfter, await store.GetProgressionAsync());
+            Assert.Equal(runAfter, await store.GetRunStateAsync());
+            Assert.Equal(1, (await learner.GetCommittedAttemptEvidenceAsync(incorrect.SubmissionId))!.PracticePosition);
+            Assert.Equal(2, (await learner.GetCommittedAttemptEvidenceAsync(correct.SubmissionId))!.PracticePosition);
         }
 
         Assert.Equal(new object?[] { 2L, 0L, 0L, 0L, 0L }, await ReadReceiptMetadataAsync(dbPath, "sub-pending-correct"));

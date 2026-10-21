@@ -66,6 +66,14 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
         var intent = await _gameplayStore.GetPendingIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
         if (intent is null)
         {
+            // Another consumer may have committed after our first receipt read and removed
+            // the pending row atomically. Only the authoritative receipt establishes success.
+            var concurrentReceipt = await _gameplayStore.GetReceiptAsync(submissionId, cancellationToken).ConfigureAwait(false);
+            if (concurrentReceipt is not null)
+            {
+                return CyberDefenseConsumptionResult.AlreadyConsumed(concurrentReceipt);
+            }
+
             return CyberDefenseConsumptionResult.NoPendingIntent(submissionId);
         }
 
@@ -128,6 +136,14 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
             }
 
             return CyberDefenseConsumptionResult.NoPendingIntent(submissionId);
+        }
+
+        // Validate the whole queue before persisting any reconciliations. A timestamp or
+        // submission ID cannot establish order when committed position evidence is missing.
+        if (resolvedQueue.Count > 1 && resolvedQueue.Exists(p => !p.PracticePosition.HasValue))
+        {
+            throw new InvalidOperationException(
+                "Cannot consume an ambiguously ordered pending queue without authoritative committed PracticePosition evidence.");
         }
 
         ValidateAndSortPendingQueue(resolvedQueue);

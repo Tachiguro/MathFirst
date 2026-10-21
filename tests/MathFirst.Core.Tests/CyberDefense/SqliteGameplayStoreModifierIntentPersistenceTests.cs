@@ -646,8 +646,8 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
             INSERT INTO gameplay_pending_intent (
                 submission_id, fact_id, is_correct, is_eligible, response_latency_ms, reset_epoch, created_at, effective_attack_damage
             ) VALUES
-                ('sub-v6-1', 'add:2+2', 1, 1, 400, 3, '{IsoTimestamp}', 2),
-                ('sub-v6-2', 'add:3+4', 0, 1, 900, 3, '{IsoTimestamp}', 2);
+                ('sub-v6-1', 'add:1+1', 1, 1, 400, 3, '{IsoTimestamp}', 2),
+                ('sub-v6-2', 'add:1+0', 0, 1, 900, 3, '{IsoTimestamp}', 2);
             """);
 
         using var store = await OpenStoreAsync();
@@ -665,12 +665,46 @@ public sealed class SqliteGameplayStoreModifierIntentPersistenceTests : IDisposa
             Assert.Equal(2, item.EffectiveAttackDamage);
             Assert.Equal(0, item.BoundCriticalStrikeRank);
             Assert.Equal(0, item.BoundOverdriveRank);
+            Assert.Null(item.PracticePosition);
         });
 
-        var receipt = await store.ApplyAttemptTransactionAsync(p1);
+        var before = await DumpDatabaseAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(p1));
+        Assert.Equal(before, await DumpDatabaseAsync());
+
+        // Equal legacy timestamps/IDs are not execution authority: the learner committed sub-v6-2 first.
+        var p2 = Assert.Single(list, item => item.SubmissionId == "sub-v6-2");
+        using var learner = await OpenLearnerStoreAsync();
+        Assert.True((await learner.CommitSubmissionAsync(CreateLearnerChangeSet(
+            p2.SubmissionId, p2.FactId, p2.IsCorrect, p2.ResponseLatencyMs, 1, 1))).IsSuccess);
+        Assert.True((await learner.CommitSubmissionAsync(CreateLearnerChangeSet(
+            p1.SubmissionId, p1.FactId, p1.IsCorrect, p1.ResponseLatencyMs, 2, 2))).IsSuccess);
+        var learnerBefore = await DumpDatabaseAsync(LearnerDatabasePath);
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync(p1.SubmissionId));
+        Assert.Equal(before, await DumpDatabaseAsync());
+
+        var first = await consumer.ConsumeAttemptAsync(p2.SubmissionId);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, first.Status);
+        Assert.False(first.Receipt!.IsCorrect);
+        Assert.Null(await store.GetPendingIntentAsync(p2.SubmissionId));
+        await store.CloseAsync();
+        await store.InitializeAsync();
+        Assert.Equal(p1.WithPracticePosition(2), await store.GetPendingIntentAsync(p1.SubmissionId));
+
+        var receipt = Assert.Single((await consumer.RecoverPendingIntentsAsync()).Receipts);
+        Assert.Equal(p1.SubmissionId, receipt.SubmissionId);
         Assert.Equal(CyberDefenseReceiptKind.Applied, receipt.ReceiptKind);
         Assert.Equal(2, receipt.TransitionResult!.RequestedAttackDamage);
         Assert.Null(await store.GetPendingIntentAsync("sub-v6-1"));
+        Assert.Empty(await store.GetPendingIntentsAsync(3));
+        var after = await DumpDatabaseAsync();
+        Assert.Equal(first.Receipt, (await consumer.ConsumeAttemptAsync(p2.SubmissionId)).Receipt);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, (await consumer.ConsumeAttemptAsync(p1.SubmissionId)).Status);
+        Assert.Equal(receipt, await store.ApplyAttemptTransactionAsync(p1));
+        Assert.Equal(0, (await consumer.RecoverPendingIntentsAsync()).RecoveredCount);
+        Assert.Equal(after, await DumpDatabaseAsync());
+        Assert.Equal(learnerBefore, await DumpDatabaseAsync(LearnerDatabasePath));
     }
 
     // =========================================================================

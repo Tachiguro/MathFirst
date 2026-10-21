@@ -1069,6 +1069,285 @@ public sealed class SqliteGameplayStorePendingIntentAndConsumerTests : IDisposab
         Assert.Empty(await reopenedStore1.GetPendingIntentsAsync(0));
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public async Task LegacyQueue_DirectStoreRejectsAmbiguousOrderWithoutMutation(
+        bool equalTimestamps, bool positionedOther, bool suppliedTargetPosition)
+    {
+        using var store = CreateStore();
+        using var learner = CreateLearnerStore();
+        await store.InitializeAsync();
+        await learner.InitializeAsync();
+        var time = new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero);
+        // The later learner attempt sorts first by both timestamp and GUID, but neither is authority.
+        var first = new CyberDefensePendingIntentRecord("ffffffff-ffff-ffff-ffff-ffffffffffff", "add:1+1", true, true, 400, 0,
+            equalTimestamps ? time : time.AddMinutes(1), 1, 0, 0, practicePosition: positionedOther ? 1 : null);
+        var second = new CyberDefensePendingIntentRecord("00000000-0000-0000-0000-000000000001", "add:1+0", true, true, 450, 0, time);
+        await store.StagePendingIntentAsync(first);
+        await store.StagePendingIntentAsync(second);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(first.SubmissionId, first.FactId, true, 400, 1, 1))).IsSuccess);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(second.SubmissionId, second.FactId, true, 450, 2, 2))).IsSuccess);
+        var before = await ReadGameplayRowsAsync(store);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(
+            suppliedTargetPosition ? second.WithPracticePosition(2) : second));
+
+        Assert.Equal(before, await ReadGameplayRowsAsync(store));
+    }
+
+    [Fact]
+    public async Task LegacyQueue_DirectStoreRequiresDurableReconciliationEvenForResolvedHead()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        var time = new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero);
+        var first = new CyberDefensePendingIntentRecord("legacy-head", "add:1+1", true, true, 400, 0, time);
+        var second = new CyberDefensePendingIntentRecord("positioned-tail", "add:1+0", true, true, 450, 0, time, 1, 0, 0, practicePosition: 2);
+        await store.StagePendingIntentAsync(first);
+        await store.StagePendingIntentAsync(second);
+        var before = await ReadGameplayRowsAsync(store);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(first.WithPracticePosition(1)));
+
+        Assert.Equal(before, await ReadGameplayRowsAsync(store));
+    }
+
+    [Fact]
+    public async Task LegacyQueue_PositionedTargetCannotOvertakeUnresolvedLegacyRow()
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        var time = new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero);
+        var target = new CyberDefensePendingIntentRecord("positioned-target", "add:1+1", true, true, 400, 0, time, 1, 0, 0, 1);
+        await store.StagePendingIntentAsync(target);
+        await store.StagePendingIntentAsync(new CyberDefensePendingIntentRecord("unknown-position", "add:1+0", true, true, 450, 0, time.AddMinutes(1)));
+        var before = await ReadGameplayRowsAsync(store);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(target));
+
+        Assert.Equal(before, await ReadGameplayRowsAsync(store));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task LegacyQueue_ConsumerRejectsMissingPositionEvidenceBeforeReconciliation(
+        bool positionedOther, bool missingOtherCommit)
+    {
+        using var store = CreateStore();
+        using var learner = CreateLearnerStore();
+        await store.InitializeAsync();
+        await learner.InitializeAsync();
+        var time = new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero);
+        var first = new CyberDefensePendingIntentRecord("a-legacy-head", "add:1+1", true, true, 400, 0, time);
+        var second = new CyberDefensePendingIntentRecord("z-legacy-tail", "add:1+0", true, true, 450, 0, time.AddMinutes(1), 1, 0, 0,
+            practicePosition: positionedOther ? 2 : null);
+        await store.StagePendingIntentAsync(first);
+        await store.StagePendingIntentAsync(second);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(first.SubmissionId, first.FactId, true, 400, 1, 1))).IsSuccess);
+        if (!missingOtherCommit)
+        {
+            Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(second.SubmissionId, second.FactId, true, 450, 2, 2))).IsSuccess);
+            // Synthetic migrated learner history legitimately has no practice position.
+            using var connection = new SqliteConnection($"Data Source={learner.StoragePath};Pooling=False");
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE attempt_history SET practice_position = NULL WHERE submission_id = @id;";
+            command.Parameters.AddWithValue("@id", first.SubmissionId);
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        }
+        var before = await ReadGameplayRowsAsync(store);
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync(first.SubmissionId));
+
+        Assert.Equal(before, await ReadGameplayRowsAsync(store));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyQueue_CommittedPositionsReconcileDurablyAndReplayExactlyOnce(bool equalTimestamps)
+    {
+        using var store = CreateStore();
+        using var learner = CreateLearnerStore();
+        await store.InitializeAsync();
+        await learner.InitializeAsync();
+        var time = new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero);
+        var first = new CyberDefensePendingIntentRecord("z-first", "add:1+1", true, true, 400, 0,
+            equalTimestamps ? time : time.AddMinutes(1));
+        var second = new CyberDefensePendingIntentRecord("a-second", "add:1+0", true, true, 450, 0, time);
+        await store.StagePendingIntentAsync(second);
+        await store.StagePendingIntentAsync(first);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(first.SubmissionId, first.FactId, true, 400, 1, 1))).IsSuccess);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(second.SubmissionId, second.FactId, true, 450, 2, 2))).IsSuccess);
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+        var before = await ReadGameplayRowsAsync(store);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => consumer.ConsumeAttemptAsync(second.SubmissionId));
+        Assert.Equal(before, await ReadGameplayRowsAsync(store));
+
+        var firstResult = await consumer.ConsumeAttemptAsync(first.SubmissionId);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, firstResult.Status);
+        Assert.Equal(1, firstResult.Receipt!.TransitionResult!.NextState.CurrentOpponent.CurrentHp);
+        await store.CloseAsync();
+        await store.InitializeAsync();
+        Assert.Equal(2, (await store.GetPendingIntentAsync(second.SubmissionId))!.PracticePosition);
+        var secondResult = await consumer.ConsumeAttemptAsync(second.SubmissionId);
+        Assert.True(secondResult.Receipt!.TransitionResult!.IsOpponentDefeated);
+        var after = await ReadGameplayRowsAsync(store);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, (await consumer.ConsumeAttemptAsync(first.SubmissionId)).Status);
+        Assert.Equal(secondResult.Receipt, await store.ApplyAttemptTransactionAsync(second));
+        Assert.Equal(after, await ReadGameplayRowsAsync(store));
+    }
+
+    [Fact]
+    public async Task LegacyQueue_SingleIntentWithNullCommittedPositionRemainsCompatible()
+    {
+        using var store = CreateStore();
+        using var learner = CreateLearnerStore();
+        await store.InitializeAsync();
+        await learner.InitializeAsync();
+        var intent = new CyberDefensePendingIntentRecord("single-legacy", "add:1+1", true, true, 400, 0,
+            new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero));
+        await store.StagePendingIntentAsync(intent);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(intent.SubmissionId, intent.FactId, true, 400, 1, 1))).IsSuccess);
+        using (var connection = new SqliteConnection($"Data Source={learner.StoragePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE attempt_history SET practice_position = NULL;";
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        }
+
+        var consumer = new CyberDefenseSubmissionConsumer(store, learner);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, (await consumer.ConsumeAttemptAsync(intent.SubmissionId)).Status);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, (await consumer.ConsumeAttemptAsync(intent.SubmissionId)).Status);
+    }
+
+    [Fact]
+    public async Task LegacyQueue_ExistingReceiptReplaysDespiteUnrelatedAmbiguousQueue()
+    {
+        using var store = CreateStore();
+        using var learner = CreateLearnerStore();
+        await store.InitializeAsync();
+        await learner.InitializeAsync();
+        var time = new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero);
+        var settled = new CyberDefensePendingIntentRecord("settled", "add:1+1", true, true, 400, 0, time);
+        var receipt = await store.ApplyAttemptTransactionAsync(settled);
+        await store.StagePendingIntentAsync(new CyberDefensePendingIntentRecord("unknown-a", "add:1+0", true, true, 450, 0, time));
+        await store.StagePendingIntentAsync(new CyberDefensePendingIntentRecord("unknown-b", "add:1+1", true, true, 400, 0, time));
+        var before = await ReadGameplayRowsAsync(store);
+
+        Assert.Equal(receipt, await store.ApplyAttemptTransactionAsync(settled));
+        var replay = await new CyberDefenseSubmissionConsumer(store, learner).ConsumeAttemptAsync(settled.SubmissionId);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, replay.Status);
+        Assert.Equal(receipt, replay.Receipt);
+        var conflicting = new CyberDefensePendingIntentRecord("settled", "add:1+1", false, true, 400, 0, time);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(conflicting));
+        Assert.Equal(before, await ReadGameplayRowsAsync(store));
+    }
+
+    [Fact]
+    public async Task ReceiptRace_CommitBetweenReceiptAndPendingReadsReturnsMatchingReceipt()
+    {
+        using var storeA = CreateStore();
+        using var storeB = new SqliteGameplayStore(storeA.StoragePath);
+        using var learner = CreateLearnerStore();
+        await storeA.InitializeAsync();
+        await storeB.InitializeAsync();
+        await learner.InitializeAsync();
+        var intent = new CyberDefensePendingIntentRecord("receipt-race", "add:1+1", true, true, 400, 0,
+            new DateTimeOffset(2026, 10, 21, 8, 0, 0, TimeSpan.Zero), 1, 0, 0, practicePosition: 1);
+        await storeA.StagePendingIntentAsync(intent);
+        Assert.True((await learner.CommitSubmissionAsync(CreateTestChangeSet(intent.SubmissionId, intent.FactId, true, 400, 1, 1))).IsSuccess);
+        var observedMissingReceipt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowPendingRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proxy = System.Reflection.DispatchProxy.Create<IGameplayStore, ReceiptReadBarrierStore>();
+        var barrier = (ReceiptReadBarrierStore)proxy;
+        barrier.Inner = storeA;
+        barrier.AfterFirstReceiptRead = async () =>
+        {
+            observedMissingReceipt.SetResult();
+            await allowPendingRead.Task;
+        };
+        var consumerA = new CyberDefenseSubmissionConsumer(proxy, learner);
+        var consumerB = new CyberDefenseSubmissionConsumer(storeB, learner);
+        var pendingA = consumerA.ConsumeAttemptAsync(intent.SubmissionId);
+        try
+        {
+            await observedMissingReceipt.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var resultB = await consumerB.ConsumeAttemptAsync(intent.SubmissionId);
+            Assert.Equal(CyberDefenseConsumptionStatus.Success, resultB.Status);
+            var afterB = await ReadGameplayRowsAsync(storeB);
+            allowPendingRead.SetResult();
+            var resultA = await pendingA;
+            Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, resultA.Status);
+            Assert.Equal(resultB.Receipt, resultA.Receipt);
+            Assert.Equal(afterB, await ReadGameplayRowsAsync(storeA));
+            Assert.Equal(CyberDefenseConsumptionStatus.NoPendingIntent, (await consumerA.ConsumeAttemptAsync("unrelated-missing")).Status);
+        }
+        finally
+        {
+            allowPendingRead.TrySetResult();
+            await pendingA;
+        }
+    }
+
+    // Decorates real SQLite reads; only the first receipt read is suspended, after its snapshot.
+    public class ReceiptReadBarrierStore : System.Reflection.DispatchProxy
+    {
+        public IGameplayStore Inner { get; set; } = null!;
+        public Func<Task> AfterFirstReceiptRead { get; set; } = null!;
+        private int _receiptReads;
+
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+        {
+            var result = targetMethod!.Invoke(Inner, args);
+            return targetMethod.Name == nameof(IGameplayStore.GetReceiptAsync) && Interlocked.Increment(ref _receiptReads) == 1
+                ? PauseAfterReadAsync((Task<CyberDefenseReceiptRecord?>)result!)
+                : result;
+        }
+
+        private async Task<CyberDefenseReceiptRecord?> PauseAfterReadAsync(Task<CyberDefenseReceiptRecord?> read)
+        {
+            var receipt = await read;
+            Assert.Null(receipt);
+            await AfterFirstReceiptRead();
+            return receipt;
+        }
+    }
+
+    private static async Task<string> ReadGameplayRowsAsync(IGameplayStore store)
+    {
+        using var connection = new SqliteConnection($"Data Source={store.StoragePath};Pooling=False");
+        await connection.OpenAsync();
+        var tables = new List<string>();
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE 'gameplay_%' ORDER BY name;";
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) tables.Add(reader.GetString(0));
+        }
+        var rows = new List<string>();
+        foreach (var table in tables)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT * FROM \"{table.Replace("\"", "\"\"")}\" ORDER BY 1;";
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var values = new object[reader.FieldCount];
+                reader.GetValues(values);
+                rows.Add(table + ":" + System.Text.Json.JsonSerializer.Serialize(values));
+            }
+        }
+        return string.Join("\n", rows);
+    }
+
     [Fact]
     public async Task LegacyV7PendingRows_ReconcileDurablyWhenCommitted_AndFailClosedWithoutDataLossWhenUnpositionedHeadIsUnresolved()
     {
