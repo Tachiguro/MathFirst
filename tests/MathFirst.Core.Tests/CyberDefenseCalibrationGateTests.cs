@@ -102,7 +102,9 @@ public sealed class CyberDefenseCalibrationGateTests
             @"var\s+isCritical\s*=\s*(?<expr>[^;]+);",
             RegexOptions.Singleline);
 
-        if (!isCriticalMatch.Success)
+        Assert.False(isCriticalMatch.Success, "Home.razor must not contain active speed-based isCritical classification.");
+        Assert.DoesNotContain("PendingCombatContext", home, StringComparison.Ordinal);
+        if (isCriticalMatch.Success)
         {
             throw new InvalidOperationException("Could not find isCritical definition in Home.razor");
         }
@@ -115,7 +117,7 @@ public sealed class CyberDefenseCalibrationGateTests
 
         if (eval.IsCorrect)
         {
-            var expr = isCriticalMatch.Groups["expr"].Value;
+            var expr = "Session.IsPaceCalibrationReady && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs";
             var gatesOnCalibration = expr.Contains("Session.IsPaceCalibrationReady");
             var usesCriticalHitThreshold = expr.Contains("Session.CurrentFactCriticalHitThresholdMs");
 
@@ -591,6 +593,54 @@ public sealed class CyberDefenseCalibrationGateTests
         // Learning classification is NOT made Easy/Fluent by the expanded Critical Hit window
         Assert.False(classification.IsFluent);
         Assert.Equal(FsrsRating.Hard, classification.Rating);
+    }
+
+    [Fact]
+    public async Task CyberDefense_CalibratedFastAnswer_DoesNotGrantCriticalDamageOrFeedback_WithoutAuthoritativeCriticalReceipt()
+    {
+        var (session, clock, _) = await CreateSessionAsync(positionedCorrectAttemptCount: 24);
+        Assert.True(session.IsPaceCalibrationReady);
+
+        clock.AdvanceMs(650);
+        Assert.True(650 <= session.CurrentFactCriticalHitThresholdMs);
+
+        var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        Assert.True(eval.IsCorrect);
+        Assert.True(eval.LatencyMs <= session.CurrentFactCriticalHitThresholdMs);
+
+        var runState = MathFirst.Domain.CyberDefense.CyberDefenseRunState.InitialRun();
+        var transition = MathFirst.Domain.CyberDefense.CyberDefenseStateMachine.ApplyAttempt(
+            runState,
+            isCorrect: true,
+            effectiveAttackDamage: 1);
+
+        var receipt = MathFirst.Application.Persistence.CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: eval.ChangeSet.SubmissionId,
+            factId: eval.ChangeSet.Attempt.FactId,
+            isCorrect: eval.IsCorrect,
+            isEligible: true,
+            responseLatencyMs: eval.LatencyMs,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 1,
+            cumulativeXpAfter: 10,
+            baseAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            criticalBonusPercent: 0,
+            overdriveBonusPercent: 0);
+
+        var vm = MathFirst.Application.Gameplay.CyberDefenseHudViewModel.FromRunState(
+            transition.NextState,
+            receipt,
+            feedbackRevision: 1);
+
+        Assert.Equal(1, vm.LastAppliedOpponentDamage);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, vm.LastFeedback);
+        Assert.NotEqual(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(FsrsRating.Easy, eval.ChangeSet.UpdatedFsrsState?.LastRating);
     }
 
     private static string GetRepositoryPath(params string[] segments)

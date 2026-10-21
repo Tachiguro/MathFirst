@@ -17,6 +17,560 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
 {
     private readonly List<string> _tempDirs = new();
 
+    private static Task<UpgradePurchaseResult> BuyModifier(UpgradeTerminalViewModel vm, bool critical,
+        CancellationToken token = default) => critical
+        ? vm.PurchaseCriticalStrikeUpgradeAsync(token) : vm.PurchaseOverdriveUpgradeAsync(token);
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public async Task ModifierTerminal_CancellationAfterCommitStillReturnsSuccessAndCoherentStatus(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        using var cts = new CancellationTokenSource();
+        var store = new ActionAfterPurchaseStore(real, cts.Cancel);
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        var result = await BuyModifier(vm, critical, cts.Token);
+        Assert.True(cts.IsCancellationRequested);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, critical ? vm.CurrentCriticalStrikeRank : vm.CurrentOverdriveRank);
+        Assert.Equal(critical ? 44 : 45, vm.AvailableSkillPoints);
+        Assert.Equal(vm.Status, result.StatusSnapshot);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_CancelledSnapshotReadCannotPublishEvenIfStoreIgnoresToken()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var store = new ConfigurableProgressionStore(real, await real.GetProgressionAsync())
+        {
+            ProgressionRead = real.GetProgressionAsync,
+            ModifierRead = real.GetCombatModifierSnapshotAsync
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        await real.PurchaseCriticalStrikeUpgradeAsync(0, 0);
+        using var cts = new CancellationTokenSource();
+        store.ModifierRead = async _ =>
+        {
+            var snapshot = await real.GetCombatModifierSnapshotAsync();
+            cts.Cancel();
+            return snapshot;
+        };
+        var before = vm.Status;
+        int statusNotifications = 0;
+        vm.StatusChanged += _ => statusNotifications++;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => vm.RefreshAsync(cts.Token));
+        Assert.Same(before, vm.Status);
+        Assert.Equal(0, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(50, vm.AvailableSkillPoints);
+        Assert.Equal(0, statusNotifications);
+        store.ModifierRead = real.GetCombatModifierSnapshotAsync;
+        await vm.RefreshAsync();
+        Assert.Equal(1, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(44, vm.AvailableSkillPoints);
+        Assert.True(vm.IsSynchronized);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_OlderReadFailureCannotInvalidateNewerSuccessfulRefresh()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var store = new ConfigurableProgressionStore(real, await real.GetProgressionAsync())
+        {
+            ProgressionRead = real.GetProgressionAsync
+        };
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool delay = true;
+        store.ModifierRead = async _ =>
+        {
+            if (delay)
+            {
+                delay = false;
+                entered.SetResult();
+                await release.Task;
+                throw new IOException("Older read failed.");
+            }
+            return await real.GetCombatModifierSnapshotAsync();
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        var pending = vm.RefreshAsync();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await real.PurchaseCriticalStrikeUpgradeAsync(0, 0);
+        try { await vm.RefreshAsync(); }
+        finally { release.SetResult(); }
+        await Assert.ThrowsAsync<IOException>(() => pending);
+        Assert.True(vm.IsSynchronized);
+        Assert.Equal(1, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(44, vm.AvailableSkillPoints);
+        Assert.Equal(2, vm.StoreRevision);
+        Assert.True(vm.CanPurchaseCriticalStrike);
+        Assert.True(vm.CanPurchaseOverdrive);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_DisposalBySubscriberSuppressesRemainingCallbacks()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        using var vm = new UpgradeTerminalViewModel(real);
+        vm.StatusChanged += _ => vm.Dispose();
+        int afterDispose = 0;
+        vm.StatusChanged += _ => afterDispose++;
+        vm.StateChanged += () => afterDispose++;
+        await vm.InitializeAsync();
+        Assert.Equal(0, afterDispose);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_AllFourSequentialPurchasesKeepAllRanksAndAccounting()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80, 1, 1);
+        using var vm = new UpgradeTerminalViewModel(real);
+        await vm.InitializeAsync();
+        Assert.True((await vm.PurchaseUpgradeAsync()).IsSuccess);
+        Assert.True((await vm.PurchaseFirewallUpgradeAsync()).IsSuccess);
+        Assert.True((await vm.PurchaseCriticalStrikeUpgradeAsync()).IsSuccess);
+        Assert.True((await vm.PurchaseOverdriveUpgradeAsync()).IsSuccess);
+        Assert.Equal(2, vm.CurrentAttackRank);
+        Assert.Equal(2, vm.CurrentFirewallRank);
+        Assert.Equal(2, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(2, vm.CurrentOverdriveRank);
+        Assert.Equal(18, vm.AvailableSkillPoints);
+        Assert.Equal(54, vm.Status.EarnedSkillPoints);
+        Assert.Equal(36, vm.Status.SpentSkillPoints);
+        Assert.Equal(5, vm.StoreRevision);
+    }
+
+    [Fact]
+    public void ModifierTerminal_InitialAndLegacyProjectionsDistinguishUnknownRanks()
+    {
+        var initial = UpgradeTerminalStatus.Initial();
+        Assert.Equal(0, initial.CurrentCriticalStrikeRank);
+        Assert.Equal(0, initial.CurrentOverdriveRank);
+        Assert.Equal(12, initial.NextCriticalStrikeRequiredLevel);
+        Assert.Equal(6, initial.NextCriticalStrikeCost);
+        Assert.Equal(20, initial.NextOverdriveRequiredLevel);
+        Assert.Equal(5, initial.NextOverdriveCost);
+        Assert.False(initial.CanPurchaseCriticalStrike);
+        Assert.False(initial.CanPurchaseOverdrive);
+        var legacy = UpgradeTerminalStatus.FromProgression(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UnixEpoch));
+        Assert.Null(legacy.CurrentCriticalStrikeRank);
+        Assert.Null(legacy.CurrentOverdriveRank);
+        Assert.False(legacy.CanPurchaseCriticalStrike);
+        Assert.False(legacy.IsCriticalStrikeMaxRank);
+        Assert.False(legacy.CanPurchaseOverdrive);
+    }
+
+    [Theory]
+    [InlineData(true, 0, 6, 11, false, true)]
+    [InlineData(true, 1, 11, 50, true, false)]
+    [InlineData(true, 1, 12, 49, false, true)]
+    [InlineData(false, 0, 5, 19, false, true)]
+    [InlineData(false, 1, 9, 80, true, false)]
+    [InlineData(false, 1, 10, 79, false, true)]
+    public async Task ModifierTerminal_LevelAndAffordabilityAreIndependent(bool critical, int rank,
+        int sp, int level, bool unlocked, bool affordable)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, level, critical ? rank : 0, critical ? 0 : rank, sp);
+        using var vm = new UpgradeTerminalViewModel(real);
+        await vm.InitializeAsync();
+        Assert.Equal(unlocked, critical ? vm.IsCriticalStrikeLevelUnlocked : vm.IsOverdriveLevelUnlocked);
+        Assert.Equal(affordable, critical ? vm.HasSufficientCriticalStrikeSkillPoints : vm.HasSufficientOverdriveSkillPoints);
+        Assert.False(critical ? vm.CanPurchaseCriticalStrike : vm.CanPurchaseOverdrive);
+    }
+
+    [Theory]
+    [InlineData(true, false)] [InlineData(false, false)]
+    [InlineData(true, true)] [InlineData(false, true)]
+    public async Task ModifierTerminal_CancellationAndDisposalDuringPurchaseAreSafe(bool critical, bool dispose)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var store = new ControllableDelayedUpgradeStore(real);
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        int notifications = 0;
+        vm.StatusChanged += _ => notifications++;
+        using var cts = new CancellationTokenSource();
+        var pending = BuyModifier(vm, critical, cts.Token);
+        await store.PurchaseEnteredSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        if (dispose) vm.Dispose(); else cts.Cancel();
+        store.ReleasePurchase();
+        var result = await pending;
+        Assert.Equal(dispose ? UpgradePurchaseStatus.Success : UpgradePurchaseStatus.Cancelled, result.Status);
+        Assert.Equal(0, notifications);
+        Assert.False(vm.IsBusy);
+        Assert.Equal(dispose ? 1 : 0, critical
+            ? (await real.GetCombatModifierSnapshotAsync()).CriticalStrikeRank
+            : (await real.GetCombatModifierSnapshotAsync()).OverdriveRank);
+    }
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public async Task ModifierTerminal_ResetConflictFailsClosed(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        using var vm = new UpgradeTerminalViewModel(real);
+        await vm.InitializeAsync();
+        await real.BeginOrGetResetIntentAsync();
+        var before = await real.GetProgressionAsync();
+        Assert.Equal(UpgradePurchaseStatus.StaleResetEpoch, (await BuyModifier(vm, critical)).Status);
+        Assert.Equal(before, await real.GetProgressionAsync());
+        Assert.False(vm.IsSynchronized);
+        Assert.False(vm.CanPurchase);
+        Assert.False(vm.CanPurchaseFirewall);
+        Assert.False(vm.CanPurchaseCriticalStrike);
+        Assert.False(vm.CanPurchaseOverdrive);
+    }
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public async Task ModifierTerminal_StoreRejectionCannotReportSuccess(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var before = await real.GetProgressionAsync();
+        var store = new ConfigurableProgressionStore(real, before)
+        {
+            ModifierRead = real.GetCombatModifierSnapshotAsync,
+            ModifierPurchase = (rank, epoch, _) =>
+            {
+                Assert.Equal(0, rank);
+                Assert.Equal(before.ResetEpoch, epoch);
+                throw new IOException("Charge rejected.");
+            }
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        Assert.Equal(UpgradePurchaseStatus.Error, (await BuyModifier(vm, critical)).Status);
+        Assert.Equal(before, await real.GetProgressionAsync());
+    }
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public async Task ModifierTerminal_ObserverFailureAfterCommitCannotReportRollback(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        using var vm = new UpgradeTerminalViewModel(real);
+        await vm.InitializeAsync();
+        vm.StatusChanged += _ => throw new InvalidOperationException("Observer failed.");
+        int notified = 0;
+        vm.StatusChanged += _ => notified++;
+        var result = await BuyModifier(vm, critical);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, notified);
+        Assert.Equal(1, critical ? vm.CurrentCriticalStrikeRank : vm.CurrentOverdriveRank);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_BoundedReconciliationCanConvergeWithoutPublishingIntermediateState()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        var progression = await real.GetProgressionAsync();
+        var store = new ConfigurableProgressionStore(real, progression);
+        int reads = 0;
+        store.ModifierRead = async _ =>
+        {
+            var snapshot = await real.GetCombatModifierSnapshotAsync();
+            return ++reads < 3 ? snapshot with { StoreRevision = 2 } : snapshot;
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        Assert.Equal(3, reads);
+        Assert.True(vm.IsSynchronized);
+        Assert.Equal(1, vm.StoreRevision);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_DelayedOldModifierReadCannotOverwriteNewPurchase()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var store = new ConfigurableProgressionStore(real, await real.GetProgressionAsync())
+        { ProgressionRead = real.GetProgressionAsync, ModifierRead = real.GetCombatModifierSnapshotAsync };
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool delay = true;
+        store.ModifierRead = async ct =>
+        {
+            var snapshot = await real.GetCombatModifierSnapshotAsync(ct);
+            if (delay)
+            {
+                delay = false;
+                entered.SetResult();
+                await release.Task;
+            }
+            return snapshot;
+        };
+        var pending = vm.RefreshAsync();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try { Assert.True((await vm.PurchaseCriticalStrikeUpgradeAsync()).IsSuccess); }
+        finally { release.SetResult(); }
+        var status = await pending;
+        Assert.Equal(1, status.CurrentCriticalStrikeRank);
+        Assert.Equal(44, status.AvailableSkillPoints);
+        Assert.Equal(vm.Status, status);
+        Assert.True(vm.IsSynchronized);
+    }
+
+    [Theory]
+    [InlineData(true, 0, 12, 6)]
+    [InlineData(true, 1, 50, 12)]
+    [InlineData(false, 0, 20, 5)]
+    [InlineData(false, 1, 80, 10)]
+    public async Task ModifierTerminal_ProjectsAndPurchasesBothRanks(bool critical, int rank, int level, int cost)
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        await SeedModifierTerminal(store, level, critical ? rank : 0, critical ? 0 : rank);
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        var before = vm.Status;
+        Assert.Equal(rank, critical ? vm.CurrentCriticalStrikeRank : vm.CurrentOverdriveRank);
+        Assert.Equal(rank + 1, critical ? vm.NextCriticalStrikeRank : vm.NextOverdriveRank);
+        Assert.Equal(level, critical ? vm.NextCriticalStrikeRequiredLevel : vm.NextOverdriveRequiredLevel);
+        Assert.Equal(cost, critical ? vm.NextCriticalStrikeCost : vm.NextOverdriveCost);
+        Assert.True(critical ? vm.IsCriticalStrikeLevelUnlocked : vm.IsOverdriveLevelUnlocked);
+        Assert.True(critical ? vm.HasSufficientCriticalStrikeSkillPoints : vm.HasSufficientOverdriveSkillPoints);
+        Assert.True(critical ? vm.CanPurchaseCriticalStrike : vm.CanPurchaseOverdrive);
+        var events = new List<UpgradeTerminalStatus>();
+        vm.StatusChanged += events.Add;
+        var result = await BuyModifier(vm, critical);
+        Assert.True(result.IsSuccess, result.ErrorMessage);
+        Assert.Equal(rank + 1, critical ? vm.CurrentCriticalStrikeRank : vm.CurrentOverdriveRank);
+        Assert.Equal(before.AvailableSkillPoints - cost, vm.AvailableSkillPoints);
+        Assert.Equal(before.SpentSkillPoints + cost, vm.Status.SpentSkillPoints);
+        Assert.Equal(1, vm.CurrentAttackRank);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(1, vm.ActivatedFirewallRank);
+        Assert.Single(events);
+        Assert.Equal(vm.Status, result.StatusSnapshot);
+        Assert.Equal(0, critical ? vm.CurrentOverdriveRank : vm.CurrentCriticalStrikeRank);
+    }
+
+    [Theory]
+    [InlineData(true, 11, 20, UpgradePurchaseStatus.LockedLevel)]
+    [InlineData(false, 19, 20, UpgradePurchaseStatus.LockedLevel)]
+    [InlineData(true, 12, 5, UpgradePurchaseStatus.InsufficientSkillPoints)]
+    [InlineData(false, 20, 4, UpgradePurchaseStatus.InsufficientSkillPoints)]
+    public async Task ModifierTerminal_RejectsIneligibleWithoutCharging(bool critical, int level, int sp, UpgradePurchaseStatus expected)
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        await SeedModifierTerminal(store, level, available: sp);
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        var before = await store.GetProgressionAsync();
+        Assert.Equal(expected, (await BuyModifier(vm, critical)).Status);
+        Assert.Equal(before, await store.GetProgressionAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ModifierTerminal_MaxRankHasNoNextRequirements(bool critical)
+    {
+        using var store = CreateStore();
+        await store.InitializeAsync();
+        await SeedModifierTerminal(store, 80, 2, 2);
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        Assert.True(vm.IsCriticalStrikeMaxRank);
+        Assert.True(vm.IsOverdriveMaxRank);
+        Assert.Null(vm.NextCriticalStrikeRank);
+        Assert.Null(vm.NextOverdriveRank);
+        Assert.Null(vm.NextCriticalStrikeCost);
+        Assert.Null(vm.NextOverdriveRequiredLevel);
+        Assert.False(vm.CanPurchaseCriticalStrike);
+        Assert.False(vm.CanPurchaseOverdrive);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, (await BuyModifier(vm, critical)).Status);
+    }
+
+    [Theory]
+    [InlineData(0, 0)] [InlineData(0, 1)] [InlineData(0, 2)] [InlineData(0, 3)]
+    [InlineData(1, 0)] [InlineData(1, 1)] [InlineData(1, 2)] [InlineData(1, 3)]
+    [InlineData(2, 0)] [InlineData(2, 1)] [InlineData(2, 2)] [InlineData(2, 3)]
+    [InlineData(3, 0)] [InlineData(3, 1)] [InlineData(3, 2)] [InlineData(3, 3)]
+    public async Task ModifierTerminal_AllFourPurchasesShareBusyGate(int first, int second)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var store = new ControllableDelayedUpgradeStore(real);
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        Task<UpgradePurchaseResult> Buy(int kind) => kind switch
+        {
+            0 => vm.PurchaseUpgradeAsync(), 1 => vm.PurchaseFirewallUpgradeAsync(),
+            2 => vm.PurchaseCriticalStrikeUpgradeAsync(), _ => vm.PurchaseOverdriveUpgradeAsync()
+        };
+        var before = await real.GetProgressionAsync();
+        var pending = Buy(first);
+        await store.PurchaseEnteredSignal.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            Assert.True(vm.IsBusy);
+            Assert.False(vm.CanPurchaseCriticalStrike);
+            Assert.False(vm.CanPurchaseOverdrive);
+            Assert.Equal(UpgradePurchaseStatus.Busy, (await Buy(second)).Status);
+        }
+        finally { store.ReleasePurchase(); }
+        Assert.True((await pending).IsSuccess);
+        Assert.Equal(1, store.PurchaseCallCount);
+        Assert.Equal(before.StoreRevision + 1, (await real.GetProgressionAsync()).StoreRevision);
+        Assert.False(vm.IsBusy);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ModifierTerminal_CancelledAndDisposedDoNotCharge(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        using var vm = new UpgradeTerminalViewModel(real);
+        await vm.InitializeAsync();
+        var before = await real.GetProgressionAsync();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.Equal(UpgradePurchaseStatus.Cancelled, (await BuyModifier(vm, critical, cts.Token)).Status);
+        vm.Dispose();
+        Assert.Equal(UpgradePurchaseStatus.Disposed, (await BuyModifier(vm, critical)).Status);
+        Assert.Equal(before, await real.GetProgressionAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ModifierTerminal_StaleRankRefreshesCommittedState(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        using var vm = new UpgradeTerminalViewModel(real);
+        await vm.InitializeAsync();
+        if (critical) await real.PurchaseCriticalStrikeUpgradeAsync(0, 0);
+        else await real.PurchaseOverdriveUpgradeAsync(0, 0);
+        var before = await real.GetProgressionAsync();
+        Assert.Equal(UpgradePurchaseStatus.StaleRank, (await BuyModifier(vm, critical)).Status);
+        Assert.Equal(1, critical ? vm.CurrentCriticalStrikeRank : vm.CurrentOverdriveRank);
+        Assert.Equal(before.AvailableSkillPoints, vm.AvailableSkillPoints);
+        Assert.Equal(before, await real.GetProgressionAsync());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ModifierTerminal_CommittedPurchaseSurvivesRefreshFailure(bool critical)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        await SeedModifierTerminal(real, 80);
+        var store = new ConfigurableProgressionStore(real, await real.GetProgressionAsync());
+        store.ModifierRead = real.GetCombatModifierSnapshotAsync;
+        store.ProgressionRead = real.GetProgressionAsync;
+        store.ModifierPurchase = async (rank, epoch, ct) =>
+        {
+            var committed = critical ? await real.PurchaseCriticalStrikeUpgradeAsync(rank, epoch, ct)
+                : await real.PurchaseOverdriveUpgradeAsync(rank, epoch, ct);
+            store.ProgressionRead = _ => throw new IOException("Post-commit read failed.");
+            return committed;
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        var before = vm.Status;
+        var result = await BuyModifier(vm, critical);
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.StatusSnapshot);
+        Assert.Contains("committed", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Same(before, vm.Status);
+        Assert.False(vm.CanPurchaseCriticalStrike);
+        Assert.False(vm.CanPurchaseOverdrive);
+        Assert.Equal(before.AvailableSkillPoints - (critical ? 6 : 5), (await real.GetProgressionAsync()).AvailableSkillPoints);
+        store.ProgressionRead = real.GetProgressionAsync;
+        await vm.RefreshAsync();
+        Assert.Equal(1, critical ? vm.CurrentCriticalStrikeRank : vm.CurrentOverdriveRank);
+    }
+
+    private static async Task SeedModifierTerminal(SqliteGameplayStore store, int level,
+        int critical = 0, int overdrive = 0, int available = 50)
+    {
+        await SetProgressionAsync(store.StoragePath, CyberDefenseLevelPolicy.GetCumulativeXpThreshold(level),
+            level, available + 4, 4, available, 1, firewallRank: 1, activatedFirewallRank: 1);
+        using var connection = new SqliteConnection($"Data Source={store.StoragePath}");
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE gameplay_progression SET critical_strike_rank = @c, overdrive_rank = @o WHERE id = 1;";
+        command.Parameters.AddWithValue("@c", critical);
+        command.Parameters.AddWithValue("@o", overdrive);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ModifierTerminal_TornReadsNeverPublishUnrelatedProgression(bool wrongEpoch)
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        var progression = new CyberDefenseProgressionRecord(10, 0, 0, 1, 10, 0, 10, 0,
+            "ECONOMY_V1", DateTimeOffset.UnixEpoch);
+        var store = new ConfigurableProgressionStore(real, progression);
+        int reads = 0;
+        store.ModifierRead = _ =>
+        {
+            reads++;
+            return Task.FromResult(new CyberDefenseCombatModifierSnapshot(1, 1,
+                CyberDefenseCombatModifierState.Initial, wrongEpoch ? 10 : 9, wrongEpoch ? 1 : 0,
+                new GameplayResetIntentRecord(false, wrongEpoch ? 1 : 0, wrongEpoch ? 1 : 0,
+                    null, DateTimeOffset.UnixEpoch)));
+        };
+        using var vm = new UpgradeTerminalViewModel(store);
+        int notifications = 0;
+        vm.StatusChanged += _ => notifications++;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vm.RefreshAsync());
+        Assert.InRange(reads, 1, 3);
+        Assert.Equal(0, notifications);
+        Assert.Equal(0, vm.AvailableSkillPoints);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_PendingResetNeverPublishesProgression()
+    {
+        using var real = CreateStore();
+        await real.InitializeAsync();
+        var store = new ConfigurableProgressionStore(real, await real.GetProgressionAsync());
+        store.ModifierRead = _ => Task.FromResult(new CyberDefenseCombatModifierSnapshot(0, 0,
+            CyberDefenseCombatModifierState.Initial, 1, 0,
+            new GameplayResetIntentRecord(true, 0, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)));
+        using var vm = new UpgradeTerminalViewModel(store);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => vm.RefreshAsync());
+    }
+
     private string CreateTempDirectory()
     {
         var dir = Path.Combine(Path.GetTempPath(), "MathFirst_Tests_UpgradeTerminal_" + Guid.NewGuid().ToString("N"));
@@ -70,6 +624,12 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         cmd.Parameters.AddWithValue("@firewallRank", firewallRank);
         cmd.Parameters.AddWithValue("@activatedFirewallRank", activatedFirewallRank);
         await cmd.ExecuteNonQueryAsync();
+        // A fixture epoch represents a completed reset across all gameplay rows.
+        using var epochCommand = connection.CreateCommand();
+        epochCommand.CommandText = "UPDATE gameplay_run_state SET reset_epoch = @epoch WHERE id = 1; " +
+            "UPDATE gameplay_reset_intent SET current_epoch = @epoch, target_epoch = @epoch, is_pending = 0, created_at = NULL WHERE id = 1;";
+        epochCommand.Parameters.AddWithValue("@epoch", resetEpoch);
+        await epochCommand.ExecuteNonQueryAsync();
     }
 
     public void Dispose()
@@ -733,6 +1293,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
@@ -742,6 +1307,25 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
             PurchaseEnteredSignal.TrySetResult(true);
             await _purchaseRelease.Task;
             return await _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            PurchaseCallCount++;
+            PurchaseEnteredSignal.TrySetResult(true);
+            await _purchaseRelease.Task;
+            return await _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        }
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            PurchaseCallCount++;
+            PurchaseEnteredSignal.TrySetResult(true);
+            await _purchaseRelease.Task;
+            return await _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         }
 
         public async Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
@@ -792,10 +1376,28 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated store failure: disk I/O error");
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated store failure: disk I/O error");
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             throw new InvalidOperationException("Simulated store failure: disk I/O error");
         }
@@ -844,10 +1446,28 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw _exceptionToThrow;
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            throw _exceptionToThrow;
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             throw _exceptionToThrow;
         }
@@ -898,8 +1518,11 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         {
             if (DelayNextProgression)
             {
+                DelayNextProgression = false;
+                var captured = await _inner.GetProgressionAsync(cancellationToken);
                 ProgressionEnteredSignal.TrySetResult(true);
                 await _progressionRelease.Task;
+                return captured;
             }
             return await _inner.GetProgressionAsync(cancellationToken);
         }
@@ -909,9 +1532,21 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
@@ -932,6 +1567,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
 
     private sealed class ConfigurableProgressionStore : IGameplayStore
     {
+        public Func<CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>? ModifierRead { get; set; }
+        public Func<CancellationToken, Task<CyberDefenseProgressionRecord>>? ProgressionRead { get; set; }
+        public Func<int, long, CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>? ModifierPurchase { get; set; }
         private readonly IGameplayStore _inner;
         public CyberDefenseProgressionRecord NextRecord { get; set; }
 
@@ -948,13 +1586,26 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default) => _inner.GetRunStateAsync(cancellationToken);
         public Task<long> GetResetEpochAsync(CancellationToken cancellationToken = default) => _inner.GetResetEpochAsync(cancellationToken);
         public Task<long> GetStoreRevisionAsync(CancellationToken cancellationToken = default) => _inner.GetStoreRevisionAsync(cancellationToken);
-        public Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default) => Task.FromResult(NextRecord);
+        public Task<CyberDefenseProgressionRecord> GetProgressionAsync(CancellationToken cancellationToken = default) =>
+            ProgressionRead?.Invoke(cancellationToken) ?? Task.FromResult(NextRecord);
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            ModifierRead?.Invoke(cancellationToken) ?? Task.FromResult(new CyberDefenseCombatModifierSnapshot(0, 0, CyberDefenseCombatModifierState.Initial, NextRecord.StoreRevision, NextRecord.ResetEpoch, new GameplayResetIntentRecord(false, NextRecord.ResetEpoch, NextRecord.ResetEpoch, null, DateTimeOffset.UnixEpoch)));
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            ModifierPurchase?.Invoke(expectedRank, expectedResetEpoch, cancellationToken) ?? _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            ModifierPurchase?.Invoke(expectedRank, expectedResetEpoch, cancellationToken) ?? _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
@@ -995,11 +1646,33 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         public Task<CyberDefenseAttackUpgradeSnapshot> GetAttackUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetAttackUpgradeSnapshotAsync(cancellationToken);
         public event Action<CyberDefenseAttackUpgradeSnapshot>? AttackUpgradeSnapshotChanged;
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged;
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => _inner.GetFirewallUpgradeSnapshotAsync(cancellationToken);
 
         public async Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
         {
             var result = await _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+            _onCommitted();
+            return result;
+        }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            var result = await _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+            _onCommitted();
+            return result;
+        }
+
+        public async Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        {
+            var result = await _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
             _onCommitted();
             return result;
         }
@@ -1050,7 +1723,9 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         // External reset occurs in store
         var intent = await store.BeginOrGetResetIntentAsync();
         await store.ResetGameplayStateAsync(intent.TargetEpoch);
+        Assert.False(vm.IsSynchronized);
         await store.ClearResetIntentAsync(intent.TargetEpoch);
+        await vm.RefreshAsync();
 
         Assert.Equal(1L, vm.ResetEpoch);
         Assert.Equal(1, vm.PlayerLevel);
@@ -1119,6 +1794,7 @@ public sealed class UpgradeTerminalViewModelTests : IDisposable
         var intent = await realStore.BeginOrGetResetIntentAsync();
         await realStore.ResetGameplayStateAsync(intent.TargetEpoch);
         await realStore.ClearResetIntentAsync(intent.TargetEpoch);
+        await vm.RefreshAsync();
 
         // VM observes reset via snapshot event
         Assert.Equal(1L, vm.ResetEpoch);

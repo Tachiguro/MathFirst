@@ -40,6 +40,23 @@ public sealed record UpgradeTerminalStatus
     public bool HasSufficientFirewallSp => HasSufficientFirewallSkillPoints;
     public bool IsFirewallMaxRank => !NextFirewallRank.HasValue;
     public bool CanPurchaseFirewall => !IsFirewallMaxRank && IsFirewallLevelUnlocked && HasSufficientFirewallSkillPoints;
+    // Null means this legacy projection did not include an authoritative modifier read.
+    public int? CurrentCriticalStrikeRank { get; }
+    public int? NextCriticalStrikeRank => CurrentCriticalStrikeRank is < CyberDefenseCriticalStrikePolicy.MaxRank ? CurrentCriticalStrikeRank + 1 : null;
+    public int? NextCriticalStrikeRequiredLevel => NextCriticalStrikeRank is int rank ? CyberDefenseCriticalStrikePolicy.GetRequiredLevel(rank) : null;
+    public int? NextCriticalStrikeCost => NextCriticalStrikeRank is int rank ? CyberDefenseCriticalStrikePolicy.GetUpgradeCost(rank) : null;
+    public bool IsCriticalStrikeLevelUnlocked => NextCriticalStrikeRequiredLevel is int level && PlayerLevel >= level;
+    public bool HasSufficientCriticalStrikeSkillPoints => NextCriticalStrikeCost is int cost && AvailableSkillPoints >= cost;
+    public bool IsCriticalStrikeMaxRank => CurrentCriticalStrikeRank == CyberDefenseCriticalStrikePolicy.MaxRank;
+    public bool CanPurchaseCriticalStrike => IsCriticalStrikeLevelUnlocked && HasSufficientCriticalStrikeSkillPoints;
+    public int? CurrentOverdriveRank { get; }
+    public int? NextOverdriveRank => CurrentOverdriveRank is < CyberDefenseOverdrivePolicy.MaxRank ? CurrentOverdriveRank + 1 : null;
+    public int? NextOverdriveRequiredLevel => NextOverdriveRank is int rank ? CyberDefenseOverdrivePolicy.GetRequiredLevel(rank) : null;
+    public int? NextOverdriveCost => NextOverdriveRank is int rank ? CyberDefenseOverdrivePolicy.GetUpgradeCost(rank) : null;
+    public bool IsOverdriveLevelUnlocked => NextOverdriveRequiredLevel is int level && PlayerLevel >= level;
+    public bool HasSufficientOverdriveSkillPoints => NextOverdriveCost is int cost && AvailableSkillPoints >= cost;
+    public bool IsOverdriveMaxRank => CurrentOverdriveRank == CyberDefenseOverdrivePolicy.MaxRank;
+    public bool CanPurchaseOverdrive => IsOverdriveLevelUnlocked && HasSufficientOverdriveSkillPoints;
     public long ResetEpoch { get; }
     public long StoreRevision { get; }
 
@@ -63,7 +80,9 @@ public sealed record UpgradeTerminalStatus
         long resetEpoch,
         long storeRevision,
         int currentFirewallRank = 0,
-        int activatedFirewallRank = 0)
+        int activatedFirewallRank = 0,
+        int? currentCriticalStrikeRank = null,
+        int? currentOverdriveRank = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(playerLevel, 1);
         ArgumentOutOfRangeException.ThrowIfNegative(cumulativeXp);
@@ -95,6 +114,18 @@ public sealed record UpgradeTerminalStatus
         ArgumentOutOfRangeException.ThrowIfGreaterThan(currentFirewallRank, CyberDefenseFirewallPolicy.MaxRank);
         ArgumentOutOfRangeException.ThrowIfNegative(activatedFirewallRank);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(activatedFirewallRank, currentFirewallRank);
+        if (currentCriticalStrikeRank.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(currentCriticalStrikeRank.Value);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(currentCriticalStrikeRank.Value, CyberDefenseCriticalStrikePolicy.MaxRank);
+        }
+        if (currentOverdriveRank.HasValue)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(currentOverdriveRank.Value);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(currentOverdriveRank.Value, CyberDefenseOverdrivePolicy.MaxRank);
+        }
+        CurrentCriticalStrikeRank = currentCriticalStrikeRank;
+        CurrentOverdriveRank = currentOverdriveRank;
 
         PlayerLevel = playerLevel;
         CumulativeXp = cumulativeXp;
@@ -160,10 +191,30 @@ public sealed record UpgradeTerminalStatus
             resetEpoch: 0,
             storeRevision: 1,
             currentFirewallRank: 0,
-            activatedFirewallRank: 0);
+            activatedFirewallRank: 0,
+            currentCriticalStrikeRank: 0,
+            currentOverdriveRank: 0);
     }
 
-    public static UpgradeTerminalStatus FromProgression(CyberDefenseProgressionRecord progression)
+    public static UpgradeTerminalStatus FromProgression(CyberDefenseProgressionRecord progression) =>
+        FromProgressionCore(progression, null);
+
+    public static UpgradeTerminalStatus FromProgression(
+        CyberDefenseProgressionRecord progression, CyberDefenseCombatModifierSnapshot modifiers)
+    {
+        ArgumentNullException.ThrowIfNull(progression);
+        ArgumentNullException.ThrowIfNull(modifiers);
+        if (progression.ResetEpoch != modifiers.ResetEpoch || progression.StoreRevision != modifiers.StoreRevision ||
+            modifiers.ResetIntent is null || modifiers.ResetIntent.IsPending ||
+            modifiers.ResetIntent.CurrentEpoch != modifiers.ResetEpoch || modifiers.ResetIntent.TargetEpoch != modifiers.ResetEpoch)
+        {
+            throw new InvalidOperationException("Progression and modifier snapshot must have matching revision and reset epoch with no reset pending.");
+        }
+        return FromProgressionCore(progression, modifiers);
+    }
+
+    private static UpgradeTerminalStatus FromProgressionCore(
+        CyberDefenseProgressionRecord progression, CyberDefenseCombatModifierSnapshot? modifiers)
     {
         ArgumentNullException.ThrowIfNull(progression);
 
@@ -206,7 +257,9 @@ public sealed record UpgradeTerminalStatus
             resetEpoch: progression.ResetEpoch,
             storeRevision: progression.StoreRevision,
             currentFirewallRank: progression.FirewallRank,
-            activatedFirewallRank: progression.ActivatedFirewallRank);
+            activatedFirewallRank: progression.ActivatedFirewallRank,
+            currentCriticalStrikeRank: modifiers?.CriticalStrikeRank,
+            currentOverdriveRank: modifiers?.OverdriveRank);
     }
 
     public static UpgradeTerminalStatus FromSnapshot(

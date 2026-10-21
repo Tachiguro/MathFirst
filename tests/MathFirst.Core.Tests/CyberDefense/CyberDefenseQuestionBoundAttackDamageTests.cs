@@ -719,6 +719,54 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
         Assert.Equal(boundDamage, coordinator.GetBoundEffectiveAttackDamageOrDefault(200));
     }
 
+    private static async Task SeedCoherentSkillPointsForAttackRankPurchaseAsync(SqliteGameplayStore store, int targetRank)
+    {
+        var prog = await store.GetProgressionAsync();
+        int neededSp = 0;
+        for (int rank = prog.AttackRank + 1; rank <= targetRank; rank++)
+        {
+            neededSp = checked(neededSp + CyberDefenseAttackUpgradePolicy.GetUpgradeCost(rank));
+        }
+
+        if (prog.AvailableSkillPoints >= neededSp)
+        {
+            return;
+        }
+
+        int newSpentSp = prog.SpentSkillPoints;
+        int newAvailableSp = neededSp;
+        int newEarnedSp = checked(newSpentSp + newAvailableSp);
+        int newPlayerLevel = checked(CyberDefenseLevelPolicy.StartingLevel + newEarnedSp);
+        long newCumulativeXp = Math.Max(prog.CumulativeXp, CyberDefenseLevelPolicy.GetCumulativeXpThreshold(newPlayerLevel));
+
+        await store.ExecuteUnderGateForTestAsync(async conn =>
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE gameplay_progression
+                SET cumulative_xp = @xp,
+                    player_level = @lvl,
+                    earned_sp = @earned,
+                    spent_sp = @spent,
+                    available_sp = @available
+                WHERE id = 1
+                  AND reset_epoch = @epoch
+                  AND store_revision = @rev
+                  AND attack_rank = @rank;
+            ";
+            cmd.Parameters.AddWithValue("@xp", newCumulativeXp);
+            cmd.Parameters.AddWithValue("@lvl", newPlayerLevel);
+            cmd.Parameters.AddWithValue("@earned", newEarnedSp);
+            cmd.Parameters.AddWithValue("@spent", newSpentSp);
+            cmd.Parameters.AddWithValue("@available", newAvailableSp);
+            cmd.Parameters.AddWithValue("@epoch", prog.ResetEpoch);
+            cmd.Parameters.AddWithValue("@rev", prog.StoreRevision);
+            cmd.Parameters.AddWithValue("@rank", prog.AttackRank);
+            int rows = await cmd.ExecuteNonQueryAsync();
+            Assert.Equal(1, rows);
+        });
+    }
+
     [Fact]
     public async Task T21_PersistenceFailureRetry_UsesOriginalStagedSubmission_DoesNotRebind()
     {
@@ -730,6 +778,11 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
         var coordinator = new CyberDefenseCombatCoordinator(store, consumer);
         await coordinator.InitializeAsync();
 
+        int boundDamage = await coordinator.GetOrBindEffectiveAttackDamageAsync(questionKey: 210);
+        Assert.Equal(1, boundDamage);
+
+        var runBefore = await store.GetRunStateAsync();
+
         string submissionId = "sub-t21";
         await coordinator.StageIntentAsync(
             submissionId: submissionId,
@@ -737,10 +790,27 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
             isCorrect: true,
             latencyMs: 150,
             isEligibleAtSubmission: true,
-            effectiveAttackDamage: 1);
+            effectiveAttackDamage: boundDamage);
 
-        // Simulated persistence failure: commit delayed. Rank upgraded in DB.
+        var stagedBeforePurchase = await store.GetPendingIntentAsync(submissionId);
+        Assert.NotNull(stagedBeforePurchase);
+        Assert.Equal(submissionId, stagedBeforePurchase.SubmissionId);
+        Assert.Equal(1, stagedBeforePurchase.EffectiveAttackDamage);
+
+        // Simulated persistence failure: commit delayed. Rank upgraded in DB without unstaged combat.
+        await SeedCoherentSkillPointsForAttackRankPurchaseAsync(store, targetRank: 1);
         await PurchaseAttackRankAsync(store, targetRank: 1);
+
+        var progAfterPurchase = await store.GetProgressionAsync();
+        Assert.Equal(1, progAfterPurchase.AttackRank);
+        Assert.Equal(progAfterPurchase.EarnedSkillPoints, checked(progAfterPurchase.SpentSkillPoints + progAfterPurchase.AvailableSkillPoints));
+
+        var stagedAfterPurchase = await store.GetPendingIntentAsync(submissionId);
+        Assert.NotNull(stagedAfterPurchase);
+        Assert.Equal(submissionId, stagedAfterPurchase.SubmissionId);
+        Assert.Equal(1, stagedAfterPurchase.EffectiveAttackDamage);
+        Assert.Equal(runBefore, await store.GetRunStateAsync());
+        Assert.Null(await store.GetReceiptAsync(submissionId));
 
         // Retry commits learner evidence and consumes original staged intent
         var changeSet = CreateTestChangeSet(submissionId, "add:1+1", true, 150);
@@ -748,7 +818,24 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
 
         var result = await coordinator.ConsumeCommittedAttemptAsync(submissionId);
         Assert.NotNull(result);
-        Assert.Equal(1, result.Receipt?.TransitionResult?.RequestedAttackDamage);
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, result.Status);
+        Assert.NotNull(result.Receipt);
+        Assert.Equal(submissionId, result.Receipt.SubmissionId);
+        Assert.Equal(1, result.Receipt.BaseAttackDamage);
+        Assert.Equal(1, result.Receipt.TransitionResult?.RequestedAttackDamage);
+        Assert.Equal(1, result.Receipt.TransitionResult?.AppliedOpponentDamage);
+        Assert.Null(await store.GetPendingIntentAsync(submissionId));
+
+        var runAfterConsume = await store.GetRunStateAsync();
+        var progAfterConsume = await store.GetProgressionAsync();
+        Assert.Equal(runBefore.CurrentOpponent.CurrentHp - 1, runAfterConsume.CurrentOpponent.CurrentHp);
+
+        var replay = await coordinator.ConsumeCommittedAttemptAsync(submissionId);
+        Assert.NotNull(replay);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, replay.Status);
+        Assert.Equal(result.Receipt, replay.Receipt);
+        Assert.Equal(runAfterConsume, await store.GetRunStateAsync());
+        Assert.Equal(progAfterConsume, await store.GetProgressionAsync());
     }
 
     [Fact]
@@ -805,6 +892,8 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
         await learnerStore.InitializeAsync();
         var consumer = new CyberDefenseSubmissionConsumer(store, learnerStore);
 
+        var runBefore = await store.GetRunStateAsync();
+
         // Stage intent with damage 1
         var intent = new CyberDefensePendingIntentRecord(
             submissionId: "sub-t24",
@@ -820,8 +909,20 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
         var changeSet = CreateTestChangeSet("sub-t24", "add:1+1", true, 150);
         await learnerStore.CommitSubmissionAsync(changeSet);
 
-        // Player buys upgrade before restart recovery
+        // Player buys upgrade before restart recovery without unstaged combat
+        await SeedCoherentSkillPointsForAttackRankPurchaseAsync(store, targetRank: 1);
         await PurchaseAttackRankAsync(store, targetRank: 1); // Current rank is 1 (damage 2)
+
+        var progAfterPurchase = await store.GetProgressionAsync();
+        Assert.Equal(1, progAfterPurchase.AttackRank);
+        Assert.Equal(progAfterPurchase.EarnedSkillPoints, checked(progAfterPurchase.SpentSkillPoints + progAfterPurchase.AvailableSkillPoints));
+
+        var stagedAfterPurchase = await store.GetPendingIntentAsync("sub-t24");
+        Assert.NotNull(stagedAfterPurchase);
+        Assert.Equal("sub-t24", stagedAfterPurchase.SubmissionId);
+        Assert.Equal(1, stagedAfterPurchase.EffectiveAttackDamage);
+        Assert.Equal(runBefore, await store.GetRunStateAsync());
+        Assert.Null(await store.GetReceiptAsync("sub-t24"));
 
         // New coordinator starts up and recovers
         var newCoordinator = new CyberDefenseCombatCoordinator(store, consumer);
@@ -829,7 +930,22 @@ public sealed class CyberDefenseQuestionBoundAttackDamageTests : IDisposable
 
         var receipt = await store.GetReceiptAsync("sub-t24");
         Assert.NotNull(receipt);
+        Assert.Equal("sub-t24", receipt.SubmissionId);
+        Assert.Equal(1, receipt.BaseAttackDamage);
         Assert.Equal(1, receipt.TransitionResult?.RequestedAttackDamage);
+        Assert.Equal(1, receipt.TransitionResult?.AppliedOpponentDamage);
+        Assert.Null(await store.GetPendingIntentAsync("sub-t24"));
+
+        var runAfterRecovery = await store.GetRunStateAsync();
+        var progAfterRecovery = await store.GetProgressionAsync();
+        Assert.Equal(runBefore.CurrentOpponent.CurrentHp - 1, runAfterRecovery.CurrentOpponent.CurrentHp);
+
+        var replay = await newCoordinator.ConsumeCommittedAttemptAsync("sub-t24");
+        Assert.NotNull(replay);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, replay.Status);
+        Assert.Equal(receipt, replay.Receipt);
+        Assert.Equal(runAfterRecovery, await store.GetRunStateAsync());
+        Assert.Equal(progAfterRecovery, await store.GetProgressionAsync());
     }
 
     [Fact]
@@ -1982,10 +2098,22 @@ internal sealed class ControllableDelayedGameplayStore : IGameplayStore
         add => _inner.FirewallUpgradeSnapshotChanged += value;
         remove => _inner.FirewallUpgradeSnapshotChanged -= value;
     }
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => _inner.CombatModifierSnapshotChanged += value;
+        remove => _inner.CombatModifierSnapshotChanged -= value;
+    }
 
     public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
         _inner.PurchaseAttackUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
 
+    public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+        _inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+    public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+        _inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+    public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+        _inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
     public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
         _inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
     public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) =>

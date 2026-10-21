@@ -998,11 +998,11 @@
 
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 var submissionId = eval.ChangeSet.SubmissionId;
-                var isCritical = Session.IsPaceCalibrationReady && eval.LatencyMs <= Session.CurrentFactCriticalHitThresholdMs;
-                var pendingContext = new PendingCombatContext(submissionId, wasEligibleAtSubmission, isCritical);
 
                 await CombatCoordinator.AwaitQuestionBoundFirewallActivationAsync(Session.FactInstanceRevision);
                 var boundDamage = await CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision);
+                // Ranks bound at presentation; a missing binding fails closed to 0/0 (never re-acquired here).
+                var boundModifierRanks = CombatCoordinator.GetBoundCombatModifierRanksOrDefault(Session.FactInstanceRevision);
 
                 await CombatCoordinator.StageIntentAsync(
                     submissionId: submissionId,
@@ -1010,7 +1010,10 @@
                     isCorrect: eval.IsCorrect,
                     latencyMs: eval.LatencyMs,
                     isEligibleAtSubmission: wasEligibleAtSubmission,
-                    effectiveAttackDamage: boundDamage);
+                    effectiveAttackDamage: boundDamage,
+                    boundCriticalStrikeRank: boundModifierRanks.BoundCriticalStrikeRank,
+                    boundOverdriveRank: boundModifierRanks.BoundOverdriveRank,
+                    practicePosition: eval.ChangeSet.Attempt.PracticePosition);
 
                 HapticService.PerformCue(eval.IsCorrect ? HapticFeedbackCue.Correct : HapticFeedbackCue.Incorrect);
 
@@ -1186,6 +1189,9 @@
     {
         if (Session.IsInitialized && Session.CurrentFact is not null)
         {
+            // Rank entitlement is captured at presentation, before any asynchronous work, so a later
+            // purchase can never retroactively change what this question owns.
+            _ = CombatCoordinator.GetOrBindCombatModifierRanksAsync(Session.FactInstanceRevision);
             _ = CombatCoordinator.ActivateQuestionBoundFirewallCapacityAsync(Session.FactInstanceRevision);
             _ = CombatCoordinator.GetOrBindEffectiveAttackDamageAsync(Session.FactInstanceRevision);
         }

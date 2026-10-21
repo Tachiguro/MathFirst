@@ -263,6 +263,468 @@ public sealed class AuthoritativeCyberDefenseHudIntegrationTests : IDisposable
 
         var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 4);
         Assert.Equal(1, vm.LastAppliedOpponentDamage);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, vm.LastFeedback);
+    }
+
+    [Fact]
+    public void HudViewModel_AuthoritativeReceipt_RankZeroNormalAttack_ProducesNormalHitFeedback()
+    {
+        var runState = CyberDefenseRunState.InitialRun();
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: 1);
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: "sub-rank0-hit",
+            factId: "add:1+1",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 250,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 1,
+            cumulativeXpAfter: 10,
+            baseAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            criticalBonusPercent: 0,
+            overdriveBonusPercent: 0);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 10);
+
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, vm.LastFeedback);
+        Assert.Equal(1, vm.LastAppliedOpponentDamage);
+    }
+
+    [Fact]
+    public void HudViewModel_AuthoritativeReceipt_CriticalRank1Triggered_ProducesCriticalHitFeedback()
+    {
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var bossOpponent = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var runState = CyberDefenseRunState.CreateActive(1, CyberDefenseScalingPolicy.GetBossIndex(1), 100, bossOpponent);
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: 3);
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: "sub-crit-rank1",
+            factId: "add:2+2",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 9500, // Slow response: speed must not prevent CriticalHit when receipt triggers
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 12,
+            cumulativeXpAfter: 30,
+            baseAttackDamage: 2,
+            boundCriticalStrikeRank: 1,
+            boundOverdriveRank: 0,
+            criticalBonusPercent: 50,
+            overdriveBonusPercent: 0);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 11);
+
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(3, vm.LastAppliedOpponentDamage);
+    }
+
+    [Fact]
+    public void HudViewModel_AuthoritativeReceipt_CriticalRank2Triggered_ProducesCriticalHitFeedback()
+    {
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var bossOpponent = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var runState = CyberDefenseRunState.CreateActive(1, CyberDefenseScalingPolicy.GetBossIndex(1), 100, bossOpponent);
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: 4);
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: "sub-crit-rank2",
+            factId: "add:3+3",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 8200,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 50,
+            cumulativeXpAfter: 60,
+            baseAttackDamage: 2,
+            boundCriticalStrikeRank: 2,
+            boundOverdriveRank: 0,
+            criticalBonusPercent: 100,
+            overdriveBonusPercent: 0);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 12);
+
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(4, vm.LastAppliedOpponentDamage);
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(1, 2)]
+    [InlineData(2, 4)]
+    [InlineData(2, 5)]
+    public void HudViewModel_AuthoritativeReceipt_NonTriggeringCorrectAttackWithCriticalRank_RemainsNormalHit(
+        int boundCriticalRank,
+        int resultingCriticalCount)
+    {
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var bossOpponent = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var runState = CyberDefenseRunState.CreateActive(1, CyberDefenseScalingPolicy.GetBossIndex(1), 100, bossOpponent);
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: 2);
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: $"sub-non-trig-{boundCriticalRank}-{resultingCriticalCount}",
+            factId: "add:4+4",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 150, // Ultra-fast latency must not cause false CriticalHit on non-triggering step
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 50,
+            cumulativeXpAfter: 20,
+            baseAttackDamage: 2,
+            boundCriticalStrikeRank: boundCriticalRank,
+            boundOverdriveRank: 0,
+            criticalBonusPercent: 0,
+            overdriveBonusPercent: 0);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 13);
+
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, vm.LastFeedback);
+        Assert.Equal(2, vm.LastAppliedOpponentDamage);
+    }
+
+    [Theory]
+    [InlineData(1, 50, 5)]
+    [InlineData(2, 50, 4)]
+    public void HudViewModel_AuthoritativeReceipt_OverdriveOnlyBonus_DoesNotProduceFalseCriticalHit(
+        int boundOverdriveRank,
+        int overdriveBonusPercent,
+        int resultingStreakCount)
+    {
+        _ = resultingStreakCount;
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var bossOpponent = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var runState = CyberDefenseRunState.CreateActive(1, CyberDefenseScalingPolicy.GetBossIndex(1), 100, bossOpponent);
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: 3);
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: $"sub-overdrive-only-{boundOverdriveRank}",
+            factId: "add:5+5",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 300,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 80,
+            cumulativeXpAfter: 100,
+            baseAttackDamage: 2,
+            boundCriticalStrikeRank: 1,
+            boundOverdriveRank: boundOverdriveRank,
+            criticalBonusPercent: 0,
+            overdriveBonusPercent: overdriveBonusPercent);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 14);
+
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, vm.LastFeedback);
+        Assert.NotEqual(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(3, vm.LastAppliedOpponentDamage);
+    }
+
+    [Theory]
+    [InlineData(1, 50, 1, 50, 4)]
+    [InlineData(2, 100, 2, 50, 5)]
+    public void HudViewModel_AuthoritativeReceipt_CombinedCriticalAndOverdrive_ProducesCriticalHitFeedback(
+        int boundCriticalRank,
+        int criticalBonusPercent,
+        int boundOverdriveRank,
+        int overdriveBonusPercent,
+        int finalDamage)
+    {
+        int bossMaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(1);
+        var bossOpponent = new OpponentState(OpponentKind.Boss, bossMaxHp, bossMaxHp);
+        var runState = CyberDefenseRunState.CreateActive(1, CyberDefenseScalingPolicy.GetBossIndex(1), 100, bossOpponent);
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: finalDamage);
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: $"sub-combined-{boundCriticalRank}-{boundOverdriveRank}",
+            factId: "add:6+6",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 6000,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 80,
+            cumulativeXpAfter: 150,
+            baseAttackDamage: 2,
+            boundCriticalStrikeRank: boundCriticalRank,
+            boundOverdriveRank: boundOverdriveRank,
+            criticalBonusPercent: criticalBonusPercent,
+            overdriveBonusPercent: overdriveBonusPercent);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, receipt, feedbackRevision: 15);
+
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(finalDamage, vm.LastAppliedOpponentDamage);
+    }
+
+    [Fact]
+    public void HudViewModel_CalmModeSuppressedReceipt_NeverProducesCriticalHitFeedback()
+    {
+        var runState = CyberDefenseRunState.InitialRun();
+        var suppressedReceipt = CyberDefenseReceiptRecord.CreateCalmModeSuppressed(
+            submissionId: "sub-calm-suppressed",
+            factId: "add:1+2",
+            isCorrect: true,
+            isEligible: false,
+            responseLatencyMs: 200,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(runState, suppressedReceipt, feedbackRevision: 16);
+
+        Assert.Equal(CyberDefenseFeedbackKind.None, vm.LastFeedback);
+        Assert.NotEqual(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(0, vm.LastAppliedOpponentDamage);
+    }
+
+    [Fact]
+    public void HudViewModel_WrongAnswerReceipt_NeverProducesCriticalHitFeedback()
+    {
+        var normalOpponent = new OpponentState(OpponentKind.Normal, 2, 2);
+        var runState = CyberDefenseRunState.CreateActive(1, 0, 96, normalOpponent);
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: false, effectiveAttackDamage: 2);
+
+        var wrongReceipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: "sub-wrong-crit-bound",
+            factId: "add:7+7",
+            isCorrect: false,
+            isEligible: true,
+            responseLatencyMs: 200,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 0,
+            playerLevelAfter: 50,
+            cumulativeXpAfter: 100,
+            baseAttackDamage: 2,
+            boundCriticalStrikeRank: 2,
+            boundOverdriveRank: 2,
+            criticalBonusPercent: 0,
+            overdriveBonusPercent: 0);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, wrongReceipt, feedbackRevision: 17);
+
+        Assert.Equal(CyberDefenseFeedbackKind.None, vm.LastFeedback);
+        Assert.NotEqual(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(0, vm.LastAppliedOpponentDamage);
+    }
+
+    [Fact]
+    public void HudViewModel_LegacyReceiptWithoutV7ModifierMetadata_RemainsBackwardCompatibleNormalHit()
+    {
+        var runState = CyberDefenseRunState.InitialRun();
+        var transition = CyberDefenseStateMachine.ApplyAttempt(runState, isCorrect: true, effectiveAttackDamage: 2);
+
+        var legacyReceipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: "sub-legacy-pre-v7",
+            factId: "add:1+1",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 180,
+            resetEpoch: 0,
+            processedAt: DateTimeOffset.UtcNow,
+            transitionResult: transition,
+            awardedXp: 10,
+            playerLevelAfter: 1,
+            cumulativeXpAfter: 10);
+
+        Assert.Null(legacyReceipt.CriticalBonusPercent);
+        Assert.Null(legacyReceipt.OverdriveBonusPercent);
+
+        var vm = CyberDefenseHudViewModel.FromRunState(transition.NextState, legacyReceipt, feedbackRevision: 18);
+
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, vm.LastFeedback);
+        Assert.NotEqual(CyberDefenseFeedbackKind.CriticalHit, vm.LastFeedback);
+        Assert.Equal(2, vm.LastAppliedOpponentDamage);
+    }
+
+    [Fact]
+    public async Task PracticeFlow_AuthoritativeCriticalAndOverdrive_EndToEndThroughCoordinator_IgnoresRadarAndLatency_AndPreventsDuplicateReplay()
+    {
+        using var learnerStore = CreateLearnerStore();
+        using var gameplayStore = CreateGameplayStore();
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        int boss2Index = CyberDefenseScalingPolicy.GetBossIndex(3);
+        int boss2MaxHp = CyberDefenseScalingPolicy.GetBossMaxHp(3);
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_gameplayDbPath}"))
+        {
+            await connection.OpenAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE gameplay_run_state
+                SET sector = 3,
+                    opponent_index = @bossIdx,
+                    opponent_current_hp = @bossHp,
+                    player_current_hp = 100
+                WHERE id = 1;
+
+                UPDATE gameplay_progression
+                SET cumulative_xp = @xp,
+                    player_level = 80,
+                    earned_sp = 79,
+                    spent_sp = 0,
+                    available_sp = 79
+                WHERE id = 1;
+            ";
+            cmd.Parameters.AddWithValue("@bossIdx", boss2Index);
+            cmd.Parameters.AddWithValue("@bossHp", boss2MaxHp);
+            cmd.Parameters.AddWithValue("@xp", CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Purchase Attack Rank 1 (base damage 2), Critical Strike Rank 2 (+100% on every 4th correct), and Overdrive Rank 2 (+50% for 2 attacks after 4-streak)
+        await gameplayStore.PurchaseAttackUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+        await gameplayStore.PurchaseCriticalStrikeUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+        await gameplayStore.PurchaseCriticalStrikeUpgradeAsync(expectedRank: 1, expectedResetEpoch: 0);
+        await gameplayStore.PurchaseOverdriveUpgradeAsync(expectedRank: 0, expectedResetEpoch: 0);
+        await gameplayStore.PurchaseOverdriveUpgradeAsync(expectedRank: 1, expectedResetEpoch: 0);
+
+        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
+        var coordinator = new CyberDefenseCombatCoordinator(gameplayStore, consumer);
+        await coordinator.InitializeAsync();
+
+        var session = new TrainingSession(learnerStore);
+        await session.InitializeAsync(startTiming: false);
+
+        // 1..3. First 3 correct answers: Critical count -> 1, 2, 3 (non-triggering), Overdrive streak -> 1, 2, 3 (non-triggering)
+        for (int step = 1; step <= 3; step++)
+        {
+            if (step > 1)
+            {
+                await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
+            }
+
+            await coordinator.GetOrBindCombatModifierRanksAsync(session.FactInstanceRevision);
+            await coordinator.AwaitQuestionBoundFirewallActivationAsync(session.FactInstanceRevision);
+            var boundDamage = await coordinator.GetOrBindEffectiveAttackDamageAsync(session.FactInstanceRevision);
+            var boundMods = coordinator.GetBoundCombatModifierRanksOrDefault(session.FactInstanceRevision);
+            Assert.Equal(2, boundDamage);
+            Assert.Equal(2, boundMods.BoundCriticalStrikeRank);
+            Assert.Equal(2, boundMods.BoundOverdriveRank);
+
+            var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+            await coordinator.StageIntentAsync(
+                eval.ChangeSet.SubmissionId,
+                eval.ChangeSet.Attempt.FactId,
+                eval.IsCorrect,
+                latencyMs: eval.LatencyMs,
+                isEligibleAtSubmission: true,
+                effectiveAttackDamage: boundDamage,
+                boundCriticalStrikeRank: boundMods.BoundCriticalStrikeRank,
+                boundOverdriveRank: boundMods.BoundOverdriveRank);
+            await session.CommitCurrentEvaluationAsync();
+            var consume = await coordinator.ConsumeCommittedAttemptAsync(eval.ChangeSet.SubmissionId);
+
+            Assert.Equal(CyberDefenseConsumptionStatus.Success, consume!.Status);
+            Assert.Equal(0, consume.Receipt!.CriticalBonusPercent);
+            Assert.Equal(0, consume.Receipt.OverdriveBonusPercent);
+            Assert.Equal(CyberDefenseFeedbackKind.Hit, coordinator.CurrentViewModel.LastFeedback);
+            Assert.Equal(2, coordinator.CurrentViewModel.LastAppliedOpponentDamage);
+            Assert.Equal(boss2MaxHp - (2 * step), coordinator.CurrentViewModel.OpponentCurrentHp);
+        }
+
+        // 4. Answer #4: Radar expired state does not block or alter authoritative Critical Strike Rank 2 (+100% -> 2 * 200% = 4 damage!)
+        // and arms Overdrive Rank 2 window for next 2 attacks!
+        var radarExpiredState = CyberDefenseRadarTimingPolicy.CalculateTimingState(
+            session.CurrentFactCriticalHitThresholdMs,
+            activeElapsedMs: session.CurrentFactCriticalHitThresholdMs + 5000);
+        Assert.True(radarExpiredState.IsExhausted);
+
+        await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
+        await coordinator.GetOrBindCombatModifierRanksAsync(session.FactInstanceRevision);
+        await coordinator.AwaitQuestionBoundFirewallActivationAsync(session.FactInstanceRevision);
+        var boundDamage4 = await coordinator.GetOrBindEffectiveAttackDamageAsync(session.FactInstanceRevision);
+        var boundMods4 = coordinator.GetBoundCombatModifierRanksOrDefault(session.FactInstanceRevision);
+
+        var eval4 = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await coordinator.StageIntentAsync(
+            eval4.ChangeSet.SubmissionId,
+            eval4.ChangeSet.Attempt.FactId,
+            eval4.IsCorrect,
+            latencyMs: eval4.LatencyMs,
+            isEligibleAtSubmission: true,
+            effectiveAttackDamage: boundDamage4,
+            boundCriticalStrikeRank: boundMods4.BoundCriticalStrikeRank,
+            boundOverdriveRank: boundMods4.BoundOverdriveRank);
+        await session.CommitCurrentEvaluationAsync();
+        var consume4 = await coordinator.ConsumeCommittedAttemptAsync(eval4.ChangeSet.SubmissionId);
+
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, consume4!.Status);
+        Assert.Equal(100, consume4!.Receipt!.CriticalBonusPercent);
+        Assert.Equal(0, consume4.Receipt.OverdriveBonusPercent);
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, coordinator.CurrentViewModel.LastFeedback);
+        Assert.Equal(4, coordinator.CurrentViewModel.LastAppliedOpponentDamage);
+        Assert.Equal(boss2MaxHp - 10, coordinator.CurrentViewModel.OpponentCurrentHp);
+
+        var hpAfterCrit = coordinator.CurrentViewModel.OpponentCurrentHp;
+        var revisionAfterCrit = coordinator.CurrentViewModel.FeedbackRevision;
+        var modSnapshotAfterCrit = await gameplayStore.GetCombatModifierSnapshotAsync();
+        Assert.Equal(4, modSnapshotAfterCrit.ModifierState.CriticalCorrectAttackCount);
+        Assert.Equal(2, modSnapshotAfterCrit.ModifierState.OverdriveRemainingBonusAttacks);
+
+        // 5. Duplicate consumption / replay of the same submissionId does NOT duplicate damage or modifier progression
+        var duplicateConsume = await coordinator.ConsumeCommittedAttemptAsync(eval4.ChangeSet.SubmissionId);
+        Assert.Equal(CyberDefenseConsumptionStatus.AlreadyConsumed, duplicateConsume!.Status);
+        Assert.Equal(hpAfterCrit, coordinator.CurrentViewModel.OpponentCurrentHp);
+        Assert.Equal(revisionAfterCrit, coordinator.CurrentViewModel.FeedbackRevision);
+
+        var modSnapshotAfterDuplicate = await gameplayStore.GetCombatModifierSnapshotAsync();
+        Assert.Equal(modSnapshotAfterCrit.ModifierState, modSnapshotAfterDuplicate.ModifierState);
+
+        // 6. Answer #5: Overdrive window active (+50% -> 2 * 150% = 3 damage), non-triggering Critical step -> Overdrive-only bonus deals Hit, NOT CriticalHit
+        await session.AdvanceAfterCorrectAnswerAsync(startTiming: false);
+        await coordinator.GetOrBindCombatModifierRanksAsync(session.FactInstanceRevision);
+        await coordinator.AwaitQuestionBoundFirewallActivationAsync(session.FactInstanceRevision);
+        var boundDamage5 = await coordinator.GetOrBindEffectiveAttackDamageAsync(session.FactInstanceRevision);
+        var boundMods5 = coordinator.GetBoundCombatModifierRanksOrDefault(session.FactInstanceRevision);
+
+        var eval5 = session.SubmitAnswer(session.CurrentFact.CorrectResult);
+        await coordinator.StageIntentAsync(
+            eval5.ChangeSet.SubmissionId,
+            eval5.ChangeSet.Attempt.FactId,
+            eval5.IsCorrect,
+            latencyMs: eval5.LatencyMs,
+            isEligibleAtSubmission: true,
+            effectiveAttackDamage: boundDamage5,
+            boundCriticalStrikeRank: boundMods5.BoundCriticalStrikeRank,
+            boundOverdriveRank: boundMods5.BoundOverdriveRank);
+        await session.CommitCurrentEvaluationAsync();
+        var consume5 = await coordinator.ConsumeCommittedAttemptAsync(eval5.ChangeSet.SubmissionId);
+
+        Assert.Equal(CyberDefenseConsumptionStatus.Success, consume5!.Status);
+        Assert.Equal(0, consume5.Receipt!.CriticalBonusPercent);
+        Assert.Equal(50, consume5.Receipt.OverdriveBonusPercent);
+        Assert.Equal(3, coordinator.CurrentViewModel.LastAppliedOpponentDamage);
+        Assert.Equal(CyberDefenseFeedbackKind.Hit, coordinator.CurrentViewModel.LastFeedback);
+        Assert.NotEqual(CyberDefenseFeedbackKind.CriticalHit, coordinator.CurrentViewModel.LastFeedback);
+
+        // Assert that Attack #4 (the triggered Critical Strike) produced CriticalHit feedback
+        var vmFromCritReceipt = CyberDefenseHudViewModel.FromRunState(
+            consume4.Receipt.TransitionResult!.NextState,
+            consume4.Receipt,
+            revisionAfterCrit);
+        Assert.Equal(CyberDefenseFeedbackKind.CriticalHit, vmFromCritReceipt.LastFeedback);
     }
 
     [Fact]

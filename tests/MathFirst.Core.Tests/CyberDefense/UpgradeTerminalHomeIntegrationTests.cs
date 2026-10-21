@@ -20,6 +20,176 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
 {
     private readonly List<string> _tempDirs = new();
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ModifierTerminal_PurchasePreservesLearnerSnapshotQuestionInputAndTiming(bool critical)
+    {
+        var clock = new FakeClock();
+        using var learner = new InMemoryLearnerStore();
+        var session = await CreateAndStartSessionAsync(clock, learner);
+        session.SetCurrentAnswerInput("7");
+        var fact = session.CurrentFact;
+        var revision = session.FactInstanceRevision;
+        var snapshot = await learner.LoadSnapshotAsync();
+        int writesBefore = learner.MutationCount;
+        clock.AdvanceMs(1200);
+        session.PauseItemTiming();
+        var elapsed = session.GetCurrentActiveElapsedMs();
+        var directory = CreateTempDirectory();
+        using var store = new SqliteGameplayStore(Path.Combine(directory, "synthetic-gameplay.db"));
+        await store.InitializeAsync();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = 80, earned_sp = 79, spent_sp = 0, available_sp = 79 WHERE id = 1;";
+            command.Parameters.AddWithValue("@xp", CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
+            await command.ExecuteNonQueryAsync();
+        }
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+        clock.AdvanceMs(15000);
+        var result = critical ? await vm.PurchaseCriticalStrikeUpgradeAsync() : await vm.PurchaseOverdriveUpgradeAsync();
+        Assert.True(result.IsSuccess);
+        Assert.Same(snapshot, await learner.LoadSnapshotAsync());
+        Assert.Equal(writesBefore, learner.MutationCount);
+        Assert.Same(fact, session.CurrentFact);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("7", session.CurrentAnswerInput);
+        Assert.Equal(elapsed, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsTimingActive);
+        session.ResumeItemTiming();
+        Assert.True(session.IsTimingActive);
+    }
+
+    [Fact]
+    public async Task ModifierTerminal_AllFourSkills_RankProgressionFeedbackAndLearningIsolation_WorkTogether()
+    {
+        var clock = new FakeClock();
+        using var learner = new InMemoryLearnerStore();
+        var session = await CreateAndStartSessionAsync(clock, learner);
+        session.SetCurrentAnswerInput("19");
+        var fact = session.CurrentFact;
+        var revision = session.FactInstanceRevision;
+        var snapshot = await learner.LoadSnapshotAsync();
+        int writesBefore = learner.MutationCount;
+
+        clock.AdvanceMs(950);
+        session.PauseItemTiming();
+        var elapsed = session.GetCurrentActiveElapsedMs();
+
+        var directory = CreateTempDirectory();
+        using var store = new SqliteGameplayStore(Path.Combine(directory, "synthetic-gameplay-all-four.db"));
+        await store.InitializeAsync();
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = 80, earned_sp = 79, spent_sp = 0, available_sp = 79 WHERE id = 1;";
+            command.Parameters.AddWithValue("@xp", CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
+            await command.ExecuteNonQueryAsync();
+        }
+
+        using var vm = new UpgradeTerminalViewModel(store);
+        await vm.InitializeAsync();
+
+        // Initial Rank 0 projections for Critical Strike (Lvl 12, 6 SP) and Overdrive (Lvl 20, 5 SP)
+        Assert.Equal(0, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(1, vm.NextCriticalStrikeRank);
+        Assert.Equal(12, vm.NextCriticalStrikeRequiredLevel);
+        Assert.Equal(6, vm.NextCriticalStrikeCost);
+        Assert.True(vm.CanPurchaseCriticalStrike);
+
+        Assert.Equal(0, vm.CurrentOverdriveRank);
+        Assert.Equal(1, vm.NextOverdriveRank);
+        Assert.Equal(20, vm.NextOverdriveRequiredLevel);
+        Assert.Equal(5, vm.NextOverdriveCost);
+        Assert.True(vm.CanPurchaseOverdrive);
+
+        // Purchase Rank 1 Critical Strike (6 SP) and Rank 1 Overdrive (5 SP)
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseCriticalStrikeUpgradeAsync()).Status);
+        Assert.Equal(1, vm.CurrentCriticalStrikeRank);
+        Assert.Equal(2, vm.NextCriticalStrikeRank);
+        Assert.Equal(50, vm.NextCriticalStrikeRequiredLevel);
+        Assert.Equal(12, vm.NextCriticalStrikeCost);
+
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseOverdriveUpgradeAsync()).Status);
+        Assert.Equal(1, vm.CurrentOverdriveRank);
+        Assert.Equal(2, vm.NextOverdriveRank);
+        Assert.Equal(80, vm.NextOverdriveRequiredLevel);
+        Assert.Equal(10, vm.NextOverdriveCost);
+
+        // Purchase Rank 2 Critical Strike (12 SP) and Rank 2 Overdrive (10 SP) -> Max Rank
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseCriticalStrikeUpgradeAsync()).Status);
+        Assert.Equal(2, vm.CurrentCriticalStrikeRank);
+        Assert.True(vm.IsCriticalStrikeMaxRank);
+        Assert.False(vm.CanPurchaseCriticalStrike);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, (await vm.PurchaseCriticalStrikeUpgradeAsync()).Status);
+
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseOverdriveUpgradeAsync()).Status);
+        Assert.Equal(2, vm.CurrentOverdriveRank);
+        Assert.True(vm.IsOverdriveMaxRank);
+        Assert.False(vm.CanPurchaseOverdrive);
+        Assert.Equal(UpgradePurchaseStatus.MaxRankReached, (await vm.PurchaseOverdriveUpgradeAsync()).Status);
+
+        // Attack (1 SP) and Firewall (3 SP) still work alongside modifier upgrades
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseUpgradeAsync()).Status);
+        Assert.Equal(UpgradePurchaseStatus.Success, (await vm.PurchaseFirewallUpgradeAsync()).Status);
+        Assert.Equal(1, vm.CurrentAttackRank);
+        Assert.Equal(1, vm.CurrentFirewallRank);
+        Assert.Equal(79 - (6 + 5 + 12 + 10 + 1 + 3), vm.AvailableSkillPoints);
+
+        // Localized feedback keys exist in en/de/ru
+        var localizer = new LocalizationService();
+        foreach (var lang in new[] { "en", "de", "ru" })
+        {
+            localizer.ApplyLanguagePreference(lang);
+            Assert.NotEqual("UpgradeTerminal_Feedback_CriticalStrikeSuccess", localizer["UpgradeTerminal_Feedback_CriticalStrikeSuccess"]);
+            Assert.NotEqual("UpgradeTerminal_Feedback_OverdriveSuccess", localizer["UpgradeTerminal_Feedback_OverdriveSuccess"]);
+        }
+
+        // Verify complete learning isolation
+        clock.AdvanceMs(8000);
+        Assert.Same(snapshot, await learner.LoadSnapshotAsync());
+        Assert.Equal(writesBefore, learner.MutationCount);
+        Assert.Same(fact, session.CurrentFact);
+        Assert.Equal(revision, session.FactInstanceRevision);
+        Assert.Equal("19", session.CurrentAnswerInput);
+        Assert.Equal(elapsed, session.GetCurrentActiveElapsedMs());
+        Assert.False(session.IsTimingActive);
+        session.ResumeItemTiming();
+        Assert.True(session.IsTimingActive);
+    }
+
+    [Theory]
+    [InlineData("PurchaseCriticalStrikeUpgradeAsync")]
+    [InlineData("PurchaseOverdriveUpgradeAsync")]
+    public async Task ModifierContract_TestStoreRejectsUnsupportedPurchases(string operation)
+    {
+        using IGameplayStore store = new TestGameplayStore();
+        var method = typeof(IGameplayStore).GetMethod(operation);
+        Assert.NotNull(method);
+        var purchase = method.CreateDelegate<Func<int, long, CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>>(store);
+        await Assert.ThrowsAsync<NotSupportedException>(() => purchase(0, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ModifierContract_TestStoreSnapshotIsDeterministicAndHonorsCancellation()
+    {
+        using IGameplayStore store = new TestGameplayStore();
+        var method = typeof(IGameplayStore).GetMethod("GetCombatModifierSnapshotAsync");
+        Assert.NotNull(method);
+        var read = method.CreateDelegate<Func<CancellationToken, Task<CyberDefenseCombatModifierSnapshot>>>(store);
+        var expected = new CyberDefenseCombatModifierSnapshot(0, 0, CyberDefenseCombatModifierState.Initial, 1, 0,
+            new GameplayResetIntentRecord(false, 0, 0, null, DateTimeOffset.UnixEpoch));
+        Assert.Equal(expected, await read(CancellationToken.None));
+        Assert.Equal(expected, await read(CancellationToken.None));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => read(cancellation.Token));
+    }
+
     private string CreateTempDirectory()
     {
         var dir = Path.Combine(Path.GetTempPath(), "MathFirst_Tests_UpgradeHomeIntegration_" + Guid.NewGuid().ToString("N"));
@@ -62,6 +232,7 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         public string StoragePath => "inmemory://learner";
 
         private LearnerSnapshot _snapshot;
+        public int MutationCount { get; private set; }
 
         public InMemoryLearnerStore(LearnerSnapshot? initialSnapshot = null)
         {
@@ -87,14 +258,20 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
 
         public Task<PersistenceResult> CommitSubmissionAsync(
             SubmissionChangeSet changeSet,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(PersistenceResult.Success(_snapshot.Revision + 1));
+            CancellationToken cancellationToken = default)
+        {
+            MutationCount++;
+            return Task.FromResult(PersistenceResult.Success(_snapshot.Revision + 1));
+        }
 
         public Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(_snapshot);
 
-        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default)
+        {
+            MutationCount++;
+            return Task.CompletedTask;
+        }
 
         public Task CloseAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
@@ -909,6 +1086,19 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
             Task.FromResult(CyberDefenseFirewallUpgradeSnapshot.FromProgression(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow)));
 
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+        public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged { add { } remove { } }
+
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new CyberDefenseCombatModifierSnapshot(0, 0, CyberDefenseCombatModifierState.Initial, 1, 0,
+                new GameplayResetIntentRecord(false, 0, 0, null, DateTimeOffset.UnixEpoch)));
+        }
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Combat modifier purchases are unsupported by this test store.");
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Combat modifier purchases are unsupported by this test store.");
 
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
             Task.FromResult(CyberDefenseProgressionRecord.Initial(DateTimeOffset.UtcNow));

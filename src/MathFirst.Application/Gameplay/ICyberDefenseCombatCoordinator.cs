@@ -28,6 +28,32 @@ public interface ICyberDefenseCombatCoordinator
         bool isEligibleAtSubmission,
         int effectiveAttackDamage,
         CancellationToken cancellationToken = default);
+    Task StageIntentAsync(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long latencyMs,
+        bool isEligibleAtSubmission,
+        int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank,
+        CancellationToken cancellationToken = default);
+    Task StageIntentAsync(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        long latencyMs,
+        bool isEligibleAtSubmission,
+        int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank,
+        long? practicePosition,
+        CancellationToken cancellationToken = default);
+    Task<CyberDefenseQuestionBoundModifierRanks> GetOrBindCombatModifierRanksAsync(
+        long questionKey,
+        CancellationToken cancellationToken = default);
+    CyberDefenseQuestionBoundModifierRanks GetBoundCombatModifierRanksOrDefault(
+        long questionKey);
     Task<int> GetOrBindEffectiveAttackDamageAsync(
         long questionKey,
         CancellationToken cancellationToken = default);

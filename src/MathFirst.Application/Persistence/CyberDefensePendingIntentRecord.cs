@@ -1,6 +1,7 @@
 namespace MathFirst.Application.Persistence;
 
 using System;
+using MathFirst.Domain.CyberDefense;
 
 /// <summary>
 /// Immutable representation of a staged pending combat intent in the Gameplay store.
@@ -16,6 +17,9 @@ public sealed record CyberDefensePendingIntentRecord
     public long ResetEpoch { get; }
     public DateTimeOffset CreatedAt { get; }
     public int EffectiveAttackDamage { get; }
+    public int BoundCriticalStrikeRank { get; }
+    public int BoundOverdriveRank { get; }
+    public long? PracticePosition { get; }
 
     public CyberDefensePendingIntentRecord(
         string submissionId,
@@ -25,7 +29,18 @@ public sealed record CyberDefensePendingIntentRecord
         long responseLatencyMs,
         long resetEpoch,
         DateTimeOffset createdAt)
-        : this(submissionId, factId, isCorrect, isEligible, responseLatencyMs, resetEpoch, createdAt, effectiveAttackDamage: 1)
+        : this(
+            submissionId,
+            factId,
+            isCorrect,
+            isEligible,
+            responseLatencyMs,
+            resetEpoch,
+            createdAt,
+            effectiveAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: null)
     {
     }
 
@@ -38,6 +53,59 @@ public sealed record CyberDefensePendingIntentRecord
         long resetEpoch,
         DateTimeOffset createdAt,
         int effectiveAttackDamage)
+        : this(
+            submissionId,
+            factId,
+            isCorrect,
+            isEligible,
+            responseLatencyMs,
+            resetEpoch,
+            createdAt,
+            effectiveAttackDamage,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: null)
+    {
+    }
+
+    public CyberDefensePendingIntentRecord(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        bool isEligible,
+        long responseLatencyMs,
+        long resetEpoch,
+        DateTimeOffset createdAt,
+        int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank)
+        : this(
+            submissionId,
+            factId,
+            isCorrect,
+            isEligible,
+            responseLatencyMs,
+            resetEpoch,
+            createdAt,
+            effectiveAttackDamage,
+            boundCriticalStrikeRank,
+            boundOverdriveRank,
+            practicePosition: null)
+    {
+    }
+
+    public CyberDefensePendingIntentRecord(
+        string submissionId,
+        string factId,
+        bool isCorrect,
+        bool isEligible,
+        long responseLatencyMs,
+        long resetEpoch,
+        DateTimeOffset createdAt,
+        int effectiveAttackDamage,
+        int boundCriticalStrikeRank,
+        int boundOverdriveRank,
+        long? practicePosition)
     {
         if (string.IsNullOrWhiteSpace(submissionId))
         {
@@ -60,6 +128,19 @@ public sealed record CyberDefensePendingIntentRecord
                 "Effective attack damage must be at least 1.");
         }
 
+        ArgumentOutOfRangeException.ThrowIfNegative(boundCriticalStrikeRank);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(boundCriticalStrikeRank, CyberDefenseCriticalStrikePolicy.MaxRank);
+        ArgumentOutOfRangeException.ThrowIfNegative(boundOverdriveRank);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(boundOverdriveRank, CyberDefenseOverdrivePolicy.MaxRank);
+
+        if (practicePosition.HasValue && practicePosition.Value < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(practicePosition),
+                practicePosition,
+                "Practice position must be at least 1 when specified.");
+        }
+
         SubmissionId = submissionId;
         FactId = factId;
         IsCorrect = isCorrect;
@@ -68,5 +149,32 @@ public sealed record CyberDefensePendingIntentRecord
         ResetEpoch = resetEpoch;
         CreatedAt = createdAt;
         EffectiveAttackDamage = effectiveAttackDamage;
+        BoundCriticalStrikeRank = boundCriticalStrikeRank;
+        BoundOverdriveRank = boundOverdriveRank;
+        PracticePosition = practicePosition;
+    }
+
+    public CyberDefensePendingIntentRecord WithPracticePosition(long practicePosition)
+    {
+        if (practicePosition < 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(practicePosition),
+                practicePosition,
+                "Practice position must be at least 1.");
+        }
+
+        return new CyberDefensePendingIntentRecord(
+            SubmissionId,
+            FactId,
+            IsCorrect,
+            IsEligible,
+            ResponseLatencyMs,
+            ResetEpoch,
+            CreatedAt,
+            EffectiveAttackDamage,
+            BoundCriticalStrikeRank,
+            BoundOverdriveRank,
+            practicePosition);
     }
 }

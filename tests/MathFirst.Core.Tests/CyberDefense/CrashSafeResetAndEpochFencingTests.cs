@@ -528,6 +528,16 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
         public Task<CyberDefenseProgressionRecord> PurchaseAttackUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefenseFirewallUpgradeSnapshot> GetFirewallUpgradeSnapshotAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public event Action<CyberDefenseFirewallUpgradeSnapshot>? FirewallUpgradeSnapshotChanged { add { } remove { } }
+        public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged { add { } remove { } }
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Modifier snapshots are unsupported by this startup-failure test store.");
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Combat modifier purchases are unsupported by this test store.");
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Combat modifier purchases are unsupported by this test store.");
+
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -567,6 +577,16 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
             add => inner.FirewallUpgradeSnapshotChanged += value;
             remove => inner.FirewallUpgradeSnapshotChanged -= value;
         }
+    public event Action<CyberDefenseCombatModifierSnapshot>? CombatModifierSnapshotChanged
+    {
+        add => inner.CombatModifierSnapshotChanged += value;
+        remove => inner.CombatModifierSnapshotChanged -= value;
+    }
+        public Task<CyberDefenseCombatModifierSnapshot> GetCombatModifierSnapshotAsync(CancellationToken cancellationToken = default) =>
+            inner.GetCombatModifierSnapshotAsync(cancellationToken);
+
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseCriticalStrikeUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.PurchaseCriticalStrikeUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
+        public Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.PurchaseOverdriveUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseProgressionRecord> PurchaseFirewallUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.PurchaseFirewallUpgradeAsync(expectedRank, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default) => inner.ActivatePendingFirewallCapacityAsync(questionBoundTargetCapacity, expectedResetEpoch, cancellationToken);
         public Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default) => inner.GetReceiptAsync(submissionId, cancellationToken);
@@ -746,5 +766,46 @@ public sealed class CrashSafeResetAndEpochFencingTests : IDisposable
             updatedProgression: progression,
             updatedFsrsState: null,
             operationProgressions: opProgressions);
+    }
+
+    [Fact]
+    public async Task ResetGameplayState_WipesModifierCombatReceiptsAndCounters_AndFencesStaleModifierIntents()
+    {
+        var dir = CreateTempDirectory();
+        using var store = CreateGameplayStore(dir);
+        await store.InitializeAsync();
+
+        using (var conn = new SqliteConnection($"Data Source={store.StoragePath};Pooling=False"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE gameplay_progression SET critical_strike_rank = 2, overdrive_rank = 2, attack_rank = 1 WHERE id = 1;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var epoch0Applied = new CyberDefensePendingIntentRecord("sub-mod-e0-1", "add:1+1", true, true, 400, 0, DateTimeOffset.UtcNow, 2, 2, 2);
+        await store.StagePendingIntentAsync(epoch0Applied);
+        var r0 = await store.ApplyAttemptTransactionAsync(epoch0Applied);
+        Assert.Equal(2, r0.BoundCriticalStrikeRank);
+        Assert.Equal(2, r0.BoundOverdriveRank);
+
+        var epoch0Staged = new CyberDefensePendingIntentRecord("sub-mod-e0-2", "add:2+2", true, true, 400, 0, DateTimeOffset.UtcNow.AddSeconds(1), 2, 2, 2);
+        await store.StagePendingIntentAsync(epoch0Staged);
+
+        var resetIntent = await store.BeginOrGetResetIntentAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(epoch0Staged));
+
+        await store.ResetGameplayStateAsync(resetIntent.TargetEpoch);
+        await store.ClearResetIntentAsync(resetIntent.TargetEpoch);
+
+        Assert.Null(await store.GetReceiptAsync("sub-mod-e0-1"));
+        Assert.Null(await store.GetPendingIntentAsync("sub-mod-e0-2"));
+
+        var modAfterReset = await store.GetCombatModifierSnapshotAsync();
+        Assert.Equal(0, modAfterReset.CriticalStrikeRank);
+        Assert.Equal(0, modAfterReset.OverdriveRank);
+        Assert.Equal(CyberDefenseCombatModifierState.Initial, modAfterReset.ModifierState);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyAttemptTransactionAsync(epoch0Staged));
     }
 }

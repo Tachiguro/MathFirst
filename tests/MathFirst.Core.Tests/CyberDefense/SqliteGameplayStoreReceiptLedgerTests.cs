@@ -927,4 +927,56 @@ public sealed class SqliteGameplayStoreReceiptLedgerTests : IDisposable
             new CyberDefenseReceiptRecord(
                 "sub-inv-07", (CyberDefenseReceiptKind)999, "1+1", true, true, 100, 0, DateTimeOffset.UtcNow, transition));
     }
+
+    [Fact]
+    public async Task Receipt_Roundtrip_V7ModifierMetadata_PreservesAllFieldsAndValidatesInvariants()
+    {
+        var dbPath = GetTempDbPath();
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        var initialRun = CyberDefenseRunState.InitialRun();
+        var transition = CyberDefenseStateMachine.ApplyAttempt(initialRun, isCorrect: true, effectiveAttackDamage: 8);
+        var processedAt = DateTimeOffset.UtcNow;
+
+        var v7Receipt = CyberDefenseReceiptRecord.CreateApplied(
+            submissionId: "sub-v7-mod-roundtrip",
+            factId: "6+7",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 320,
+            resetEpoch: 0,
+            processedAt: processedAt,
+            transitionResult: transition,
+            awardedXp: 6,
+            playerLevelAfter: 1,
+            cumulativeXpAfter: 6,
+            baseAttackDamage: 3,
+            boundCriticalStrikeRank: 2,
+            boundOverdriveRank: 1,
+            criticalBonusPercent: 100,
+            overdriveBonusPercent: 50);
+
+        await store.RecordReceiptDirectAsync(v7Receipt);
+
+        var retrieved = await store.GetReceiptAsync("sub-v7-mod-roundtrip");
+        Assert.NotNull(retrieved);
+        Assert.Equal(v7Receipt, retrieved);
+        Assert.Equal(3, retrieved.BaseAttackDamage);
+        Assert.Equal(2, retrieved.BoundCriticalStrikeRank);
+        Assert.Equal(1, retrieved.BoundOverdriveRank);
+        Assert.Equal(100, retrieved.CriticalBonusPercent);
+        Assert.Equal(50, retrieved.OverdriveBonusPercent);
+
+        // Partial modifier metadata or mismatched composed damage is rejected by constructor.
+        Assert.Throws<ArgumentException>(() =>
+            CyberDefenseReceiptRecord.CreateApplied(
+                "sub-v7-partial", "1+1", true, true, 100, 0, processedAt, transition,
+                baseAttackDamage: 3));
+        Assert.Throws<ArgumentException>(() =>
+            CyberDefenseReceiptRecord.CreateApplied(
+                "sub-v7-mismatch", "1+1", true, true, 100, 0, processedAt, transition,
+                baseAttackDamage: 3, boundCriticalStrikeRank: 2, boundOverdriveRank: 1,
+                criticalBonusPercent: 0, overdriveBonusPercent: 0));
+    }
 }
