@@ -1561,6 +1561,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .wave-boss-active .boss-wave-text,
     .radar-sweep,
     .radar-blip,
     .scene-opponent-image,

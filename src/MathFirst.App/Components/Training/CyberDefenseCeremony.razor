@@ -1,0 +1,57 @@
+@using MathFirst.Application
+@using MathFirst.Application.Gameplay
+@using Microsoft.AspNetCore.Components.Web
+@inject ILocalizationService Localizer
+
+@if (Stage != CyberDefensePresentationStage.None)
+{
+    <section class="combat-ceremony-overlay" role="status" aria-live="assertive" aria-atomic="true" lang="@Localizer.CurrentUiLanguage">
+        <div class="combat-ceremony-card @(Stage == CyberDefensePresentationStage.Victory ? "ceremony-victory" : "")">
+            <h2 @ref="_heading" tabindex="-1">@Title</h2>
+            @if (Stage == CyberDefensePresentationStage.Recap)
+            {
+                @if (Recap is not null)
+                {
+                    <ul class="recap-metrics">
+                        <li>@Localizer["CyberDefense_RecapAccuracy", Recap.AccuracyPercentage]</li>
+                        <li>@Localizer["CyberDefense_RecapActiveAnswering", Recap.ActiveAnsweringTimeMs / 1000m]</li>
+                        <li>@Localizer["CyberDefense_RecapXp", Recap.XpGained]</li>
+                        <li>@Localizer["CyberDefense_RecapLevels", Recap.LevelUps]</li>
+                    </ul>
+                }
+                else
+                {
+                    <p>@Localizer["CyberDefense_RecapUnavailable"]</p>
+                }
+            }
+            else if (Stage == CyberDefensePresentationStage.SystemOverload)
+            {
+                <p>@Localizer["CyberDefense_ProgressRetained"]</p>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter] public CyberDefensePresentationStage Stage { get; set; }
+    [Parameter] public CyberDefenseSectorRecap? Recap { get; set; }
+    [Parameter] public int CompletedSector { get; set; }
+    private ElementReference _heading;
+    private CyberDefensePresentationStage _focusedStage;
+    private string Title => Stage switch
+    {
+        CyberDefensePresentationStage.Victory => Localizer["CyberDefense_Victory"],
+        CyberDefensePresentationStage.Recap => Localizer["CyberDefense_RecapTitle", CompletedSector],
+        _ => Localizer["CyberDefense_SystemOverload"]
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Stage == CyberDefensePresentationStage.None || Stage == _focusedStage) return;
+        _focusedStage = Stage;
+        try { await _heading.FocusAsync(preventScroll: true); }
+        catch (InvalidOperationException) { }
+        catch (Microsoft.JSInterop.JSException) { }
+        catch (OperationCanceledException) { }
+    }
+}

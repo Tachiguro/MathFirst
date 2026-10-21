@@ -40,6 +40,12 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
     private long _lowestRetainedQuestionKey = -1;
     private CyberDefenseHudViewModel _currentViewModel = CyberDefenseHudViewModel.Initial();
     private long _feedbackRevision;
+    private CyberDefenseReceiptRecord? _recoveredPresentationReceipt;
+
+    public CyberDefenseReceiptRecord? RecoveredPresentationReceipt
+    {
+        get { lock (_stateLock) return _recoveredPresentationReceipt; }
+    }
 
     public CyberDefenseCombatCoordinator(
         IGameplayStore? gameplayStore = null,
@@ -304,6 +310,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
                 }
 
                 _currentViewModel = CyberDefenseHudViewModel.FromRunState(runState, latestReceipt, _feedbackRevision);
+                _recoveredPresentationReceipt = latestReceipt;
                 TryApplyAuthoritativeSnapshot(snapshot);
                 TryApplyAuthoritativeFirewallSnapshot(firewallSnapshot);
                 if (modifierSnapshot != null && !_disposed)
@@ -319,6 +326,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             lock (_stateLock)
             {
                 _currentViewModel = CyberDefenseHudViewModel.Initial();
+                _recoveredPresentationReceipt = null;
             }
         }
         finally
@@ -1176,6 +1184,7 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         lock (_stateLock)
         {
             _activeGeneration++;
+            _recoveredPresentationReceipt = null;
             _feedbackRevision = 0;
             _currentViewModel = CyberDefenseHudViewModel.Initial();
             _boundQuestionDamage.Clear();

@@ -17,6 +17,7 @@
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
 @inject ICyberDefenseCombatCoordinator CombatCoordinator
+@inject CyberDefensePresentationSequence Ceremony
 @inject IGameplayStore GameplayStore
 @inject IJSRuntime JSRuntime
 @inject IHapticFeedbackService HapticService
@@ -24,8 +25,8 @@
 <div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container">
         <header class="mathfirst-header"
-                inert="@(_isUpgradeTerminalOpen ? true : null)"
-                aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
+                inert="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? true : null)"
+                aria-hidden="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? "true" : null)">
             <div class="mathfirst-title-group">
                 <div class="brand-shield-emblem" aria-hidden="true">
                     <svg viewBox="0 0 24 28" width="22" height="26" fill="none">
@@ -114,7 +115,8 @@
         }
         else
         {
-            <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")">
+            <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")"
+                  inert="@(Ceremony.IsBlocking ? true : null)" aria-hidden="@(Ceremony.IsBlocking ? "true" : null)">
                 @if (Session.PracticeGate != PracticeGateState.Running)
                 {
                     <section class="practice-overlay practice-gate-overlay"
@@ -452,6 +454,10 @@
                     <UpgradeTerminal ViewModel="_upgradeTerminalViewModel" OnClose="CloseUpgradeTerminal" />
                 }
             </main>
+            @if (IsCyberDefenseActive && Ceremony.IsBlocking)
+            {
+                <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector" />
+            }
         }
     </div>
 </div>
@@ -461,6 +467,7 @@
     private bool _isUpgradeTerminalOpen;
     private bool _wasTimingSuspendedByTerminal;
     private bool _isDisposed;
+    private readonly CancellationTokenSource _presentationLifetime = new();
     private readonly object _terminalRefreshLock = new();
     private Task? _terminalRefreshTask;
     private bool _hasQueuedTerminalRefresh;
@@ -550,6 +557,7 @@
     {
         Localizer.UiLanguageChanged += OnLanguageChanged;
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
+        Ceremony.Changed += OnCeremonyChanged;
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
         RefreshEnabledOperations();
 
@@ -574,6 +582,11 @@
                 await Session.InitializeAsync(startTiming: false);
                 Session.ShowInitialReadyGate();
                 Session.SetPracticeSurfaceActive(true);
+                var generation = Session.LearnerStateGenerationRevision;
+                await ShowCommittedCeremonyAsync(CombatCoordinator.RecoveredPresentationReceipt,
+                    () => !_isDisposed && Session.LearnerStateGenerationRevision == generation);
+                if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
+                Session.SetPracticeSurfaceActive(true);
                 SyncStateWithSession();
             }
             catch
@@ -588,6 +601,21 @@
         }
         else
         {
+            var generation = Session.LearnerStateGenerationRevision;
+            if (Session.InteractionState == SessionInteractionState.CorrectFeedback && Session.IsCurrentSubmissionCommitted &&
+                Session.LastEvaluation?.ChangeSet is { } committed)
+            {
+                _isSubmitting = true;
+                try
+                {
+                    CyberDefenseReceiptRecord? receipt = null;
+                    try { receipt = await GameplayStore.GetReceiptAsync(committed.SubmissionId, _presentationLifetime.Token); }
+                    catch { /* Gameplay history availability must not block committed mathematics. */ }
+                    await CompleteCommittedOutcomeAsync(receipt);
+                }
+                finally { _isSubmitting = false; }
+            }
+            if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
             Session.SetPracticeSurfaceActive(true);
             SyncStateWithSession();
         }
@@ -753,6 +781,10 @@
     public void Dispose()
     {
         _isDisposed = true;
+        Ceremony.Changed -= OnCeremonyChanged;
+        _presentationLifetime.Cancel();
+        Ceremony.Cancel();
+        _presentationLifetime.Dispose();
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         Session.AppForegroundStateChanged -= OnAppForegroundChanged;
         lock (_terminalRefreshLock)
@@ -790,6 +822,7 @@
 
     private void OnAppForegroundChanged(object? sender, EventArgs e)
     {
+        if (!Session.IsAppForeground) Ceremony.Cancel();
         _ = InvokeAsync(() =>
         {
             if (Session.IsAppForeground)
@@ -806,7 +839,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_isUpgradeTerminalOpen)
+        if (_isUpgradeTerminalOpen || Ceremony.IsBlocking)
         {
             return;
         }
@@ -870,6 +903,7 @@
 
     private async Task HandleGlobalKeyDown(KeyboardEventArgs e)
     {
+        if (_isSubmitting || Ceremony.IsBlocking) return;
         if (e.Key is not "Enter" and not "NumpadEnter")
         {
             return;
@@ -1019,15 +1053,16 @@
 
                 var persistence = await Session.CommitCurrentEvaluationAsync();
 
+                CyberDefenseReceiptRecord? receipt = null;
                 if (Session.IsCurrentSubmissionCommitted)
                 {
-                    await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
+                    receipt = (await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId))?.Receipt;
                     ScheduleUpgradeTerminalRefresh();
                 }
 
-                var advancedAutomatically = eval.IsCorrect &&
-                    persistence.IsSuccess &&
-                    await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
+                var advancedAutomatically = persistence.IsSuccess && await CompleteCommittedOutcomeAsync(receipt);
+
+                if (_isDisposed || Session.LastEvaluation?.ChangeSet.SubmissionId != submissionId) return;
 
                 if (advancedAutomatically)
                 {
@@ -1057,7 +1092,7 @@
 
     private async Task AdvanceAsync()
     {
-        if (!IsAwaitingAcknowledgement)
+        if (_isSubmitting || Ceremony.IsBlocking || !IsAwaitingAcknowledgement)
         {
             return;
         }
@@ -1100,17 +1135,16 @@
             var recovered = await Session.RecoverFromPersistenceFailureAsync();
             if (recovered)
             {
+                CyberDefenseReceiptRecord? receipt = null;
                 if (Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null)
                 {
                     var submissionId = Session.LastEvaluation.ChangeSet.SubmissionId;
-                    await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId);
+                    receipt = (await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId))?.Receipt;
                     ScheduleUpgradeTerminalRefresh();
                 }
 
-                if (Session.InteractionState == SessionInteractionState.CorrectFeedback)
-                {
-                    await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
-                }
+                await CompleteCommittedOutcomeAsync(receipt);
+                if (_isDisposed) return;
 
                 if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
                 {
@@ -1130,8 +1164,62 @@
         finally
         {
             _isSubmitting = false;
-            await InvokeAsync(StateHasChanged);
+            if (!_isDisposed) await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void OnCeremonyChanged()
+    {
+        if (!_isDisposed) _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task<bool> CompleteCommittedOutcomeAsync(CyberDefenseReceiptRecord? receipt)
+    {
+        var generation = Session.LearnerStateGenerationRevision;
+        var submissionId = Session.LastEvaluation?.ChangeSet.SubmissionId;
+        bool IsSameSubmission() => !_isDisposed && Session.LearnerStateGenerationRevision == generation &&
+            Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet.SubmissionId == submissionId;
+        if (!IsSameSubmission()) return false;
+        var epochCurrent = await ShowCommittedCeremonyAsync(receipt, IsSameSubmission);
+        if (!epochCurrent || !IsSameSubmission()) return false;
+        Session.SetPracticeSurfaceActive(true);
+        return Session.InteractionState == SessionInteractionState.CorrectFeedback &&
+            await Session.AdvanceAfterCorrectAnswerAsync(startTiming: Session.IsAppForeground);
+    }
+
+    private async Task<bool> ShowCommittedCeremonyAsync(CyberDefenseReceiptRecord? receipt, Func<bool> isCurrent)
+    {
+        if (receipt?.TransitionResult is not { } transition || !IsCyberDefenseActive ||
+            (!transition.IsSectorCompleted && !transition.IsGameOver)) return true;
+        Session.PauseItemTiming();
+        _shouldFocusInput = _shouldFocusPrimaryOverlay = false;
+        var epochCurrent = true;
+        try
+        {
+            var ct = _presentationLifetime.Token;
+            CyberDefenseSectorRecap? recap = null;
+            if (transition.IsSectorCompleted)
+            {
+                try { recap = await GameplayStore.GetCompletedSectorRecapAsync(receipt.SubmissionId, receipt.ResetEpoch, ct); }
+                catch (OperationCanceledException) { throw; }
+                catch { /* Invalid or unreadable history shows an unavailable recap, never fabricated totals. */ }
+            }
+            await Ceremony.RunAsync(receipt, recap, async token =>
+            {
+                if (!isCurrent() || !IsCyberDefenseActive || !Session.IsAppForeground) return false;
+                var progression = await GameplayStore.GetProgressionAsync(token);
+                epochCurrent = progression.ResetEpoch == receipt.ResetEpoch &&
+                    !(await GameplayStore.GetResetIntentAsync(token)).IsPending;
+                return epochCurrent && receipt.CumulativeXpAfter == progression.CumulativeXp && isCurrent();
+            }, ct);
+        }
+        catch (OperationCanceledException) when (_isDisposed) { return false; }
+        catch
+        {
+            // Presentation/history failure cannot invalidate an already committed mathematics answer.
+            Ceremony.Cancel();
+        }
+        return epochCurrent;
     }
 
     private void PrepareNextFactUi()

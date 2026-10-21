@@ -5,6 +5,13 @@ using System.Text.RegularExpressions;
 // CSS/markup contracts only: these do not measure a browser viewport or touch targets.
 public sealed class CyberDefenseHudResponsiveStyleTests
 {
+    [Fact]
+    public void ReducedMotion_StopsTheInheritedInfiniteBossTextAnimation()
+    {
+        var reduced = Media(HudCss, "@media (prefers-reduced-motion: reduce)");
+        Assert.Matches(@"\.wave-boss-active \.boss-wave-text[^{}]*\{[^{}]*animation:\s*none !important;", reduced);
+    }
+
     private static string ReadSource(params string[] parts) => File.ReadAllText(Path.Combine(
         Path.GetDirectoryName(SourcePath())!, "..", "..", "..", "src", "MathFirst.App", Path.Combine(parts)));
 
