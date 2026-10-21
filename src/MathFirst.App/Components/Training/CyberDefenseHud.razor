@@ -82,6 +82,7 @@
                          aria-label='@Localizer["CyberDefense_EnemyHpLabel"]'
                          aria-valuenow="@EffectiveModel.OpponentCurrentHp"
                          aria-valuemin="0"
+                         aria-valuetext='@Localizer["CyberDefense_HpDisplay", EffectiveModel.OpponentCurrentHp, EffectiveModel.OpponentMaxHp]'
                          aria-valuemax="@EffectiveModel.OpponentMaxHp">
                         <div class="meter-fill hp-fill @(EffectiveModel.IsBoss ? "boss-hp-fill" : "")" style="width: @(EffectiveModel.OpponentHpPercentage)%"></div>
                     </div>
@@ -168,7 +169,7 @@
                      aria-valuemax="@EffectiveModel.PlayerMaxHp">
                     <div class="meter-fill player-hp-fill" style="width: @(EffectiveModel.PlayerHpPercentage)%"></div>
                 </div>
-                <span class="player-hp-value">@EffectiveModel.PlayerCurrentHp / @EffectiveModel.PlayerMaxHp HP</span>
+                <span class="player-hp-value">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
             </div>
         </div>
 

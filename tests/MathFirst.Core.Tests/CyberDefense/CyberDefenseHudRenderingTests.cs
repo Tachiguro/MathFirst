@@ -15,6 +15,73 @@ using Microsoft.Extensions.Logging;
 public sealed class CyberDefenseHudRenderingTests
 {
     [Theory]
+    [InlineData("en", "HP: 73 / 100")]
+    [InlineData("de", "KP: 73 / 100")]
+    [InlineData("ru", "ОЗ: 73 / 100")]
+    public async Task Hud_VisiblePlayerHpUsesLocalizedAuthoritativeValues(string language, string expected)
+    {
+        await using var hud = await RenderedHud.CreateAsync(language);
+        await hud.ShowAsync(CyberDefenseRunState.CreateActive(1, 0, 73,
+            new OpponentState(OpponentKind.Normal, 2, 1), 3, 2, 0));
+
+        var html = await hud.HtmlAsync();
+        Assert.Contains($"<span class=\"player-hp-value\">{expected}</span>", html);
+        Assert.Matches("class=\"meter-bar player-hp-bar\"[^>]*aria-valuenow=\"73\"[^>]*aria-valuemax=\"100\"", html);
+        Assert.Contains("style=\"width: 73%\"", html);
+    }
+
+    [Theory]
+    [InlineData("en", OpponentKind.Normal, "HP: 1 / 2")]
+    [InlineData("de", OpponentKind.Normal, "KP: 1 / 2")]
+    [InlineData("ru", OpponentKind.Normal, "ОЗ: 1 / 2")]
+    [InlineData("en", OpponentKind.Boss, "HP: 1 / 12")]
+    [InlineData("de", OpponentKind.Boss, "KP: 1 / 12")]
+    [InlineData("ru", OpponentKind.Boss, "ОЗ: 1 / 12")]
+    public async Task Hud_EnemyProgressbarExposesLocalizedCurrentAndMaximumHp(
+        string language, OpponentKind kind, string expected)
+    {
+        await using var hud = await RenderedHud.CreateAsync(language);
+        await hud.ShowAsync(CyberDefenseRunState.CreateActive(1, kind == OpponentKind.Boss ? 5 : 0, 100,
+            new OpponentState(kind, kind == OpponentKind.Boss ? 12 : 2, 1), 2, 1, 0));
+
+        var html = await hud.HtmlAsync();
+        var meter = Regex.Match(html, "<div class=\"meter-bar enemy-hp-bar[^>]*>").Value;
+        Assert.Contains($"aria-valuetext=\"{expected}\"", meter);
+        Assert.Contains("aria-valuenow=\"1\"", meter);
+        Assert.Contains("aria-valuemin=\"0\"", meter);
+        Assert.Contains(kind == OpponentKind.Boss ? "aria-valuemax=\"12\"" : "aria-valuemax=\"2\"", meter);
+        Assert.Contains("role=\"progressbar\"", meter);
+        Assert.Equal(kind == OpponentKind.Boss, html.Contains("sector-boss-badge"));
+        Assert.Contains("scene-sector-tag", html);
+        Assert.Contains("scene-wave-tag", html);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("ru")]
+    public async Task Hud_UpgradeAvailabilityAndRadarTrackParametersWithoutRemovingCombatStatus(string language)
+    {
+        await using var hud = await RenderedHud.CreateAsync(language);
+        await hud.ShowControlsAsync(0, 3000);
+        var html = await hud.HtmlAsync();
+        Assert.DoesNotContain("upgrade-indicator-badge", html);
+        Assert.DoesNotContain("class=\"radar-timing-arc\"", html);
+        Assert.Contains("tactical-radar-widget", html);
+
+        await hud.ShowControlsAsync(7, 0);
+        html = await hud.HtmlAsync();
+        var localizer = new LocalizationService();
+        localizer.ApplyLanguagePreference(language);
+        Assert.Contains($"aria-label=\"{localizer["UpgradeTerminal_IndicatorAriaLabel", 7]}\"", html);
+        Assert.Contains($"<span class=\"upgrade-indicator-text\">{localizer["UpgradeTerminal_IndicatorAction"]}</span>", html);
+        Assert.Contains("class=\"radar-timing-arc\"", html);
+        Assert.Contains("scene-sector-tag", html);
+        Assert.Contains("player-hp-bar", html);
+        Assert.Contains("enemy-hp-bar", html);
+    }
+
+    [Theory]
     [InlineData(0, 0)]
     [InlineData(1, 0)]
     [InlineData(1, 1)]
@@ -198,6 +265,8 @@ public sealed class CyberDefenseHudRenderingTests
     {
         [Parameter] public Action<HudHost> Capture { get; set; } = null!;
         private CyberDefenseHudViewModel _model = CyberDefenseHudViewModel.Initial();
+        private int _skillPoints = 1;
+        private long _elapsed;
         protected override void OnInitialized() => Capture(this);
         public void Show(CyberDefenseRunState run)
             => ShowModel(CyberDefenseHudViewModel.FromRunState(run));
@@ -207,11 +276,19 @@ public sealed class CyberDefenseHudRenderingTests
             StateHasChanged();
         }
 
+        public void ShowControls(int skillPoints, long elapsed)
+        {
+            _skillPoints = skillPoints;
+            _elapsed = elapsed;
+            StateHasChanged();
+        }
+
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {
             builder.OpenComponent<global::MathFirst.Core.Tests.CyberDefenseHud>(0);
             builder.AddAttribute(1, "ViewModel", _model);
-            builder.AddAttribute(2, "AvailableSkillPoints", 1);
+            builder.AddAttribute(2, "AvailableSkillPoints", _skillPoints);
+            builder.AddAttribute(3, "ActiveElapsedMs", _elapsed);
             builder.CloseComponent();
         }
     }
@@ -235,6 +312,7 @@ public sealed class CyberDefenseHudRenderingTests
 
         public Task ShowAsync(CyberDefenseRunState run) => renderer.Dispatcher.InvokeAsync(() => _host.Show(run));
         public Task ShowModelAsync(CyberDefenseHudViewModel model) => renderer.Dispatcher.InvokeAsync(() => _host.ShowModel(model));
+        public Task ShowControlsAsync(int skillPoints, long elapsed) => renderer.Dispatcher.InvokeAsync(() => _host.ShowControls(skillPoints, elapsed));
         public Task<string> HtmlAsync() => renderer.Dispatcher.InvokeAsync(() => WebUtility.HtmlDecode(_root.ToHtmlString()));
         public async ValueTask DisposeAsync()
         {
