@@ -145,6 +145,97 @@ namespace MathFirst.Core.Tests.CyberDefense
         }
 
         [Fact(Timeout = 10000)]
+        public async Task RevisionConflictRecovery_PreparesAuthoritativeQuestionAndBindingsExactlyOnce()
+        {
+            await using var fixture = await Fixture.Create(ordinary: true, upgrades: true);
+            var generation = fixture.Session.LearnerStateGenerationRevision;
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            await fixture.CommitIndependentLearnerAttempt();
+            var authoritative = await fixture.LearnerSnapshot();
+            await fixture.Submit();
+            Assert.Equal(PersistenceStatus.RevisionConflict, fixture.Session.LastPersistenceResult!.Status);
+            Assert.Equal(SessionInteractionState.PersistenceFailure, fixture.Session.InteractionState);
+            var rejectedSubmission = fixture.Session.LastEvaluation!.ChangeSet.SubmissionId;
+            var progression = await fixture.Store.GetProgressionAsync();
+            var run = await fixture.Store.GetRunStateAsync();
+
+            await fixture.Invoke("RecoverFromPersistenceFailureAsync");
+
+            // These assertions establish real successful reload/selection before testing Home preparation.
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, fixture.Session.InteractionState);
+            Assert.Equal(generation + 1, fixture.Session.LearnerStateGenerationRevision);
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(authoritative.Revision, fixture.Session.Progression.StoreRevision);
+            Assert.Equal(authoritative.Progression.PracticePosition, fixture.Session.Progression.PracticePosition);
+            Assert.Null(fixture.Session.LastEvaluation);
+            Assert.Null(fixture.Session.LastPersistenceResult);
+            Assert.False(fixture.Session.IsCurrentSubmissionCommitted);
+            var html = System.Net.WebUtility.HtmlDecode(await fixture.Html());
+            var expression = System.Text.RegularExpressions.Regex.Match(html, "<span class=\"expression-problem\">(.*?)</span>\\s*<input", System.Text.RegularExpressions.RegexOptions.Singleline).Value;
+            Assert.Contains($"<span class=\"operand\">{fixture.Session.CurrentFact.LeftOperand}</span>", expression);
+            Assert.Contains($"<span class=\"operand\">{fixture.Session.CurrentFact.RightOperand}</span>", expression);
+            Assert.Contains($"<span class=\"operator\">{fixture.Session.CurrentFact.DisplaySymbol}</span>", expression);
+            Assert.Equal(inputVersion + 1, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(revision + 1, fixture.Field<long>("_lastPreparedFactInstanceRevision"));
+            var input = System.Text.RegularExpressions.Regex.Match(html, "<input[^>]*class=\"answer-input[^>]*>").Value;
+            Assert.NotEmpty(input);
+            Assert.DoesNotContain("value=\"" + fixture.LastSubmittedAnswer + "\"", input);
+            Assert.Equal(string.Empty, fixture.Field<string>("_answerInput"));
+            Assert.Equal(string.Empty, fixture.Session.CurrentAnswerInput);
+            Assert.Null(fixture.Field<string?>("_submittedAnswerDisplay"));
+            Assert.True(fixture.Field<bool>("_shouldFocusInput"));
+            Assert.False(fixture.Field<bool>("_shouldFocusPrimaryOverlay"));
+            await fixture.AssertQuestionBindings();
+
+            // Reentry and an empty submit cannot reuse the rejected pending answer or award anything.
+            await fixture.Invoke("RecoverFromPersistenceFailureAsync");
+            await fixture.Invoke("Submit");
+            Assert.Equal(inputVersion + 1, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
+            Assert.Equal(2, fixture.LearnerCommitCalls);
+            Assert.Null(await fixture.Store.GetReceiptAsync(rejectedSubmission));
+            Assert.Equal(progression, await fixture.Store.GetProgressionAsync());
+            Assert.Equal(run, await fixture.Store.GetRunStateAsync());
+            Assert.Equal(0, fixture.Session.SessionTotalCount);
+            Assert.Equal(0, fixture.Victories);
+
+        }
+
+        [Theory(Timeout = 10000)]
+        [InlineData("reset-before-snapshot")]
+        [InlineData("reset-after-snapshot")]
+        [InlineData("dispose")]
+        public async Task RevisionConflictRecovery_RejectsStaleResetOrDisposedCallback(string change)
+        {
+            await using var fixture = await Fixture.Create(ordinary: true, upgrades: true);
+            await fixture.ResetIndependentLearner();
+            await fixture.Submit();
+            Assert.Equal(PersistenceStatus.RevisionConflict, fixture.Session.LastPersistenceResult!.Status);
+            var generation = fixture.Session.LearnerStateGenerationRevision;
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var gate = fixture.GateNextRecoveryLoad(afterSnapshot: change == "reset-after-snapshot");
+            var recovery = fixture.Invoke("RecoverFromPersistenceFailureAsync");
+            await gate.Entered.Task;
+            try
+            {
+                await fixture.Invoke("RecoverFromPersistenceFailureAsync");
+                Assert.False(recovery.IsCompleted);
+                if (change == "dispose") await fixture.RemoveView();
+                else await fixture.DispatchAsync(() => fixture.Session.ResetLearningProgressAsync(startTiming: false));
+            }
+            finally { gate.Release.TrySetResult(); }
+            await recovery;
+
+            Assert.Equal(generation + (change == "dispose" ? 1 : 2), fixture.Session.LearnerStateGenerationRevision);
+            Assert.Equal(inputVersion, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(revision, fixture.Field<long>("_lastPreparedFactInstanceRevision"));
+            fixture.AssertCurrentQuestionUnbound();
+            Assert.Equal(1, fixture.LearnerCommitCalls);
+        }
+        [Fact(Timeout = 10000)]
         public async Task ColdStartup_RecoversBossReceipt_PresentsOnce_AndKeepsTheInitialPracticeGate()
         {
             await using var fixture = await Fixture.Create(recoveredStartup: true);
@@ -297,6 +388,31 @@ namespace MathFirst.Core.Tests.CyberDefense
                 .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(_home)!;
             public Task Render() => Dispatch(() => typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(_home, null));
             public Task<LearnerSnapshot> LearnerSnapshot() => _learner.LoadSnapshotAsync();
+            public Task ResetIndependentLearner() => _learner.ResetLearningProgressAsync();
+            public int LearnerCommitCalls => _learner.CommitCalls;
+            public async Task CommitIndependentLearnerAttempt()
+            {
+                var independent = new TrainingSession(_learner, Clock, preferenceStore: Preferences);
+                await independent.InitializeAsync();
+                independent.SubmitAnswer(independent.CurrentFact.CorrectResult);
+                Assert.True((await independent.CommitCurrentEvaluationAsync()).IsSuccess);
+            }
+            public RecoveryLoadGate GateNextRecoveryLoad(bool afterSnapshot)
+            {
+                var gate = new RecoveryLoadGate();
+                if (afterSnapshot) _learner.SelectionGate = gate;
+                else _learner.RuntimeGate = gate;
+                return gate;
+            }
+            public void AssertCurrentQuestionUnbound()
+            {
+                var revision = Session.FactInstanceRevision;
+                Assert.Equal(-1, _coordinator.GetBoundEffectiveAttackDamageOrDefault(revision, -1));
+                Assert.Equal(-1, _coordinator.GetBoundFirewallRankOrDefault(revision, -1));
+                var ranks = _coordinator.GetBoundCombatModifierRanksOrDefault(revision);
+                Assert.Equal(0, ranks.BoundCriticalStrikeRank);
+                Assert.Equal(0, ranks.BoundOverdriveRank);
+            }
             public async Task AssertQuestionBindings()
             {
                 var revision = Session.FactInstanceRevision;
@@ -443,22 +559,58 @@ namespace MathFirst.Core.Tests.CyberDefense
             public Task ExecuteFullResetAsync(CancellationToken ct = default) => Task.CompletedTask;
             public Task<bool> ReconcileStartupResetStateAsync(CancellationToken ct = default) => Task.FromResult(false);
         }
+        private sealed class RecoveryLoadGate
+        {
+            public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            public async Task Wait(CancellationToken ct)
+            {
+                Entered.TrySetResult();
+                await Release.Task.WaitAsync(ct);
+            }
+        }
         private sealed class InMemoryLearner : ILearnerStore
         {
             public bool FailNextCommit { get; set; }
+            public int CommitCalls { get; private set; }
+            public RecoveryLoadGate? RuntimeGate { get; set; }
+            public RecoveryLoadGate? SelectionGate { get; set; }
             private LearnerSnapshot _snapshot = Fresh();
-            private static LearnerSnapshot Fresh() => new(LearnerProgression.CreateFresh(), new Dictionary<string, ItemLearningState>(), [], 1, LearnerProgression.DefaultSchemaVersion);
+            private static LearnerSnapshot Fresh(long revision = 1)
+            {
+                var progression = LearnerProgression.CreateFresh();
+                progression.StoreRevision = revision;
+                return new(progression, new Dictionary<string, ItemLearningState>(), [], revision, LearnerProgression.DefaultSchemaVersion);
+            }
             public string StoragePath => "synthetic://home-ceremony";
             public Task InitializeAsync(CancellationToken ct = default) => Task.CompletedTask;
             public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken ct = default) => Task.FromResult(_snapshot);
+            public async Task<LearnerSnapshot> LoadRuntimeSnapshotAsync(CancellationToken ct = default)
+            {
+                var snapshot = _snapshot;
+                var gate = RuntimeGate;
+                RuntimeGate = null;
+                if (gate is not null) await gate.Wait(ct);
+                return snapshot;
+            }
+            public async Task<PracticeSelectionEvidence> LoadPracticeSelectionEvidenceAsync(PracticeSelectionEvidenceRequest request, CancellationToken ct = default)
+            {
+                var gate = SelectionGate;
+                SelectionGate = null;
+                if (gate is not null) await gate.Wait(ct);
+                return PracticeSelectionEvidence.FromSnapshot(_snapshot, request);
+            }
             public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(ArithmeticOperation operation, long position, IReadOnlyList<string> ids, CancellationToken ct = default)
                 => Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(_snapshot.RecentAttempts, operation, position, ids));
             public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet change, CancellationToken ct = default)
             {
+                CommitCalls++;
                 if (FailNextCommit) { FailNextCommit = false; return Task.FromResult(PersistenceResult.Unavailable("Synthetic failure")); }
+                if (change.ExpectedRevision != _snapshot.Revision) return Task.FromResult(PersistenceResult.Conflict("Synthetic optimistic revision conflict"));
                 var items = _snapshot.ItemStates.ToDictionary(p => p.Key, p => p.Value);
                 items[change.UpdatedItemState.FactId] = change.UpdatedItemState;
                 _snapshot = new(change.UpdatedProgression, items, _snapshot.RecentAttempts.Append(change.Attempt).ToArray(), change.ExpectedRevision + 1, LearnerProgression.DefaultSchemaVersion);
+                _snapshot.Progression.StoreRevision = _snapshot.Revision;
                 return Task.FromResult(PersistenceResult.Success(_snapshot.Revision));
             }
             public Task<CommittedLearnerAttemptEvidence?> GetCommittedAttemptEvidenceAsync(string id, CancellationToken ct = default)
@@ -466,7 +618,7 @@ namespace MathFirst.Core.Tests.CyberDefense
                 var attempt = _snapshot.RecentAttempts.FirstOrDefault(a => a.SubmissionId == id);
                 return Task.FromResult(attempt is null ? null : new CommittedLearnerAttemptEvidence(id, attempt.FactId, attempt.IsCorrect, attempt.ResponseLatencyMs, attempt.PracticePosition, attempt.Timestamp));
             }
-            public Task ResetLearningProgressAsync(CancellationToken ct = default) { _snapshot = Fresh(); return Task.CompletedTask; }
+            public Task ResetLearningProgressAsync(CancellationToken ct = default) { _snapshot = Fresh(_snapshot.Revision + 1); return Task.CompletedTask; }
             public Task CloseAsync(CancellationToken ct = default) => Task.CompletedTask;
             public void Dispose() { }
         }

@@ -1132,18 +1132,39 @@
 
     private async Task RecoverFromPersistenceFailureAsync()
     {
-        if (_isSubmitting || Session.InteractionState != SessionInteractionState.PersistenceFailure)
+        if (_isDisposed || _isSubmitting || Session.InteractionState != SessionInteractionState.PersistenceFailure)
         {
             return;
         }
 
         var generation = Session.LearnerStateGenerationRevision;
+        var factRevision = Session.FactInstanceRevision;
+        var isRevisionConflict = Session.LastPersistenceResult?.Status == PersistenceStatus.RevisionConflict;
         _isSubmitting = true;
         try
         {
             var recovered = await Session.RecoverFromPersistenceFailureAsync();
+            if (_isDisposed) return;
             if (recovered)
             {
+                if (isRevisionConflict)
+                {
+                    // A successful conflict reload applies one snapshot and selects one new fact.
+                    // Any additional generation/fact change belongs to a reset or another callback.
+                    if (Session.LearnerStateGenerationRevision != generation + 1 ||
+                        Session.FactInstanceRevision != factRevision + 1 ||
+                        Session.InteractionState != SessionInteractionState.AwaitingAnswer ||
+                        Session.LastEvaluation is not null || Session.LastPersistenceResult is not null ||
+                        Session.IsCurrentSubmissionCommitted) return;
+
+                    if (_lastPreparedFactInstanceRevision != Session.FactInstanceRevision)
+                    {
+                        PrepareNextFactUi();
+                    }
+                    return;
+                }
+
+                if (Session.LearnerStateGenerationRevision != generation) return;
                 CyberDefenseReceiptRecord? receipt = null;
                 if (Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null)
                 {
