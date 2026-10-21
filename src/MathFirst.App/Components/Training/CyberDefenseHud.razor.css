@@ -721,6 +721,18 @@
     text-transform: uppercase;
 }
 
+.player-status-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.player-status-heading .shield-badges-row {
+    gap: 0.2rem;
+    flex-shrink: 0;
+}
+
 .player-hp-cluster {
     display: flex;
     align-items: center;
