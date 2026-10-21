@@ -17,10 +17,112 @@ namespace MathFirst.Core.Tests.CyberDefense
 
     public sealed class CyberDefenseHomePresentationTests
     {
+        [Theory(Timeout = 10000)]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public async Task CorrectCompletion_PreparesEmptyRenewedInputAndQuestionBindingsOnce(bool boss, bool calm)
+        {
+            await using var fixture = await Fixture.Create(ordinary: !boss, calm: calm, upgrades: !calm);
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            if (boss)
+            {
+                var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+                var submission = fixture.Submit();
+                await Task.WhenAny(shown, submission);
+                Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+                (await fixture.NextDelay()).TrySetResult();
+                (await fixture.NextDelay()).TrySetResult();
+                await submission;
+            }
+            else await fixture.Submit();
+
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            await fixture.Render();
+            var input = System.Text.RegularExpressions.Regex.Match(await fixture.Html(), "<input[^>]*class=\"answer-input[^>]*>").Value;
+            Assert.NotEmpty(input);
+            Assert.DoesNotContain("value=\"" + fixture.LastSubmittedAnswer + "\"", input);
+            Assert.Equal(string.Empty, fixture.Field<string>("_answerInput"));
+            Assert.Equal(inputVersion + 1, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(revision + 1, fixture.Field<long>("_lastPreparedFactInstanceRevision"));
+            Assert.True(fixture.Field<bool>("_shouldFocusInput"));
+            Assert.False(fixture.Sequence.IsBlocking);
+            if (!calm)
+            {
+                await fixture.AssertQuestionBindings();
+            }
+            else Assert.DoesNotContain("cyber-defense-hud", await fixture.Html());
+            await fixture.Invoke("RecoverFromPersistenceFailureAsync");
+            Assert.Equal(inputVersion + 1, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            fixture.Clock.Advance(1234);
+            await fixture.Submit();
+            var attempt = (await fixture.LearnerSnapshot()).RecentAttempts.Last();
+            Assert.Equal(1234, attempt.ResponseLatencyMs);
+            if (!calm)
+            {
+                var receipt = await fixture.Store.GetReceiptAsync(attempt.SubmissionId);
+                Assert.NotNull(receipt);
+                Assert.Equal(2, receipt.BaseAttackDamage);
+                Assert.Equal(1, receipt.BoundCriticalStrikeRank);
+                Assert.Equal(1, receipt.BoundOverdriveRank);
+            }
+        }
+
+        [Theory(Timeout = 10000)]
+        [InlineData(CyberDefensePresentationStage.Victory)]
+        [InlineData(CyberDefensePresentationStage.Recap)]
+        public async Task BackgroundCeremonyCancellation_ExplicitResumeRecordsRealActiveAndPersistedLatency(CyberDefensePresentationStage stage)
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            fixture.Clock.Advance(2000);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            if (stage == CyberDefensePresentationStage.Recap)
+            {
+                (await fixture.NextDelay()).TrySetResult();
+                await fixture.NextDelay();
+                Assert.Equal(stage, fixture.Sequence.Stage);
+            }
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
+            await submission;
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.False(fixture.Sequence.IsBlocking);
+            Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
+            fixture.Clock.Advance(100000);
+            Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+            fixture.Clock.Advance(50000);
+            Assert.False(fixture.Session.IsTimingActive);
+            Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
+            await fixture.Invoke("Submit");
+            Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
+            await fixture.Invoke("StartOrResumePractice");
+            fixture.Clock.Advance(3456);
+            var elapsed = fixture.Session.GetCurrentActiveElapsedMs();
+            await fixture.Submit();
+            var snapshot = await fixture.LearnerSnapshot();
+            var attempt = snapshot.RecentAttempts.Last();
+            Assert.Equal(3456, attempt.ResponseLatencyMs);
+            Assert.Equal(3456, elapsed);
+            Assert.False(attempt.IsInterrupted);
+            var receipt = await fixture.Store.GetReceiptAsync(attempt.SubmissionId);
+            Assert.NotNull(receipt);
+            Assert.Equal(3456, receipt.ResponseLatencyMs);
+            Assert.Equal(revision + 2, fixture.Session.FactInstanceRevision);
+            Assert.Equal(1, fixture.Victories);
+        }
+
         [Fact(Timeout = 10000)]
         public async Task LearnerPersistenceRetry_PresentsTheRecoveredReceiptOnce_WithoutAnotherReward()
         {
             await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
             fixture.FailNextLearnerCommit();
             await fixture.Submit();
             Assert.Equal(SessionInteractionState.PersistenceFailure, fixture.Session.InteractionState);
@@ -36,6 +138,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(176, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
             Assert.Equal(1, fixture.Victories);
             Assert.Equal(SessionInteractionState.AwaitingAnswer, fixture.Session.InteractionState);
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(inputVersion + 1, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(string.Empty, fixture.Field<string>("_answerInput"));
+            Assert.True(fixture.Field<bool>("_shouldFocusInput"));
         }
 
         [Fact(Timeout = 10000)]
@@ -60,6 +166,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
             var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
@@ -67,6 +174,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             await fixture.RemoveView();
             await submission;
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.Equal(inputVersion, fixture.Field<int>("_inputRenderVersion"));
             await fixture.MountView();
             Assert.True(fixture.Session.FactInstanceRevision > revision);
             Assert.Equal(1, fixture.Victories);
@@ -134,6 +242,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         public async Task ContextChangeDuringVictory_AbortsRecapWithoutLeakingTimeOrAdvancingOldGeneration(string change)
         {
             await using var fixture = await Fixture.Create();
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
             var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
@@ -158,7 +267,11 @@ namespace MathFirst.Core.Tests.CyberDefense
                 Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
             }
             if (change == "mode") Assert.DoesNotContain("cyber-defense-hud", await fixture.Html());
-            if (change == "reset") Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
+            if (change == "reset")
+            {
+                Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
+                Assert.Equal(inputVersion, fixture.Field<int>("_inputRenderVersion"));
+            }
         }
 
         private sealed class Fixture : IAsyncDisposable
@@ -179,6 +292,22 @@ namespace MathFirst.Core.Tests.CyberDefense
             public SqliteGameplayStore Store { get; }
             public TrainingSession Session { get; }
             public CyberDefensePresentationSequence Sequence { get; }
+            public string LastSubmittedAnswer { get; private set; } = string.Empty;
+            public T Field<T>(string name) => (T)typeof(global::MathFirst.Core.Tests.Home)
+                .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(_home)!;
+            public Task Render() => Dispatch(() => typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(_home, null));
+            public Task<LearnerSnapshot> LearnerSnapshot() => _learner.LoadSnapshotAsync();
+            public async Task AssertQuestionBindings()
+            {
+                var revision = Session.FactInstanceRevision;
+                await _coordinator.AwaitQuestionBoundFirewallActivationAsync(revision);
+                var ranks = _coordinator.GetBoundCombatModifierRanksOrDefault(revision);
+                Assert.Equal(1, ranks.BoundCriticalStrikeRank);
+                Assert.Equal(1, ranks.BoundOverdriveRank);
+                Assert.Equal(2, _coordinator.GetBoundEffectiveAttackDamageOrDefault(revision));
+                Assert.Equal(1, _coordinator.GetBoundFirewallRankOrDefault(revision));
+                Assert.Equal(1, (await Store.GetRunStateAsync()).ShieldCapacity);
+            }
 
             private Fixture()
             {
@@ -205,13 +334,27 @@ namespace MathFirst.Core.Tests.CyberDefense
                     .AddSingleton<IJSRuntime>(new NoJs()).BuildServiceProvider();
             }
 
-            public static async Task<Fixture> Create(bool victory = true, bool recoveredStartup = false)
+            public static async Task<Fixture> Create(bool victory = true, bool recoveredStartup = false, bool ordinary = false, bool calm = false, bool upgrades = false)
             {
                 var f = new Fixture();
+                f.Preferences.SetCyberDefenseEnabled(!calm);
                 await f.Store.InitializeAsync();
-                for (var i = 0; i < (victory ? 21 : 24); i++)
+                for (var i = 0; i < (ordinary ? 0 : victory ? 21 : 24); i++)
                 {
                     await f.Store.ApplyAttemptTransactionAsync(new CyberDefensePendingIntentRecord("setup-" + i, "1+1", victory, true, 1000, 0, DateTimeOffset.UnixEpoch));
+                }
+                if (upgrades)
+                {
+                    using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={f.Store.StoragePath}");
+                    await connection.OpenAsync();
+                    using var command = connection.CreateCommand();
+                    command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = 80, earned_sp = 79, spent_sp = 0, available_sp = 79 WHERE id = 1;";
+                    command.Parameters.AddWithValue("@xp", MathFirst.Domain.CyberDefense.CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
+                    await command.ExecuteNonQueryAsync();
+                    await f.Store.PurchaseAttackUpgradeAsync(0, 0);
+                    await f.Store.PurchaseFirewallUpgradeAsync(0, 0);
+                    await f.Store.PurchaseCriticalStrikeUpgradeAsync(0, 0);
+                    await f.Store.PurchaseOverdriveUpgradeAsync(0, 0);
                 }
                 if (recoveredStartup)
                 {
@@ -252,11 +395,12 @@ namespace MathFirst.Core.Tests.CyberDefense
             public Task Submit(bool correct = true) => _renderer.Dispatcher.InvokeAsync(async () =>
             {
                 var answer = Session.CurrentFact.CorrectResult + (correct ? 0 : 1);
-                typeof(global::MathFirst.Core.Tests.Home).GetField("_answerInput", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(_home, answer.ToString(CultureInfo.InvariantCulture));
+                LastSubmittedAnswer = answer.ToString(CultureInfo.InvariantCulture);
+                typeof(global::MathFirst.Core.Tests.Home).GetField("_answerInput", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(_home, LastSubmittedAnswer);
                 await InvokeCore("Submit");
             });
-            private Task InvokeCore(string method) => (Task)typeof(global::MathFirst.Core.Tests.Home)
-                .GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(_home, null)!;
+            private Task InvokeCore(string method) => typeof(global::MathFirst.Core.Tests.Home)
+                .GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(_home, null) as Task ?? Task.CompletedTask;
             public Task Invoke(string method) => _renderer.Dispatcher.InvokeAsync(() => InvokeCore(method));
             public Task Dispatch(Action action) => _renderer.Dispatcher.InvokeAsync(action);
             public Task DispatchAsync(Func<Task> action) => _renderer.Dispatcher.InvokeAsync(action);

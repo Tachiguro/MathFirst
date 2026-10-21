@@ -1029,6 +1029,8 @@
                 _validationError = null;
                 _submittedAnswerDisplay = _answerInput;
                 var wasEligibleAtSubmission = IsCyberDefenseActive;
+                var generation = Session.LearnerStateGenerationRevision;
+                var factRevision = Session.FactInstanceRevision;
 
                 var eval = Session.SubmitAnswer(parsedAnswer);
                 var submissionId = eval.ChangeSet.SubmissionId;
@@ -1062,14 +1064,20 @@
 
                 var advancedAutomatically = persistence.IsSuccess && await CompleteCommittedOutcomeAsync(receipt);
 
-                if (_isDisposed || Session.LastEvaluation?.ChangeSet.SubmissionId != submissionId) return;
+                if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
 
                 if (advancedAutomatically)
                 {
-                    PrepareNextFactUi();
+                    // Successful advancement clears LastEvaluation; fence the new fact by revision instead.
+                    if (Session.FactInstanceRevision == factRevision + 1 &&
+                        _lastPreparedFactInstanceRevision != Session.FactInstanceRevision)
+                    {
+                        PrepareNextFactUi();
+                    }
                 }
                 else
                 {
+                    if (Session.LastEvaluation?.ChangeSet.SubmissionId != submissionId) return;
                     _shouldFocusPrimaryOverlay =
                         !eval.IsCorrect ||
                         Session.InteractionState == SessionInteractionState.PersistenceFailure ||
@@ -1129,6 +1137,7 @@
             return;
         }
 
+        var generation = Session.LearnerStateGenerationRevision;
         _isSubmitting = true;
         try
         {
@@ -1144,7 +1153,7 @@
                 }
 
                 await CompleteCommittedOutcomeAsync(receipt);
-                if (_isDisposed) return;
+                if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
 
                 if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
                 {
@@ -1183,8 +1192,10 @@
         var epochCurrent = await ShowCommittedCeremonyAsync(receipt, IsSameSubmission);
         if (!epochCurrent || !IsSameSubmission()) return false;
         Session.SetPracticeSurfaceActive(true);
+        // startTiming controls surface availability. Foreground and the explicit resume gate
+        // remain authoritative, including when a ceremony was cancelled in the background.
         return Session.InteractionState == SessionInteractionState.CorrectFeedback &&
-            await Session.AdvanceAfterCorrectAnswerAsync(startTiming: Session.IsAppForeground);
+            await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
     }
 
     private async Task<bool> ShowCommittedCeremonyAsync(CyberDefenseReceiptRecord? receipt, Func<bool> isCurrent)
