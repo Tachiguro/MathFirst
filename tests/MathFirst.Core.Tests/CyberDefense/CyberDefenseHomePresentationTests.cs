@@ -203,6 +203,40 @@ namespace MathFirst.Core.Tests.CyberDefense
 
         }
 
+        [Fact(Timeout = 10000)]
+        public async Task RevisionConflictRecovery_ClearsOrphanPendingIntent_AndUnblocksSubsequentCombatProgression()
+        {
+            await using var fixture = await Fixture.Create(ordinary: true, upgrades: true);
+            var generation = fixture.Session.LearnerStateGenerationRevision;
+            var revision = fixture.Session.FactInstanceRevision;
+            await fixture.CommitIndependentLearnerAttempt();
+            await fixture.Submit();
+            Assert.Equal(PersistenceStatus.RevisionConflict, fixture.Session.LastPersistenceResult!.Status);
+            Assert.Equal(SessionInteractionState.PersistenceFailure, fixture.Session.InteractionState);
+            var rejectedSubmission = fixture.Session.LastEvaluation!.ChangeSet.SubmissionId;
+            Assert.NotNull(await fixture.Store.GetPendingIntentAsync(rejectedSubmission));
+
+            await fixture.Invoke("RecoverFromPersistenceFailureAsync");
+
+            Assert.Equal(SessionInteractionState.AwaitingAnswer, fixture.Session.InteractionState);
+            Assert.Equal(generation + 1, fixture.Session.LearnerStateGenerationRevision);
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.True(fixture.Field<bool>("_shouldFocusInput"));
+            Assert.Null(await fixture.Store.GetPendingIntentAsync(rejectedSubmission));
+
+            await fixture.Submit(correct: true);
+
+            var snapshot = await fixture.LearnerSnapshot();
+            var committedAttempt = snapshot.RecentAttempts.Last();
+            var receipt = await fixture.Store.GetReceiptAsync(committedAttempt.SubmissionId);
+            Assert.NotNull(receipt);
+            Assert.Equal(committedAttempt.SubmissionId, receipt.SubmissionId);
+            Assert.Equal(CyberDefenseReceiptKind.Applied, receipt.ReceiptKind);
+            Assert.NotNull(receipt.TransitionResult);
+            Assert.True(receipt.TransitionResult.AppliedOpponentDamage > 0);
+            Assert.True(receipt.AwardedXp > 0);
+        }
+
         [Theory(Timeout = 10000)]
         [InlineData("reset-before-snapshot")]
         [InlineData("reset-after-snapshot")]

@@ -1137,6 +1137,42 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
         }
     }
 
+    public async Task ClearPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default)
+    {
+        if (_gameplayStore == null || string.IsNullOrWhiteSpace(submissionId) || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var resetIntent = await _gameplayStore.GetResetIntentAsync(cancellationToken).ConfigureAwait(false);
+            if (resetIntent.IsPending)
+            {
+                return;
+            }
+
+            var currentEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
+            if (_consumer != null)
+            {
+                await _consumer.ClearAbandonedIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
+            }
+            await TryRetryDeferredActivationAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Learning-first failure isolation.
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public Task ClearAbandonedIntentAsync(string submissionId, CancellationToken cancellationToken = default) =>
+        ClearPendingIntentAsync(submissionId, cancellationToken);
+
     public async Task RefreshStateAsync(CancellationToken cancellationToken = default)
     {
         if (_gameplayStore == null)

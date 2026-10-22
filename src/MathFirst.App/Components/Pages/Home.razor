@@ -1140,6 +1140,7 @@
         var generation = Session.LearnerStateGenerationRevision;
         var factRevision = Session.FactInstanceRevision;
         var isRevisionConflict = Session.LastPersistenceResult?.Status == PersistenceStatus.RevisionConflict;
+        var rejectedSubmissionId = isRevisionConflict ? Session.LastEvaluation?.ChangeSet?.SubmissionId : null;
         _isSubmitting = true;
         try
         {
@@ -1147,6 +1148,12 @@
             if (_isDisposed) return;
             if (recovered)
             {
+                if (isRevisionConflict && !string.IsNullOrWhiteSpace(rejectedSubmissionId))
+                {
+                    await CombatCoordinator.ClearAbandonedIntentAsync(rejectedSubmissionId);
+                    if (_isDisposed) return;
+                }
+
                 if (isRevisionConflict)
                 {
                     // A successful conflict reload applies one snapshot and selects one new fact.
