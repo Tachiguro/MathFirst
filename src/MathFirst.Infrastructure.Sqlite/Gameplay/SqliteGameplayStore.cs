@@ -4256,10 +4256,106 @@ public sealed class SqliteGameplayStore : IGameplayStore
 
         return ExecuteWithConnectionGateAsync(async ct =>
         {
-            using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
-            cmd.Parameters.AddWithValue("@id", submissionId);
-            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            using var transaction = _connection!.BeginTransaction();
+            try
+            {
+                using (var guardCmd = _connection.CreateCommand())
+                {
+                    guardCmd.Transaction = transaction;
+                    guardCmd.CommandText = "SELECT is_pending FROM gameplay_reset_intent WHERE id = 1;";
+                    using var guardReader = await guardCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    if (!await guardReader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        throw new InvalidOperationException("Missing gameplay_reset_intent row.");
+                    }
+                    bool isResetPending = guardReader.GetInt32(0) == 1;
+                    guardReader.Close();
+
+                    if (isResetPending)
+                    {
+                        throw new InvalidOperationException("Cannot clear pending intent while a reset is pending.");
+                    }
+                }
+
+                using (var cmd = _connection.CreateCommand())
+                {
+                    cmd.Transaction = transaction;
+                    cmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
+                    cmd.Parameters.AddWithValue("@id", submissionId);
+                    await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                try
+                {
+                    transaction.Rollback();
+                }
+                catch
+                {
+                    // Preserve original exception
+                }
+                throw;
+            }
+        }, cancellationToken);
+    }
+
+    public Task ClearPendingIntentAsync(string submissionId, long expectedResetEpoch, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
+
+        return ExecuteWithConnectionGateAsync(async ct =>
+        {
+            using var transaction = _connection!.BeginTransaction();
+            try
+            {
+                using (var guardCmd = _connection.CreateCommand())
+                {
+                    guardCmd.Transaction = transaction;
+                    guardCmd.CommandText = "SELECT is_pending FROM gameplay_reset_intent WHERE id = 1;";
+                    using var guardReader = await guardCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                    if (!await guardReader.ReadAsync(ct).ConfigureAwait(false))
+                    {
+                        throw new InvalidOperationException("Missing gameplay_reset_intent row.");
+                    }
+                    bool isResetPending = guardReader.GetInt32(0) == 1;
+                    guardReader.Close();
+
+                    if (isResetPending)
+                    {
+                        throw new InvalidOperationException("Cannot clear pending intent while a reset is pending.");
+                    }
+                }
+
+                using (var cmd = _connection.CreateCommand())
+                {
+                    cmd.Transaction = transaction;
+                    cmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id AND reset_epoch = @epoch;";
+                    cmd.Parameters.AddWithValue("@id", submissionId);
+                    cmd.Parameters.AddWithValue("@epoch", expectedResetEpoch);
+                    await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                try
+                {
+                    transaction.Rollback();
+                }
+                catch
+                {
+                    // Preserve original exception
+                }
+                throw;
+            }
         }, cancellationToken);
     }
 
