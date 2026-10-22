@@ -3427,6 +3427,61 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }, cancellationToken);
     }
 
+    /// <summary>Reads one coherent epoch snapshot; never advances combat or changes the ledger.</summary>
+    public Task<MathFirst.Application.Gameplay.CyberDefenseSectorRecap?> GetCompletedSectorRecapAsync(
+        string completionSubmissionId, long expectedResetEpoch, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(completionSubmissionId);
+        return ExecuteWithConnectionGateAsync(async ct =>
+        {
+            using var transaction = _connection!.BeginTransaction(deferred: true);
+            using (var guard = _connection.CreateCommand())
+            {
+                guard.Transaction = transaction;
+                guard.CommandText = @"SELECT p.reset_epoch, r.is_pending FROM gameplay_progression p
+                    CROSS JOIN gameplay_reset_intent r WHERE p.id = 1 AND r.id = 1;";
+                using var reader = await guard.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                if (!await reader.ReadAsync(ct).ConfigureAwait(false) || reader.GetInt64(0) != expectedResetEpoch || reader.GetInt32(1) != 0)
+                    return null;
+            }
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = @"
+                SELECT submission_id, receipt_kind, fact_id, is_correct, is_eligible,
+                       response_latency_ms, reset_epoch, processed_at,
+                       requested_attack_damage, applied_opponent_damage, excess_opponent_damage,
+                       incoming_enemy_damage, applied_player_damage, excess_enemy_damage,
+                       potential_healing, applied_healing, is_opponent_defeated, is_sector_completed,
+                       is_game_over, next_sector, next_opponent_index, next_opponent_current_hp,
+                       next_player_current_hp, terminal_sector, terminal_opponent_index,
+                       terminal_opponent_kind, terminal_opponent_current_hp, terminal_opponent_max_hp,
+                       terminal_player_current_hp,
+                       next_opponent_executed_attacks, executed_attacks_on_defeated_opponent,
+                       awarded_xp, player_level_after, cumulative_xp_after,
+                       next_opponent_encounter_provenance, defeated_opponent_encounter_provenance,
+                       is_shield_absorbed, absorbed_enemy_damage,
+                       next_shield_capacity, next_active_shields, next_shield_recharge_units,
+                       base_attack_damage, bound_critical_strike_rank, bound_overdrive_rank,
+                       critical_bonus_percent, overdrive_bonus_percent,
+                       typeof(base_attack_damage) AS base_attack_damage_type,
+                       typeof(bound_critical_strike_rank) AS bound_critical_strike_rank_type,
+                       typeof(bound_overdrive_rank) AS bound_overdrive_rank_type,
+                       typeof(critical_bonus_percent) AS critical_bonus_percent_type,
+                       typeof(overdrive_bonus_percent) AS overdrive_bonus_percent_type
+                FROM gameplay_receipt_ledger
+                WHERE reset_epoch = @epoch AND receipt_kind = 'Applied'
+                ORDER BY cumulative_xp_after ASC;";
+            cmd.Parameters.AddWithValue("@epoch", expectedResetEpoch);
+            var receipts = new List<CyberDefenseReceiptRecord>();
+            using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
+            {
+                while (await reader.ReadAsync(ct).ConfigureAwait(false)) receipts.Add(ReadReceiptRecord(reader));
+            }
+            ct.ThrowIfCancellationRequested();
+            return MathFirst.Application.Gameplay.CyberDefenseSectorRecap.FromReceipts(receipts, completionSubmissionId, expectedResetEpoch);
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Narrowly scoped persistence operation for recording a validated receipt.
     /// Note: The atomic consumer in Slice 3 will perform multi-table atomic commits

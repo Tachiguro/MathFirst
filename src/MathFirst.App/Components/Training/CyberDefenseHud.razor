@@ -82,6 +82,7 @@
                          aria-label='@Localizer["CyberDefense_EnemyHpLabel"]'
                          aria-valuenow="@EffectiveModel.OpponentCurrentHp"
                          aria-valuemin="0"
+                         aria-valuetext='@Localizer["CyberDefense_HpDisplay", EffectiveModel.OpponentCurrentHp, EffectiveModel.OpponentMaxHp]'
                          aria-valuemax="@EffectiveModel.OpponentMaxHp">
                         <div class="meter-fill hp-fill @(EffectiveModel.IsBoss ? "boss-hp-fill" : "")" style="width: @(EffectiveModel.OpponentHpPercentage)%"></div>
                     </div>
@@ -131,7 +132,34 @@
     <section class="player-shield-panel" aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'>
         <!-- Left: Player HP Status -->
         <div class="shield-status-column">
-            <span class="shield-section-title">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
+            <div class="player-status-heading">
+                <span class="shield-section-title">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
+                @if (EffectiveModel.ShieldCapacity > 0)
+                {
+                    <div class="shield-badges-row"
+                         role="meter"
+                         aria-label='@Localizer["CyberDefense_ShieldLabel"]'
+                         aria-valuemin="0"
+                         aria-valuemax="@EffectiveModel.ShieldCapacity"
+                         aria-valuenow="@EffectiveModel.ActiveShields"
+                         aria-valuetext='@Localizer["CyberDefense_ShieldDisplay", EffectiveModel.ActiveShields, EffectiveModel.ShieldCapacity]'
+                         aria-live="polite">
+                        @for (int slot = 0; slot < EffectiveModel.ShieldCapacity; slot++)
+                        {
+                            <span class="shield-badge @(slot < EffectiveModel.ActiveShields ? "shield-intact" : "shield-broken")" aria-hidden="true">
+                                <svg viewBox="0 0 20 24" width="10" height="14" fill="none">
+                                    <path class="shield-bg shield-outline" d="M10 2 18 5v6c0 5-4 9-8 11-4-2-8-6-8-11V5Z" />
+                                    @if (slot < EffectiveModel.ActiveShields)
+                                    {
+                                        <circle class="shield-core" cx="10" cy="11" r="3" />
+                                    }
+                                </svg>
+                            </span>
+                        }
+                        <span class="shield-sublabel-text" aria-hidden="true">@EffectiveModel.ActiveShields / @EffectiveModel.ShieldCapacity</span>
+                    </div>
+                }
+            </div>
             <div class="player-hp-cluster">
                 <div class="meter-bar player-hp-bar"
                      role="progressbar"
@@ -141,7 +169,7 @@
                      aria-valuemax="@EffectiveModel.PlayerMaxHp">
                     <div class="meter-fill player-hp-fill" style="width: @(EffectiveModel.PlayerHpPercentage)%"></div>
                 </div>
-                <span class="player-hp-value">@EffectiveModel.PlayerCurrentHp / @EffectiveModel.PlayerMaxHp HP</span>
+                <span class="player-hp-value">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
             </div>
         </div>
 

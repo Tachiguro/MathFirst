@@ -23,6 +23,9 @@ public interface IGameplayStore : IDisposable
     Task<CyberDefenseCombatModifierSnapshot> PurchaseOverdriveUpgradeAsync(int expectedRank, long expectedResetEpoch, CancellationToken cancellationToken = default);
     Task<CyberDefenseFirewallActivationResult> ActivatePendingFirewallCapacityAsync(int questionBoundTargetCapacity, long expectedResetEpoch, CancellationToken cancellationToken = default);
     Task<CyberDefenseReceiptRecord?> GetReceiptAsync(string submissionId, CancellationToken cancellationToken = default);
+    Task<MathFirst.Application.Gameplay.CyberDefenseSectorRecap?> GetCompletedSectorRecapAsync(
+        string completionSubmissionId, long expectedResetEpoch, CancellationToken cancellationToken = default)
+        => Task.FromResult<MathFirst.Application.Gameplay.CyberDefenseSectorRecap?>(null);
     Task StagePendingIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default);
     Task<CyberDefensePendingIntentRecord?> GetPendingIntentAsync(string submissionId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CyberDefensePendingIntentRecord>> GetPendingIntentsAsync(long resetEpoch, CancellationToken cancellationToken = default);
