@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MF-CYBER-093 (Orphaned Pending Intent Recovery after RevisionConflict) — Implemented & Reviewed Local Bug-Fix Candidate (Unpublished, Unmerged, Unreleased)
+
+- **Orphaned Pending-Intent Recovery after Learner RevisionConflict**:
+  - Remediated the defect where a rejected learner `RevisionConflict` during practice submission in `Home.razor` left an orphaned pending intent in `mathfirst_gameplay.db`, permanently blocking subsequent valid combat submissions and deferring question-bound Firewall capacity activation.
+  - Added `ClearPendingIntentAsync` and `ClearAbandonedIntentAsync` to `ICyberDefenseCombatCoordinator`, `ICyberDefenseSubmissionConsumer`, and `IGameplayStore` / `SqliteGameplayStore`.
+  - In `Home.razor`, invoked coordinator abandoned-intent cleanup during `RevisionConflict` recovery before resetting `Session.FactInstanceRevision`.
+- **Authoritative Practice-Position Checks & Safe Abandonment Proof**:
+  - In `CyberDefenseSubmissionConsumer.ClearAbandonedIntentAsync`, uncommitted pending-intent cleanup strictly requires positive proof of abandonment against authoritative committed learner progression (`GetLearnerProgressionAsync` and `GetCommittedAttemptEvidenceAsync`).
+  - An intent is proven abandoned only when the learner store has authoritatively committed past its practice position (`practicePosition <= committedProgression.AcceptedPracticePosition`) and the attempt evidence for that submission is confirmed absent (`evidence == null`).
+  - Legitimately committed intents (where evidence exists), in-flight/prospective intents (`practicePosition > committedProgression.AcceptedPracticePosition`), null-position legacy intents, and multi-intent queues with ambiguous or unverifiable progression fail closed and are strictly preserved without deletion.
+- **Reset-Epoch-Fenced Deletion & Atomic Store Guard**:
+  - All abandoned-intent deletion paths enforce reset-epoch fencing (`expectedResetEpoch`), rejecting stale deletion across reset boundaries.
+  - `SqliteGameplayStore.ClearPendingIntentAsync` executes atomic store-level verification inside the SQLite connection gate, checking `GetResetIntentAsync` (`IsPending`) and verifying `reset_epoch == expectedResetEpoch` before deleting the staged pending intent row.
+  - `CyberDefenseCombatCoordinator` cleanup strictly delegates pruning to the submission consumer to ensure learner progression checks and epoch boundaries are never bypassed.
+- **Crash/Restart Recovery & Real-Time Parity**:
+  - Applied identical safe abandonment verification during startup/restart pending-intent recovery in `CyberDefenseSubmissionConsumer.RecoverPendingIntentsAsync`.
+  - Ensures stale orphaned intents from prior crashed or interrupted sessions are safely pruned without risking legitimate in-flight or committed submissions.
+- **Firewall Retry & Exactly-Once Safety**:
+  - Clearing an abandoned pending intent in `CyberDefenseCombatCoordinator` automatically re-evaluates and retries deferred Firewall capacity activation (`TryRetryDeferredActivationAsync`), unblocking pending shield progression.
+  - Preserves exactly-once combat settlement, receipt ledger immutability, run state transitions, and XP/SP conservation.
+- **Zero Gameplay Balancing or Schema Migration**:
+  - Zero gameplay balance, damage formula, XP economy, or leveling modifications.
+  - Zero SQLite schema migrations: Learner Store Schema V9 and Gameplay Store Schema V7 are preserved untouched (0 DDL changes).
+- **Lifecycle & Verification Anchor**:
+  - Implemented across 2 commits on branch `fix/mf-cyber-093-orphan-pending-intent` (`22606d78ae6b3040ebaba583af5e21b545f0c33a`, direct parent `d25fc3918cf8be4e58c89e6281f5c68742ac0062`, based on `main@74b02362bd4fbc78a15ac814ef90e2f014491e6d`), resolving [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93).
+  - Independent review completed with verdict `REVIEW_PASS` (0 BLOCKER, 0 MAJOR, 0 MINOR, 1 deferred NIT regarding an unused `currentEpoch` local in `CyberDefenseCombatCoordinator.cs`).
+  - Prior native-agent test evidence reported 15/15 focused tests in Debug and Release (`RevisionConflictOrphanPendingIntentTests`), CyberDefense namespace 2,837/2,837 tests in Debug and Release, and clean Windows Release and Android Release compile-only builds with 0 warnings and 0 errors.
+  - Formal exact-candidate `FULL_VALIDATION` on the final documentation-inclusive commit remains pending; unpublished, unmerged, and unreleased.
+
 ### MF-CYBER-007 (Critical Strike & Overdrive) — Implemented & Reviewed Local Candidate (Unpublished, Unmerged, Unreleased)
 
 - **Accuracy-Based Combat Modifiers**:
