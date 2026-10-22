@@ -9,4 +9,5 @@ public interface ICyberDefenseSubmissionConsumer
     Task StageIntentAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default);
     Task<CyberDefenseConsumptionResult> ConsumeAttemptAsync(string submissionId, CancellationToken cancellationToken = default);
     Task<CyberDefenseRecoveryResult> RecoverPendingIntentsAsync(CancellationToken cancellationToken = default);
+    Task ClearAbandonedIntentAsync(string submissionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

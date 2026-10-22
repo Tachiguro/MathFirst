@@ -1097,7 +1097,14 @@
         _isSubmitting = true;
         try
         {
+            var isRevisionConflict = Session.LastPersistenceResult?.Status == PersistenceStatus.RevisionConflict;
+            var rejectedSubmissionId = isRevisionConflict ? Session.LastEvaluation?.ChangeSet?.SubmissionId : null;
+
             var recovered = await Session.RecoverFromPersistenceFailureAsync();
+            if (recovered && isRevisionConflict && !string.IsNullOrWhiteSpace(rejectedSubmissionId))
+            {
+                await CombatCoordinator.ClearAbandonedIntentAsync(rejectedSubmissionId);
+            }
             if (recovered)
             {
                 if (Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null)

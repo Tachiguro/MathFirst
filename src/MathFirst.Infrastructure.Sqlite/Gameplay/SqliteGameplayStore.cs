@@ -4263,6 +4263,24 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }, cancellationToken);
     }
 
+    public Task ClearPendingIntentAsync(string submissionId, long expectedResetEpoch, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+        {
+            throw new ArgumentException("Submission ID cannot be null or whitespace.", nameof(submissionId));
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedResetEpoch);
+
+        return ExecuteWithConnectionGateAsync(async ct =>
+        {
+            using var cmd = _connection!.CreateCommand();
+            cmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id AND reset_epoch = @epoch;";
+            cmd.Parameters.AddWithValue("@id", submissionId);
+            cmd.Parameters.AddWithValue("@epoch", expectedResetEpoch);
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }, cancellationToken);
+    }
+
     public Task<CyberDefenseReceiptRecord> ApplyAttemptTransactionAsync(CyberDefensePendingIntentRecord intent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(intent);

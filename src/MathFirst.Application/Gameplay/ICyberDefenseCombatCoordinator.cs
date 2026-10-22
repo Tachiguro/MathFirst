@@ -69,6 +69,11 @@ public interface ICyberDefenseCombatCoordinator
     Task<CyberDefenseConsumptionResult?> ConsumeCommittedAttemptAsync(
         string submissionId,
         CancellationToken cancellationToken = default);
+    Task ClearPendingIntentAsync(
+        string submissionId,
+        CancellationToken cancellationToken = default);
+    Task ClearAbandonedIntentAsync(string submissionId, CancellationToken cancellationToken = default) =>
+        ClearPendingIntentAsync(submissionId, cancellationToken);
     Task RefreshStateAsync(CancellationToken cancellationToken = default);
     void InvalidateState();
 }
