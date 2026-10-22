@@ -1150,10 +1150,6 @@ public sealed class CyberDefenseCombatCoordinator : ICyberDefenseCombatCoordinat
             {
                 await _consumer.ClearAbandonedIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
             }
-            else
-            {
-                await _gameplayStore.ClearPendingIntentAsync(submissionId, currentEpoch, cancellationToken).ConfigureAwait(false);
-            }
             await TryRetryDeferredActivationAsync(cancellationToken).ConfigureAwait(false);
         }
         catch

@@ -445,7 +445,7 @@ public sealed class RevisionConflictOrphanPendingIntentTests : IDisposable
     }
 
     [Fact]
-    public async Task InteractiveRecovery_ExplicitClearAbandonedIntent_ImmediatelyCleansOrphan()
+    public async Task InteractiveRecovery_ExplicitClearAbandonedIntent_PreservesInFlightAndCleansAfterProgressionAdvances()
     {
         using var learnerStore = CreateLearnerStore();
         using var gameplayStore = CreateGameplayStore();
@@ -471,15 +471,276 @@ public sealed class RevisionConflictOrphanPendingIntentTests : IDisposable
 
         await gameplayStore.StagePendingIntentAsync(orphanIntent);
 
-        // Immediate explicit cleanup of abandoned intent
+        // 1. Authoritative learner progression is 0. The intent is at practice position 1.
+        // It is still in-flight or prospective and MUST NOT be deleted.
         await coordinator.ClearAbandonedIntentAsync("sub-explicit-clean");
+        var stillInFlight = await gameplayStore.GetPendingIntentAsync("sub-explicit-clean");
+        Assert.NotNull(stillInFlight);
 
-        // Verify cleared immediately
+        // 2. Authoritative learner progression now advances to 1 (rejection proven, different attempt committed or synced)
+        using (var conn = new SqliteConnection($"Data Source={_learnerDbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE schema_info SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'store_revision';
+                UPDATE learner_progression SET practice_position = 1 WHERE id = 1;
+            ";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // 3. Immediate explicit cleanup of provably abandoned intent now succeeds
+        await coordinator.ClearAbandonedIntentAsync("sub-explicit-clean");
         Assert.Null(await gameplayStore.GetPendingIntentAsync("sub-explicit-clean"));
 
-        // Idempotent: repeated call is a safe no-op
+        // 4. Idempotent: repeated call is a safe no-op
         await coordinator.ClearAbandonedIntentAsync("sub-explicit-clean");
         Assert.Null(await gameplayStore.GetPendingIntentAsync("sub-explicit-clean"));
+    }
+
+    [Fact]
+    public async Task ClearAbandonedIntent_InFlightProspectivePosition_MustNotBeDeleted()
+    {
+        using var learnerStore = CreateLearnerStore();
+        using var gameplayStore = CreateGameplayStore();
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
+
+        // Staged intent at PracticePosition 1 while authoritative learner position is 0
+        var stagedIntent = new CyberDefensePendingIntentRecord(
+            "sub-inflight-pos1",
+            "add:1+0",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 400,
+            resetEpoch: 0,
+            createdAt: DateTimeOffset.UtcNow,
+            effectiveAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: 1);
+
+        await gameplayStore.StagePendingIntentAsync(stagedIntent);
+
+        // Attempting to clear must fail closed and PRESERVE in-flight intent
+        await consumer.ClearAbandonedIntentAsync("sub-inflight-pos1");
+
+        var preserved = await gameplayStore.GetPendingIntentAsync("sub-inflight-pos1");
+        Assert.NotNull(preserved);
+    }
+
+    [Fact]
+    public async Task ClearAbandonedIntent_UnpositionedLegacyIntent_MustNotBeDeletedSolelyFromMissingEvidence()
+    {
+        using var learnerStore = CreateLearnerStore();
+        using var gameplayStore = CreateGameplayStore();
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
+
+        // Unpositioned legacy intent (PracticePosition is null)
+        var unpositionedIntent = new CyberDefensePendingIntentRecord(
+            "sub-legacy-unpositioned",
+            "add:1+0",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 400,
+            resetEpoch: 0,
+            createdAt: DateTimeOffset.UtcNow,
+            effectiveAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: null);
+
+        await gameplayStore.StagePendingIntentAsync(unpositionedIntent);
+
+        // Must NOT be deleted solely because committed evidence is absent
+        await consumer.ClearAbandonedIntentAsync("sub-legacy-unpositioned");
+
+        var preserved = await gameplayStore.GetPendingIntentAsync("sub-legacy-unpositioned");
+        Assert.NotNull(preserved);
+    }
+
+    [Fact]
+    public async Task ClearAbandonedIntent_WhenResetPending_PreservesIntent()
+    {
+        using var learnerStore = CreateLearnerStore();
+        using var gameplayStore = CreateGameplayStore();
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
+
+        var intent = new CyberDefensePendingIntentRecord(
+            "sub-abandoned-reset-pending",
+            "add:1+0",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 400,
+            resetEpoch: 0,
+            createdAt: DateTimeOffset.UtcNow,
+            effectiveAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: 1);
+
+        await gameplayStore.StagePendingIntentAsync(intent);
+
+        // Advance learner progression to 1
+        using (var conn = new SqliteConnection($"Data Source={_learnerDbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE schema_info SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'store_revision';
+                UPDATE learner_progression SET practice_position = 1 WHERE id = 1;
+            ";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Begin reset intent
+        await gameplayStore.BeginOrGetResetIntentAsync();
+
+        // Attempting to clear while reset is pending must not delete
+        await consumer.ClearAbandonedIntentAsync("sub-abandoned-reset-pending");
+
+        var preserved = await gameplayStore.GetPendingIntentAsync("sub-abandoned-reset-pending");
+        Assert.NotNull(preserved);
+    }
+
+    [Fact]
+    public async Task SqliteGameplayStore_ClearPendingIntentAsync_WhenResetPending_ThrowsInvalidOperationException()
+    {
+        using var gameplayStore = CreateGameplayStore();
+        await gameplayStore.InitializeAsync();
+
+        var intent = new CyberDefensePendingIntentRecord(
+            "sub-store-fence-reset",
+            "add:1+0",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 400,
+            resetEpoch: 0,
+            createdAt: DateTimeOffset.UtcNow,
+            effectiveAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: 1);
+
+        await gameplayStore.StagePendingIntentAsync(intent);
+
+        // Begin reset
+        await gameplayStore.BeginOrGetResetIntentAsync();
+
+        // Calling ClearPendingIntentAsync at store level while reset is pending MUST fail atomically
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            gameplayStore.ClearPendingIntentAsync("sub-store-fence-reset", 0));
+
+        // Legacy overload must also fail
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            gameplayStore.ClearPendingIntentAsync("sub-store-fence-reset"));
+    }
+
+    [Fact]
+    public async Task ClearAbandonedIntent_WhenReceiptAlreadyExists_DoesNotClearOrAlterReceipt()
+    {
+        using var learnerStore = CreateLearnerStore();
+        using var gameplayStore = CreateGameplayStore();
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
+
+        // Stage intent
+        var intent = new CyberDefensePendingIntentRecord(
+            "sub-with-receipt",
+            "add:1+0",
+            isCorrect: true,
+            isEligible: true,
+            responseLatencyMs: 400,
+            resetEpoch: 0,
+            createdAt: DateTimeOffset.UtcNow,
+            effectiveAttackDamage: 1,
+            boundCriticalStrikeRank: 0,
+            boundOverdriveRank: 0,
+            practicePosition: 1);
+
+        await gameplayStore.StagePendingIntentAsync(intent);
+
+        // Apply attempt transaction to create receipt
+        var receipt = await gameplayStore.ApplyAttemptTransactionAsync(intent);
+        Assert.NotNull(receipt);
+
+        // Advance learner progression
+        using (var conn = new SqliteConnection($"Data Source={_learnerDbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE schema_info SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'store_revision';
+                UPDATE learner_progression SET practice_position = 1 WHERE id = 1;
+            ";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Call ClearAbandonedIntentAsync
+        await consumer.ClearAbandonedIntentAsync("sub-with-receipt");
+
+        // Receipt must remain intact
+        var existingReceipt = await gameplayStore.GetReceiptAsync("sub-with-receipt");
+        Assert.NotNull(existingReceipt);
+        Assert.Equal(receipt.ProcessedAt, existingReceipt.ProcessedAt);
+    }
+
+    [Fact]
+    public async Task ClearAbandonedIntent_CrossEpoch_RefusesDeletion()
+    {
+        using var learnerStore = CreateLearnerStore();
+        using var gameplayStore = CreateGameplayStore();
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
+
+        // Insert cross-epoch intent directly (epoch 1 while store epoch is 0)
+        using (var conn = new SqliteConnection($"Data Source={_gameplayDbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO gameplay_pending_intent (
+                    submission_id, fact_id, is_correct, is_eligible, response_latency_ms,
+                    reset_epoch, created_at, effective_attack_damage, bound_critical_strike_rank,
+                    bound_overdrive_rank, practice_position
+                ) VALUES (
+                    'sub-cross-epoch-abandoned', 'add:1+1', 1, 1, 500, 1, @now, 1, 0, 0, 1
+                );
+            ";
+            cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Advance learner progression to 1
+        using (var conn = new SqliteConnection($"Data Source={_learnerDbPath}"))
+        {
+            await conn.OpenAsync();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE schema_info SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT) WHERE key = 'store_revision';
+                UPDATE learner_progression SET practice_position = 1 WHERE id = 1;
+            ";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Calling ClearAbandonedIntentAsync on epoch 0 store must refuse to delete cross-epoch intent
+        await consumer.ClearAbandonedIntentAsync("sub-cross-epoch-abandoned");
+
+        var preserved = await gameplayStore.GetPendingIntentAsync("sub-cross-epoch-abandoned");
+        Assert.NotNull(preserved);
+        Assert.Equal(1, preserved.ResetEpoch);
     }
 
     [Fact]

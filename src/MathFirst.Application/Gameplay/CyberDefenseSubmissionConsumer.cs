@@ -38,6 +38,47 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
             return;
         }
 
+        var intent = await _gameplayStore.GetPendingIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
+        if (intent is null)
+        {
+            return;
+        }
+
+        // An unpositioned legacy pending intent MUST NOT be deleted solely because committed evidence is absent.
+        if (!intent.PracticePosition.HasValue)
+        {
+            return;
+        }
+
+        var currentEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
+        if (intent.ResetEpoch != currentEpoch)
+        {
+            return;
+        }
+
+        long? authoritativePracticePosition = null;
+        try
+        {
+            var snapshot = await _learnerStore.LoadRuntimeSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            authoritativePracticePosition = snapshot.Progression.PracticePosition;
+        }
+        catch
+        {
+            // Snapshot query is store-dependent; fail closed when not available.
+            return;
+        }
+
+        if (!authoritativePracticePosition.HasValue)
+        {
+            return;
+        }
+
+        // Staged intent at PracticePosition while authoritative learner position is smaller MUST NOT be deleted (in-flight or prospective).
+        if (intent.PracticePosition.Value > authoritativePracticePosition.Value)
+        {
+            return;
+        }
+
         var existingReceipt = await _gameplayStore.GetReceiptAsync(submissionId, cancellationToken).ConfigureAwait(false);
         if (existingReceipt is not null)
         {
@@ -50,19 +91,7 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
             return;
         }
 
-        var intent = await _gameplayStore.GetPendingIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
-        if (intent is null)
-        {
-            return;
-        }
-
-        var currentEpoch = await _gameplayStore.GetResetEpochAsync(cancellationToken).ConfigureAwait(false);
-        if (intent.ResetEpoch != currentEpoch)
-        {
-            return;
-        }
-
-        await _gameplayStore.ClearPendingIntentAsync(submissionId, cancellationToken).ConfigureAwait(false);
+        await _gameplayStore.ClearPendingIntentAsync(submissionId, currentEpoch, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<CyberDefenseConsumptionResult> ConsumeAttemptAsync(string submissionId, CancellationToken cancellationToken = default)
@@ -167,7 +196,7 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
                         pending.PracticePosition.Value <= resolvedTargetIntent.PracticePosition.Value &&
                         await _gameplayStore.GetReceiptAsync(pending.SubmissionId, cancellationToken).ConfigureAwait(false) is null)
                     {
-                        await _gameplayStore.ClearPendingIntentAsync(pending.SubmissionId, cancellationToken).ConfigureAwait(false);
+                        await _gameplayStore.ClearPendingIntentAsync(pending.SubmissionId, currentEpoch, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
@@ -280,7 +309,7 @@ public sealed class CyberDefenseSubmissionConsumer : ICyberDefenseSubmissionCons
                     intent.PracticePosition.Value <= authoritativePracticePosition.Value &&
                     await _gameplayStore.GetReceiptAsync(intent.SubmissionId, cancellationToken).ConfigureAwait(false) is null)
                 {
-                    await _gameplayStore.ClearPendingIntentAsync(intent.SubmissionId, cancellationToken).ConfigureAwait(false);
+                    await _gameplayStore.ClearPendingIntentAsync(intent.SubmissionId, currentEpoch, cancellationToken).ConfigureAwait(false);
                     abandonedCleaned = true;
                     continue;
                 }
