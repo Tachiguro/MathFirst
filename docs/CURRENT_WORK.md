@@ -16,7 +16,7 @@ This document provides operational context for current repository work.
   - Canonical checkout `C:\Dev\MathFirst`; one normal worktree and one repository writer.
   - Active branch `feat/mf-cyber-008-hud-layout-slice1`; implementation `HEAD` `f117f75e7ab5ff4c3dade2766186a1309f68cc51`, five commits over `main`.
   - Local `main`, `origin/main`, and GitHub `main`: `74b02362bd4fbc78a15ac814ef90e2f014491e6d`; no published MF-CYBER-008 branch or open PR.
-  - Clean index/worktree before `DOCUMENT_ONLY`. The documentation edits remain uncommitted; the documentation candidate commit does not yet exist.
+  - Clean index/worktree. The documentation reconciliation checkpoint is committed at `c251571bd61f8e0db28c66f0869607164211c489` (`docs: reconcile MF-CYBER-008 candidate state` — `MathFirst-Checkpoint: MF-CYBER-008 4/4 documentation-reconciliation`).
 - **MF-CYBER-008 Checkpoint Sequence** (linear over `main@74b02362bd4fbc78a15ac814ef90e2f014491e6d`):
   1. `b34bf0a` (`feat(cyber): render authoritative dynamic shield HUD` — `MathFirst-Checkpoint: MF-CYBER-008 1/4 authoritative-dynamic-shields`).
   2. `7e3ede3` (`feat(cyber): refine responsive combat HUD layout` — `MathFirst-Checkpoint: MF-CYBER-008 2/4 responsive-hud-layout`).
