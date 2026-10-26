@@ -17,16 +17,19 @@ The isolated lifecycles below bind until reviewed adoption under §10 and remain
 ### A. Normal Code & Behavioral Changes
 ```
 [PLAN_ONLY]
-    └── [IMPLEMENT_SLICE] (repeated for each slice)
-            └── [REVIEW_ONLY] (consolidated package review)
-                    └── [DOCUMENT_ONLY] (documentation reconciliation gate)
-                            └── [COMMIT_ONLY] (commit doc changes if needed)
-                                    └── [FULL_VALIDATION] (exact candidate HEAD)
-                                            └── [PUSH_ONLY]
-                                                    └── [PR_ONLY]
-                                                            └── [Coordinator-Gated / Owner Merge]
-                                                                    └── [POST_MERGE_SYNC_ONLY]
+    └── [IMPLEMENT_SLICE] (repeat per slice; stop and report; no staging/commit)
+            └── [CHECKPOINT_COMMIT_ONLY] (separate task if a slice checkpoint is required)
+                    └── [REVIEW_ONLY] (consolidated package review)
+                            └── [DOCUMENT_ONLY] (documentation reconciliation gate)
+                                    └── [COMMIT_ONLY] (commit doc changes if needed)
+                                            └── [FULL_VALIDATION] (exact candidate HEAD)
+                                                    └── [PUSH_ONLY]
+                                                            └── [PR_ONLY]
+                                                                    └── [Coordinator-Gated / Owner Merge]
+                                                                            └── [POST_MERGE_SYNC_ONLY]
 ```
+
+Each lifecycle task requires separate explicit authorization; the diagram does not authorize automatic mode transitions.
 
 ### B. Documentation-Only Packages
 ```
@@ -51,13 +54,15 @@ For all behavioral changes:
    - **GREEN**: Implement minimal production code to satisfy the test, then re-run the exact same focused test suite to prove success.
 2. **`IMPLEMENT_SLICE` Composite**:
    - Focuses strictly on a single slice.
-   - Contains: focused RED -> minimal implementation -> focused GREEN -> targeted verification -> checkpoint commit.
+   - Contains: focused RED -> minimal implementation -> focused GREEN -> targeted verification -> stop and report.
+   - Does not stage or commit. A required slice checkpoint needs a separate, explicitly authorized `CHECKPOINT_COMMIT_ONLY` task; no automatic mode transition is permitted.
 
 ---
 
 ## 3. Checkpoint Commits
 
 Checkpoint commits record durable progress after completing an implementation slice:
+- When a slice checkpoint is required, a separate, explicitly authorized `CHECKPOINT_COMMIT_ONLY` task stages reviewed explicit paths and creates the checkpoint commit.
 - They represent focused GREEN evidence for that slice only.
 - They do **not** imply package completion, full review, or readiness to merge.
 - Commit messages must include the standard trailer:
