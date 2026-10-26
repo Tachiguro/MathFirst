@@ -2,26 +2,31 @@
 
 This document defines the mandatory discovery and re-anchoring procedure for newly launched chat sessions or agents interacting with the MathFirst repository.
 
+Use the [source hierarchy in INDEX.md](INDEX.md#source-hierarchy-and-migration-status) and self-contained [AGENTS.md](../AGENTS.md). Verify publication, adoption and rollout status from live GitHub Issues/PRs and owner-installed rendered Project Instructions; uncommitted edits grant no authority. The recorded coordinator decision selects `WORK_PACKAGE` and focused Gate A for future reviewed adoption; independent Gate C review, authorized merge and owner-installed rendered Project Instructions are prerequisites under [workflow §10](AGENT_WORKFLOW.md#10-rule_conflict-resolutions-and-rollout-boundary). Prospective loader/smoke tests exercise installed candidate instructions before acceptance. Formal V4-active designation requires the verified BINGO pilot and all loader/smoke acceptance gates, including the V4.1 refresh. Use the isolated modes in the routing document until applicable central adoption prerequisites are verified. Publication and candidate installation/testing do not prove formal V4-active acceptance; require evidence for every pilot, loader and smoke gate.
+
 ---
 
 ## 1. Capability & Identity Gate
 
 ### Capability Check
-Before making any claims about repository status, determine whether tools providing direct local repository access (e.g. terminal execution, file inspection) and GitHub access (e.g. `gh` CLI) are available in the current runtime environment:
-- **If repository access tools are available**: Execute the live discovery commands below. Never assume or rely on remembered chat history.
-- **If repository access tools are NOT available**: State clearly that live repository state cannot be verified directly. Never fabricate or extrapolate repository facts without tool access.
+Distinguish GitHub access from local native-host access before making status claims:
+- **ChatGPT coordinator with GitHub integration:** inspect the relevant verified-repository Issue/PR/commits/diff directly. Do not require a local agent for GitHub analysis or routine Issue upkeep within approved scope. Mark local branch/dirty state, unpushed work and unseen native execution `UNVERIFIED`.
+- **Local coding agent:** verify native Windows / PowerShell, canonical checkout, task identity and authorization, then perform the local discovery below. Do not turn a narrow task into a repository-wide remote audit or fetch.
+- **Missing access:** name exactly what cannot be verified; never fabricate evidence. Routine local work uses `AGENTS.md` plus the prompt. Reconciliation needing an unavailable verified central source stops with `GOVERNANCE_SOURCE_UNVERIFIED`; do not clone, synchronize or guess it.
 
 ### Project & Task Identity Check (Fail-Closed)
-Before answering the substantive task or making ANY repository mutation, verify:
+For dispatched MathFirst coding agents, before answering the substantive task or making ANY repository mutation, verify:
 1. `PROJECT` matches `MathFirst`.
 2. `REPOSITORY` matches `Tachiguro/MathFirst`.
 3. Canonical checkout path resolves to `C:\Dev\MathFirst`.
 4. Requested task belongs to `MathFirst` and conforms to the explicitly declared `Operation Mode` and authorized package scope.
 
-If a foreign project/repository is detected:
+For the separately authorized `TASK_CLASS: GOVERNANCE_TASK` / `REPOSITORY: Tachiguro/project-governance` exception, apply [AGENTS.md](../AGENTS.md) §2 and [routing §7](PROMPT_AND_TASK_ROUTING.md#7-project--task-identity-gate-fail-closed) only once the reviewed identity rules take effect under workflow §10. Verify governance checkout identity, keep strict task scope and zero MathFirst writes. A link or pasted text grants no cross-repository access; MathFirst documentation authorization grants no governance execution authority.
+
+Otherwise, if a foreign project/repository is detected:
 - Perform ZERO repository mutations;
 - Do NOT answer the foreign task substantively;
-- Output the standard `PROJECT_MISMATCH` report and HARD STOP.
+- Output only the applicable `PROJECT_MISMATCH` response from [AGENTS.md](../AGENTS.md) §2, then stop immediately.
 
 If an out-of-scope task is detected:
 - Perform ZERO repository mutations;
@@ -29,20 +34,23 @@ If an out-of-scope task is detected:
 
 Follow-up conversation messages do NOT implicitly override project identity, repository identity, operation mode, or authorized scope.
 
+ChatGPT verifies project identity from the owner's ordinary language and named sources; normal coordinator questions need no `TASK:` fields. Agent prompts still require `TASK:` first and `HARD STOP` last. Private universal coordinator/model/usage policy stays external; no copies or private links belong in public MathFirst files.
+
 ---
 
 ## 2. Live Discovery & Re-Anchoring Sequence
 
-When starting a new session with repository access, execute the following inspection steps in order:
+Read `AGENTS.md` first. Local agents then inspect the canonical checkout within the task's scope; the coordinator verifies only the relevant GitHub sources it can access. Strictly read-only capture uses `--no-optional-locks`; no fetch, pull, branch switching or writes are implied by bootstrap.
 
 ### Step 1: Verify Local Git State
 Inspect the canonical checkout at `C:\Dev\MathFirst`:
 ```powershell
 git rev-parse --show-toplevel
-git status
+git --no-optional-locks status --porcelain=v1 -uall
 git branch -a -vv
 git log -1 --format=fuller
 git worktree list
+git stash list
 ```
 Verify:
 - Repository root is `C:\Dev\MathFirst`.
@@ -52,7 +60,9 @@ Verify:
 - Untracked files.
 - Active worktrees.
 
-### Step 2: Verify Remote State & Upstream Synchronization
+### Step 2: Verify Relevant GitHub State and Separate Cached Refs
+
+Prefer the connected GitHub integration; the CLI examples below apply only if available and needed for the task. Read only relevant Issues/PRs/commits, rather than repeating broad queries. These reads authorize no remote mutation or synchronization.
 ```powershell
 git remote -v
 gh repo view Tachiguro/MathFirst --json defaultBranchRef,isPrivate,visibility,url
@@ -65,6 +75,8 @@ Verify:
 - Remote tracking status and unpushed commits (`git log origin/main..HEAD` or upstream).
 - Open Pull Requests on GitHub.
 - Relevant recently merged Pull Requests to understand recent baseline integration.
+
+Local `origin/main` and upstream refs are cached and possibly stale. Compare them only as cached evidence; obtain live remote SHAs from verified GitHub reads. Never fetch or synchronize merely to start a chat; those actions require the task's authorization. GitHub reads never prove the local checkout clean.
 
 ### Step 3: Read Foundational Governance
 Read the essential governance documents:
@@ -80,9 +92,10 @@ Read the essential governance documents:
 To determine what package is currently in flight or what should happen next, evaluate sources in strict priority order:
 
 1. **Open Active Pull Request**: An open PR on GitHub indicates a package in the candidate/review/merge phase.
+   Resolve the relevant approved Issue and acceptance scope alongside the PR; an unrelated open PR cannot redirect the task.
 2. **Genuinely Divergent Local Task Branch / Checkpoint Work**: A dedicated local task branch with unmerged commits or active checkpoint work (where `git log main..<branch>` contains unmerged commits not part of an already-merged/closed PR) indicates active in-flight implementation.
-3. **`docs/CURRENT_WORK.md`**: Operational evidence of active package context and lifecycle phase, consistent with live Git state.
-4. **`docs/BACKLOG.md`**: Authoritative registry of accepted inactive work.
+3. **Verified implementation Issue / PR evidence**: Accepted work, blockers, acceptance and current status; local unpublished work above remains protected even if GitHub cannot see it.
+4. **`docs/CURRENT_WORK.md` / `docs/BACKLOG.md`**: Supporting context, historical evidence and stable IDs. Reconcile discrepancies with live sources without deleting open work or silently selecting a different package.
 
 > [!IMPORTANT]
 > **Active Branch vs. Historical Branch Discrimination**:
@@ -97,7 +110,7 @@ To determine what package is currently in flight or what should happen next, eva
 - If live state matches an active package (open PR, active task branch, or `docs/CURRENT_WORK.md`), report the exact verified package and its current lifecycle phase.
 - If all branches are merged, working tree is clean on `main`, and no package is active in `docs/CURRENT_WORK.md`, state:
   > **"There is currently no clearly determined next work item."**
-- **Strict Prohibition**: Agents must NEVER autonomously pick an item from [docs/BACKLOG.md](BACKLOG.md) or [docs/ROADMAP.md](ROADMAP.md) without explicit user instruction and prompt dispatch.
+- **Coding-agent boundary**: Local agents must NEVER autonomously pick an item from [docs/BACKLOG.md](BACKLOG.md) or [docs/ROADMAP.md](ROADMAP.md) without explicit instruction and prompt dispatch. The coordinator may prepare the next step within already approved scope; material new goals/priorities still require the owner.
 
 ---
 
@@ -112,9 +125,13 @@ Use the live-state discovery rules above to distinguish the following cases:
 Agents must NOT autonomously begin P0 implementation, Roadmap Step 55, or any other downstream activity merely because it is listed as planned; explicit user/orchestrator dispatch is required.
 Explicit authorization does not override GitHub or live Git evidence, create an active branch by implication, or permit autonomous selection of unrelated work.
 
+Routine evidence-backed Issue updates belong to the coordinator under [routing §2](PROMPT_AND_TASK_ROUTING.md#chatgpt-first-coordination-and-issue-maintenance-84), with mutation readback and closure only after verified acceptance. A read-only or local-documentation task grants no Issue mutation permission. Handoffs carry Issue/PR links, verified remote SHA/date, local state or `UNVERIFIED`, last decision, blockers and one next safe step; preserve historical evidence and never present an agent report as independent review.
+
 ---
 
 ## 6. Historical Reference Snapshot (Recorded 2026-10-01)
+
+**Superseded procedures, preserved evidence:** all instructions inside this historical section (including fetch/sync, task selection and release steps) are historical wording only. Sections 1–5 and current `AGENTS.md` govern startup; store actions are always `OWNER_ONLY` / `NEVER_AUTOMATE`. Recorded SHAs, results, limitations and open-work history below are retained unchanged and require live re-verification.
 
 > [!IMPORTANT]
 > **Reference & History Only**: The snapshot recorded below reflects historical reference points as of 2026-10-01. It is strictly non-authoritative for current checkout or task state and MUST NOT be used to determine:

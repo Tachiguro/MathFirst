@@ -2,6 +2,15 @@
 
 This document serves as the authoritative entry point and task-based router for the MathFirst repository documentation. Contributors and autonomous agents must consult the specific documents indicated below according to their current task.
 
+## Source Hierarchy and Migration Status
+
+Verify publication, adoption and rollout status from live GitHub Issues/PRs and owner-installed rendered Project Instructions. Uncommitted edits grant no authority. The [owner-delegated coordinator decision](https://github.com/Tachiguro/MathFirst/issues/86#issuecomment-6402430454) selects bounded `WORK_PACKAGE` execution and focused Gate A for future reviewed adoption. Independent Gate C review, authorized merge and owner-installed rendered Project Instructions are prerequisites under the central contract. Prospective loader/smoke tests exercise installed candidate instructions before acceptance; formal V4-active designation additionally requires the verified BINGO pilot and all loader/smoke acceptance gates. Use the isolated modes in the routing document until applicable central adoption prerequisites are verified. The [AGENTS.md](../AGENTS.md) baseline proves no activation; [workflow §10](AGENT_WORKFLOW.md#10-rule_conflict-resolutions-and-rollout-boundary) owns the detailed boundary.
+
+1. Platform safety and owner-only boundaries apply first; the stricter effective rule wins. A task can narrow scope, never silently relax protections. Report `RULE_CONFLICT` for differences.
+2. `AGENTS.md` is the self-contained local execution entry point; use the task-specific documents below. The owner-controlled external central governance is the single universal coordinator-policy source, identified by the baseline metadata in `AGENTS.md`; private contents, links, model catalogs and quotas are not copied here. Routine agents need no private-source access; a reconciliation that cannot verify its required source stops with `GOVERNANCE_SOURCE_UNVERIFIED`.
+3. Live Git/GitHub establishes committed source, PR/review and integration facts; the actual worktree establishes unpublished work. Verified-repository Issues own accepted tasks, scope, acceptance and current status. Neither proves execution results without exact-candidate evidence.
+4. `docs/` and ADRs own durable product, architecture, test, privacy and release contracts. `CURRENT_WORK.md`, `BACKLOG.md` and bootstrap snapshots retain context, stable IDs and historical evidence; reconcile them gradually with Issues without losing open work. Chats, memory, handoffs and agent reports are context, not current-state proof.
+
 ---
 
 ## 1. Documentation Index
@@ -11,10 +20,10 @@ This document serves as the authoritative entry point and task-based router for 
 | [AGENTS.md](../AGENTS.md) | Universal repository invariant rules and safety boundaries. | Authoritative for core repository invariants and safety. |
 | [docs/INDEX.md](INDEX.md) | Documentation index, routing matrix, and authority boundaries. | Authoritative for document routing. |
 | [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) | Live-state discovery protocol for new chat sessions. | Authoritative for chat discovery & session bootstrap. |
-| [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) | Operation Modes, prompt structure, model routing, and hard stops. | Authoritative for prompt formats & Operation Modes. |
+| [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) | Local modes, task fields, coordinator Issue boundary and hard stops. | Authoritative for local prompt requirements & Operation Modes. |
 | [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) | Package lifecycle, slicing, TDD, reviews, validation, and PR workflow. | Authoritative for lifecycle execution & branch workflow. |
 | [docs/TESTING.md](TESTING.md) | Test taxonomy, evidence boundaries, fail-closed validation, and privacy. | Authoritative for testing & validation evidence. |
-| [docs/BACKLOG.md](BACKLOG.md) | Authoritative registry for accepted inactive work (`MF-*` IDs). | Authoritative for inactive backlog items. |
+| [docs/BACKLOG.md](BACKLOG.md) | Retained inactive work and stable `MF-*` IDs, reconciled with verified Issues. | Transitional registry; no independent task authorization. |
 | [docs/CURRENT_WORK.md](CURRENT_WORK.md) | Operational tracking of the active package in flight. | Operational evidence (subordinate to live Git state). |
 | [docs/PROJECT_STATE.md](PROJECT_STATE.md) | Durable, verified factual baseline and project capabilities. | Authoritative for stable project facts. |
 | [docs/ROADMAP.md](ROADMAP.md) | High-level strategic roadmap, phases, and milestone ordering. | Authoritative for strategic sequencing. |
@@ -43,6 +52,8 @@ Agents should read only the documentation required for their specific task conte
 | **Testing & Verification (`TEST_ONLY`, `FULL_VALIDATION`)** | [AGENTS.md](../AGENTS.md)<br>[docs/TESTING.md](TESTING.md) | [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) |
 | **Review (`REVIEW_ONLY`)** | [AGENTS.md](../AGENTS.md)<br>[docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md)<br>[docs/TESTING.md](TESTING.md) | [.github/pull_request_template.md](../.github/pull_request_template.md) |
 | **Documentation Authoring (`DOCUMENT_ONLY`)** | [AGENTS.md](../AGENTS.md)<br>[docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) | [docs/INDEX.md](INDEX.md)<br>[docs/PRODUCT.md](PRODUCT.md)<br>[docs/PROJECT_STATE.md](PROJECT_STATE.md)<br>[CHANGELOG.md](../CHANGELOG.md) |
+| **Governance Migration / Authority Change (Gate C)** | [AGENTS.md](../AGENTS.md)<br>[docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md)<br>[docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md)<br>[docs/TESTING.md](TESTING.md) | Only explicitly named and verified external read-only sources; no cross-repository writes |
+| **Coordinator Issue upkeep (#84)** | [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md#chatgpt-first-coordination-and-issue-maintenance-84) | Verified Issue/PR/commit evidence; no local coding-agent mode |
 | **Committing & Staging (`COMMIT_ONLY`, `CHECKPOINT_COMMIT_ONLY`)** | [AGENTS.md](../AGENTS.md)<br>[docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) | [docs/CURRENT_WORK.md](CURRENT_WORK.md) |
 | **Push & PR (`PUSH_ONLY`, `PR_ONLY`)** | [AGENTS.md](../AGENTS.md)<br>[docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) | [.github/pull_request_template.md](../.github/pull_request_template.md) |
 | **Post-Merge Sync (`POST_MERGE_SYNC_ONLY`)** | [AGENTS.md](../AGENTS.md)<br>[docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) | [docs/CURRENT_WORK.md](CURRENT_WORK.md) |
@@ -62,4 +73,4 @@ To prevent conflicting rules across documents:
 6. **Durable Facts vs. Active State**:
    - [docs/PROJECT_STATE.md](PROJECT_STATE.md) contains durable, verified project facts only.
    - [docs/CURRENT_WORK.md](CURRENT_WORK.md) contains active package operational status only and is subordinate to live Git state.
-   - [docs/BACKLOG.md](BACKLOG.md) contains accepted inactive items only.
+   - [docs/BACKLOG.md](BACKLOG.md) preserves accepted inactive items and stable IDs; verified Issues own current task/status decisions. No bulk history deletion or competing status list is introduced.
