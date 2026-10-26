@@ -38,9 +38,11 @@ To maintain safety and prevent premature assumptions, MathFirst strictly isolate
 
 ## 2. Invariant Rules for Release Operations
 
-1. **Explicit Authorization Required**: Code signing, store uploads, production deployments, and release creation are **non-delegable operations** requiring explicit user confirmation.
-2. **Platform-Neutral Governance**: Specific compiler toolchains, packaging scripts, and distribution platforms will be documented once the technology stack and target platforms are chosen in accordance with [docs/ROADMAP.md](ROADMAP.md).
+1. **Signing and deployment approval**: Release signing, production deployments, Git tags and GitHub releases remain non-delegable and require separate affirmative owner approval. A mode name, source merge or central release-prep permission grants no signing authority. Existing external-secret and profile restrictions below remain binding.
+2. **Store operations — OWNER_ONLY / NEVER_AUTOMATE**: Only the owner manually operates Google Play Console or any future store: binary uploads, store metadata, release creation/approval, tracks, rollouts and publication. Never automate via agents, APIs (including Play Developer Publishing API), CI publishing jobs, service accounts, Fastlane or browser/desktop input. No store credentials in repositories or on agent hosts. Owner approval cannot authorize an agent to perform these actions. Git push, PR, merge and local synchronization must have no publishing side effects.
 3. **Traceability**: Every distributable artifact must be traceable to an exact immutable Git commit SHA on `main`.
+4. **Local preparation only when authorized**: Build/package/offline validation steps require a bounded task; release signing additionally requires its separate approval. Stop before any store action. Give the owner a German manual checklist with verified commit/version/build, artifact name/SHA-256/signature status, risks, intended track and remaining manual steps. If the owner later reports a manual action, record it as owner-reported with store state not independently verified.
+5. **Evidence and data safety**: Native Windows/Android compile and artifact validation do not prove installation, runtime behavior, device acceptance or release. Device/emulator/simulator/ADB and manual device testing need separate explicit authorization. Use synthetic fixtures and isolated temporary data; never inspect or test on real learner data. Data profile remains `UNCLASSIFIED`; future online features are undecided, and offline operation does not establish absence of personal data. Documentation changes grant no release authority and do not establish rollout acceptance.
 
 ## 3. MF-UX-003 Identity and Version Prerequisites
 
@@ -93,6 +95,7 @@ MathFirst release tooling and MSBuild configuration strictly isolate release pro
   - `SourceCandidate` and `Distributable`: `com.tachiguro.mathfirst`.
   - `Tester`: `com.tachiguro.mathfirst.tester` (ensuring side-by-side coexistence with production installs).
 - **Offline Invariant**: `src/MathFirst.App/Platforms/Android/AndroidManifest.xml` explicitly omits all network permissions (`android.permission.INTERNET`, `android.permission.ACCESS_NETWORK_STATE`). `BlazorWebView` assets are loaded locally from the packaged application.
+  This describes the current platform contract, not a data-profile classification or a decision against future online features. Local learner storage and export/share flows still require evidence-based classification before a data-flow change.
 - **Multi-Generation Backup Boundary**:
   - `android:allowBackup="true"` is enabled in `AndroidManifest.xml` to allow controlled device-to-device data migration.
   - **API 24–27** (`backup_rules.xml`): Full deny-all fallback (`<exclude domain="..." path="." />` across all 9 supported storage domains) because Android 7.0–8.1 cannot reliably isolate device transfer from cloud Auto Backup.
@@ -271,6 +274,6 @@ The schema intentionally has no `checks` property. `SourceCandidate` and `Tester
 
 1. **Packaging is Not Distribution**: Generating a `SourceCandidate`, `Distributable`, or `Tester` package does not publish the application.
 2. **Synchronized Main for Distributable**: `Distributable` packages cannot be built from feature branches.
-3. **Google Play Upload**: Upload to Google Play internal testing or production tracks requires explicit separate user authorization.
+3. **Google Play / Other Stores**: Uploads, metadata, releases, tracks, rollouts and publication are **OWNER_ONLY / NEVER_AUTOMATE** (§2). No task or approval delegates them to an agent.
 4. **Device Testing**: Local offline validation does not replace real-device installation testing.
 5. **Evidence Is Not Delivery**: The five-file evidence directory does not imply upload, distribution, installation, manual verification, or release publication.
