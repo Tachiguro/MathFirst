@@ -12,15 +12,15 @@ This document provides operational context for current repository work.
 - **Current Program Position**:
   - `MF-CYBER-007` (Critical Strike & Overdrive, [Issue #90](https://github.com/Tachiguro/MathFirst/issues/90)) was complete, fully validated, and merged into `main` through [PR #91](https://github.com/Tachiguro/MathFirst/pull/91) at `74b02362bd4fbc78a15ac814ef90e2f014491e6d` on 2026-10-21 (validated candidate `9862eec9c6073e54a865d481ed28f3296cfdd268`, 5,095 Core tests in Debug and Release).
   - `MF-CYBER-093` (Orphaned Pending Intent Recovery after Learner RevisionConflict, [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93)) is complete, fully validated, and merged into `main` via [PR #95](https://github.com/Tachiguro/MathFirst/pull/95) at merge commit `13ec44cbd00e65a163b5ec18823d8b78eba085ea` on 2026-10-22 (validated candidate `813e922b46fffdba11aad6b6910c579a234a39e9`, 5,110 Core tests in Debug and Release). Issue #93 is CLOSED/completed.
-  - `MF-CYBER-008` (Combat HUD Polish & Rigid Geometric Layout Enforcement, [Issue #92](https://github.com/Tachiguro/MathFirst/issues/92)) remains open as Draft [PR #94](https://github.com/Tachiguro/MathFirst/pull/94) on branch `feat/mf-cyber-008-hud-layout-slice1`. Integration of updated `main` (including merged PR #95) into `feat/mf-cyber-008-hud-layout-slice1` is in progress; full validation of the new combined candidate remains pending.
-- **Active Package**: `MF-CYBER-008` (Combat HUD Polish & Rigid Geometric Layout Enforcement, [Issue #92](https://github.com/Tachiguro/MathFirst/issues/92)). PR #94 remains Draft and unmerged. Feature integration of merged dependency MF-CYBER-093 from `main` is in progress. Full validation of the combined candidate remains pending.
+  - MF-CYBER-008 is **MERGED** into `main` through [PR #94](https://github.com/Tachiguro/MathFirst/pull/94) on 2026-10-27 at `4214d106fe6424191a4db08e18c0e845d07649c7` (validated candidate `8e4161bce8368299a758bef3ade07d72c55fa56d`). Issue #93 is CLOSED after merged PR #95. The package remains unreleased; no deployment or physical-device acceptance is claimed.
+- **Current Follow-up**: MF-CYBER-008 post-merge documentation reconciliation under [Issue #92](https://github.com/Tachiguro/MathFirst/issues/92), which remains OPEN pending reconciliation and the post-reconciliation integration check. Feature integration and validation are complete; MF-CYBER-009 and MF-CYBER-010 remain planned.
 - **Official Package Objective**: Upper combat HUD (100 HP, authoritative dynamic shields, opponent/sector status, compact radar, SP > 0 upgrade indicator), boss victory ceremony with truthful sector recap, respectful System Overload reboot, and strict protection of the lower mathematics area. Question selection, telemetry, FSRS, Learner Store Schema V9, Gameplay Schema V7, and the combat economy are preserved. Preserves both MF-CYBER-008 and MF-CYBER-093 persistence recovery contracts.
-- **Repository State & Synchronization Anchor (verified 2026-10-22)**:
+- **Repository State & Synchronization Anchor (verified 2026-10-27, before documentation branch creation)**:
   - Canonical checkout `C:\Dev\MathFirst`; one normal worktree and one repository writer.
-  - Active branch `feat/mf-cyber-008-hud-layout-slice1`.
-  - Local `main`, `origin/main`, and GitHub `main`: `13ec44cbd00e65a163b5ec18823d8b78eba085ea`.
-  - PR #94 remains OPEN/DRAFT.
-- **MF-CYBER-008 Checkpoint Sequence** (over `main`):
+  - Clean canonical `main` was verified before creating the separate documentation branch; the feature branch is historical.
+  - Local `main`, `origin/main`, and GitHub `main`: `4214d106fe6424191a4db08e18c0e845d07649c7`.
+  - PR #94 is CLOSED/MERGED; validated feature HEAD `8e4161bce8368299a758bef3ade07d72c55fa56d`. See the [merge and synchronization record](https://github.com/Tachiguro/MathFirst/issues/92#issuecomment-6451441896).
+- **Historical MF-CYBER-008 Checkpoint Sequence** (before integration):
   1. `b34bf0a` (`feat(cyber): render authoritative dynamic shield HUD` — `MathFirst-Checkpoint: MF-CYBER-008 1/4 authoritative-dynamic-shields`).
   2. `7e3ede3` (`feat(cyber): refine responsive combat HUD layout` — `MathFirst-Checkpoint: MF-CYBER-008 2/4 responsive-hud-layout`).
   3. `c18671f` (`feat(cyber): add proven sector recap and boss reboot ceremony` — `MathFirst-Checkpoint: MF-CYBER-008 3/4 boss-ceremony-reboot`).
@@ -28,7 +28,8 @@ This document provides operational context for current repository work.
   5. `f117f75` (`fix(cyber): prepare Home after revision conflict recovery` — `MathFirst-Checkpoint: MF-CYBER-008 3/4 revision-conflict-recovery-remediation`).
   6. `c251571` (`docs: reconcile MF-CYBER-008 candidate state` — `MathFirst-Checkpoint: MF-CYBER-008 4/4 documentation-reconciliation`).
   7. `50790a6` (`docs: correct MF-CYBER-008 checkpoint status` — `MathFirst-Checkpoint: MF-CYBER-008 4/4 documentation-reconciliation`).
-- **Implemented MF-CYBER-008 Scope (reviewed, unmerged)**:
+  8. `8e4161bce8368299a758bef3ade07d72c55fa56d` integrated prior feature HEAD `50790a6aed8aa07377bc9ec04b8e2aae5e73fb64` with `main@13ec44cbd00e65a163b5ec18823d8b78eba085ea`; subsequently reviewed, validated and merged via PR #94.
+- **Implemented MF-CYBER-008 Scope (reviewed, merged, unreleased)**:
   - **Authoritative shield HUD**: `CyberDefenseHudViewModel` projects `ShieldCapacity` / `ActiveShields` from authoritative run state. `CyberDefenseHud.razor` renders exactly `ShieldCapacity` slots (intact/broken) with localized `role="meter"` value semantics, so no empty permanent Firewall slots appear before purchase. An active, legitimately granted temporary Rank-0 Emergency Shield is shown as capacity 1.
   - **Responsive combat display**: compact upper HUD hierarchy for HP, sector/opponent, radar, SP > 0 upgrade indicator, and shields; localized HP/opponent values; focus styles; reduced-motion suppression including the infinite boss-text animation. Styling is scoped to `CyberDefenseHud.razor.css`; `app.css` is unchanged.
   - **Boss victory and System Overload**: the transient, presentation-only `CyberDefensePresentationSequence` shows a 2 s victory stage followed by a 2 s recap after an applied sector-completing receipt, or a 2 s System Overload stage after game-over. It then reveals the already-authoritative next sector or Sector 1. It performs no second domain transition, reset, or reward, deduplicates per submission ID, and is reset-epoch fenced. `CyberDefenseCeremony.razor` renders it with EN/DE/RU copy, `role="status"`, heading focus, and reduced-motion handling.
@@ -40,8 +41,9 @@ This document provides operational context for current repository work.
   - **Learning timing and recovery protections**: a presentation barrier withholds the next question while the ceremony runs, so ceremony time is not active answering time. Backgrounding during victory/recap cancels the presentation but keeps the practice surface available, while the foreground / explicit Resume gate controls timing (regression: 3,456 ms active latency persisted, not 1 ms). Next-fact UI preparation runs exactly once after a committed advance, including `RevisionConflict` authoritative reload. Disposal, reset, and learner-generation fences remain intact.
 - **MF-CYBER-008 Review & Findings Status**:
   - The consolidated package review of MF-CYBER-008 reported `REVIEW_PASS` (0 BLOCKER / 0 MAJOR, 3 MINOR, 3 NIT).
-  - Pre-existing MAJOR Issue #93 is resolved and merged into `main` via PR #95. Integration into the feature branch is underway.
+  - Pre-existing MAJOR Issue #93 is resolved and merged into `main` via PR #95. Integration was completed in the validated candidate merged via PR #94.
   - MINOR-01 (recap decimal invariant formatting), MINOR-02 (recap loads epoch receipts), and MINOR-03 (pre-existing upgrade badge target size unmeasured) remain acknowledged.
+  - Tracked NITs remain: potential duplicate focus/live-region announcement, ineffective shield-meter live text, nullable default interface fallbacks, and the post-integration unused `currentEpoch` local. The focused integration review did not erase the original NITs.
   - Runtime acceptance: physical layout, WebView, touch targets, and screen reader announcements remain unmeasured on physical devices.
 - **Merged MF-CYBER-093 Mechanics (PR #95)**:
   - **Abandoned Intent Cleanup Interfaces**: Added `ClearPendingIntentAsync` and `ClearAbandonedIntentAsync` across `ICyberDefenseCombatCoordinator`, `ICyberDefenseSubmissionConsumer`, and `IGameplayStore` / `SqliteGameplayStore`.
@@ -131,8 +133,8 @@ This document provides operational context for current repository work.
   - **P1 (Normal Practice Without Deadline Failure)**: Merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`, 1,936 Core tests).
   - **P0 (Zero-Answer / `0 + 0` Core-Flow Freeze Blocker)**: Merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`, 1,917 Core tests).
 - **Downstream Scope**:
-  - **Active Sequence**: MF-CYBER-008 ([Issue #92](https://github.com/Tachiguro/MathFirst/issues/92)) is open as Draft PR #94 on branch `feat/mf-cyber-008-hud-layout-slice1`. Integration of `main@13ec44cbd00e65a163b5ec18823d8b78eba085ea` (including merged PR #95) into `feat/mf-cyber-008-hud-layout-slice1` is in progress; full validation of the new combined candidate remains pending. MF-CYBER-009 and MF-CYBER-010 remain planned.
-  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (PR #73) $\to$ MF-CYBER-002 (PR #74/#75) $\to$ MF-CYBER-003 (PR #76/#77/#78) $\to$ MF-CYBER-004 (PR #79/#80) $\to$ MF-CYBER-005 (PR #82/#83) $\to$ MF-CYBER-006 (PR #87/#89) $\to$ MF-CYBER-007 (merged PR #91) $\to$ MF-CYBER-093 (merged PR #95) $\to$ MF-CYBER-008 (Combat HUD, Draft PR #94, main integration in progress) $\to$ MF-CYBER-009 (Narrative) $\to$ MF-CYBER-010 (Simulation Matrix).
+  - **Current Sequence**: MF-CYBER-008 is merged via PR #94; Issue #92 remains open for post-merge documentation reconciliation. MF-CYBER-009 and MF-CYBER-010 remain planned.
+  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (PR #73) $\to$ MF-CYBER-002 (PR #74/#75) $\to$ MF-CYBER-003 (PR #76/#77/#78) $\to$ MF-CYBER-004 (PR #79/#80) $\to$ MF-CYBER-005 (PR #82/#83) $\to$ MF-CYBER-006 (PR #87/#89) $\to$ MF-CYBER-007 (merged PR #91) $\to$ MF-CYBER-093 (merged PR #95) $\to$ MF-CYBER-008 (Combat HUD, merged PR #94) $\to$ MF-CYBER-009 (Narrative) $\to$ MF-CYBER-010 (Simulation Matrix).
   - Roadmap Step 55 remains **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
 
 ### 1.1 Pre-Step55 Refinement Program Sequence
@@ -148,19 +150,20 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b4977e8ebf3f61683771ca830f74f69c34`)
 9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Merged` — PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-merge docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
 10. **P8**: Test-Coverage Audit & Targeted Hardening (`Merged` — PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`)
-11. **P7**: Game-Design & Game-Polish Program (GDD/Roadmap PR #72; MF-CYBER-001 through MF-CYBER-007 and MF-CYBER-093 merged; MF-CYBER-008 Draft PR #94 with main integration in progress; MF-CYBER-009 and MF-CYBER-010 planned). Remaining post-Core scope stays deferred.
+11. **P7**: Game-Design & Game-Polish Program (GDD/Roadmap PR #72; MF-CYBER-001 through MF-CYBER-007 and MF-CYBER-093 merged; MF-CYBER-008 merged via PR #94; MF-CYBER-009 and MF-CYBER-010 planned). Remaining post-Core scope stays deferred.
 
 ### 1.2 Current Verified Quality State
 
-#### Merged Main Baseline (`origin/main@74b02362bd4fbc78a15ac814ef90e2f014491e6d` / Post-PR-91 Baseline)
-#### Merged Main Baseline (`origin/main@13ec44cbd00e65a163b5ec18823d8b78eba085ea` / Post-PR-95 Baseline)
+#### Historical Merged Main Baseline (`origin/main@74b02362bd4fbc78a15ac814ef90e2f014491e6d` / Post-PR-91 Baseline)
+#### Historical Merged Main Baseline (`origin/main@13ec44cbd00e65a163b5ec18823d8b78eba085ea` / Post-PR-95 Baseline)
 - MF-CYBER-093 is complete and merged into `main` via [PR #95](https://github.com/Tachiguro/MathFirst/pull/95) at merge commit `13ec44cbd00e65a163b5ec18823d8b78eba085ea` on 2026-10-22 (validated candidate `813e922b46fffdba11aad6b6910c579a234a39e9`), following MF-CYBER-007 ([PR #91](https://github.com/Tachiguro/MathFirst/pull/91) at `74b02362bd4fbc78a15ac814ef90e2f014491e6d`), MF-CYBER-006 ([PR #87](https://github.com/Tachiguro/MathFirst/pull/87)), and governance reconciliation ([PR #89](https://github.com/Tachiguro/MathFirst/pull/89)).
 - PR #95 reports exact-candidate Core 5,110/5,110 Debug/Release, Windows Release build and Android Release Compile 0 warnings/errors. Gameplay Store remains V7 and Learner Store remains V9.
 
-#### MF-CYBER-008 Integration Candidate Evidence
+#### MF-CYBER-008 Merged Candidate Evidence
 - The consolidated package review of MF-CYBER-008 reported `REVIEW_PASS` (0 BLOCKER / 0 MAJOR, 3 MINOR, 3 NIT).
-- Integration of `main@13ec44cbd00e65a163b5ec18823d8b78eba085ea` into `feat/mf-cyber-008-hud-layout-slice1` resolves integration conflicts while preserving both MF-CYBER-008 and MF-CYBER-093 contracts.
-- Exact-candidate `FULL_VALIDATION` of the combined candidate remains pending.
+- Historical integration of `main@13ec44cbd00e65a163b5ec18823d8b78eba085ea` into `feat/mf-cyber-008-hud-layout-slice1` produced candidate `8e4161bce8368299a758bef3ade07d72c55fa56d`, preserving both MF-CYBER-008 and MF-CYBER-093 contracts. The [independent integration review](https://github.com/Tachiguro/MathFirst/issues/92#issuecomment-6336166953) reported `REVIEW_PASS`, 0 BLOCKER / 0 MAJOR, with existing MINOR/NIT findings retained.
+- Native full validation on candidate `8e4161bce8368299a758bef3ade07d72c55fa56d` was reported as `FULL_VALIDATION_PASS`: Core 5,181/5,181 in both Debug and Release, Windows Release, separate Android Release compile, whole-solution Release, dependency and Markdown audits. See the [exact-candidate validation record](https://github.com/Tachiguro/MathFirst/issues/92#issuecomment-6337162881) and [follow-up evidence disposition](https://github.com/Tachiguro/MathFirst/issues/92#issuecomment-6445248365); artifact contents were independently corroborated, while original execution/candidate association remains agent-reported. No new native validation is claimed here.
+- MF-CYBER-008 is **MERGED** into `main` through [PR #94](https://github.com/Tachiguro/MathFirst/pull/94) on 2026-10-27 at `4214d106fe6424191a4db08e18c0e845d07649c7` (validated candidate `8e4161bce8368299a758bef3ade07d72c55fa56d`). Issue #93 is CLOSED after merged PR #95. The package remains unreleased; no deployment or physical-device acceptance is claimed. See the [merge and synchronization record](https://github.com/Tachiguro/MathFirst/issues/92#issuecomment-6451441896).
 
 #### Historical MF-CYBER-093 Merged Quality Evidence (PR #95, [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93))
 - Merged candidate `813e922b46fffdba11aad6b6910c579a234a39e9` resolved orphaned pending intent after learner RevisionConflict, with 5,110/5,110 Core tests passing in Debug and Release on `main`.
@@ -343,7 +346,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 20. MF-CYBER-006 (Firewall Shield Mechanics & Fair Beginner Assistance, [Issue #85](https://github.com/Tachiguro/MathFirst/issues/85)) is complete, fully validated (`MF_CYBER_006_FULL_VALIDATION_PASS` on candidate `650e6619c640b963f1ecc614f4fdbaf1cc6bb6d1`), and merged into `main` via [PR #87](https://github.com/Tachiguro/MathFirst/pull/87) at `71da7276c8eb965ed65d419ee80354c3cbb16da3`; governance reconciliation followed via [PR #89](https://github.com/Tachiguro/MathFirst/pull/89) at `5992b7790436a78d30be72fb7fadeb45b020ae9f`.
 21. MF-CYBER-007 (Critical Strike & Overdrive, [Issue #90](https://github.com/Tachiguro/MathFirst/issues/90)) is complete, validated on candidate `9862eec9c6073e54a865d481ed28f3296cfdd268`, and merged into `main` via [PR #91](https://github.com/Tachiguro/MathFirst/pull/91) at `74b02362bd4fbc78a15ac814ef90e2f014491e6d` on 2026-10-21 (5,095 Core tests in Debug and Release).
 22. MF-CYBER-093 (Orphaned Pending Intent Recovery after Learner RevisionConflict, [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93)) is complete, fully validated, and merged into `main` via [PR #95](https://github.com/Tachiguro/MathFirst/pull/95) at merge commit `13ec44cbd00e65a163b5ec18823d8b78eba085ea` on 2026-10-22 (5,110 Core tests in Debug and Release). Issue #93 is closed.
-23. MF-CYBER-008 (Combat HUD Polish & Rigid Geometric Layout, [Issue #92](https://github.com/Tachiguro/MathFirst/issues/92)) is open as Draft PR #94 (`feat/mf-cyber-008-hud-layout-slice1`). Safe integration of `main` (PR #95) into `feat/mf-cyber-008-hud-layout-slice1` is in progress; full validation of the combined candidate remains pending.
+23. MF-CYBER-008 is **MERGED** into `main` through [PR #94](https://github.com/Tachiguro/MathFirst/pull/94) on 2026-10-27 at `4214d106fe6424191a4db08e18c0e845d07649c7` (validated candidate `8e4161bce8368299a758bef3ade07d72c55fa56d`). Issue #93 is CLOSED after merged PR #95. The package remains unreleased; no deployment or physical-device acceptance is claimed.
 24. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
