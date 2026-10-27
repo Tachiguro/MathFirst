@@ -199,6 +199,58 @@ public sealed class PracticeCopyLibraryTests
     }
 
     [Fact]
+    public void Library_InitialReady_DoesNotContainContinuationOrPriorSessionPhrases()
+    {
+        string[] enProhibitedContinuations = ["continue", "keep going", "still here", "back"];
+        string[] deProhibitedContinuations = ["weitermachen", "weiter geht's", "noch da", "zurück"];
+        string[] ruProhibitedContinuations = ["продолжать", "продолжаем", "всё ещё здесь", "снова"];
+
+        var initialReadyIds = Library.GetMessageIds(PracticeCopyTrigger.InitialReady, "en");
+
+        foreach (var id in initialReadyIds)
+        {
+            var enText = Library.GetText(id, "en")!;
+            foreach (var prohibited in enProhibitedContinuations)
+            {
+                Assert.False(
+                    enText.Contains(prohibited, StringComparison.OrdinalIgnoreCase),
+                    $"InitialReady variant '{id}' contains English continuation phrasing '{prohibited}': \"{enText}\"");
+            }
+
+            var deText = Library.GetText(id, "de")!;
+            foreach (var prohibited in deProhibitedContinuations)
+            {
+                Assert.False(
+                    deText.Contains(prohibited, StringComparison.OrdinalIgnoreCase),
+                    $"InitialReady variant '{id}' contains German continuation phrasing '{prohibited}': \"{deText}\"");
+            }
+
+            var ruText = Library.GetText(id, "ru")!;
+            foreach (var prohibited in ruProhibitedContinuations)
+            {
+                Assert.False(
+                    ruText.Contains(prohibited, StringComparison.OrdinalIgnoreCase),
+                    $"InitialReady variant '{id}' contains Russian continuation phrasing '{prohibited}': \"{ruText}\"");
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("InitialReady.Welcoming.001", "Welcome to practice.", "Willkommen zum Üben.", "Добро пожаловать на тренировку.")]
+    [InlineData("InitialReady.Welcoming.002", "Good to have you here.", "Schön, dass du da bist.", "Хорошо, что ты здесь.")]
+    [InlineData("InitialReady.DryHumor.002", "Numbers: always reliable.", "Zahlen: stets zuverlässig.", "Числа: всегда надёжны.")]
+    public void Library_InitialReady_ReplacedVariants_MatchApprovedFirstLaunchSafeCopy(
+        string messageId,
+        string expectedEn,
+        string expectedDe,
+        string expectedRu)
+    {
+        Assert.Equal(expectedEn, Library.GetText(messageId, "en"));
+        Assert.Equal(expectedDe, Library.GetText(messageId, "de"));
+        Assert.Equal(expectedRu, Library.GetText(messageId, "ru"));
+    }
+
+    [Fact]
     public void Library_DoesNotContainFalseFirstEverMessageIds()
     {
         Assert.DoesNotContain("FirstEverReady", Enum.GetNames<PracticeCopyTrigger>());

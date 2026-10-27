@@ -227,6 +227,43 @@ public sealed class PracticeCopySelectorTests
         Assert.Equal(PracticeCopyTrigger.InitialReady, context.Trigger);
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("ru")]
+    public async Task PracticeCopySelector_FreshSessionInitialReady_NeverSelectsContinuationPhrasing(string locale)
+    {
+        var session = new TrainingSession(new SnapshotStore(CreateSnapshot()));
+        await session.InitializeAsync(startTiming: false);
+        session.ShowInitialReadyGate();
+
+        var library = new PracticeCopyLibrary();
+        var selector = new PracticeCopySelector(library);
+        var context = PracticeCopyContext.FromSession(
+            session,
+            locale,
+            new DateTimeOffset(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
+
+        var initialReadyCount = library.GetMessageIds(PracticeCopyTrigger.InitialReady, locale).Count;
+        for (var position = 0; position < initialReadyCount * 3; position++)
+        {
+            var result = selector.Select(context with { PracticePosition = position })!;
+            Assert.False(result.IsFallback);
+            Assert.Equal(PracticeCopyTrigger.InitialReady, result.Trigger);
+
+            var text = result.LocalizedText;
+            Assert.DoesNotContain("continue", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("keep going", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("still here", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("weitermachen", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("weiter geht's", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("noch da", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("продолжать", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("продолжаем", text, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("всё ещё здесь", text, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     [Fact]
     public async Task PracticeCopyContext_UsesPersistedLatestAttemptWhenMaterializedItemStateIsBoundedAway()
     {

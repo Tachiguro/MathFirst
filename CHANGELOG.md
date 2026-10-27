@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MF-CYBER-009 Slice 1 (First-Launch Copy Hygiene & Cyber Defense Story Localization) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **First-Launch Copy Hygiene**: Replaced continuation-only phrasing in the `InitialReady` pool (`InitialReady.Welcoming.001`, `InitialReady.Welcoming.002`, and `InitialReady.DryHumor.002`) across English, German, and Russian with truthful, first-launch-safe neutral/welcoming variants. Preserved all message IDs, pool counts, unique visible string invariants, and deterministic selector behavior.
+- **Cyber Defense Story Localization**: Added introductory story key `CyberDefense_Story_Intro` to `LocalizationService` in EN/DE/RU, expressing the core premise (hostile cyber-entities threaten the network; arithmetic answers generate defensive energy).
+- **Scope Boundaries**: UI rendering, tutorial spotlight overlay, preference persistence, and local achievements remain explicitly pending future slices. Unreleased; PR open/unmerged.
+
 ### MF-CYBER-008 (Combat HUD Polish & Rigid Geometric Layout Enforcement) — Merged into main via PR #94 (Unreleased)
 
 - **Authoritative Shield HUD**: The HUD view model projects `ShieldCapacity` / `ActiveShields` from run state; exactly that many slots render with localized meter semantics. No empty permanent Firewall slots before purchase; an active temporary Rank-0 Emergency Shield is shown.
