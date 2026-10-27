@@ -1,0 +1,179 @@
+.tutorial-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(3px);
+    color: var(--color-text);
+}
+
+.tutorial-card {
+    width: min(100%, 32rem);
+    padding: clamp(1rem, 3vw, 1.5rem);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 1rem;
+    background: var(--color-surface-elevated);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    overflow-wrap: anywhere;
+}
+
+.tutorial-card-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+}
+
+.tutorial-badge-row {
+    display: flex;
+    justify-content: center;
+}
+
+.tutorial-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-muted);
+    color: var(--color-muted);
+}
+
+.tutorial-badge-story {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.tutorial-target-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background: var(--color-surface-muted);
+    border: 1px solid var(--color-border);
+    color: var(--color-primary);
+    margin-block: var(--space-1);
+}
+
+.tutorial-card-header h2 {
+    margin: 0;
+    font-size: clamp(1.2rem, 2.5vw, 1.4rem);
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.tutorial-card-header h2:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 4px;
+    border-radius: 4px;
+}
+
+.tutorial-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.tutorial-step-desc {
+    margin: 0;
+    font-size: clamp(0.95rem, 1.8vw, 1.05rem);
+    line-height: 1.5;
+    color: var(--color-text);
+    text-align: center;
+}
+
+.tutorial-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    flex-wrap: wrap;
+}
+
+.tutorial-nav-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-inline-start: auto;
+}
+
+.tutorial-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    min-width: 48px;
+    padding: 0.65rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.tutorial-btn:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.tutorial-btn-primary {
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+    border: 1px solid var(--color-primary);
+}
+
+.tutorial-btn-primary:hover {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+
+.tutorial-btn-secondary {
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.tutorial-btn-secondary:hover {
+    background: var(--color-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tutorial-overlay,
+    .tutorial-card,
+    .tutorial-btn {
+        animation: none;
+        transition: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .tutorial-card-actions {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+    .tutorial-nav-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .tutorial-btn {
+        width: 100%;
+    }
+}
