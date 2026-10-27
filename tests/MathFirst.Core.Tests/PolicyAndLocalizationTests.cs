@@ -372,6 +372,29 @@ public sealed class PolicyAndLocalizationTests
         }
     }
 
+    [Theory]
+    [InlineData("en", "Hostile cyber-entities threaten the learning network. Solve arithmetic problems to generate defensive energy and protect the system.")]
+    [InlineData("de", "Feindliche Cyber-Entitäten bedrohen das Lernnetzwerk. Löse Rechenaufgaben, um Abwehrenergie zu erzeugen und das System zu schützen.")]
+    [InlineData("ru", "Враждебные киберсущности угрожают сети обучения. Решай примеры, чтобы вырабатывать защитную энергию и защищать систему.")]
+    public void LocalizationService_CyberDefenseStoryIntro_HasTrilingualParityAndExpressesPremise(string language, string expectedStory)
+    {
+        var service = new LocalizationService();
+        service.ApplyLanguagePreference(language);
+
+        var actual = service["CyberDefense_Story_Intro"];
+
+        Assert.Equal(expectedStory, actual);
+        Assert.NotEqual("CyberDefense_Story_Intro", actual);
+
+        // Ensure no English fallback leakage in German or Russian
+        if (language != "en")
+        {
+            service.ApplyLanguagePreference("en");
+            var englishStory = service["CyberDefense_Story_Intro"];
+            Assert.NotEqual(englishStory, actual);
+        }
+    }
+
     [Fact]
     public void Settings_Contract_ContainsPrivacyNavigationEntry()
     {
