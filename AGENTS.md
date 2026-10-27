@@ -133,7 +133,7 @@ Coding agents **never autonomously merge**. Release/deployment/signing, data cha
 
 ## 7. Privacy & Data Baseline
 
-**Data profile: UNCLASSIFIED.** Classify once from actual storage, sharing/export, network, telemetry, accounts, SDK and third-party data flows before the next data-flow change; the owner decides (Gate C). Future online features are undecided. Offline operation and public source do not prove absence of personal data.
+**Data profile: USER_DATA.** Selected under owner-delegated coordinator decision ([#101](https://github.com/Tachiguro/MathFirst/issues/101#issuecomment-6452094785)) to cover existing local learner data (persisted SQLite learner/attempt and gameplay progress) and manual, user-initiated telemetry export via native OS sharing. Future online features remain undecided. Offline operation, public source, and this classification do not authorize automatic telemetry transmission, analytics SDKs, user accounts, or unapproved networking.
 
 Automated tests and scripts must never open, copy, migrate, alter, delete, or test against real private user data. All testing must use synthetic fixtures, fake clocks, mocked networks, and temporary isolated directories (see [docs/TESTING.md](docs/TESTING.md)).
 
