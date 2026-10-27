@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -15,6 +15,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <RazorComponent Include="..\..\src\MathFirst.App\Components\Training\CyberDefenseHud.razor" Link="CyberDefenseHud.razor" />
+    <RazorComponent Include="..\..\src\MathFirst.App\Components\Training\CyberDefenseCeremony.razor" Link="CyberDefenseCeremony.razor" />
+    <RazorComponent Include="..\..\src\MathFirst.App\Components\Pages\Home.razor" Link="Home.razor" />
+    <RazorComponent Include="..\..\src\MathFirst.App\Components\Training\UpgradeTerminal.razor" Link="UpgradeTerminal.razor" />
+    <RazorComponent Include="..\..\src\MathFirst.App\Components\Shared\PracticeCountdownTimer.razor" Link="PracticeCountdownTimer.razor" />
+    <RazorComponent Include="..\..\src\MathFirst.App\Components\Shared\TeachingInterventionDialog.razor" Link="TeachingInterventionDialog.razor" />
+    <Using Include="Microsoft.AspNetCore.Components" />
+    <Using Include="Microsoft.AspNetCore.Components.Web" />
+    <Using Include="Microsoft.JSInterop" />
     <Using Include="Xunit" />
     <Using Include="MathFirst.Infrastructure.Sqlite" />
   </ItemGroup>

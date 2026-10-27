@@ -9,7 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-093 (Orphaned Pending Intent Recovery after RevisionConflict) — Implemented & Reviewed Local Bug-Fix Candidate (Unpublished, Unmerged, Unreleased)
+### MF-CYBER-008 (Combat HUD Polish & Rigid Geometric Layout Enforcement) — Reviewed Local Candidate (Unpublished, Unmerged, Unreleased)
+
+- **Authoritative Shield HUD**: The HUD view model projects `ShieldCapacity` / `ActiveShields` from run state; exactly that many slots render with localized meter semantics. No empty permanent Firewall slots before purchase; an active temporary Rank-0 Emergency Shield is shown.
+- **Responsive Combat Display**: Compact upper HUD for HP, sector/opponent, radar, SP > 0 upgrade indicator and shields; localized values, focus styles and reduced-motion suppression (including the boss-text animation). Lower-math markup and CSS are unchanged; Calm Mode renders no combat or ceremony DOM.
+- **Boss Victory, Sector Recap & System Overload**: Presentation-only sequence (2 s victory → 2 s recap, or 2 s System Overload) that reveals the already-authoritative next sector or Sector 1, with no second transition, reset or reward; localized EN/DE/RU.
+- **Read-Only Recap Aggregation**: `GetCompletedSectorRecapAsync` aggregates accuracy, active answering time, XP and level-ups from existing applied receipts of the current epoch, validated by the cumulative-XP chain and sector/game-over boundaries. No schema change, migration or write. Legacy or incomplete receipt history shows "recap unavailable" instead of invented totals.
+- **Timing & Recovery Protections**: The next question is withheld during the ceremony; background cancellation keeps foreground/Resume timing gates intact; next-fact UI preparation runs exactly once after committed advance and `RevisionConflict` authoritative reload.
+- **Test Infrastructure**: Core tests render App Razor components via ASP.NET Core `HtmlRenderer` (`Microsoft.NET.Sdk.Razor`, `Microsoft.AspNetCore.App` framework reference); no new NuGet packages.
+- **Evidence & Lifecycle**: `feat/mf-cyber-008-hud-layout-slice1@f117f75e7ab5ff4c3dade2766186a1309f68cc51` over verified main `74b02362bd4fbc78a15ac814ef90e2f014491e6d` (checkpoints `b34bf0a`, `7e3ede3`, `c18671f`, remediations `6b7c888`, `f117f75`), [Issue #92](https://github.com/Tachiguro/MathFirst/issues/92). [Consolidated review](https://github.com/Tachiguro/MathFirst/issues/92#issuecomment-6329054132): `REVIEW_PASS`, 0 BLOCKER / 0 MAJOR, 3 MINOR (DE/RU recap decimals use invariant culture; recap query loads all epoch receipts; upgrade badge target size unmeasured) and 3 NIT. Reported Core 5,165/5,165 Debug/Release is not bound to the exact HEAD; exact-HEAD `FULL_VALIDATION`, device/WebView/screen-reader acceptance and physical layout/contrast/touch-size measurement are pending. Merge and release are blocked by pre-existing MAJOR [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93). No publication, merge, release, deployment, signing or device acceptance is claimed.
+
+### MF-CYBER-093 (Orphaned Pending Intent Recovery after RevisionConflict) — Implemented and Merged into main via PR #95 (Unreleased)
 
 - **Orphaned Pending-Intent Recovery after Learner RevisionConflict**:
   - Remediated the defect where a rejected learner `RevisionConflict` during practice submission in `Home.razor` left an orphaned pending intent in `mathfirst_gameplay.db`, permanently blocking subsequent valid combat submissions and deferring question-bound Firewall capacity activation.
@@ -34,11 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Zero SQLite schema migrations: Learner Store Schema V9 and Gameplay Store Schema V7 are preserved untouched (0 DDL changes).
 - **Lifecycle & Verification Anchor**:
   - Implemented across 2 commits on branch `fix/mf-cyber-093-orphan-pending-intent` (`22606d78ae6b3040ebaba583af5e21b545f0c33a`, direct parent `d25fc3918cf8be4e58c89e6281f5c68742ac0062`, based on `main@74b02362bd4fbc78a15ac814ef90e2f014491e6d`), resolving [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93).
-  - Independent review completed with verdict `REVIEW_PASS` (0 BLOCKER, 0 MAJOR, 0 MINOR, 1 deferred NIT regarding an unused `currentEpoch` local in `CyberDefenseCombatCoordinator.cs`).
-  - Prior native-agent test evidence reported 15/15 focused tests in Debug and Release (`RevisionConflictOrphanPendingIntentTests`), CyberDefense namespace 2,837/2,837 tests in Debug and Release, and clean Windows Release and Android Release compile-only builds with 0 warnings and 0 errors.
-  - Formal exact-candidate `FULL_VALIDATION` on the final documentation-inclusive commit remains pending; unpublished, unmerged, and unreleased.
+  - Merged into main via [PR #95](https://github.com/Tachiguro/MathFirst/pull/95) at merge commit `13ec44cbd00e65a163b5ec18823d8b78eba085ea` on 2026-10-22 following exact-candidate `FULL_VALIDATION` (5,110/5,110 Core tests passing in Debug and Release, warning-free host and Android Release compile builds, 0 vulnerabilities, 317 passing links). Unreleased; no release, deployment, signing, or device acceptance claimed.
 
-### MF-CYBER-007 (Critical Strike & Overdrive) — Implemented & Reviewed Local Candidate (Unpublished, Unmerged, Unreleased)
+### MF-CYBER-007 (Critical Strike & Overdrive) — Implemented and Merged into main via PR #91 (Unreleased)
 
 - **Accuracy-Based Combat Modifiers**:
   - Critical Strike R1: Level 12 / 6 SP, every fifth confirmed correct attack +50%; R2: Level 50 / 12 SP, every fourth +100%. Purchased-rank correct hits count; incorrect answers preserve the counter; Critical rank purchase restarts its phase.
@@ -53,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Recovery verifies committed learner `PracticePosition`; unknown all-NULL/mixed multi-intent queues, duplicate positions, mismatched payloads and out-of-order consumption fail closed before combat mutation.
   - Additive V6 migration and earlier V7 compatibility preserve legacy NULL receipt evidence; a missing `practice_position` column is added within V7, with no Gameplay V8 migration.
   - Concurrent receipt recheck, replay identity checks, atomic receipt/run/reward settlement and reset-epoch fencing prevent duplicate damage, counters, XP and SP.
-- **Evidence & Lifecycle**: `feat/mf-cyber-007-critical-overdrive-slice1@2d215b195ba30ff29ac438c186b8d7569a7b4d9f` over verified main `5992b7790436a78d30be72fb7fadeb45b020ae9f`, [Issue #90](https://github.com/Tachiguro/MathFirst/issues/90). Consolidated findings remediated; [final targeted review](https://github.com/Tachiguro/MathFirst/issues/90#issuecomment-6310129124) reports `MF_CYBER_007_F1_F2_FINAL_REVIEW_PASS` with zero BLOCKER/MAJOR/MINOR/NIT in the corrective scope. The [native-agent validation report](https://github.com/Tachiguro/MathFirst/issues/90#issuecomment-6309969616) reports Core 5,095/5,095 Debug/Release and Core/Windows Release builds with 0 warnings/errors. These are prior reported runs; exact final documentation candidate `FULL_VALIDATION` is pending. No publication, merge, release, deployment, signing or device acceptance is claimed.
+- **Evidence & Lifecycle**: Merged via [PR #91](https://github.com/Tachiguro/MathFirst/pull/91) at `74b02362bd4fbc78a15ac814ef90e2f014491e6d` on 2026-10-21 from validated candidate `9862eec9c6073e54a865d481ed28f3296cfdd268` (`feat/mf-cyber-007-critical-overdrive-slice1`, over main `5992b7790436a78d30be72fb7fadeb45b020ae9f`), [Issue #90](https://github.com/Tachiguro/MathFirst/issues/90) closed. Consolidated findings remediated; [final targeted review](https://github.com/Tachiguro/MathFirst/issues/90#issuecomment-6310129124) reports `MF_CYBER_007_F1_F2_FINAL_REVIEW_PASS` with zero BLOCKER/MAJOR/MINOR/NIT in the corrective scope. PR #91 records owner-executed exact-candidate `FULL_VALIDATION`: Core 5,095/5,095 Debug/Release, Windows Release and Android Release Compile 0 warnings/errors. No release, deployment, signing or device acceptance is claimed.
 
 ### MF-CYBER-006 (Firewall Shield Mechanics & Fair Beginner Assistance) — Implemented and Merged into main (Unreleased)
 

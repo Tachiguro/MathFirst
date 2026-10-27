@@ -12,6 +12,7 @@ using MathFirst.Application.Persistence;
 public interface ICyberDefenseCombatCoordinator
 {
     CyberDefenseHudViewModel CurrentViewModel { get; }
+    CyberDefenseReceiptRecord? RecoveredPresentationReceipt => null;
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task StageIntentAsync(
         string submissionId,

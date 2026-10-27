@@ -45,6 +45,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ICyberDefenseSubmissionConsumer, CyberDefenseSubmissionConsumer>();
 		builder.Services.AddSingleton<CyberDefenseSubmissionConsumer>();
 		builder.Services.AddSingleton<ICyberDefenseCombatCoordinator, CyberDefenseCombatCoordinator>();
+		builder.Services.AddSingleton(_ => new CyberDefensePresentationSequence());
 		builder.Services.AddSingleton<CyberDefenseCombatCoordinator>();
 		builder.Services.AddSingleton<IThemeService, ThemeService>();
 		builder.Services.AddSingleton<ILocalizationService, LocalizationService>();
