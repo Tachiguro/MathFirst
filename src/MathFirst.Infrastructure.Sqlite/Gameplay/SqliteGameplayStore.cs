@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain.CyberDefense;
@@ -1171,16 +1172,63 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
         }
     }
 
+    private static readonly Regex AchievementIdCheckRegex = new(
+        @"CHECK\s*\(\s*length\s*\(\s*trim\s*\(\s*achievement_id\s*\)\s*\)\s*(?:>\s*0|>=\s*1)\s*\)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly Regex ResetEpochCheckRegex = new(
+        @"CHECK\s*\(\s*reset_epoch\s*>=\s*0\s*\)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly Regex UnlockedAtUtcCheckRegex = new(
+        @"CHECK\s*\(\s*length\s*\(\s*trim\s*\(\s*unlocked_at_utc\s*\)\s*\)\s*(?:>\s*0|>=\s*1)\s*\)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Validates that the native V8 local_achievements table contains the exact required CHECK constraints.
+    /// Fails closed on missing, altered or weakened constraints to ensure invalid data cannot be persisted.
+    /// </summary>
+    private static void ValidateSchemaV8AchievementConstraints(string tableSql)
+    {
+        if (!AchievementIdCheckRegex.IsMatch(tableSql))
+        {
+            throw new InvalidOperationException(
+                "Existing database has missing or malformed CHECK constraint on 'local_achievements.achievement_id'. " +
+                "Expected CHECK (length(trim(achievement_id)) > 0).");
+        }
+
+        if (!ResetEpochCheckRegex.IsMatch(tableSql))
+        {
+            throw new InvalidOperationException(
+                "Existing database has missing or malformed CHECK constraint on 'local_achievements.reset_epoch'. " +
+                "Expected CHECK (reset_epoch >= 0).");
+        }
+
+        if (!UnlockedAtUtcCheckRegex.IsMatch(tableSql))
+        {
+            throw new InvalidOperationException(
+                "Existing database has missing or malformed CHECK constraint on 'local_achievements.unlocked_at_utc'. " +
+                "Expected CHECK (length(trim(unlocked_at_utc)) > 0).");
+        }
+    }
+
     private static async Task ValidateSchemaV8AchievementsAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        using (var probeCmd = connection.CreateCommand())
+        string? tableSql;
+        using (var ddlCmd = connection.CreateCommand())
         {
-            probeCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'local_achievements';";
-            long count = Convert.ToInt64(await probeCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
-            if (count == 0)
+            ddlCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'local_achievements';";
+            var res = await ddlCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (res is null or DBNull)
             {
                 throw new InvalidOperationException("Existing database is incomplete: missing table 'local_achievements'.");
             }
+            tableSql = res.ToString();
+        }
+
+        if (string.IsNullOrWhiteSpace(tableSql))
+        {
+            throw new InvalidOperationException("Existing database is incomplete: missing DDL for table 'local_achievements'.");
         }
 
         var columns = new Dictionary<string, (string Type, bool NotNull, int PrimaryKey)>(StringComparer.OrdinalIgnoreCase);
@@ -1218,6 +1266,13 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
         {
             throw new InvalidOperationException("Existing database has invalid or missing 'unlocked_at_utc' in 'local_achievements'.");
         }
+
+        if (columns.Count != 3)
+        {
+            throw new InvalidOperationException("Existing database has unexpected column count in 'local_achievements'.");
+        }
+
+        ValidateSchemaV8AchievementConstraints(tableSql);
 
         long activeResetEpoch;
         using (var epochCmd = connection.CreateCommand())
@@ -1287,12 +1342,26 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
         }
     }
 
+    /// <summary>
+    /// Canonical ISO-8601 UTC round-trip representation (matching DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture)).
+    /// Strict 33-character format: yyyy-MM-ddTHH:mm:ss.fffffff+00:00.
+    /// Lexically order-preserving and unambiguous in SQLite storage.
+    /// </summary>
+    internal const string CanonicalUtcTimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fffffffzzz";
+    private const int CanonicalUtcTimestampLength = 33;
+
     private static DateTimeOffset ParseAndValidateUtcTimestamp(string text, string context)
     {
         if (string.IsNullOrWhiteSpace(text)
-            || !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp)
-            || timestamp.Offset != TimeSpan.Zero
-            || !(text.EndsWith("Z", StringComparison.OrdinalIgnoreCase) || text.EndsWith("+00:00", StringComparison.Ordinal) || text.EndsWith("-00:00", StringComparison.Ordinal)))
+            || text.Length != CanonicalUtcTimestampLength
+            || !text.EndsWith("+00:00", StringComparison.Ordinal)
+            || !DateTimeOffset.TryParseExact(
+                text,
+                CanonicalUtcTimestampFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var timestamp)
+            || timestamp.Offset != TimeSpan.Zero)
         {
             throw new InvalidOperationException($"Invalid or non-UTC timestamp '{text}' in {context}.");
         }

@@ -340,4 +340,129 @@ public sealed class SqliteGameplayStoreAchievementReadTests : IDisposable
             Assert.Equal("sector_10", single.AchievementId);
         }
     }
+
+    // =========================================================================
+    // 5. Strict canonical UTC timestamp parsing and ordering regressions
+    // =========================================================================
+
+    [Fact]
+    public async Task R11_GetUnlockedAchievementsAsync_ParseableHumanReadableDate_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("r11_human_readable");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await ExecuteRawAsync(dbPath, @"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, 'October 28, 2026 12:00:00 +00:00');
+        ");
+
+        var reader = AsAchievementReader(store);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetUnlockedAchievementsAsync());
+        Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task R12_GetUnlockedAchievementsAsync_UnknownOffsetNotation_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("r12_unknown_offset");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await ExecuteRawAsync(dbPath, @"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, '2026-10-28T12:00:00.0000000-00:00');
+        ");
+
+        var reader = AsAchievementReader(store);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetUnlockedAchievementsAsync());
+        Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task R13_GetUnlockedAchievementsAsync_NonUtcOffset_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("r13_non_utc");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await ExecuteRawAsync(dbPath, @"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, '2026-10-28T14:00:00.0000000+02:00');
+        ");
+
+        var reader = AsAchievementReader(store);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetUnlockedAchievementsAsync());
+        Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task R14_GetUnlockedAchievementsAsync_InvalidCalendarDate_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("r14_invalid_date");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await ExecuteRawAsync(dbPath, @"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, '2026-02-30T12:00:00.0000000+00:00');
+        ");
+
+        var reader = AsAchievementReader(store);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetUnlockedAchievementsAsync());
+        Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("2026-10-28 12:00:00+00:00")]
+    [InlineData("2026-10-28T12:00:00Z")]
+    [InlineData("2026-10-28T12:00:00+00:00")]
+    [InlineData("10/28/2026 12:00:00 PM")]
+    public async Task R15_GetUnlockedAchievementsAsync_NoncanonicalIsoFormat_FailsClosed(string noncanonicalTimestamp)
+    {
+        var dbPath = await CreateFreshStoreAsync("r15_noncanonical");
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        await ExecuteRawAsync(dbPath, $@"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, '{noncanonicalTimestamp}');
+        ");
+
+        var reader = AsAchievementReader(store);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetUnlockedAchievementsAsync());
+        Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task R16_CanonicalUtcTimestamp_GuaranteesChronologicalLexicalOrdering()
+    {
+        var dbPath = await CreateFreshStoreAsync("r16_chronological_ordering");
+
+        // Two canonical timestamps at distinct times
+        var earlyTime = new DateTimeOffset(2026, 10, 28, 9, 15, 30, TimeSpan.Zero);
+        var laterTime = new DateTimeOffset(2026, 10, 28, 18, 45, 0, TimeSpan.Zero);
+        string earlyStr = earlyTime.ToString("O", CultureInfo.InvariantCulture);
+        string laterStr = laterTime.ToString("O", CultureInfo.InvariantCulture);
+
+        // Insert in reverse chronological order
+        await ExecuteRawAsync(dbPath, $@"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('later_ach', 0, '{laterStr}');
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('early_ach', 0, '{earlyStr}');
+        ");
+
+        using var store = new SqliteGameplayStore(dbPath);
+        await store.InitializeAsync();
+
+        var reader = AsAchievementReader(store);
+        var achievements = await reader.GetUnlockedAchievementsAsync();
+
+        Assert.Equal(2, achievements.Count);
+        Assert.Equal("early_ach", achievements[0].AchievementId);
+        Assert.Equal(earlyTime, achievements[0].UnlockedAtUtc);
+        Assert.Equal("later_ach", achievements[1].AchievementId);
+        Assert.Equal(laterTime, achievements[1].UnlockedAtUtc);
+    }
 }

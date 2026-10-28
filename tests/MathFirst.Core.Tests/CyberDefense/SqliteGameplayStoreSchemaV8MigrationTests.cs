@@ -607,9 +607,9 @@ public sealed class SqliteGameplayStoreSchemaV8MigrationTests : IDisposable
         await ExecuteRawAsync(dbPath, "UPDATE gameplay_schema_info SET value = '8' WHERE key = 'schema_version';");
         await ExecuteRawAsync(dbPath, @"
             CREATE TABLE local_achievements (
-                achievement_id TEXT PRIMARY KEY NOT NULL,
-                reset_epoch INTEGER NOT NULL,
-                unlocked_at_utc TEXT NOT NULL
+                achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(achievement_id)) > 0),
+                reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+                unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
             );
             INSERT INTO local_achievements VALUES ('sector_10', 1, '2026-10-28 12:00:00+02:00');
         ");
@@ -630,5 +630,120 @@ public sealed class SqliteGameplayStoreSchemaV8MigrationTests : IDisposable
             await store.InitializeAsync();
             Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
         }
+    }
+
+    [Fact]
+    public async Task V17_NativeV8_MissingCheckConstraints_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v17_missing_checks");
+
+        // Replace local_achievements with identically typed/PK/NOT NULL table, but omitting all CHECK constraints
+        await ExecuteRawAsync(dbPath, @"
+            DROP TABLE local_achievements;
+            CREATE TABLE local_achievements (
+                achievement_id TEXT PRIMARY KEY NOT NULL,
+                reset_epoch INTEGER NOT NULL,
+                unlocked_at_utc TEXT NOT NULL
+            );
+        ");
+
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("CHECK", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Verify rejection does not mutate the database: schema version intact, table empty
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+        var count = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM local_achievements;"), CultureInfo.InvariantCulture);
+        Assert.Equal(0L, count);
+    }
+
+    [Fact]
+    public async Task V18_NativeV8_AlteredCheckConstraint_WeakenedResetEpoch_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v18_altered_check");
+
+        // Replace local_achievements with an altered constraint that weakens reset_epoch to allow negatives
+        await ExecuteRawAsync(dbPath, @"
+            DROP TABLE local_achievements;
+            CREATE TABLE local_achievements (
+                achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(achievement_id)) > 0),
+                reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= -5),
+                unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
+            );
+        ");
+
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("CHECK", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+    }
+
+    [Fact]
+    public async Task V19_NativeV8_AlteredCheckConstraint_OmittedTrim_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v19_omitted_trim");
+
+        // Replace local_achievements with an altered constraint that omits trim (allowing whitespace IDs)
+        await ExecuteRawAsync(dbPath, @"
+            DROP TABLE local_achievements;
+            CREATE TABLE local_achievements (
+                achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(achievement_id) > 0),
+                reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+                unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
+            );
+        ");
+
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("CHECK", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+    }
+
+    [Fact]
+    public async Task V20_NativeV8_NoncanonicalTimestamp_ParseableHumanReadableDate_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v20_human_readable_date");
+
+        // Insert parseable human-readable timestamp into otherwise valid V8 table
+        await ExecuteRawAsync(dbPath, @"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, 'October 28, 2026 12:00:00 +00:00');
+        ");
+
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+    }
+
+    [Fact]
+    public async Task V21_NativeV8_NoncanonicalTimestamp_UnknownOffsetNotation_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v21_unknown_offset");
+
+        // Insert timestamp with -00:00 (RFC 3339 unknown-offset notation, not canonical UTC)
+        await ExecuteRawAsync(dbPath, @"
+            INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+            VALUES ('sector_10', 0, '2026-10-28T12:00:00.0000000-00:00');
+        ");
+
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("timestamp", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
     }
 }
