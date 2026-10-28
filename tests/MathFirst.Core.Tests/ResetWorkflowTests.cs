@@ -7,6 +7,7 @@ using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
 using MathFirst.Application.Telemetry;
 using MathFirst.Domain;
+using MathFirst.Infrastructure.Sqlite.Gameplay;
 using Xunit;
 
 public sealed class ResetWorkflowTests : IDisposable
@@ -33,7 +34,7 @@ public sealed class ResetWorkflowTests : IDisposable
         }
     }
 
-    private sealed class InMemoryPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences
+    private sealed class InMemoryPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences, ICyberDefenseTutorialPreferences
     {
         private bool? _cyberDefenseEnabled;
         public string Language { get; set; } = "system";
@@ -43,6 +44,10 @@ public sealed class ResetWorkflowTests : IDisposable
 
         public bool GetCyberDefenseEnabled() => _cyberDefenseEnabled ?? true;
         public void SetCyberDefenseEnabled(bool enabled) => _cyberDefenseEnabled = enabled;
+
+        private bool _tutorialCompleted;
+        public bool GetTutorialCompleted() => _tutorialCompleted;
+        public void SetTutorialCompleted(bool completed) => _tutorialCompleted = completed;
 
         public string GetLanguagePreference() => Language;
         public void SetLanguagePreference(string preference) => Language = preference;
@@ -92,6 +97,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Theme = ThemePreference.System;
             KeypadLayout = NumericKeypadLayout.Numpad;
             HapticFeedbackEnabled = true;
+            _tutorialCompleted = false;
             ResetPracticePreferences();
         }
     }
@@ -108,6 +114,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Theme = ThemePreference.Dark,
             KeypadLayout = NumericKeypadLayout.Numpad
         };
+        prefs.SetTutorialCompleted(true);
 
         var session = new TrainingSession(store);
         await session.InitializeAsync();
@@ -135,6 +142,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal("de", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.Dark, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
+        Assert.True(prefs.GetTutorialCompleted());
     }
 
     [Fact]
@@ -231,6 +239,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Theme = ThemePreference.Dark,
             KeypadLayout = NumericKeypadLayout.Numpad
         };
+        prefs.SetTutorialCompleted(true);
 
         var session = new TrainingSession(store);
         await session.InitializeAsync();
@@ -254,6 +263,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
         Assert.True(prefs.GetHapticFeedbackEnabled());
+        Assert.True(prefs.GetTutorialCompleted());
 
         // Verify DB still holds committed progress
         var snapshot = await store.LoadSnapshotAsync();
@@ -282,6 +292,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Theme = ThemePreference.Dark,
             KeypadLayout = NumericKeypadLayout.Numpad
         };
+        prefs.SetTutorialCompleted(true);
 
         var session = new TrainingSession(store);
         await session.InitializeAsync();
@@ -310,6 +321,7 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Equal("system", prefs.GetLanguagePreference());
         Assert.Equal(ThemePreference.System, prefs.GetThemePreference());
         Assert.Equal(NumericKeypadLayout.Numpad, prefs.GetNumericKeypadLayout());
+        Assert.False(prefs.GetTutorialCompleted());
     }
 
     [Fact]
@@ -350,6 +362,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Language = "de",
             Theme = ThemePreference.Dark
         };
+        prefs.SetTutorialCompleted(true);
 
         var idStore = new InMemoryInstallationIdStore();
         var idProvider = new PreferenceInstallationIdProvider(idStore);
@@ -378,6 +391,7 @@ public sealed class ResetWorkflowTests : IDisposable
             Language = "de",
             Theme = ThemePreference.Dark
         };
+        prefs.SetTutorialCompleted(true);
 
         var session = new TrainingSession(store);
         await session.InitializeAsync();
@@ -405,6 +419,80 @@ public sealed class ResetWorkflowTests : IDisposable
         Assert.Null(idStore.StoredValue);
 
         Assert.Equal(1, cacheCleaner.PurgeCallCount);
+        Assert.False(prefs.GetTutorialCompleted());
+    }
+
+    [Fact]
+    public async Task StartupResetReconciliation_WhenPending_ClearsTutorialCompletion()
+    {
+        var dbPath = Path.Combine(_testDbDir, "startup_reset_pending.db");
+        var gameplayDbPath = Path.Combine(_testDbDir, "startup_reset_gameplay.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+        using var gameplayStore = new SqliteGameplayStore(gameplayDbPath);
+        await gameplayStore.InitializeAsync();
+
+        var session = new TrainingSession(store);
+        await session.InitializeAsync();
+
+        var prefs = new InMemoryPreferenceStore();
+        prefs.SetTutorialCompleted(true);
+
+        var idStore = new InMemoryInstallationIdStore("test-install-id");
+        var idProvider = new PreferenceInstallationIdProvider(idStore);
+        var cacheCleaner = new SpyTelemetryShareCacheCleaner();
+        var sessionState = new CyberDefenseSessionState(prefs);
+
+        var coordinator = new AppResetCoordinator(
+            session,
+            prefs,
+            idProvider,
+            cacheCleaner,
+            sessionState,
+            gameplayStore);
+
+        var intent = await gameplayStore.BeginOrGetResetIntentAsync();
+        Assert.True(intent.IsPending);
+
+        var reconciled = await coordinator.ReconcileStartupResetStateAsync();
+
+        Assert.True(reconciled);
+        Assert.False(prefs.GetTutorialCompleted());
+    }
+
+    [Fact]
+    public async Task StartupResetReconciliation_WhenNotPending_PreservesTutorialCompletion()
+    {
+        var dbPath = Path.Combine(_testDbDir, "startup_reset_nopending.db");
+        var gameplayDbPath = Path.Combine(_testDbDir, "startup_reset_nopending_gameplay.db");
+        using var store = new SqliteLearnerStore(dbPath);
+        await store.InitializeAsync();
+        using var gameplayStore = new SqliteGameplayStore(gameplayDbPath);
+        await gameplayStore.InitializeAsync();
+
+        var session = new TrainingSession(store);
+        await session.InitializeAsync();
+
+        var prefs = new InMemoryPreferenceStore();
+        prefs.SetTutorialCompleted(true);
+
+        var idStore = new InMemoryInstallationIdStore("test-install-id");
+        var idProvider = new PreferenceInstallationIdProvider(idStore);
+        var cacheCleaner = new SpyTelemetryShareCacheCleaner();
+        var sessionState = new CyberDefenseSessionState(prefs);
+
+        var coordinator = new AppResetCoordinator(
+            session,
+            prefs,
+            idProvider,
+            cacheCleaner,
+            sessionState,
+            gameplayStore);
+
+        var reconciled = await coordinator.ReconcileStartupResetStateAsync();
+
+        Assert.False(reconciled);
+        Assert.True(prefs.GetTutorialCompleted());
     }
 
     private sealed class InMemoryInstallationIdStore : IInstallationIdStore

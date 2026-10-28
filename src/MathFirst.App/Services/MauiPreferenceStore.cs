@@ -5,7 +5,7 @@ using MathFirst.Application.Practice;
 using MathFirst.Domain;
 using Microsoft.Maui.Storage;
 
-public sealed class MauiPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences
+public sealed class MauiPreferenceStore : IPreferenceStore, ICyberDefenseModePreferences, ICyberDefenseTutorialPreferences
 {
     private const string ThemeKey = "mathfirst.theme_preference";
     private const string LanguageKey = "mathfirst.language_preference";
@@ -18,6 +18,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore, ICyberDefenseModePre
     private const string PracticeTimeSettingKey = "mathfirst.practice_time_setting";
     private const string HapticFeedbackEnabledKey = "mathfirst.haptic_feedback_enabled";
     private const string CyberDefenseEnabledKey = "mathfirst.cyber_defense_enabled";
+    private const string TutorialCompletedKey = "mathfirst.cyber_defense.tutorial_completed";
 
 
     private static string GetOperationKey(ArithmeticOperation operation) => operation switch
@@ -102,6 +103,31 @@ public sealed class MauiPreferenceStore : IPreferenceStore, ICyberDefenseModePre
     public void SetCyberDefenseEnabled(bool enabled) =>
         Preferences.Default.Set(CyberDefenseEnabledKey, enabled);
 
+    public bool GetTutorialCompleted()
+    {
+        try
+        {
+            return Preferences.Default.Get(TutorialCompletedKey, false);
+        }
+#if ANDROID
+        catch (Java.Lang.ClassCastException)
+        {
+            return false;
+        }
+#endif
+        catch (InvalidCastException)
+        {
+            return false;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    public void SetTutorialCompleted(bool completed) =>
+        Preferences.Default.Set(TutorialCompletedKey, completed);
+
     public void ResetPracticePreferences()
     {
         Preferences.Default.Remove(AdditionEnabledKey);
@@ -118,6 +144,7 @@ public sealed class MauiPreferenceStore : IPreferenceStore, ICyberDefenseModePre
         Preferences.Default.Remove(LanguageKey);
         Preferences.Default.Remove(NumericKeypadLayoutKey);
         Preferences.Default.Remove(HapticFeedbackEnabledKey);
+        Preferences.Default.Remove(TutorialCompletedKey);
         ResetPracticePreferences();
     }
 }
