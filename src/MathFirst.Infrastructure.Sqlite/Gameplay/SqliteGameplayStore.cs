@@ -1172,43 +1172,393 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
         }
     }
 
-    private static readonly Regex AchievementIdCheckRegex = new(
-        @"CHECK\s*\(\s*length\s*\(\s*trim\s*\(\s*achievement_id\s*\)\s*\)\s*(?:>\s*0|>=\s*1)\s*\)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private enum SqlDdlTokenType
+    {
+        IdentifierOrKeyword,
+        StringLiteral,
+        IntegerLiteral,
+        Symbol
+    }
 
-    private static readonly Regex ResetEpochCheckRegex = new(
-        @"CHECK\s*\(\s*reset_epoch\s*>=\s*0\s*\)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private readonly record struct SqlDdlToken(SqlDdlTokenType Type, string Text);
 
-    private static readonly Regex UnlockedAtUtcCheckRegex = new(
-        @"CHECK\s*\(\s*length\s*\(\s*trim\s*\(\s*unlocked_at_utc\s*\)\s*\)\s*(?:>\s*0|>=\s*1)\s*\)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static List<SqlDdlToken> TokenizeTableDdl(string sql)
+    {
+        var tokens = new List<SqlDdlToken>();
+        int i = 0;
+        int n = sql.Length;
+
+        while (i < n)
+        {
+            char c = sql[i];
+
+            // 1. Whitespace
+            if (char.IsWhiteSpace(c))
+            {
+                i++;
+                continue;
+            }
+
+            // 2. Line comment: -- until newline or EOF
+            if (c == '-' && i + 1 < n && sql[i + 1] == '-')
+            {
+                i += 2;
+                while (i < n && sql[i] != '\n' && sql[i] != '\r')
+                {
+                    i++;
+                }
+                continue;
+            }
+
+            // 3. Block comment: /* ... */
+            if (c == '/' && i + 1 < n && sql[i + 1] == '*')
+            {
+                i += 2;
+                int closeIndex = sql.IndexOf("*/", i, StringComparison.Ordinal);
+                if (closeIndex < 0)
+                {
+                    throw new InvalidOperationException(
+                        "Existing database has malformed DDL for 'local_achievements': unterminated block comment.");
+                }
+                i = closeIndex + 2;
+                continue;
+            }
+
+            // 4. String literal: '...' with '' escape
+            if (c == '\'')
+            {
+                i++;
+                var sb = new System.Text.StringBuilder();
+                bool terminated = false;
+                while (i < n)
+                {
+                    if (sql[i] == '\'')
+                    {
+                        if (i + 1 < n && sql[i + 1] == '\'')
+                        {
+                            sb.Append('\'');
+                            i += 2;
+                        }
+                        else
+                        {
+                            i++;
+                            terminated = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(sql[i]);
+                        i++;
+                    }
+                }
+
+                if (!terminated)
+                {
+                    throw new InvalidOperationException(
+                        "Existing database has malformed DDL for 'local_achievements': unterminated string literal.");
+                }
+
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.StringLiteral, sb.ToString()));
+                continue;
+            }
+
+            // 5. Quoted identifier: "...", `...`, or [...]
+            if (c == '"' || c == '`' || c == '[')
+            {
+                char closeChar = c == '[' ? ']' : c;
+                i++;
+                var sb = new System.Text.StringBuilder();
+                bool terminated = false;
+                while (i < n)
+                {
+                    if (sql[i] == closeChar)
+                    {
+                        if (closeChar != ']' && i + 1 < n && sql[i + 1] == closeChar)
+                        {
+                            sb.Append(closeChar);
+                            i += 2;
+                        }
+                        else
+                        {
+                            i++;
+                            terminated = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(sql[i]);
+                        i++;
+                    }
+                }
+
+                if (!terminated)
+                {
+                    throw new InvalidOperationException(
+                        "Existing database has malformed DDL for 'local_achievements': unterminated quoted identifier.");
+                }
+
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.IdentifierOrKeyword, sb.ToString()));
+                continue;
+            }
+
+            // 6. Identifier or Keyword
+            if (char.IsLetter(c) || c == '_')
+            {
+                int start = i;
+                while (i < n && (char.IsLetterOrDigit(sql[i]) || sql[i] == '_'))
+                {
+                    i++;
+                }
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.IdentifierOrKeyword, sql[start..i]));
+                continue;
+            }
+
+            // 7. Integer literal
+            if (char.IsDigit(c))
+            {
+                int start = i;
+                while (i < n && char.IsDigit(sql[i]))
+                {
+                    i++;
+                }
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.IntegerLiteral, sql[start..i]));
+                continue;
+            }
+
+            // 8. Multi-character symbols: >=, <=, !=, <>
+            if (i + 1 < n)
+            {
+                string two = sql.Substring(i, 2);
+                if (two is ">=" or "<=" or "!=" or "<>")
+                {
+                    tokens.Add(new SqlDdlToken(SqlDdlTokenType.Symbol, two));
+                    i += 2;
+                    continue;
+                }
+            }
+
+            // 9. Single-character symbols: (, ), ,, ;, >, <, =, +
+            if (c is '(' or ')' or ',' or ';' or '>' or '<' or '=' or '+')
+            {
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.Symbol, c.ToString()));
+                i++;
+                continue;
+            }
+
+            // 10. Minus sign
+            if (c == '-')
+            {
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.Symbol, "-"));
+                i++;
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                $"Existing database has malformed DDL for 'local_achievements': unexpected character '{c}'.");
+        }
+
+        return tokens;
+    }
 
     /// <summary>
     /// Validates that the native V8 local_achievements table contains the exact required CHECK constraints.
-    /// Fails closed on missing, altered or weakened constraints to ensure invalid data cannot be persisted.
+    /// Distinguishes executable SQLite constraints from comments and quoted string contents via safe tokenization.
+    /// Fails closed on missing, altered, weakened or comment-spoofed constraints.
     /// </summary>
     private static void ValidateSchemaV8AchievementConstraints(string tableSql)
     {
-        if (!AchievementIdCheckRegex.IsMatch(tableSql))
+        var tokens = TokenizeTableDdl(tableSql);
+        int cursor = 0;
+
+        SqlDdlToken Peek() => cursor < tokens.Count ? tokens[cursor] : default;
+
+        bool MatchKeyword(string expected)
+        {
+            var t = Peek();
+            if (t.Type == SqlDdlTokenType.IdentifierOrKeyword &&
+                string.Equals(t.Text, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                cursor++;
+                return true;
+            }
+            return false;
+        }
+
+        bool MatchSymbol(string expected)
+        {
+            var t = Peek();
+            if (t.Type == SqlDdlTokenType.Symbol &&
+                string.Equals(t.Text, expected, StringComparison.Ordinal))
+            {
+                cursor++;
+                return true;
+            }
+            return false;
+        }
+
+        bool MatchInteger(string expected)
+        {
+            var t = Peek();
+            if (t.Type == SqlDdlTokenType.IntegerLiteral &&
+                string.Equals(t.Text, expected, StringComparison.Ordinal))
+            {
+                cursor++;
+                return true;
+            }
+            return false;
+        }
+
+        bool MatchLengthComparison()
+        {
+            int saved = cursor;
+            if (MatchSymbol(">") && MatchInteger("0"))
+            {
+                return true;
+            }
+            cursor = saved;
+            if (MatchSymbol(">=") && MatchInteger("1"))
+            {
+                return true;
+            }
+            cursor = saved;
+            return false;
+        }
+
+        // 1. Header: CREATE TABLE [IF NOT EXISTS] local_achievements (
+        if (!MatchKeyword("CREATE") || !MatchKeyword("TABLE"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid DDL header for 'local_achievements'. Expected CREATE TABLE.");
+        }
+
+        if (MatchKeyword("IF"))
+        {
+            if (!MatchKeyword("NOT") || !MatchKeyword("EXISTS"))
+            {
+                throw new InvalidOperationException(
+                    "Existing database has invalid DDL header for 'local_achievements'. Expected IF NOT EXISTS.");
+            }
+        }
+
+        if (!MatchKeyword("local_achievements"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has unexpected table name in DDL for 'local_achievements'.");
+        }
+
+        if (!MatchSymbol("("))
+        {
+            throw new InvalidOperationException(
+                "Existing database has malformed DDL for 'local_achievements'. Expected '(' after table name.");
+        }
+
+        // 2. Column 1: achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(achievement_id)) > 0)
+        if (!MatchKeyword("achievement_id") ||
+            !MatchKeyword("TEXT") ||
+            !MatchKeyword("PRIMARY") ||
+            !MatchKeyword("KEY") ||
+            !MatchKeyword("NOT") ||
+            !MatchKeyword("NULL"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid or missing 'achievement_id' column specification in 'local_achievements'.");
+        }
+
+        if (!MatchKeyword("CHECK") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("length") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("trim") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("achievement_id") ||
+            !MatchSymbol(")") ||
+            !MatchSymbol(")") ||
+            !MatchLengthComparison() ||
+            !MatchSymbol(")"))
         {
             throw new InvalidOperationException(
                 "Existing database has missing or malformed CHECK constraint on 'local_achievements.achievement_id'. " +
                 "Expected CHECK (length(trim(achievement_id)) > 0).");
         }
 
-        if (!ResetEpochCheckRegex.IsMatch(tableSql))
+        if (!MatchSymbol(","))
+        {
+            throw new InvalidOperationException(
+                "Existing database has malformed DDL for 'local_achievements'. Expected ',' after 'achievement_id'.");
+        }
+
+        // 3. Column 2: reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0)
+        if (!MatchKeyword("reset_epoch") ||
+            !MatchKeyword("INTEGER") ||
+            !MatchKeyword("NOT") ||
+            !MatchKeyword("NULL"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid or missing 'reset_epoch' column specification in 'local_achievements'.");
+        }
+
+        if (!MatchKeyword("CHECK") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("reset_epoch") ||
+            !MatchSymbol(">=") ||
+            !MatchInteger("0") ||
+            !MatchSymbol(")"))
         {
             throw new InvalidOperationException(
                 "Existing database has missing or malformed CHECK constraint on 'local_achievements.reset_epoch'. " +
                 "Expected CHECK (reset_epoch >= 0).");
         }
 
-        if (!UnlockedAtUtcCheckRegex.IsMatch(tableSql))
+        if (!MatchSymbol(","))
+        {
+            throw new InvalidOperationException(
+                "Existing database has malformed DDL for 'local_achievements'. Expected ',' after 'reset_epoch'.");
+        }
+
+        // 4. Column 3: unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
+        if (!MatchKeyword("unlocked_at_utc") ||
+            !MatchKeyword("TEXT") ||
+            !MatchKeyword("NOT") ||
+            !MatchKeyword("NULL"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid or missing 'unlocked_at_utc' column specification in 'local_achievements'.");
+        }
+
+        if (!MatchKeyword("CHECK") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("length") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("trim") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("unlocked_at_utc") ||
+            !MatchSymbol(")") ||
+            !MatchSymbol(")") ||
+            !MatchLengthComparison() ||
+            !MatchSymbol(")"))
         {
             throw new InvalidOperationException(
                 "Existing database has missing or malformed CHECK constraint on 'local_achievements.unlocked_at_utc'. " +
                 "Expected CHECK (length(trim(unlocked_at_utc)) > 0).");
+        }
+
+        // 5. Closing parenthesis of CREATE TABLE
+        if (!MatchSymbol(")"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has unexpected column or constraint in 'local_achievements'. Expected closing ')'.");
+        }
+
+        // 6. Optional trailing semicolon ';'
+        MatchSymbol(";");
+
+        // 7. Reject arbitrary trailing SQL clauses or tokens
+        if (cursor < tokens.Count)
+        {
+            throw new InvalidOperationException(
+                $"Existing database has unexpected trailing clauses in 'local_achievements' DDL: token '{tokens[cursor].Text}'.");
         }
     }
 

@@ -746,4 +746,107 @@ public sealed class SqliteGameplayStoreSchemaV8MigrationTests : IDisposable
 
         Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
     }
+
+    [Fact]
+    public async Task V22_NativeV8_CommentedCheckConstraints_BlockComment_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v22_commented_checks_block");
+
+        // Replace empty local_achievements with valid columns, types, NOT NULL, and PK,
+        // but with CHECK constraints placed solely inside a block comment /* ... */
+        await ExecuteRawAsync(dbPath, @"
+            DROP TABLE local_achievements;
+            CREATE TABLE local_achievements (
+                achievement_id TEXT PRIMARY KEY NOT NULL,
+                reset_epoch INTEGER NOT NULL,
+                unlocked_at_utc TEXT NOT NULL
+
+                /* CHECK (length(trim(achievement_id)) > 0)
+                   CHECK (reset_epoch >= 0)
+                   CHECK (length(trim(unlocked_at_utc)) > 0) */
+            );
+        ");
+
+        // Verify the spoofed definition allows invalid rows at native SQLite engine level
+        await ExecuteRawAsync(dbPath, "INSERT INTO local_achievements VALUES (' ', -1, ' ');");
+        await ExecuteRawAsync(dbPath, "DELETE FROM local_achievements;");
+
+        // Reopen with SqliteGameplayStore.InitializeAsync with an EMPTY table
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("CHECK", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Verify failed open does not mutate the schema, metadata, or existing gameplay data
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+        var count = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM local_achievements;"), CultureInfo.InvariantCulture);
+        Assert.Equal(0L, count);
+        var progressionExists = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM gameplay_progression WHERE id = 1;"), CultureInfo.InvariantCulture);
+        Assert.Equal(1L, progressionExists);
+    }
+
+    [Fact]
+    public async Task V23_NativeV8_CommentedCheckConstraints_LineComment_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v23_commented_checks_line");
+
+        // Replace empty local_achievements with valid columns, types, NOT NULL, and PK,
+        // but with CHECK constraints placed solely inside line comments --
+        await ExecuteRawAsync(dbPath, @"
+            DROP TABLE local_achievements;
+            CREATE TABLE local_achievements (
+                achievement_id TEXT PRIMARY KEY NOT NULL, -- CHECK (length(trim(achievement_id)) > 0)
+                reset_epoch INTEGER NOT NULL, -- CHECK (reset_epoch >= 0)
+                unlocked_at_utc TEXT NOT NULL -- CHECK (length(trim(unlocked_at_utc)) > 0)
+            );
+        ");
+
+        // Verify the spoofed definition allows invalid rows at native SQLite engine level
+        await ExecuteRawAsync(dbPath, "INSERT INTO local_achievements VALUES (' ', -1, ' ');");
+        await ExecuteRawAsync(dbPath, "DELETE FROM local_achievements;");
+
+        // Reopen with SqliteGameplayStore.InitializeAsync with an EMPTY table
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("CHECK", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Verify failed open does not mutate the schema, metadata, or existing gameplay data
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+        var count = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM local_achievements;"), CultureInfo.InvariantCulture);
+        Assert.Equal(0L, count);
+        var progressionExists = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM gameplay_progression WHERE id = 1;"), CultureInfo.InvariantCulture);
+        Assert.Equal(1L, progressionExists);
+    }
+
+    [Fact]
+    public async Task V24_NativeV8_SpoofedCheckConstraints_StringLiteral_FailsClosed()
+    {
+        var dbPath = await CreateFreshStoreAsync("v24_spoofed_string_literal");
+
+        // Replace empty local_achievements with valid columns, types, NOT NULL, and PK,
+        // but where CHECK text appears only inside a string literal default value
+        await ExecuteRawAsync(dbPath, @"
+            DROP TABLE local_achievements;
+            CREATE TABLE local_achievements (
+                achievement_id TEXT PRIMARY KEY NOT NULL DEFAULT 'CHECK (length(trim(achievement_id)) > 0)',
+                reset_epoch INTEGER NOT NULL DEFAULT 0,
+                unlocked_at_utc TEXT NOT NULL DEFAULT 'CHECK (length(trim(unlocked_at_utc)) > 0)'
+            );
+        ");
+
+        using (var store = new SqliteGameplayStore(dbPath))
+        {
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
+            Assert.Contains("CHECK", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
+        var count = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM local_achievements;"), CultureInfo.InvariantCulture);
+        Assert.Equal(0L, count);
+        var progressionExists = Convert.ToInt64(await ScalarRawAsync(dbPath, "SELECT COUNT(*) FROM gameplay_progression WHERE id = 1;"), CultureInfo.InvariantCulture);
+        Assert.Equal(1L, progressionExists);
+    }
 }
