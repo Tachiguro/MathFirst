@@ -479,6 +479,8 @@ namespace MathFirst.Core.Tests.CyberDefense
                     .AddSingleton<ICyberDefenseCombatCoordinator>(_coordinator)
                     .AddSingleton<ILocalizationService>(new LocalizationService())
                     .AddSingleton<IPreferenceStore>(Preferences).AddSingleton<ICyberDefenseModePreferences>(Preferences)
+                    .AddSingleton<ICyberDefenseTutorialPreferences>(Preferences)
+                    .AddSingleton(new CyberDefenseSessionState(Preferences))
                     .AddSingleton(new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary()))).AddSingleton<IAppResetCoordinator>(new NoReset())
                     .AddSingleton<IHapticFeedbackService>(new HapticFeedbackService())
                     .AddSingleton<IJSRuntime>(new NoJs()).BuildServiceProvider();
@@ -668,9 +670,11 @@ namespace MathFirst.Core.Tests.CyberDefense
             public TimeSpan GetElapsedTime(long startTimestamp) => TimeSpan.FromMilliseconds(_now - startTimestamp);
             public void Advance(long milliseconds) => _now += milliseconds;
         }
-        private sealed class Preferences : IPreferenceStore, ICyberDefenseModePreferences
+        private sealed class Preferences : IPreferenceStore, ICyberDefenseModePreferences, ICyberDefenseTutorialPreferences
         {
             private bool _cyber = true;
+            public bool GetTutorialCompleted() => true;
+            public void SetTutorialCompleted(bool completed) { }
             public bool GetCyberDefenseEnabled() => _cyber;
             public void SetCyberDefenseEnabled(bool enabled) => _cyber = enabled;
             public ThemePreference GetThemePreference() => ThemePreference.System;

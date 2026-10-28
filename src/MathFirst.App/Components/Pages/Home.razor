@@ -16,6 +16,8 @@
 @inject PracticeGateCopyState PracticeGateCopyState
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
+@inject ICyberDefenseTutorialPreferences TutorialPreferences
+@inject CyberDefenseSessionState CyberDefenseSessionState
 @inject ICyberDefenseCombatCoordinator CombatCoordinator
 @inject CyberDefensePresentationSequence Ceremony
 @inject IGameplayStore GameplayStore
@@ -23,7 +25,7 @@
 @inject IHapticFeedbackService HapticService
 
 <div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
-    <div class="mathfirst-container">
+    <div class="mathfirst-container" data-spotlight-active="@ActiveSpotlightTarget">
         <header class="mathfirst-header"
                 inert="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? true : null)"
                 aria-hidden="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? "true" : null)">
@@ -116,15 +118,15 @@
         else
         {
             <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")"
-                  inert="@(Ceremony.IsBlocking ? true : null)" aria-hidden="@(Ceremony.IsBlocking ? "true" : null)">
+                  inert="@(Ceremony.IsBlocking || _isTutorialOpen ? true : null)" aria-hidden="@(Ceremony.IsBlocking || _isTutorialOpen ? "true" : null)">
                 @if (Session.PracticeGate != PracticeGateState.Running)
                 {
                     <section class="practice-overlay practice-gate-overlay"
                              role="dialog"
                              aria-modal="true"
                              aria-labelledby="practice-gate-title"
-                             inert="@(_isUpgradeTerminalOpen ? true : null)"
-                             aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
+                             inert="@(_isUpgradeTerminalOpen || _isTutorialOpen ? true : null)"
+                             aria-hidden="@(_isUpgradeTerminalOpen || _isTutorialOpen ? "true" : null)">
                         <div class="practice-overlay-content">
                             <h2 id="practice-gate-title">@PracticeGateTitle</h2>
                             @if (Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory)
@@ -324,7 +326,7 @@
 
                     <div class="practice-layout" inert="@(_isUpgradeTerminalOpen ? true : null)" aria-hidden="@(_isUpgradeTerminalOpen ? "true" : null)">
                         <div class="practice-interaction-column">
-                            <div class="solve-to-attack-panel @(IsCalmMode ? "calm-mode" : "")">
+                            <div class="solve-to-attack-panel @(IsCalmMode ? "calm-mode" : "")" data-spotlight-id="expression-keypad">
                                 @if (IsCyberDefenseActive)
                                 {
                                     <span class="solve-corner corner-top-left" aria-hidden="true"></span>
@@ -396,7 +398,7 @@
                             </div>
                         </div>
 
-                        <div class="numeric-keypad"
+                        <div class="numeric-keypad" data-spotlight-id="expression-keypad"
                              @key="_lastPreparedFactInstanceRevision"
                              role="group"
                              aria-label="@Localizer["Keypad_NumberKeypad"]">
@@ -458,11 +460,68 @@
             {
                 <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector" />
             }
+            @if (_isTutorialOpen)
+            {
+                <CyberDefenseTutorial OnFinished="HandleTutorialFinishedAsync"
+                                      OnSkipped="HandleTutorialSkippedAsync"
+                                      OnStepChanged="HandleTutorialStepChanged"
+                                      Localizer="Localizer"
+                                      @ref="_tutorialComponent" />
+            }
         }
     </div>
 </div>
 
 @code {
+    private enum TutorialResumptionReason
+    {
+        None = 0,
+        DeferredFirstStart = 1,
+        InterruptedActiveQuestion = 2
+    }
+
+    private bool _isTutorialOpen;
+    private TutorialResumptionReason _tutorialResumptionReason = TutorialResumptionReason.None;
+    private long _tutorialCapturedLearnerGeneration = -1;
+    private long _tutorialCapturedFactRevision = -1;
+    private CyberDefenseTutorial.CyberDefenseTutorialStep _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
+    private CyberDefenseTutorial? _tutorialComponent;
+
+    private string? ActiveSpotlightTarget => _isTutorialOpen ? _tutorialCurrentStep switch
+    {
+        CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard => "story-intro",
+        CyberDefenseTutorial.CyberDefenseTutorialStep.Enemy => "enemy-hud",
+        CyberDefenseTutorial.CyberDefenseTutorialStep.ExpressionKeypad => "expression-keypad",
+        CyberDefenseTutorial.CyberDefenseTutorialStep.SystemIntegrity => "system-integrity",
+        _ => "none"
+    } : null;
+
+    private bool CanAutoPresentTutorial =>
+        IsCyberDefenseActive &&
+        !TutorialPreferences.GetTutorialCompleted() &&
+        !_startupFailed &&
+        Session.IsInitialized &&
+        Session.CurrentFact is not null &&
+        !_isUpgradeTerminalOpen &&
+        !Ceremony.IsBlocking &&
+        !_isSubmitting &&
+        !_isDisposed &&
+        Session.IsAppForeground &&
+        Session.InteractionState == SessionInteractionState.AwaitingAnswer;
+
+    private bool CanPresentTutorialReplay =>
+        IsCyberDefenseActive &&
+        CyberDefenseSessionState.IsTutorialReplayRequested &&
+        !_startupFailed &&
+        Session.IsInitialized &&
+        Session.CurrentFact is not null &&
+        !_isUpgradeTerminalOpen &&
+        !Ceremony.IsBlocking &&
+        !_isSubmitting &&
+        !_isDisposed &&
+        Session.IsAppForeground &&
+        Session.InteractionState == SessionInteractionState.AwaitingAnswer;
+
     private UpgradeTerminalViewModel? _upgradeTerminalViewModel;
     private bool _isUpgradeTerminalOpen;
     private bool _wasTimingSuspendedByTerminal;
@@ -499,6 +558,11 @@
     private void ToggleCyberDefenseMode()
     {
         if (_isSubmitting || _isUpgradeTerminalOpen)
+        {
+            return;
+        }
+
+        if (_isTutorialOpen)
         {
             return;
         }
@@ -616,6 +680,20 @@
                 finally { _isSubmitting = false; }
             }
             if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
+            if (CanPresentTutorialReplay && Session.PracticeGate == PracticeGateState.Running)
+            {
+                Session.PauseItemTiming();
+                CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+                _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
+                _tutorialCapturedFactRevision = Session.FactInstanceRevision;
+                _tutorialResumptionReason = TutorialResumptionReason.InterruptedActiveQuestion;
+                _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
+                _isTutorialOpen = true;
+                _shouldFocusInput = false;
+                _shouldFocusPrimaryOverlay = false;
+                SyncStateWithSession();
+                return;
+            }
             Session.SetPracticeSurfaceActive(true);
             SyncStateWithSession();
         }
@@ -839,7 +917,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_isUpgradeTerminalOpen || Ceremony.IsBlocking)
+        if (_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen)
         {
             return;
         }
@@ -886,6 +964,12 @@
 
     private async Task HandleAnswerInput(ChangeEventArgs e)
     {
+        if (_isTutorialOpen)
+        {
+            _inputRenderVersion++;
+            return;
+        }
+
         var proposedValue = e.Value?.ToString();
         if (NumericAnswerInputPolicy.IsValidEdit(proposedValue))
         {
@@ -903,7 +987,7 @@
 
     private async Task HandleGlobalKeyDown(KeyboardEventArgs e)
     {
-        if (_isSubmitting || Ceremony.IsBlocking) return;
+        if (_isSubmitting || Ceremony.IsBlocking || _isTutorialOpen) return;
         if (e.Key is not "Enter" and not "NumpadEnter")
         {
             return;
@@ -979,7 +1063,7 @@
 
     private async Task HandleKeypadKeyAsync(string key)
     {
-        if (!IsAnswerEntryVisible || _isSubmitting || _isUpgradeTerminalOpen)
+        if (!IsAnswerEntryVisible || _isSubmitting || _isUpgradeTerminalOpen || _isTutorialOpen)
         {
             return;
         }
@@ -1285,10 +1369,124 @@
 
     private void StartOrResumePractice()
     {
+        if (_isTutorialOpen)
+        {
+            return;
+        }
+
+        var isStartingFromInitialReadyGate = Session.PracticeGate == PracticeGateState.InitialReadyGate;
+        var shouldOpenTutorial = (isStartingFromInitialReadyGate && CanAutoPresentTutorial) || CanPresentTutorialReplay;
+
+        if (shouldOpenTutorial)
+        {
+            Session.PauseItemTiming();
+
+            if (isStartingFromInitialReadyGate)
+            {
+                Session.StartOrResumePractice();
+                _tutorialResumptionReason = TutorialResumptionReason.DeferredFirstStart;
+            }
+            else
+            {
+                Session.StartOrResumePractice();
+                _tutorialResumptionReason = TutorialResumptionReason.InterruptedActiveQuestion;
+            }
+
+            if (CyberDefenseSessionState.IsTutorialReplayRequested)
+            {
+                CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+            }
+
+            _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
+            _tutorialCapturedFactRevision = Session.FactInstanceRevision;
+            _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
+            _isTutorialOpen = true;
+            _shouldFocusInput = false;
+            _shouldFocusPrimaryOverlay = false;
+            SyncPracticeGateCopy();
+            StateHasChanged();
+            return;
+        }
+
         Session.StartOrResumePractice();
         SyncPracticeGateCopy();
         _shouldFocusPrimaryOverlay = false;
         _shouldFocusInput = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleTutorialFinishedAsync()
+    {
+        await DismissTutorialAsync();
+    }
+
+    private async Task HandleTutorialSkippedAsync()
+    {
+        await DismissTutorialAsync();
+    }
+
+    private Task DismissTutorialAsync()
+    {
+        if (!_isTutorialOpen)
+        {
+            return Task.CompletedTask;
+        }
+
+        _isTutorialOpen = false;
+
+        try
+        {
+            TutorialPreferences.SetTutorialCompleted(true);
+        }
+        catch
+        {
+            // Do not strand the learner if preference storage is unavailable.
+        }
+
+        var resumptionReason = _tutorialResumptionReason;
+        _tutorialResumptionReason = TutorialResumptionReason.None;
+
+        var canSafelyResume =
+            !_isDisposed &&
+            Session.IsAppForeground &&
+            Session.PracticeGate == PracticeGateState.Running &&
+            Session.InteractionState == SessionInteractionState.AwaitingAnswer &&
+            !_isUpgradeTerminalOpen &&
+            !Ceremony.IsBlocking &&
+            !_startupFailed &&
+            Session.InteractionState != SessionInteractionState.PersistenceFailure &&
+            Session.LearnerStateGenerationRevision == _tutorialCapturedLearnerGeneration &&
+            Session.FactInstanceRevision == _tutorialCapturedFactRevision &&
+            resumptionReason != TutorialResumptionReason.None;
+
+        if (canSafelyResume)
+        {
+            Session.ResumeItemTiming();
+            _shouldFocusInput = true;
+            _shouldFocusPrimaryOverlay = false;
+        }
+        else
+        {
+            if (Session.PracticeGate == PracticeGateState.Running && Session.InteractionState == SessionInteractionState.AwaitingAnswer)
+            {
+                _shouldFocusInput = true;
+                _shouldFocusPrimaryOverlay = false;
+            }
+            else
+            {
+                _shouldFocusInput = false;
+                _shouldFocusPrimaryOverlay = true;
+            }
+        }
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void HandleTutorialStepChanged(CyberDefenseTutorial.CyberDefenseTutorialStep newStep)
+    {
+        _tutorialCurrentStep = newStep;
+        StateHasChanged();
     }
 
     private async Task KeepGoingAsync()
@@ -1351,11 +1549,11 @@
         Session.PracticeGate == PracticeGateState.Running &&
         Session.InteractionState == SessionInteractionState.AwaitingAnswer;
 
-    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen;
+    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen && !_isTutorialOpen;
 
     private async Task OpenUpgradeTerminalAsync()
     {
-        if (_isUpgradeTerminalOpen || _isSubmitting || _isDisposed)
+        if (_isUpgradeTerminalOpen || _isSubmitting || _isDisposed || _isTutorialOpen)
         {
             return;
         }

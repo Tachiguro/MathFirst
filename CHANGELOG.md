@@ -9,7 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 3A (Cyber Defense Tutorial Completion Preference Persistence & Reset Contracts) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 3B (Cyber Defense Tutorial Activation, Settings Replay, Spotlight Targeting & Timing-Safe Lifecycle Integration) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **Deterministic Tutorial Activation**: Mounted `CyberDefenseTutorial` in `Home.razor` for first-time Cyber Defense learners (`tutorial_completed == false`) upon the initial Start action from `InitialReadyGate`. Calm Mode and returning completed learners are strictly suppressed.
+- **Mathematical Timing Safety & Dual Resumption**:
+  - Suspended the practice surface synchronously (`PauseItemTiming()`) BEFORE transitioning to `Running` on first start, ensuring zero active mathematical elapsed milliseconds accrue while the tutorial is open.
+  - Handled both deferred first-start (starting active timer from 0 upon tutorial dismissal) and interrupted active questions / replays (preserving previously accrued active thinking time).
+  - Backgrounding, navigation, manual pause, ceremony/terminal overlap, and generation/fact revision changes are fenced against unintended timer reactivation.
+- **Settings Replay Navigation**: Added localized, accessible replay control in Settings (`Settings_CyberDefenseReplayTutorial`) using transient in-memory `CyberDefenseSessionState` replay-intent carrier (`RequestTutorialReplay()`, `ConsumeTutorialReplayRequest()`). Replay survives Settings-to-Home navigation, waits for an eligible render, is consumed at most once, and does not alter stored completion. Full Local Reset clears pending replay.
+- **Idempotent Completion Persistence**: Explicit Skip or Finish persists `tutorial_completed = true` via `ICyberDefenseTutorialPreferences`. Background transitions and navigation never write completion. Failed preference storage fails open without stranding the user.
+- **Responsive Visual Spotlight Targets**: Connected stage identification to real DOM elements with luminous cyber reticle focus (`box-shadow`, `border-radius`, `pointer-events: none;`) without altering lower-math geometry or touch target sizes:
+  - Station 1 (`enemy-hud`): CyberDefenseHud enemy battle scene.
+  - Station 2 (`expression-keypad`): Home expression and numeric keypad.
+  - Station 3 (`system-integrity`): CyberDefenseHud player HP / shield panel.
+  - Station 0 (`story-intro`): Centered Story Card without underlying target.
+  - Responsive positioning rules and reduced-motion suppression (`prefers-reduced-motion: reduce`).
+- **Input & Modal Isolation**: Keyboard Enter, custom keypad buttons, input events, auto-submit, combat dispatch, and Upgrade Terminal activation are strictly blocked while the tutorial is active. Background markup is marked `inert` and `aria-hidden`.
+- **Localization Parity**: Added `Settings_CyberDefenseReplayTutorial` in exact parity across EN ("Replay Tutorial"), DE ("Anleitung wiederholen"), and RU ("Повторить обучение").
+- **Scope & Delivery Boundaries**: Tutorial integration deliverable under Gate C. Offline SQLite achievements remain pending subsequent slice. Overall package remains Unreleased.
+
+### MF-CYBER-009 Slice 3A (Cyber Defense Tutorial Completion Preference Persistence & Reset Contracts) — Merged into main via PR #105 (Unreleased)
 
 - **Dedicated Tutorial Preference Contract**: Added `ICyberDefenseTutorialPreferences` (`GetTutorialCompleted()`, `SetTutorialCompleted(bool)`) in `MathFirst.Application.Practice` to manage persistent tutorial completion state independently from combat mode preferences.
 - **Native Preference Adapter & Conservative Value Handling**: Implemented the contract in `MauiPreferenceStore` using local preference key `mathfirst.cyber_defense.tutorial_completed` (default `false`). Safely falls back to `false` when reading malformed or wrong-type values (`InvalidCastException`, `FormatException`, `ClassCastException`) without broad exception swallowing.

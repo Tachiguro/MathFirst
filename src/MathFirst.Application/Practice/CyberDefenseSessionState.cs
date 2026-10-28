@@ -17,6 +17,7 @@ public sealed class CyberDefenseSessionState
     private readonly HashSet<string> _processedSubmissionIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PendingCombatContext> _pendingContexts = new(StringComparer.Ordinal);
     private CyberDefenseEncounterState? _encounter;
+    private bool _isTutorialReplayRequested;
 
     public CyberDefenseSessionState(
         ICyberDefenseModePreferences preferences,
@@ -165,6 +166,47 @@ public sealed class CyberDefenseSessionState
         return CombatDispatchResult.Dispatched();
     }
 
+    public bool IsTutorialReplayRequested
+    {
+        get
+        {
+            lock (_processedSubmissionIds)
+            {
+                return _isTutorialReplayRequested;
+            }
+        }
+    }
+
+    public void RequestTutorialReplay()
+    {
+        lock (_processedSubmissionIds)
+        {
+            _isTutorialReplayRequested = true;
+        }
+    }
+
+    public bool ConsumeTutorialReplayRequest()
+    {
+        lock (_processedSubmissionIds)
+        {
+            if (_isTutorialReplayRequested)
+            {
+                _isTutorialReplayRequested = false;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    public void ClearTutorialReplayRequest()
+    {
+        lock (_processedSubmissionIds)
+        {
+            _isTutorialReplayRequested = false;
+        }
+    }
+
     public void ClearEncounter()
     {
         _encounter = null;
@@ -172,6 +214,7 @@ public sealed class CyberDefenseSessionState
         {
             _processedSubmissionIds.Clear();
             _pendingContexts.Clear();
+            _isTutorialReplayRequested = false;
         }
     }
 }

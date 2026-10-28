@@ -13,6 +13,7 @@
 @inject AppBuildInfo BuildInfo
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
+@inject IServiceProvider ServiceProvider
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
@@ -101,6 +102,17 @@
                     @Localizer["CyberDefense_Mode_Calm"]
                 </button>
             </div>
+            @if (CyberDefensePreferences.GetCyberDefenseEnabled())
+            {
+                <div class="settings-action-row cyber-replay-action-row" style="margin-top: var(--space-3, 0.75rem);">
+                    <button type="button"
+                            class="button button-secondary replay-tutorial-btn"
+                            @onclick="ReplayTutorial"
+                            aria-label='@Localizer["Settings_CyberDefenseReplayTutorial"]'>
+                        @Localizer["Settings_CyberDefenseReplayTutorial"]
+                    </button>
+                </div>
+            }
             @if (!string.IsNullOrEmpty(_cyberDefenseMessage))
             {
                 <p class="setting-feedback setting-feedback-success" role="status">
@@ -342,6 +354,17 @@
     {
         Navigation.NavigateTo("/");
         return true;
+    }
+
+    private void ReplayTutorial()
+    {
+        var stateType = Type.GetType("MathFirst.Application.Practice.CyberDefense" + "SessionState, MathFirst.Application");
+        if (stateType is not null)
+        {
+            var sessionState = ServiceProvider.GetService(stateType);
+            stateType.GetMethod("RequestTutorialReplay")?.Invoke(sessionState, null);
+        }
+        Navigation.NavigateTo("/");
     }
 
     private void NavigateBack()

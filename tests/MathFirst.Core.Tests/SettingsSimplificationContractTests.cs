@@ -99,6 +99,16 @@ public sealed class SettingsSimplificationContractTests : IDisposable
 
     // =========================================================================
     // B. REQUIRED SETTINGS SURFACES REMAIN
+
+    [Fact]
+    public void Slice3B_CyberDefenseSection_ContainsTutorialReplayControl()
+    {
+        var settingsSource = ReadSourceWithoutComments("src", "MathFirst.App", "Components", "Pages", "Settings.razor");
+
+        Assert.Contains("Settings_CyberDefenseReplayTutorial", settingsSource, StringComparison.Ordinal);
+        Assert.Contains("ReplayTutorial", settingsSource, StringComparison.Ordinal);
+        Assert.Contains("replay-tutorial-btn", settingsSource, StringComparison.Ordinal);
+    }
     // =========================================================================
 
     [Fact]
