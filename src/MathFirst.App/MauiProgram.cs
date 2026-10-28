@@ -41,6 +41,8 @@ public static class MauiProgram
 			sp => sp.GetRequiredService<MauiPreferenceStore>());
 		builder.Services.AddSingleton<ICyberDefenseModePreferences>(
 			sp => sp.GetRequiredService<MauiPreferenceStore>());
+		builder.Services.AddSingleton<ICyberDefenseTutorialPreferences>(
+			sp => sp.GetRequiredService<MauiPreferenceStore>());
 		builder.Services.AddSingleton<CyberDefenseSessionState>();
 		builder.Services.AddSingleton<ICyberDefenseSubmissionConsumer, CyberDefenseSubmissionConsumer>();
 		builder.Services.AddSingleton<CyberDefenseSubmissionConsumer>();

@@ -9,12 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 2 (Standalone Localized Cyber Defense Spotlight Tutorial Component) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 3A (Cyber Defense Tutorial Completion Preference Persistence & Reset Contracts) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **Dedicated Tutorial Preference Contract**: Added `ICyberDefenseTutorialPreferences` (`GetTutorialCompleted()`, `SetTutorialCompleted(bool)`) in `MathFirst.Application.Practice` to manage persistent tutorial completion state independently from combat mode preferences.
+- **Native Preference Adapter & Conservative Value Handling**: Implemented the contract in `MauiPreferenceStore` using local preference key `mathfirst.cyber_defense.tutorial_completed` (default `false`). Safely falls back to `false` when reading malformed or wrong-type values (`InvalidCastException`, `FormatException`, `ClassCastException`) without broad exception swallowing.
+- **Singleton Dependency Injection Registration**: Registered `ICyberDefenseTutorialPreferences` as a singleton alias resolving the existing `MauiPreferenceStore` singleton instance in `MauiProgram.cs`, maintaining single-instance lifecycle safety.
+- **Reset Integration Semantics**: Full Local Reset (`ExecuteFullResetAsync`) and pending-reset startup reconciliation (`ReconcileStartupResetStateAsync`) clear tutorial completion via `ResetAllPreferences()`. In contrast, practice/UI settings reset (`ResetPracticePreferences`) and learning-progress-only reset preserve tutorial completion. Unrelated preferences and learner data remain unaffected.
+- **Scope & Delivery Boundaries**: Standalone persistent preference and reset foundation deliverable under Gate C. Tutorial auto-launch, skip/finish callback integration, Settings replay navigation, mathematical timing changes, and offline SQLite achievements remain pending subsequent slices. Overall package remains Unreleased.
+
+### MF-CYBER-009 Slice 2 (Standalone Localized Cyber Defense Spotlight Tutorial Component) — Merged into main via PR #104 (Unreleased)
 
 - **Standalone Spotlight Tutorial Component**: Implemented `CyberDefenseTutorial.razor` and scoped `CyberDefenseTutorial.razor.css` providing the four approved presentation stages: introductory Story Card (reusing `CyberDefense_Story_Intro`) followed by exactly three contextual spotlight stations (Opponent Status, Expression & Keypad, System Integrity).
 - **Accessible & Deterministic Navigation**: Supports Next, Back (between spotlight stations and back to story card), Skip Tutorial (available on every stage), and Finish (on the final spotlight station) with at-most-once lifecycle callbacks (`OnFinished`, `OnSkipped`), programmatic heading focus, high-contrast focus indicators, and reduced-motion suppression. Rerenders do not reset tutorial step state.
 - **Localization Parity**: Added full EN/DE/RU localization keys in `LocalizationService` for tutorial step headings, concise body descriptions, progress indicators, and controls with zero fallback leakage and exact combat terminology parity.
-- **Component Isolation & Scope Boundaries**: Standalone component deliverable. Home/Settings integration is not yet complete; persistent completion and replay flags in preferences are not yet implemented; mathematical timer suspension during active presentation is not yet wired; local SQLite achievements remain pending subsequent slices. Unreleased; PR open/unmerged.
+- **Component Isolation & Scope Boundaries**: Standalone component deliverable merged into main via PR #104. Home/Settings integration, persistent completion and replay flags in preferences, mathematical timer suspension during active presentation, and local SQLite achievements remain pending subsequent slices.
 
 ### MF-CYBER-009 Slice 1 (First-Launch Copy Hygiene & Cyber Defense Story Localization) — Merged into main via PR #103 (Unreleased)
 
