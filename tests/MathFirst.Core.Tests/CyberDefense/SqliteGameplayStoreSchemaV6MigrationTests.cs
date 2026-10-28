@@ -206,7 +206,7 @@ public sealed class SqliteGameplayStoreSchemaV6MigrationTests : IDisposable
     [Fact]
     public async Task T01_FreshGameplayStore_InitializesSchemaV6()
     {
-        Assert.Equal(7, SqliteGameplayStore.DefaultSchemaVersion);
+        Assert.Equal(8, SqliteGameplayStore.DefaultSchemaVersion);
 
         var dbPath = GetTempDbPath("t01_fresh_v6");
         using var store = new SqliteGameplayStore(dbPath);
@@ -217,7 +217,7 @@ public sealed class SqliteGameplayStoreSchemaV6MigrationTests : IDisposable
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
         var version = (string?)await cmd.ExecuteScalarAsync();
-        Assert.Equal("7", version);
+        Assert.Equal("8", version);
 
         cmd.CommandText = @"
             SELECT firewall_rank, activated_firewall_rank, consecutive_early_defeats, is_beginner_assistance_active
@@ -256,7 +256,7 @@ public sealed class SqliteGameplayStoreSchemaV6MigrationTests : IDisposable
             await conn.OpenAsync();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-            Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
+            Assert.Equal("8", (string?)await cmd.ExecuteScalarAsync());
         }
 
         // Unambiguous case B: firewall_rank 0, shield_capacity 1 (temporary emergency shield)
@@ -344,19 +344,19 @@ public sealed class SqliteGameplayStoreSchemaV6MigrationTests : IDisposable
     [Fact]
     public async Task T04_RejectUnsupportedFutureSchemaVersion_ThrowsInvalidOperationException()
     {
-        var dbPath = GetTempDbPath("unsupported_v8");
+        var dbPath = GetTempDbPath("unsupported_v9");
         await SeedRawV5DatabaseAsync(dbPath, firewallRank: 0, shieldCapacity: 0);
 
         using (var conn = new SqliteConnection($"Data Source={dbPath}"))
         {
             await conn.OpenAsync();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE gameplay_schema_info SET value = '8' WHERE key = 'schema_version';";
+            cmd.CommandText = "UPDATE gameplay_schema_info SET value = '9' WHERE key = 'schema_version';";
             await cmd.ExecuteNonQueryAsync();
         }
 
         using var store = new SqliteGameplayStore(dbPath);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
-        Assert.Contains("Unsupported database schema version 8", ex.Message);
+        Assert.Contains("Unsupported database schema version 9", ex.Message);
     }
 }

@@ -9,7 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 3B (Cyber Defense Tutorial Activation, Settings Replay, Spotlight Targeting & Timing-Safe Lifecycle Integration) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 4A (Offline Achievements Persistence Foundation & Gameplay Schema V8) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **Gameplay Schema V8 Foundation**: Introduced `mathfirst_gameplay.db` Schema V8 adding exactly one table, `local_achievements`, storing unlocked offline achievements (`achievement_id`, `reset_epoch`, `unlocked_at_utc`).
+- **Transactional Migrations & Historical Compatibility**: Implemented transactional forward migration from V7 to V8 and updated the entire historical upgrade chain (V1 through V6 to V8). Premature table existence or malformed schema fails closed and rolls back. Reconciled historical migration test suites (V2 through V6) and native schema tests for Schema V8.
+- **Read-Only Achievement Contract**: Implemented `ICyberDefenseAchievementReader` on `SqliteGameplayStore` (`GetUnlockedAchievementsAsync`), returning typed, immutable `CyberDefenseAchievementRecord` entries in deterministic order (`unlocked_at_utc ASC, achievement_id ASC`) with strict ISO-8601 UTC timestamp validation.
+- **Reset-Epoch Fencing & Recovery Semantics**: Reads are strictly fenced during pending reset intents. All stored achievement rows must match the active `gameplay_progression` reset epoch; cross-epoch anomalies fail closed. Full Local Reset (`ResetGameplayStateAsync`) atomically truncates `local_achievements` in the same reset transaction.
+- **Scope & Delivery Boundaries**: Strictly limited to offline achievement persistence foundation and read model. No historical achievement backfill. No active achievement evaluation or unlock triggers are wired in combat or production flows. No achievement presentation UI. `IGameplayStore` and Learner Store Schema V9 remain completely untouched (0 learner migrations). Trigger evaluation, unlock semantics, and UI remain pending in Slice 4B. Package 9 remains Unreleased.
+
+### MF-CYBER-009 Slice 3B (Cyber Defense Tutorial Activation, Settings Replay, Spotlight Targeting & Timing-Safe Lifecycle Integration) — Merged into main via PR #106 (Unreleased)
 
 - **Deterministic Tutorial Activation**: Mounted `CyberDefenseTutorial` in `Home.razor` for first-time Cyber Defense learners (`tutorial_completed == false`) upon the initial Start action from `InitialReadyGate`. Calm Mode and returning completed learners are strictly suppressed.
 - **Mathematical Timing Safety & Dual Resumption**:

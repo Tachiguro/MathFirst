@@ -543,9 +543,9 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public void V01_CurrentGameplaySchema_IsV7_AndLearnerStoreSchemaRemainsV9()
+    public void V01_CurrentGameplaySchema_IsV8_AndLearnerStoreSchemaRemainsV9()
     {
-        Assert.Equal(7, SqliteGameplayStore.DefaultSchemaVersion);
+        Assert.Equal(8, SqliteGameplayStore.DefaultSchemaVersion);
         Assert.Equal(9, LearnerProgression.DefaultSchemaVersion);
     }
 
@@ -554,11 +554,11 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task V02_FreshStore_InitializesExactSchemaV7()
+    public async Task V02_FreshStore_InitializesExactSchemaV8()
     {
         var dbPath = await CreateFreshStoreAsync("v02_fresh");
 
-        Assert.Equal("7", await GetSchemaVersionAsync(dbPath));
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
     }
 
     [Fact]
@@ -736,7 +736,7 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             await store.InitializeAsync();
         }
 
-        Assert.Equal("7", await GetSchemaVersionAsync(dbPath));
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
         var after = await SnapshotTablesAsync(dbPath, legacyColumns
             .Where(kv => kv.Key != "gameplay_schema_info")
             .ToDictionary(kv => kv.Key, kv => kv.Value));
@@ -1014,7 +1014,7 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             Assert.Equal(1, (await reopened.GetProgressionAsync()).AttackRank);
         }
 
-        Assert.Equal("7", await GetSchemaVersionAsync(dbPath));
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
         Assert.Equal(schemaSql, (string?)await ScalarRawAsync(dbPath, "SELECT group_concat(sql, ';') FROM (SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name);"));
         var reopenedSnapshot = await SnapshotTablesAsync(dbPath, allColumns);
         foreach (var (table, rows) in reopenedSnapshot)
@@ -1050,14 +1050,14 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
             Assert.Equal(2, (await store.GetPendingIntentsAsync(SeededResetEpoch)).Count);
         }
 
-        Assert.Equal("7", await GetSchemaVersionAsync(dbPath));
+        Assert.Equal("8", await GetSchemaVersionAsync(dbPath));
         Assert.Equal(new long[] { 0, 0 }, await ReadModifierRanksAsync(dbPath));
         Assert.Equal(new long[] { 0, 0, 0 }, await ReadModifierRunStateAsync(dbPath));
         Assert.Equal(new object?[] { null, null, null, null, null }, await ReadReceiptMetadataAsync(dbPath, "sub-legacy-applied"));
     }
 
     [Theory]
-    [InlineData("8")]
+    [InlineData("9")]
     [InlineData("42")]
     public async Task V17_UnsupportedFutureSchemaVersion_IsRejectedWithoutMutation(string futureVersion)
     {
@@ -1068,7 +1068,7 @@ public sealed class SqliteGameplayStoreSchemaV7MigrationTests : IDisposable
         using var store = new SqliteGameplayStore(dbPath);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
         Assert.Contains($"Unsupported database schema version {futureVersion}", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("Maximum supported version is 7", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Maximum supported version is 8", ex.Message, StringComparison.Ordinal);
 
         Assert.Equal(futureVersion, await GetSchemaVersionAsync(dbPath));
         Assert.DoesNotContain(await GetColumnsAsync(dbPath, "gameplay_progression"), c => c.Name == "critical_strike_rank");

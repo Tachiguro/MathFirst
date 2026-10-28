@@ -12,10 +12,10 @@ using MathFirst.Application.Persistence;
 using MathFirst.Domain.CyberDefense;
 using Microsoft.Data.Sqlite;
 
-public sealed class SqliteGameplayStore : IGameplayStore
+public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchievementReader
 {
     public const string DefaultDatabaseFileName = "mathfirst_gameplay.db";
-    public const int DefaultSchemaVersion = 7;
+    public const int DefaultSchemaVersion = 8;
     public const string DefaultEconomyVersion = "ECONOMY_V1";
 
     private readonly string _connectionString;
@@ -316,6 +316,17 @@ public sealed class SqliteGameplayStore : IGameplayStore
                  (is_correct = 1 OR (critical_bonus_percent = 0 AND overdrive_bonus_percent = 0)))
             )")
     ];
+
+    // Gameplay Schema V8 (MF-CYBER-009 Slice 4A): offline achievement persistence foundation.
+    // Adds exactly one table (local_achievements) storing unlocked achievements for the active reset epoch.
+    // achievement_id is the primary key and automatically indexed by SQLite. No redundant indexes are created.
+    private const string SchemaV8AchievementsDdl = @"
+        CREATE TABLE local_achievements (
+            achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(achievement_id)) > 0),
+            reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+            unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
+        );
+    ";
 
     private const string SchemaV5Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -778,6 +789,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
 
             await AddSchemaV7ColumnsAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await CreateSchemaV8AchievementsTableAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
 
             var now = DateTimeOffset.UtcNow.ToString("O");
             var initialRun = CyberDefenseRunState.InitialRun();
@@ -786,7 +798,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 seedCmd.Transaction = transaction;
                 seedCmd.CommandText = @"
-                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '7');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '8');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('store_revision', '1');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('reset_epoch', '0');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
@@ -882,6 +894,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
         }
 
+        if (version >= 8 && !existingTables.Contains("local_achievements"))
+        {
+            throw new InvalidOperationException(
+                "Existing database is incomplete: missing table 'local_achievements'.");
+        }
+
         if (version == 1)
         {
             await MigrateV1ToV3Async(connection, cancellationToken).ConfigureAwait(false);
@@ -889,6 +907,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
@@ -897,6 +916,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
@@ -904,25 +924,30 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 5)
         {
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 6)
         {
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 7)
         {
             await EnsureSchemaV7PendingIntentPracticePositionColumnAsync(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
 
         using (var colCmd = connection.CreateCommand())
@@ -1021,6 +1046,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }
 
         await ValidateSchemaV7ModifierStateAsync(connection, cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaV8AchievementsAsync(connection, cancellationToken).ConfigureAwait(false);
     }
 
     // Primitive-range validation of the V7 modifier columns on open. SQL CHECK constraints normally make these
@@ -1143,6 +1169,134 @@ public sealed class SqliteGameplayStore : IGameplayStore
             throw new InvalidOperationException(
                 $"Existing database has invalid value {value} in '{table}.{column}': expected {min} to {max}.");
         }
+    }
+
+    private static async Task ValidateSchemaV8AchievementsAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using (var probeCmd = connection.CreateCommand())
+        {
+            probeCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'local_achievements';";
+            long count = Convert.ToInt64(await probeCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+            if (count == 0)
+            {
+                throw new InvalidOperationException("Existing database is incomplete: missing table 'local_achievements'.");
+            }
+        }
+
+        var columns = new Dictionary<string, (string Type, bool NotNull, int PrimaryKey)>(StringComparer.OrdinalIgnoreCase);
+        using (var infoCmd = connection.CreateCommand())
+        {
+            infoCmd.CommandText = "PRAGMA table_info('local_achievements');";
+            using var reader = await infoCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string name = reader.GetString(1);
+                string type = reader.GetString(2);
+                bool notNull = reader.GetInt32(3) == 1;
+                int pk = reader.GetInt32(5);
+                columns[name] = (type, notNull, pk);
+            }
+        }
+
+        if (!columns.TryGetValue("achievement_id", out var idCol) ||
+            !string.Equals(idCol.Type, "TEXT", StringComparison.OrdinalIgnoreCase) ||
+            !idCol.NotNull || idCol.PrimaryKey != 1)
+        {
+            throw new InvalidOperationException("Existing database has invalid or missing 'achievement_id' in 'local_achievements'.");
+        }
+
+        if (!columns.TryGetValue("reset_epoch", out var epochCol) ||
+            !string.Equals(epochCol.Type, "INTEGER", StringComparison.OrdinalIgnoreCase) ||
+            !epochCol.NotNull)
+        {
+            throw new InvalidOperationException("Existing database has invalid or missing 'reset_epoch' in 'local_achievements'.");
+        }
+
+        if (!columns.TryGetValue("unlocked_at_utc", out var timeCol) ||
+            !string.Equals(timeCol.Type, "TEXT", StringComparison.OrdinalIgnoreCase) ||
+            !timeCol.NotNull)
+        {
+            throw new InvalidOperationException("Existing database has invalid or missing 'unlocked_at_utc' in 'local_achievements'.");
+        }
+
+        long activeResetEpoch;
+        using (var epochCmd = connection.CreateCommand())
+        {
+            epochCmd.CommandText = "SELECT reset_epoch FROM gameplay_progression WHERE id = 1;";
+            var res = await epochCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (res is null or DBNull)
+            {
+                throw new InvalidOperationException("Existing database is missing reset_epoch in 'gameplay_progression'.");
+            }
+            activeResetEpoch = Convert.ToInt64(res, CultureInfo.InvariantCulture);
+        }
+
+        using (var rowCmd = connection.CreateCommand())
+        {
+            rowCmd.CommandText = @"
+                SELECT achievement_id, reset_epoch, unlocked_at_utc,
+                       typeof(achievement_id) AS id_type,
+                       typeof(reset_epoch) AS epoch_type,
+                       typeof(unlocked_at_utc) AS time_type
+                FROM local_achievements;";
+            using var reader = await rowCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string idType = reader.GetString(3);
+                string epochType = reader.GetString(4);
+                string timeType = reader.GetString(5);
+
+                if (!string.Equals(idType, "text", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Existing database has invalid non-text 'achievement_id' in 'local_achievements'.");
+                }
+                if (!string.Equals(epochType, "integer", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Existing database has invalid non-integer 'reset_epoch' in 'local_achievements'.");
+                }
+                if (!string.Equals(timeType, "text", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Existing database has invalid non-text 'unlocked_at_utc' in 'local_achievements'.");
+                }
+
+                string achievementId = reader.GetString(0);
+                if (string.IsNullOrWhiteSpace(achievementId))
+                {
+                    throw new InvalidOperationException("Existing database has empty or whitespace 'achievement_id' in 'local_achievements'.");
+                }
+                if (!seenIds.Add(achievementId))
+                {
+                    throw new InvalidOperationException($"Duplicate achievement identifier '{achievementId}' found in 'local_achievements'.");
+                }
+
+                long rowEpoch = reader.GetInt64(1);
+                if (rowEpoch < 0)
+                {
+                    throw new InvalidOperationException($"Invalid negative reset epoch {rowEpoch} for achievement '{achievementId}' in 'local_achievements'.");
+                }
+                if (rowEpoch != activeResetEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Achievement '{achievementId}' has inconsistent reset epoch {rowEpoch} (expected current epoch {activeResetEpoch}).");
+                }
+
+                string timeStr = reader.GetString(2);
+                _ = ParseAndValidateUtcTimestamp(timeStr, $"local_achievements.{achievementId}");
+            }
+        }
+    }
+
+    private static DateTimeOffset ParseAndValidateUtcTimestamp(string text, string context)
+    {
+        if (string.IsNullOrWhiteSpace(text)
+            || !DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var timestamp)
+            || timestamp.Offset != TimeSpan.Zero
+            || !(text.EndsWith("Z", StringComparison.OrdinalIgnoreCase) || text.EndsWith("+00:00", StringComparison.Ordinal) || text.EndsWith("-00:00", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException($"Invalid or non-UTC timestamp '{text}' in {context}.");
+        }
+        return timestamp;
     }
 
     private static async Task MigrateV1ToV3Async(SqliteConnection connection, CancellationToken cancellationToken)
@@ -2220,6 +2374,56 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }
     }
 
+    private static async Task CreateSchemaV8AchievementsTableAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        using var ddlCmd = connection.CreateCommand();
+        ddlCmd.Transaction = transaction;
+        ddlCmd.CommandText = SchemaV8AchievementsDdl;
+        await ddlCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task MigrateV7ToV8Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 1. Premature table check: local_achievements must not exist prior to Schema V8 migration.
+            using (var probeCmd = connection.CreateCommand())
+            {
+                probeCmd.Transaction = transaction;
+                probeCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'local_achievements';";
+                long existing = Convert.ToInt64(await probeCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+                if (existing != 0)
+                {
+                    throw new InvalidOperationException(
+                        "Malformed gameplay database: table 'local_achievements' already exists before Schema V8 migration. " +
+                        "Migration aborted to prevent data corruption.");
+                }
+            }
+
+            // 2. Create the local_achievements table
+            await CreateSchemaV8AchievementsTableAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+
+            // 3. Advance schema version to 8
+            using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = "UPDATE gameplay_schema_info SET value = '8' WHERE key = 'schema_version';";
+                await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
     public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default)
     {
         return ExecuteWithConnectionGateAsync(async ct =>
@@ -2339,6 +2543,112 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 updatedAt,
                 firewallRank,
                 activatedFirewallRank);
+        }, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<CyberDefenseAchievementRecord>> GetUnlockedAchievementsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ExecuteWithConnectionGateAsync(async ct =>
+        {
+            using var transaction = _connection!.BeginTransaction(deferred: true);
+
+            bool isPending;
+            long currentEpoch;
+            using (var resetCmd = _connection.CreateCommand())
+            {
+                resetCmd.Transaction = transaction;
+                resetCmd.CommandText = "SELECT is_pending, current_epoch, target_epoch FROM gameplay_reset_intent WHERE id = 1;";
+                using var reader = await resetCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing reset intent row in 'gameplay_reset_intent'.");
+                }
+                isPending = reader.GetInt32(0) == 1;
+                currentEpoch = reader.GetInt64(1);
+            }
+
+            if (isPending)
+            {
+                throw new InvalidOperationException("Achievements are unavailable while a reset is pending.");
+            }
+
+            long progressionEpoch;
+            using (var progCmd = _connection.CreateCommand())
+            {
+                progCmd.Transaction = transaction;
+                progCmd.CommandText = "SELECT reset_epoch FROM gameplay_progression WHERE id = 1;";
+                var res = await progCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+                if (res is null or DBNull)
+                {
+                    throw new InvalidOperationException("Missing progression row in 'gameplay_progression'.");
+                }
+                progressionEpoch = Convert.ToInt64(res, CultureInfo.InvariantCulture);
+            }
+
+            if (currentEpoch != progressionEpoch)
+            {
+                throw new InvalidOperationException(
+                    $"Inconsistent reset epochs between progression ({progressionEpoch}) and reset intent ({currentEpoch}).");
+            }
+
+            var achievements = new List<CyberDefenseAchievementRecord>();
+            using (var queryCmd = _connection.CreateCommand())
+            {
+                queryCmd.Transaction = transaction;
+                queryCmd.CommandText = @"
+                    SELECT achievement_id, reset_epoch, unlocked_at_utc,
+                           typeof(achievement_id) AS id_type,
+                           typeof(reset_epoch) AS epoch_type,
+                           typeof(unlocked_at_utc) AS time_type
+                    FROM local_achievements
+                    ORDER BY unlocked_at_utc ASC, achievement_id ASC;";
+                using var reader = await queryCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    string idType = reader.GetString(3);
+                    string epochType = reader.GetString(4);
+                    string timeType = reader.GetString(5);
+
+                    if (!string.Equals(idType, "text", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Corrupt database: non-text achievement_id in local_achievements.");
+                    }
+                    if (!string.Equals(epochType, "integer", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Corrupt database: non-integer reset_epoch in local_achievements.");
+                    }
+                    if (!string.Equals(timeType, "text", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Corrupt database: non-text unlocked_at_utc in local_achievements.");
+                    }
+
+                    string achievementId = reader.GetString(0);
+                    if (string.IsNullOrWhiteSpace(achievementId))
+                    {
+                        throw new InvalidOperationException("Corrupt database: empty or whitespace achievement_id in local_achievements.");
+                    }
+
+                    long rowEpoch = reader.GetInt64(1);
+                    if (rowEpoch < 0)
+                    {
+                        throw new InvalidOperationException($"Corrupt database: negative reset epoch {rowEpoch} in local_achievements.");
+                    }
+                    if (rowEpoch != currentEpoch)
+                    {
+                        throw new InvalidOperationException(
+                            $"Achievement '{achievementId}' has inconsistent reset epoch {rowEpoch} (expected current epoch {currentEpoch}).");
+                    }
+
+                    string timeStr = reader.GetString(2);
+                    var unlockedAt = ParseAndValidateUtcTimestamp(timeStr, $"local_achievements.{achievementId}");
+
+                    achievements.Add(new CyberDefenseAchievementRecord(achievementId, rowEpoch, unlockedAt));
+                }
+            }
+
+            transaction.Commit();
+            return (IReadOnlyList<CyberDefenseAchievementRecord>)achievements;
         }, cancellationToken);
     }
 
@@ -5526,6 +5836,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     resetCmd.CommandText = @"
                         DELETE FROM gameplay_pending_intent;
                         DELETE FROM gameplay_receipt_ledger;
+                        DELETE FROM local_achievements;
 
                         UPDATE gameplay_run_state
                         SET sector = @sector,
