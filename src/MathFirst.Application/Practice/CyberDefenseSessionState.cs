@@ -10,7 +10,7 @@ using System.Collections.Generic;
 /// Respects Calm Mode preferences: when disabled, no combat state is allocated and queries return null.
 /// Preserves combat state when toggling between enabled and disabled, and clears state upon full local reset.
 /// </summary>
-public sealed class CyberDefenseSessionState
+public sealed class CyberDefenseSessionState : ICyberDefenseTutorialReplayRequests
 {
     private readonly ICyberDefenseModePreferences _preferences;
     private readonly Func<CyberDefenseEncounterState> _encounterFactory;

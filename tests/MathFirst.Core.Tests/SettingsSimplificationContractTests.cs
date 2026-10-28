@@ -16,6 +16,7 @@ using MathFirst.Application.Telemetry;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
 using MathFirst.Infrastructure.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 /// <summary>
@@ -108,6 +109,51 @@ public sealed class SettingsSimplificationContractTests : IDisposable
         Assert.Contains("Settings_CyberDefenseReplayTutorial", settingsSource, StringComparison.Ordinal);
         Assert.Contains("ReplayTutorial", settingsSource, StringComparison.Ordinal);
         Assert.Contains("replay-tutorial-btn", settingsSource, StringComparison.Ordinal);
+        Assert.Contains("ICyberDefenseTutorialReplayRequests", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Type.GetType", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ServiceProvider.GetService", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("CyberDefenseSessionState", settingsSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActiveEncounter", settingsSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Slice3B_SettingsReplay_DiRegistration_ResolvesSharedSessionStateSingleton()
+    {
+        var prefs = new TestPreferenceStore();
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddSingleton<CyberDefenseSessionState>();
+        services.AddSingleton<ICyberDefenseTutorialReplayRequests>(
+            sp => sp.GetRequiredService<CyberDefenseSessionState>());
+        services.AddSingleton<ICyberDefenseModePreferences>(prefs);
+
+        var sp = services.BuildServiceProvider();
+
+        var replayRequests = sp.GetRequiredService<ICyberDefenseTutorialReplayRequests>();
+        var sessionState = sp.GetRequiredService<CyberDefenseSessionState>();
+
+        // Must be the exact same singleton instance
+        Assert.Same(sessionState, replayRequests);
+
+        // Before request
+        Assert.False(sessionState.IsTutorialReplayRequested);
+
+        // Dispatches through typed interface
+        replayRequests.RequestTutorialReplay();
+
+        // Reaches the shared session state
+        Assert.True(sessionState.IsTutorialReplayRequested);
+    }
+
+    [Fact]
+    public void Slice3B_SettingsReplay_MissingRegistration_FailsExplicitly()
+    {
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var sp = services.BuildServiceProvider();
+
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            _ = sp.GetRequiredService<ICyberDefenseTutorialReplayRequests>();
+        });
     }
     // =========================================================================
 

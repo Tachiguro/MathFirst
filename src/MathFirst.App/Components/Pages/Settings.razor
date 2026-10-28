@@ -13,7 +13,7 @@
 @inject AppBuildInfo BuildInfo
 @inject IPreferenceStore PreferenceStore
 @inject ICyberDefenseModePreferences CyberDefensePreferences
-@inject IServiceProvider ServiceProvider
+@inject ICyberDefenseTutorialReplayRequests TutorialReplayRequests
 @inject TrainingSession Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
@@ -358,12 +358,7 @@
 
     private void ReplayTutorial()
     {
-        var stateType = Type.GetType("MathFirst.Application.Practice.CyberDefense" + "SessionState, MathFirst.Application");
-        if (stateType is not null)
-        {
-            var sessionState = ServiceProvider.GetService(stateType);
-            stateType.GetMethod("RequestTutorialReplay")?.Invoke(sessionState, null);
-        }
+        TutorialReplayRequests.RequestTutorialReplay();
         Navigation.NavigateTo("/");
     }
 

@@ -812,10 +812,10 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         var headerOpeningTag = home.Substring(headerStart, headerTagEnd - headerStart + 1);
 
         // MAJOR-01 Requirement 1: State-dependent inert protection on mathfirst-header
-        Assert.Contains("inert=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? true : null)\"", headerOpeningTag, StringComparison.Ordinal);
+        Assert.Contains("inert=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? true : null)\"", headerOpeningTag, StringComparison.Ordinal);
 
         // MAJOR-01 Requirement 2: State-dependent aria-hidden protection on mathfirst-header
-        Assert.Contains("aria-hidden=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? \"true\" : null)\"", headerOpeningTag, StringComparison.Ordinal);
+        Assert.Contains("aria-hidden=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? \"true\" : null)\"", headerOpeningTag, StringComparison.Ordinal);
 
         // 2. Locate the Mode Toggle button inside the header
         var headerEnd = home.IndexOf("</header>", headerStart, StringComparison.Ordinal);

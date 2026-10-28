@@ -330,8 +330,8 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         f.Clock.Advance(2300);
         Assert.Equal(2300, f.Session.GetCurrentActiveElapsedMs());
 
-        // Learner goes to Settings, requests replay
-        f.CyberDefenseSessionState.RequestTutorialReplay();
+        // Learner goes to Settings, requests replay via typed interface
+        f.ReplayRequests.RequestTutorialReplay();
         Assert.True(f.CyberDefenseSessionState.IsTutorialReplayRequested);
 
         // Learner returns to Home: Home re-renders / re-initializes
@@ -422,8 +422,8 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         f.Clock.Advance(4200);
         Assert.Equal(4200, f.Session.GetCurrentActiveElapsedMs());
 
-        // Trigger replay while question is active
-        f.CyberDefenseSessionState.RequestTutorialReplay();
+        // Trigger replay via typed interface while question is active
+        f.ReplayRequests.RequestTutorialReplay();
         await f.MountOrSyncViewAsync();
 
         Assert.True(f.IsTutorialOpen);
@@ -565,6 +565,142 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         Assert.Contains("prefers-reduced-motion", css);
     }
 
+    [Fact(Timeout = 10000)]
+    public async Task Reentry_UnfinishedTutorial_PreservesIncompleteState_AndDoesNotBypassOnboarding()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: false);
+
+        // Instance 1: start practice -> tutorial mounts
+        await f.StartOrResumePracticeAsync();
+        Assert.True(f.IsTutorialOpen);
+        Assert.Equal(PracticeGateState.Running, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+
+        // Dispose Instance 1 before Skip or Finish
+        await f.DisposeCurrentHomeAsync();
+        Assert.False(f.Preferences.GetTutorialCompleted());
+
+        // Render genuine second Home instance sharing the same application-scoped Session, preferences, and state
+        await f.RenderSecondHomeInstanceAsync();
+
+        // Required invariants on re-entry:
+        // - Completion remains false
+        // - Tutorial appears again when eligible
+        // - Practice surface is timing-inactive (no thinking time leaks)
+        Assert.False(f.Preferences.GetTutorialCompleted());
+        Assert.True(f.IsTutorialOpen, "Unfinished tutorial must not be silently bypassed on re-entry.");
+        Assert.False(f.Session.IsTimingActive, "No active thinking time may accumulate during re-entry.");
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+
+        // Normal completion on the second instance permits safe practice continuation
+        await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
+        await f.FinishTutorialAsync();
+
+        Assert.False(f.IsTutorialOpen);
+        Assert.True(f.Preferences.GetTutorialCompleted());
+        Assert.True(f.Session.IsTimingActive);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task Timing_BackgroundResumeGate_FollowedBySkip_RestoresTimingOnExplicitResume()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: false);
+
+        // 1. Start new Cyber Defense tutorial
+        await f.StartOrResumePracticeAsync();
+        Assert.True(f.IsTutorialOpen);
+
+        // 2. Verify timing inactive and elapsed 0
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+
+        // 3. Advance fake clock while tutorial is open
+        f.Clock.Advance(10000);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+
+        // 4. Background application
+        await f.DispatchAsync(() => f.Session.SetAppForeground(false));
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+
+        // 5. Return to foreground with BackgroundResumeGate
+        await f.DispatchAsync(() => f.Session.SetAppForeground(true));
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+
+        // 6. Explicitly Skip tutorial
+        await f.SkipTutorialAsync();
+        Assert.False(f.IsTutorialOpen);
+
+        // 7. Verify timing remains inactive while at BackgroundResumeGate
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+
+        // 8. Explicitly resume practice
+        await f.StartOrResumePracticeAsync();
+
+        // 9. Verify timing becomes active
+        Assert.Equal(PracticeGateState.Running, f.Session.PracticeGate);
+        Assert.True(f.Session.IsTimingActive, "Explicit resume after tutorial dismissal must restore timing activity.");
+
+        // 10. Advance fake clock
+        f.Clock.Advance(2500);
+
+        // 11. Verify elapsed increases by the correct amount
+        Assert.Equal(2500, f.Session.GetCurrentActiveElapsedMs());
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task ModalIsolation_HeaderAndMainInert_WhenTutorialIsOpen()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: false);
+        await f.StartOrResumePracticeAsync();
+        Assert.True(f.IsTutorialOpen);
+
+        var html = await f.GetHtmlAsync();
+
+        // Header must be inert and hidden from assistive navigation while tutorial is open
+        Assert.Matches(@"<header class=""mathfirst-header""[^>]*\binert\b", html);
+        Assert.Matches(@"<header class=""mathfirst-header""[^>]*aria-hidden=""true""", html);
+
+        // Main region must be inert and aria-hidden
+        Assert.Matches(@"<main class=""training-card[^""]*""[^>]*\binert\b", html);
+        Assert.Matches(@"<main class=""training-card[^""]*""[^>]*aria-hidden=""true""", html);
+
+        // Tutorial dialog must be interactive (not enclosed in inert element)
+        Assert.Contains("class=\"tutorial-overlay\"", html);
+
+        // Dismiss tutorial
+        await f.SkipTutorialAsync();
+        Assert.False(f.IsTutorialOpen);
+
+        var dismissedHtml = await f.GetHtmlAsync();
+        var headerStart = dismissedHtml.IndexOf("<header class=\"mathfirst-header\"", StringComparison.Ordinal);
+        var headerEnd = dismissedHtml.IndexOf('>', headerStart);
+        var headerTag = dismissedHtml.Substring(headerStart, headerEnd - headerStart + 1);
+        Assert.DoesNotContain("inert", headerTag);
+        Assert.DoesNotContain("aria-hidden=\"true\"", headerTag);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task InputGuard_DirectSubmit_BlockedWhileTutorialIsOpen()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: false);
+        await f.StartOrResumePracticeAsync();
+        Assert.True(f.IsTutorialOpen);
+
+        f.Session.SetCurrentAnswerInput("42");
+
+        // Invoking direct submit must be rejected
+        await f.DirectSubmitAsync();
+
+        Assert.Equal(0, f.Session.SessionTotalCount);
+        Assert.Null(f.Session.LastEvaluation);
+    }
+
     private static string GetRepositoryPath(params string[] segments) =>
         Path.Combine([GetRepositoryRoot(), .. segments]);
 
@@ -580,12 +716,13 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         private readonly string _directory;
         private readonly ServiceProvider _services;
         private readonly HtmlRenderer _renderer;
-        private readonly HtmlRootComponent _root;
-        private readonly global::MathFirst.Core.Tests.Home _home;
+        private HtmlRootComponent _root;
+        private global::MathFirst.Core.Tests.Home _home;
 
         public FakeClock Clock { get; }
         public TestPreferenceStore Preferences { get; }
         public CyberDefenseSessionState CyberDefenseSessionState { get; }
+        public ICyberDefenseTutorialReplayRequests ReplayRequests => _services.GetRequiredService<ICyberDefenseTutorialReplayRequests>();
         public TrainingSession Session { get; }
         public CyberDefenseCombatCoordinator Coordinator { get; }
         public CyberDefensePresentationSequence Ceremony { get; }
@@ -680,6 +817,7 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
                 .AddSingleton<ICyberDefenseModePreferences>(preferences)
                 .AddSingleton<ICyberDefenseTutorialPreferences>(preferences)
                 .AddSingleton(sessionState)
+                .AddSingleton<ICyberDefenseTutorialReplayRequests>(sp => sp.GetRequiredService<CyberDefenseSessionState>())
                 .AddSingleton(new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary())))
                 .AddSingleton<IAppResetCoordinator>(resetCoord)
                 .AddSingleton<IHapticFeedbackService>(new TestHapticFeedbackService())
@@ -799,6 +937,38 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
             {
                 typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
                     .Invoke(_home, null);
+            });
+
+        public string? ValidationError => (string?)typeof(global::MathFirst.Core.Tests.Home)
+            .GetField("_validationError", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(_home);
+
+        public async Task<global::MathFirst.Core.Tests.Home> RenderSecondHomeInstanceAsync()
+        {
+            global::MathFirst.Core.Tests.Home secondHome = null!;
+            _root = await _renderer.Dispatcher.InvokeAsync(async () =>
+            {
+                return await _renderer.RenderComponentAsync<HomeHost>(ParameterView.FromDictionary(new Dictionary<string, object?>
+                {
+                    ["Capture"] = (Action<global::MathFirst.Core.Tests.Home>)(h => secondHome = h)
+                }));
+            });
+            _home = secondHome;
+            return secondHome;
+        }
+
+        public Task DisposeCurrentHomeAsync() =>
+            _renderer.Dispatcher.InvokeAsync(() =>
+            {
+                _home.Dispose();
+            });
+
+        public Task DirectSubmitAsync() =>
+            _renderer.Dispatcher.InvokeAsync(async () =>
+            {
+                var method = typeof(global::MathFirst.Core.Tests.Home)
+                    .GetMethod("Submit", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                var task = (Task)method.Invoke(_home, null)!;
+                await task;
             });
 
         public Task DispatchAsync(Action action) => _renderer.Dispatcher.InvokeAsync(action);

@@ -81,6 +81,22 @@ public sealed class CyberDefenseSessionStateTests : IDisposable
 
         Assert.Contains("AddSingleton<ICyberDefenseModePreferences>", source, StringComparison.Ordinal);
         Assert.Contains("AddSingleton<CyberDefenseSessionState>", source, StringComparison.Ordinal);
+        Assert.Contains("AddSingleton<ICyberDefenseTutorialReplayRequests>", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CyberDefenseSessionState_ImplementsTutorialReplayRequestsInterface()
+    {
+        var preferences = new InMemoryCyberDefensePreferences();
+        var sessionState = new CyberDefenseSessionState(preferences);
+
+        Assert.IsAssignableFrom<ICyberDefenseTutorialReplayRequests>(sessionState);
+
+        ICyberDefenseTutorialReplayRequests replayRequests = sessionState;
+        Assert.False(sessionState.IsTutorialReplayRequested);
+
+        replayRequests.RequestTutorialReplay();
+        Assert.True(sessionState.IsTutorialReplayRequested);
     }
 
     // =========================================================================

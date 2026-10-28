@@ -27,8 +27,8 @@
 <div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container" data-spotlight-active="@ActiveSpotlightTarget">
         <header class="mathfirst-header"
-                inert="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? true : null)"
-                aria-hidden="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking ? "true" : null)">
+                inert="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? true : null)"
+                aria-hidden="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? "true" : null)">
             <div class="mathfirst-title-group">
                 <div class="brand-shield-emblem" aria-hidden="true">
                     <svg viewBox="0 0 24 28" width="22" height="26" fill="none">
@@ -481,6 +481,7 @@
     }
 
     private bool _isTutorialOpen;
+    private bool _hasDeferredTutorialTimingResume;
     private TutorialResumptionReason _tutorialResumptionReason = TutorialResumptionReason.None;
     private long _tutorialCapturedLearnerGeneration = -1;
     private long _tutorialCapturedFactRevision = -1;
@@ -680,21 +681,39 @@
                 finally { _isSubmitting = false; }
             }
             if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
-            if (CanPresentTutorialReplay && Session.PracticeGate == PracticeGateState.Running)
+            var isTutorialPending = IsCyberDefenseActive &&
+                (!TutorialPreferences.GetTutorialCompleted() || CyberDefenseSessionState.IsTutorialReplayRequested);
+
+            var shouldPresentTutorial =
+                Session.PracticeGate == PracticeGateState.Running &&
+                (CanAutoPresentTutorial || CanPresentTutorialReplay);
+
+            if (shouldPresentTutorial)
             {
                 Session.PauseItemTiming();
-                CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+                if (CanPresentTutorialReplay)
+                {
+                    CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+                }
                 _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
                 _tutorialCapturedFactRevision = Session.FactInstanceRevision;
                 _tutorialResumptionReason = TutorialResumptionReason.InterruptedActiveQuestion;
                 _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
                 _isTutorialOpen = true;
+                _hasDeferredTutorialTimingResume = false;
                 _shouldFocusInput = false;
                 _shouldFocusPrimaryOverlay = false;
                 SyncStateWithSession();
                 return;
             }
-            Session.SetPracticeSurfaceActive(true);
+            if (!isTutorialPending)
+            {
+                Session.SetPracticeSurfaceActive(true);
+            }
+            else
+            {
+                Session.PauseItemTiming();
+            }
             SyncStateWithSession();
         }
     }
@@ -858,6 +877,10 @@
 
     public void Dispose()
     {
+        if (_isDisposed)
+        {
+            return;
+        }
         _isDisposed = true;
         Ceremony.Changed -= OnCeremonyChanged;
         _presentationLifetime.Cancel();
@@ -1093,7 +1116,7 @@
 
     private async Task Submit()
     {
-        if (_isSubmitting || !IsAnswerEntryVisible || _isUpgradeTerminalOpen)
+        if (_isSubmitting || !IsAnswerEntryVisible || _isUpgradeTerminalOpen || _isTutorialOpen)
         {
             return;
         }
@@ -1375,7 +1398,7 @@
         }
 
         var isStartingFromInitialReadyGate = Session.PracticeGate == PracticeGateState.InitialReadyGate;
-        var shouldOpenTutorial = (isStartingFromInitialReadyGate && CanAutoPresentTutorial) || CanPresentTutorialReplay;
+        var shouldOpenTutorial = CanAutoPresentTutorial || CanPresentTutorialReplay;
 
         if (shouldOpenTutorial)
         {
@@ -1409,6 +1432,30 @@
         }
 
         Session.StartOrResumePractice();
+
+        if (_hasDeferredTutorialTimingResume)
+        {
+            var canSafelyResume =
+                !_isDisposed &&
+                Session.IsAppForeground &&
+                Session.PracticeGate == PracticeGateState.Running &&
+                Session.InteractionState == SessionInteractionState.AwaitingAnswer &&
+                !_isUpgradeTerminalOpen &&
+                !Ceremony.IsBlocking &&
+                !_startupFailed &&
+                Session.InteractionState != SessionInteractionState.PersistenceFailure &&
+                Session.LearnerStateGenerationRevision == _tutorialCapturedLearnerGeneration &&
+                Session.FactInstanceRevision == _tutorialCapturedFactRevision &&
+                _tutorialResumptionReason != TutorialResumptionReason.None;
+
+            if (canSafelyResume)
+            {
+                Session.ResumeItemTiming();
+            }
+
+            _hasDeferredTutorialTimingResume = false;
+            _tutorialResumptionReason = TutorialResumptionReason.None;
+        }
         SyncPracticeGateCopy();
         _shouldFocusPrimaryOverlay = false;
         _shouldFocusInput = true;
@@ -1441,32 +1488,43 @@
         catch
         {
             // Do not strand the learner if preference storage is unavailable.
+            _validationError = Localizer["Training_PersistenceFailureTitle"];
         }
 
-        var resumptionReason = _tutorialResumptionReason;
-        _tutorialResumptionReason = TutorialResumptionReason.None;
+        var isStale =
+            _isDisposed ||
+            Session.LearnerStateGenerationRevision != _tutorialCapturedLearnerGeneration ||
+            Session.FactInstanceRevision != _tutorialCapturedFactRevision ||
+            _tutorialResumptionReason == TutorialResumptionReason.None;
 
-        var canSafelyResume =
-            !_isDisposed &&
+        if (isStale)
+        {
+            _hasDeferredTutorialTimingResume = false;
+            _tutorialResumptionReason = TutorialResumptionReason.None;
+            StateHasChanged();
+            return Task.CompletedTask;
+        }
+
+        var canSafelyResumeImmediately =
             Session.IsAppForeground &&
             Session.PracticeGate == PracticeGateState.Running &&
             Session.InteractionState == SessionInteractionState.AwaitingAnswer &&
             !_isUpgradeTerminalOpen &&
             !Ceremony.IsBlocking &&
             !_startupFailed &&
-            Session.InteractionState != SessionInteractionState.PersistenceFailure &&
-            Session.LearnerStateGenerationRevision == _tutorialCapturedLearnerGeneration &&
-            Session.FactInstanceRevision == _tutorialCapturedFactRevision &&
-            resumptionReason != TutorialResumptionReason.None;
+            Session.InteractionState != SessionInteractionState.PersistenceFailure;
 
-        if (canSafelyResume)
+        if (canSafelyResumeImmediately)
         {
             Session.ResumeItemTiming();
+            _hasDeferredTutorialTimingResume = false;
+            _tutorialResumptionReason = TutorialResumptionReason.None;
             _shouldFocusInput = true;
             _shouldFocusPrimaryOverlay = false;
         }
         else
         {
+            _hasDeferredTutorialTimingResume = true;
             if (Session.PracticeGate == PracticeGateState.Running && Session.InteractionState == SessionInteractionState.AwaitingAnswer)
             {
                 _shouldFocusInput = true;
@@ -1478,7 +1536,6 @@
                 _shouldFocusPrimaryOverlay = true;
             }
         }
-
         StateHasChanged();
         return Task.CompletedTask;
     }
@@ -1547,7 +1604,8 @@
         Session.IsInitialized &&
         Session.CurrentFact is not null &&
         Session.PracticeGate == PracticeGateState.Running &&
-        Session.InteractionState == SessionInteractionState.AwaitingAnswer;
+        Session.InteractionState == SessionInteractionState.AwaitingAnswer &&
+        !_isTutorialOpen;
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen && !_isTutorialOpen;
 
