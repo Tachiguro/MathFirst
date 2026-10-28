@@ -302,6 +302,87 @@ public sealed class SpotlightTutorialComponentTests
         Assert.DoesNotContain("Achievement Unlocked", integrityHtml);
     }
 
+    [Theory]
+    [InlineData(
+        "en",
+        "System integrity starts at 100 HP",
+        "Firewall shield",
+        "available",
+        "absorb",
+        "trigger enemy attacks",
+        "before HP is lost",
+        "shield and system integrity",
+        "allow hostile strikes through")]
+    [InlineData(
+        "de",
+        "Systemintegrität startet mit 100 KP",
+        "Firewall-Schilde",
+        "vorhandene",
+        "fangen",
+        "greifen Gegner an",
+        "bevor KP verloren gehen",
+        "Schild und deine Systemintegrität",
+        "lassen gegnerische Treffer durch")]
+    [InlineData(
+        "ru",
+        "Прочность системы начинается со 100 ОЗ",
+        "щиты Файрвола",
+        "доступные",
+        "поглощают",
+        "противник атакует",
+        "прежде чем теряются ОЗ",
+        "защитный щит и прочность",
+        "пропускают удары")]
+    public async Task Tutorial_SystemIntegrity_DistinguishesPlayerHpFromFirewallShields(
+        string language,
+        string expectedIntegrityHpClause,
+        string expectedShieldTerminology,
+        string expectedConditionalAvailability,
+        string expectedAbsorbAction,
+        string expectedAttackTrigger,
+        string expectedShieldProtectionClause,
+        string forbiddenShieldHpConflation,
+        string forbiddenUnshieldedDepletionClause)
+    {
+        var localizer = new LocalizationService();
+        localizer.ApplyLanguagePreference(language);
+        var body = localizer["CyberDefense_Tutorial_SystemIntegrity_Body"];
+
+        // 1. Localization parity: returns real translated content, not fallback or key name
+        Assert.False(string.IsNullOrWhiteSpace(body));
+        Assert.NotEqual("CyberDefense_Tutorial_SystemIntegrity_Body", body);
+        if (language != "en")
+        {
+            Assert.DoesNotContain("System integrity", body, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // 2. 100 HP/KP/ОЗ refers specifically to PLAYER integrity, not shields
+        Assert.Contains(expectedIntegrityHpClause, body);
+        Assert.DoesNotContain(forbiddenShieldHpConflation, body, StringComparison.OrdinalIgnoreCase);
+
+        // 3. Shield capacity is separate from HP and availability is conditional
+        Assert.Contains(expectedShieldTerminology, body);
+        Assert.Contains(expectedConditionalAvailability, body);
+
+        // 4. Incorrect answers trigger enemy attacks
+        Assert.Contains(expectedAttackTrigger, body);
+
+        // 5. Available active shields absorb hits before HP is depleted (not all attacks bypass shields)
+        Assert.Contains(expectedAbsorbAction, body);
+        Assert.Contains(expectedShieldProtectionClause, body);
+        Assert.DoesNotContain(forbiddenUnshieldedDepletionClause, body, StringComparison.OrdinalIgnoreCase);
+
+        // 6. Verify rendered UI spotlight station carries this exact validated copy
+        await using var tutorial = await RenderedTutorial.CreateAsync(language);
+        await tutorial.NextAsync(); // Enemy
+        await tutorial.NextAsync(); // ExpressionKeypad
+        await tutorial.NextAsync(); // SystemIntegrity
+        var html = await tutorial.HtmlAsync();
+        Assert.Equal(CyberDefenseTutorialStep.SystemIntegrity, tutorial.Component.CurrentStep);
+        Assert.Contains(localizer["CyberDefense_Tutorial_SystemIntegrity_Title"], html);
+        Assert.Contains(body, html);
+    }
+
     [Fact]
     public async Task Tutorial_Accessibility_SemanticsAndAttributes()
     {
