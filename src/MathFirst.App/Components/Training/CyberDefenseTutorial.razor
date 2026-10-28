@@ -1,0 +1,220 @@
+@using MathFirst.Application
+@using Microsoft.AspNetCore.Components.Web
+@inject ILocalizationService InjectedLocalizer
+
+<section class="tutorial-overlay"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="tutorial-step-title"
+         aria-describedby="tutorial-step-desc"
+         lang="@EffectiveLocalizer.CurrentUiLanguage"
+         data-step="@_currentStep"
+         data-target="@CurrentTargetIdentifier">
+    <div class="tutorial-card">
+        <div class="tutorial-card-header">
+            <div class="tutorial-badge-row">
+                @if (_currentStep == CyberDefenseTutorialStep.StoryCard)
+                {
+                    <span class="tutorial-badge tutorial-badge-story">@EffectiveLocalizer["CyberDefense_Tutorial_Story_Badge"]</span>
+                }
+                else
+                {
+                    <span class="tutorial-badge tutorial-badge-spotlight"
+                          aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_StepProgress", (int)_currentStep, 3]">
+                        @EffectiveLocalizer["CyberDefense_Tutorial_StepProgress", (int)_currentStep, 3]
+                    </span>
+                }
+            </div>
+
+            <div class="tutorial-target-indicator" aria-hidden="true" data-spotlight-target="@CurrentTargetIdentifier">
+                @switch (_currentStep)
+                {
+                    case CyberDefenseTutorialStep.StoryCard:
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        break;
+                    case CyberDefenseTutorialStep.Enemy:
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                            <polyline points="2 17 12 22 22 17" />
+                            <polyline points="2 12 12 17 22 12" />
+                        </svg>
+                        break;
+                    case CyberDefenseTutorialStep.ExpressionKeypad:
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="2" width="16" height="20" rx="2" />
+                            <line x1="8" y1="6" x2="16" y2="6" />
+                            <line x1="16" y1="14" x2="16" y2="18" />
+                            <path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01" />
+                        </svg>
+                        break;
+                    case CyberDefenseTutorialStep.SystemIntegrity:
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        break;
+                }
+            </div>
+
+            <h2 id="tutorial-step-title" @ref="_heading" tabindex="-1">@StepTitle</h2>
+        </div>
+
+        <div class="tutorial-card-body">
+            <p id="tutorial-step-desc" class="tutorial-step-desc">@StepBody</p>
+        </div>
+
+        <footer class="tutorial-card-actions">
+            <button type="button"
+                    class="tutorial-btn tutorial-btn-secondary tutorial-btn-skip"
+                    @onclick="SkipAsync"
+                    aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_Skip"]">
+                @EffectiveLocalizer["CyberDefense_Tutorial_Skip"]
+            </button>
+
+            <div class="tutorial-nav-group">
+                @if (_currentStep > CyberDefenseTutorialStep.StoryCard)
+                {
+                    <button type="button"
+                            class="tutorial-btn tutorial-btn-secondary tutorial-btn-back"
+                            @onclick="BackAsync"
+                            aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_Back"]">
+                        @EffectiveLocalizer["CyberDefense_Tutorial_Back"]
+                    </button>
+                }
+
+                @if (_currentStep == CyberDefenseTutorialStep.SystemIntegrity)
+                {
+                    <button type="button"
+                            class="tutorial-btn tutorial-btn-primary tutorial-btn-finish"
+                            @onclick="FinishAsync"
+                            aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_Finish"]">
+                        @EffectiveLocalizer["CyberDefense_Tutorial_Finish"]
+                    </button>
+                }
+                else
+                {
+                    <button type="button"
+                            class="tutorial-btn tutorial-btn-primary tutorial-btn-next"
+                            @onclick="NextAsync"
+                            aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_Next"]">
+                        @EffectiveLocalizer["CyberDefense_Tutorial_Next"]
+                    </button>
+                }
+            </div>
+        </footer>
+    </div>
+</section>
+
+@code {
+    public enum CyberDefenseTutorialStep
+    {
+        StoryCard = 0,
+        Enemy = 1,
+        ExpressionKeypad = 2,
+        SystemIntegrity = 3
+    }
+
+    [Parameter] public EventCallback OnFinished { get; set; }
+    [Parameter] public EventCallback OnSkipped { get; set; }
+    [Parameter] public ILocalizationService? Localizer { get; set; }
+
+    private ILocalizationService EffectiveLocalizer => Localizer ?? InjectedLocalizer;
+
+    private CyberDefenseTutorialStep _currentStep = CyberDefenseTutorialStep.StoryCard;
+    private bool _callbackEmitted;
+    private ElementReference _heading;
+    private CyberDefenseTutorialStep _lastFocusedStep = (CyberDefenseTutorialStep)(-1);
+
+    public CyberDefenseTutorialStep CurrentStep => _currentStep;
+
+    public string CurrentTargetIdentifier => _currentStep switch
+    {
+        CyberDefenseTutorialStep.StoryCard => "story-intro",
+        CyberDefenseTutorialStep.Enemy => "enemy-hud",
+        CyberDefenseTutorialStep.ExpressionKeypad => "expression-keypad",
+        CyberDefenseTutorialStep.SystemIntegrity => "system-integrity",
+        _ => "unknown"
+    };
+
+    private string StepTitle => _currentStep switch
+    {
+        CyberDefenseTutorialStep.StoryCard => EffectiveLocalizer["CyberDefense_Tutorial_Story_Title"],
+        CyberDefenseTutorialStep.Enemy => EffectiveLocalizer["CyberDefense_Tutorial_Enemy_Title"],
+        CyberDefenseTutorialStep.ExpressionKeypad => EffectiveLocalizer["CyberDefense_Tutorial_ExpressionKeypad_Title"],
+        CyberDefenseTutorialStep.SystemIntegrity => EffectiveLocalizer["CyberDefense_Tutorial_SystemIntegrity_Title"],
+        _ => string.Empty
+    };
+
+    private string StepBody => _currentStep switch
+    {
+        CyberDefenseTutorialStep.StoryCard => EffectiveLocalizer["CyberDefense_Story_Intro"],
+        CyberDefenseTutorialStep.Enemy => EffectiveLocalizer["CyberDefense_Tutorial_Enemy_Body"],
+        CyberDefenseTutorialStep.ExpressionKeypad => EffectiveLocalizer["CyberDefense_Tutorial_ExpressionKeypad_Body"],
+        CyberDefenseTutorialStep.SystemIntegrity => EffectiveLocalizer["CyberDefense_Tutorial_SystemIntegrity_Body"],
+        _ => string.Empty
+    };
+
+    public Task NextAsync()
+    {
+        if (_currentStep < CyberDefenseTutorialStep.SystemIntegrity)
+        {
+            _currentStep++;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task BackAsync()
+    {
+        if (_currentStep > CyberDefenseTutorialStep.StoryCard)
+        {
+            _currentStep--;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
+    }
+
+    public async Task SkipAsync()
+    {
+        if (_callbackEmitted) return;
+        _callbackEmitted = true;
+        if (OnSkipped.HasDelegate)
+        {
+            await OnSkipped.InvokeAsync();
+        }
+    }
+
+    public async Task FinishAsync()
+    {
+        if (_callbackEmitted) return;
+        if (_currentStep != CyberDefenseTutorialStep.SystemIntegrity) return;
+        _callbackEmitted = true;
+        if (OnFinished.HasDelegate)
+        {
+            await OnFinished.InvokeAsync();
+        }
+    }
+
+    public void Reset()
+    {
+        _currentStep = CyberDefenseTutorialStep.StoryCard;
+        _callbackEmitted = false;
+        _lastFocusedStep = (CyberDefenseTutorialStep)(-1);
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_currentStep != _lastFocusedStep)
+        {
+            _lastFocusedStep = _currentStep;
+            try { await _heading.FocusAsync(preventScroll: true); }
+            catch (InvalidOperationException) { }
+            catch (Microsoft.JSInterop.JSException) { }
+            catch (OperationCanceledException) { }
+        }
+    }
+}

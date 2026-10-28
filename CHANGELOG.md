@@ -9,11 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 1 (First-Launch Copy Hygiene & Cyber Defense Story Localization) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 2 (Standalone Localized Cyber Defense Spotlight Tutorial Component) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **Standalone Spotlight Tutorial Component**: Implemented `CyberDefenseTutorial.razor` and scoped `CyberDefenseTutorial.razor.css` providing the four approved presentation stages: introductory Story Card (reusing `CyberDefense_Story_Intro`) followed by exactly three contextual spotlight stations (Opponent Status, Expression & Keypad, System Integrity).
+- **Accessible & Deterministic Navigation**: Supports Next, Back (between spotlight stations and back to story card), Skip Tutorial (available on every stage), and Finish (on the final spotlight station) with at-most-once lifecycle callbacks (`OnFinished`, `OnSkipped`), programmatic heading focus, high-contrast focus indicators, and reduced-motion suppression. Rerenders do not reset tutorial step state.
+- **Localization Parity**: Added full EN/DE/RU localization keys in `LocalizationService` for tutorial step headings, concise body descriptions, progress indicators, and controls with zero fallback leakage and exact combat terminology parity.
+- **Component Isolation & Scope Boundaries**: Standalone component deliverable. Home/Settings integration is not yet complete; persistent completion and replay flags in preferences are not yet implemented; mathematical timer suspension during active presentation is not yet wired; local SQLite achievements remain pending subsequent slices. Unreleased; PR open/unmerged.
+
+### MF-CYBER-009 Slice 1 (First-Launch Copy Hygiene & Cyber Defense Story Localization) — Merged into main via PR #103 (Unreleased)
 
 - **First-Launch Copy Hygiene**: Replaced continuation-only phrasing in the `InitialReady` pool (`InitialReady.Welcoming.001`, `InitialReady.Welcoming.002`, and `InitialReady.DryHumor.002`) across English, German, and Russian with truthful, first-launch-safe neutral/welcoming variants. Preserved all message IDs, pool counts, unique visible string invariants, and deterministic selector behavior.
 - **Cyber Defense Story Localization**: Added introductory story key `CyberDefense_Story_Intro` to `LocalizationService` in EN/DE/RU, expressing the core premise (hostile cyber-entities threaten the network; arithmetic answers generate defensive energy).
-- **Scope Boundaries**: UI rendering, tutorial spotlight overlay, preference persistence, and local achievements remain explicitly pending future slices. Unreleased; PR open/unmerged.
+- **Scope Boundaries**: Merged into main via PR #103; subsequent Slice 2 introduces the standalone tutorial component.
 
 ### MF-CYBER-008 (Combat HUD Polish & Rigid Geometric Layout Enforcement) — Merged into main via PR #94 (Unreleased)
 
