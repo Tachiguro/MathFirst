@@ -119,6 +119,7 @@
 
     [Parameter] public EventCallback OnFinished { get; set; }
     [Parameter] public EventCallback OnSkipped { get; set; }
+    [Parameter] public EventCallback<CyberDefenseTutorialStep> OnStepChanged { get; set; }
     [Parameter] public ILocalizationService? Localizer { get; set; }
 
     private ILocalizationService EffectiveLocalizer => Localizer ?? InjectedLocalizer;
@@ -157,24 +158,30 @@
         _ => string.Empty
     };
 
-    public Task NextAsync()
+    public async Task NextAsync()
     {
         if (_currentStep < CyberDefenseTutorialStep.SystemIntegrity)
         {
             _currentStep++;
             StateHasChanged();
+            if (OnStepChanged.HasDelegate)
+            {
+                await OnStepChanged.InvokeAsync(_currentStep);
+            }
         }
-        return Task.CompletedTask;
     }
 
-    public Task BackAsync()
+    public async Task BackAsync()
     {
         if (_currentStep > CyberDefenseTutorialStep.StoryCard)
         {
             _currentStep--;
             StateHasChanged();
+            if (OnStepChanged.HasDelegate)
+            {
+                await OnStepChanged.InvokeAsync(_currentStep);
+            }
         }
-        return Task.CompletedTask;
     }
 
     public async Task SkipAsync()
@@ -204,6 +211,10 @@
         _callbackEmitted = false;
         _lastFocusedStep = (CyberDefenseTutorialStep)(-1);
         StateHasChanged();
+        if (OnStepChanged.HasDelegate)
+        {
+            _ = OnStepChanged.InvokeAsync(_currentStep);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

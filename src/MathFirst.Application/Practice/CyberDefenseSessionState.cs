@@ -10,13 +10,14 @@ using System.Collections.Generic;
 /// Respects Calm Mode preferences: when disabled, no combat state is allocated and queries return null.
 /// Preserves combat state when toggling between enabled and disabled, and clears state upon full local reset.
 /// </summary>
-public sealed class CyberDefenseSessionState
+public sealed class CyberDefenseSessionState : ICyberDefenseTutorialReplayRequests
 {
     private readonly ICyberDefenseModePreferences _preferences;
     private readonly Func<CyberDefenseEncounterState> _encounterFactory;
     private readonly HashSet<string> _processedSubmissionIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PendingCombatContext> _pendingContexts = new(StringComparer.Ordinal);
     private CyberDefenseEncounterState? _encounter;
+    private bool _isTutorialReplayRequested;
 
     public CyberDefenseSessionState(
         ICyberDefenseModePreferences preferences,
@@ -165,6 +166,47 @@ public sealed class CyberDefenseSessionState
         return CombatDispatchResult.Dispatched();
     }
 
+    public bool IsTutorialReplayRequested
+    {
+        get
+        {
+            lock (_processedSubmissionIds)
+            {
+                return _isTutorialReplayRequested;
+            }
+        }
+    }
+
+    public void RequestTutorialReplay()
+    {
+        lock (_processedSubmissionIds)
+        {
+            _isTutorialReplayRequested = true;
+        }
+    }
+
+    public bool ConsumeTutorialReplayRequest()
+    {
+        lock (_processedSubmissionIds)
+        {
+            if (_isTutorialReplayRequested)
+            {
+                _isTutorialReplayRequested = false;
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    public void ClearTutorialReplayRequest()
+    {
+        lock (_processedSubmissionIds)
+        {
+            _isTutorialReplayRequested = false;
+        }
+    }
+
     public void ClearEncounter()
     {
         _encounter = null;
@@ -172,6 +214,7 @@ public sealed class CyberDefenseSessionState
         {
             _processedSubmissionIds.Clear();
             _pendingContexts.Clear();
+            _isTutorialReplayRequested = false;
         }
     }
 }

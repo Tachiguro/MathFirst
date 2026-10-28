@@ -5,7 +5,9 @@
 
 <div class="cyber-defense-hud @(EffectiveModel.IsBoss ? "hud-boss-active" : "")" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
     <!-- ENEMY BATTLE SCENE -->
-    <section class="enemy-battle-scene @(EffectiveModel.IsBoss ? "scene-boss" : "")" aria-label="@OpponentName">
+    <section class="enemy-battle-scene @(EffectiveModel.IsBoss ? "scene-boss" : "")"
+             aria-label="@OpponentName"
+             data-spotlight-id="enemy-hud">
         <!-- Tech Top Header Bar -->
         <div class="scene-top-bar">
             <div class="scene-category-tag">
@@ -129,7 +131,9 @@
     </section>
 
     <!-- PLAYER HP & TACTICAL INTEGRITY AREA -->
-    <section class="player-shield-panel" aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'>
+    <section class="player-shield-panel"
+             aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'
+             data-spotlight-id="system-integrity">
         <!-- Left: Player HP Status -->
         <div class="shield-status-column">
             <div class="player-status-heading">

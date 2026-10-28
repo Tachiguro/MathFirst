@@ -1127,6 +1127,9 @@ public sealed class CyberDefenseUiContractTests
         // Does NOT instantiate or query CyberDefenseSessionState.ActiveEncounter merely by displaying Settings
         Assert.DoesNotContain("CyberDefenseSessionState", content, StringComparison.Ordinal);
         Assert.DoesNotContain("ActiveEncounter", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("Type.GetType", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("IServiceProvider", content, StringComparison.Ordinal);
+        Assert.Contains("ICyberDefenseTutorialReplayRequests", content, StringComparison.Ordinal);
     }
 
     [Fact]

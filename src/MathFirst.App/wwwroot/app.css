@@ -2390,6 +2390,27 @@ select:disabled {
     }
 }
 
+/* =========================================================================
+   Cyber Defense Tutorial Spotlight Target Emphasis
+   ========================================================================= */
+
+[data-spotlight-active="enemy-hud"] [data-spotlight-id="enemy-hud"],
+[data-spotlight-active="system-integrity"] [data-spotlight-id="system-integrity"],
+[data-spotlight-active="expression-keypad"] [data-spotlight-id="expression-keypad"] {
+    position: relative;
+    z-index: 96;
+    box-shadow: 0 0 0 3px var(--color-primary), 0 0 24px rgba(27, 227, 169, 0.45);
+    border-radius: 0.75rem;
+    pointer-events: none;
+    transition: box-shadow 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-spotlight-active] [data-spotlight-id] {
+        transition: none;
+    }
+}
+
 #blazor-error-ui {
     display: none;
 }

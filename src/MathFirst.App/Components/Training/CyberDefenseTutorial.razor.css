@@ -11,6 +11,17 @@
     color: var(--color-text);
 }
 
+.tutorial-overlay[data-target="enemy-hud"],
+.tutorial-overlay[data-target="system-integrity"] {
+    align-items: end;
+    padding-bottom: clamp(1rem, 3vh, 2.5rem);
+}
+
+.tutorial-overlay[data-target="expression-keypad"] {
+    align-items: start;
+    padding-top: clamp(1rem, 3vh, 2.5rem);
+}
+
 .tutorial-card {
     width: min(100%, 32rem);
     padding: clamp(1rem, 3vw, 1.5rem);
