@@ -686,7 +686,7 @@ public sealed class SqliteGameplayStoreSchemaV5MigrationTests : IDisposable
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
         var version = (string?)await cmd.ExecuteScalarAsync();
-        Assert.Equal("7", version);
+        Assert.Equal("8", version);
 
         // 2. Verify gameplay_progression has firewall_rank 0, consecutive_early_defeats 0, is_beginner_assistance_active 0
         cmd.CommandText = @"
@@ -744,7 +744,7 @@ public sealed class SqliteGameplayStoreSchemaV5MigrationTests : IDisposable
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
         var version = (string?)await cmd.ExecuteScalarAsync();
-        Assert.Equal("7", version);
+        Assert.Equal("8", version);
 
         // 2. Verify progression preserved with firewall defaults
         cmd.CommandText = @"
@@ -829,7 +829,7 @@ public sealed class SqliteGameplayStoreSchemaV5MigrationTests : IDisposable
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-        Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
+        Assert.Equal("8", (string?)await cmd.ExecuteScalarAsync());
 
         var run = await store.GetRunStateAsync();
         Assert.Equal(1, run.Sector);
@@ -851,7 +851,7 @@ public sealed class SqliteGameplayStoreSchemaV5MigrationTests : IDisposable
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-        Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
+        Assert.Equal("8", (string?)await cmd.ExecuteScalarAsync());
 
         var run = await store.GetRunStateAsync();
         Assert.Equal(1, run.Sector);
@@ -871,7 +871,7 @@ public sealed class SqliteGameplayStoreSchemaV5MigrationTests : IDisposable
         await conn.OpenAsync();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT value FROM gameplay_schema_info WHERE key = 'schema_version';";
-        Assert.Equal("7", (string?)await cmd.ExecuteScalarAsync());
+        Assert.Equal("8", (string?)await cmd.ExecuteScalarAsync());
 
         var run = await store.GetRunStateAsync();
         Assert.Equal(1, run.Sector);
@@ -908,13 +908,13 @@ public sealed class SqliteGameplayStoreSchemaV5MigrationTests : IDisposable
         {
             await conn.OpenAsync();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "UPDATE gameplay_schema_info SET value = '8' WHERE key = 'schema_version';";
+            cmd.CommandText = "UPDATE gameplay_schema_info SET value = '9' WHERE key = 'schema_version';";
             await cmd.ExecuteNonQueryAsync();
         }
 
         using var store = new SqliteGameplayStore(dbPath);
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => store.InitializeAsync());
-        Assert.Contains("Unsupported database schema version 8", ex.Message);
+        Assert.Contains("Unsupported database schema version 9", ex.Message);
     }
 
     [Fact]

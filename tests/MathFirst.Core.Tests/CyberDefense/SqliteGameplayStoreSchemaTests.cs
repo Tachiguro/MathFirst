@@ -44,7 +44,7 @@ public sealed class SqliteGameplayStoreSchemaTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task InitializeAsync_FreshEmptyDatabase_CreatesAllSixSchemaV1Tables()
+    public async Task InitializeAsync_FreshEmptyDatabase_CreatesAllSevenSchemaV8Tables()
     {
         var dbPath = GetTempDbPath();
         using var store = new SqliteGameplayStore(dbPath);
@@ -70,10 +70,11 @@ public sealed class SqliteGameplayStoreSchemaTests : IDisposable
             "gameplay_run_state",
             "gameplay_receipt_ledger",
             "gameplay_pending_intent",
-            "gameplay_reset_intent"
+            "gameplay_reset_intent",
+            "local_achievements"
         };
 
-        Assert.Equal(6, tables.Count);
+        Assert.Equal(7, tables.Count);
         foreach (var expected in expectedTables)
         {
             Assert.Contains(expected, tables);

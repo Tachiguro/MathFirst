@@ -7,15 +7,16 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Threading;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using MathFirst.Application.Persistence;
 using MathFirst.Domain.CyberDefense;
 using Microsoft.Data.Sqlite;
 
-public sealed class SqliteGameplayStore : IGameplayStore
+public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchievementReader
 {
     public const string DefaultDatabaseFileName = "mathfirst_gameplay.db";
-    public const int DefaultSchemaVersion = 7;
+    public const int DefaultSchemaVersion = 8;
     public const string DefaultEconomyVersion = "ECONOMY_V1";
 
     private readonly string _connectionString;
@@ -316,6 +317,17 @@ public sealed class SqliteGameplayStore : IGameplayStore
                  (is_correct = 1 OR (critical_bonus_percent = 0 AND overdrive_bonus_percent = 0)))
             )")
     ];
+
+    // Gameplay Schema V8 (MF-CYBER-009 Slice 4A): offline achievement persistence foundation.
+    // Adds exactly one table (local_achievements) storing unlocked achievements for the active reset epoch.
+    // achievement_id is the primary key and automatically indexed by SQLite. No redundant indexes are created.
+    private const string SchemaV8AchievementsDdl = @"
+        CREATE TABLE local_achievements (
+            achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(achievement_id)) > 0),
+            reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0),
+            unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
+        );
+    ";
 
     private const string SchemaV5Ddl = @"
         CREATE TABLE gameplay_schema_info (
@@ -778,6 +790,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
 
             await AddSchemaV7ColumnsAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+            await CreateSchemaV8AchievementsTableAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
 
             var now = DateTimeOffset.UtcNow.ToString("O");
             var initialRun = CyberDefenseRunState.InitialRun();
@@ -786,7 +799,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             {
                 seedCmd.Transaction = transaction;
                 seedCmd.CommandText = @"
-                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '7');
+                    INSERT INTO gameplay_schema_info (key, value) VALUES ('schema_version', '8');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('store_revision', '1');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('reset_epoch', '0');
                     INSERT INTO gameplay_schema_info (key, value) VALUES ('economy_version', 'ECONOMY_V1');
@@ -882,6 +895,12 @@ public sealed class SqliteGameplayStore : IGameplayStore
             }
         }
 
+        if (version >= 8 && !existingTables.Contains("local_achievements"))
+        {
+            throw new InvalidOperationException(
+                "Existing database is incomplete: missing table 'local_achievements'.");
+        }
+
         if (version == 1)
         {
             await MigrateV1ToV3Async(connection, cancellationToken).ConfigureAwait(false);
@@ -889,6 +908,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 2)
         {
@@ -897,6 +917,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 3)
         {
@@ -904,25 +925,30 @@ public sealed class SqliteGameplayStore : IGameplayStore
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 4)
         {
             await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 5)
         {
             await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 6)
         {
             await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
         else if (version == 7)
         {
             await EnsureSchemaV7PendingIntentPracticePositionColumnAsync(connection, cancellationToken).ConfigureAwait(false);
+            await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
         }
 
         using (var colCmd = connection.CreateCommand())
@@ -1021,6 +1047,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }
 
         await ValidateSchemaV7ModifierStateAsync(connection, cancellationToken).ConfigureAwait(false);
+        await ValidateSchemaV8AchievementsAsync(connection, cancellationToken).ConfigureAwait(false);
     }
 
     // Primitive-range validation of the V7 modifier columns on open. SQL CHECK constraints normally make these
@@ -1143,6 +1170,552 @@ public sealed class SqliteGameplayStore : IGameplayStore
             throw new InvalidOperationException(
                 $"Existing database has invalid value {value} in '{table}.{column}': expected {min} to {max}.");
         }
+    }
+
+    private enum SqlDdlTokenType
+    {
+        IdentifierOrKeyword,
+        StringLiteral,
+        IntegerLiteral,
+        Symbol
+    }
+
+    private readonly record struct SqlDdlToken(SqlDdlTokenType Type, string Text);
+
+    private static List<SqlDdlToken> TokenizeTableDdl(string sql)
+    {
+        var tokens = new List<SqlDdlToken>();
+        int i = 0;
+        int n = sql.Length;
+
+        while (i < n)
+        {
+            char c = sql[i];
+
+            // 1. Whitespace
+            if (char.IsWhiteSpace(c))
+            {
+                i++;
+                continue;
+            }
+
+            // 2. Line comment: -- until newline or EOF
+            if (c == '-' && i + 1 < n && sql[i + 1] == '-')
+            {
+                i += 2;
+                while (i < n && sql[i] != '\n' && sql[i] != '\r')
+                {
+                    i++;
+                }
+                continue;
+            }
+
+            // 3. Block comment: /* ... */
+            if (c == '/' && i + 1 < n && sql[i + 1] == '*')
+            {
+                i += 2;
+                int closeIndex = sql.IndexOf("*/", i, StringComparison.Ordinal);
+                if (closeIndex < 0)
+                {
+                    throw new InvalidOperationException(
+                        "Existing database has malformed DDL for 'local_achievements': unterminated block comment.");
+                }
+                i = closeIndex + 2;
+                continue;
+            }
+
+            // 4. String literal: '...' with '' escape
+            if (c == '\'')
+            {
+                i++;
+                var sb = new System.Text.StringBuilder();
+                bool terminated = false;
+                while (i < n)
+                {
+                    if (sql[i] == '\'')
+                    {
+                        if (i + 1 < n && sql[i + 1] == '\'')
+                        {
+                            sb.Append('\'');
+                            i += 2;
+                        }
+                        else
+                        {
+                            i++;
+                            terminated = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(sql[i]);
+                        i++;
+                    }
+                }
+
+                if (!terminated)
+                {
+                    throw new InvalidOperationException(
+                        "Existing database has malformed DDL for 'local_achievements': unterminated string literal.");
+                }
+
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.StringLiteral, sb.ToString()));
+                continue;
+            }
+
+            // 5. Quoted identifier: "...", `...`, or [...]
+            if (c == '"' || c == '`' || c == '[')
+            {
+                char closeChar = c == '[' ? ']' : c;
+                i++;
+                var sb = new System.Text.StringBuilder();
+                bool terminated = false;
+                while (i < n)
+                {
+                    if (sql[i] == closeChar)
+                    {
+                        if (closeChar != ']' && i + 1 < n && sql[i + 1] == closeChar)
+                        {
+                            sb.Append(closeChar);
+                            i += 2;
+                        }
+                        else
+                        {
+                            i++;
+                            terminated = true;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        sb.Append(sql[i]);
+                        i++;
+                    }
+                }
+
+                if (!terminated)
+                {
+                    throw new InvalidOperationException(
+                        "Existing database has malformed DDL for 'local_achievements': unterminated quoted identifier.");
+                }
+
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.IdentifierOrKeyword, sb.ToString()));
+                continue;
+            }
+
+            // 6. Identifier or Keyword
+            if (char.IsLetter(c) || c == '_')
+            {
+                int start = i;
+                while (i < n && (char.IsLetterOrDigit(sql[i]) || sql[i] == '_'))
+                {
+                    i++;
+                }
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.IdentifierOrKeyword, sql[start..i]));
+                continue;
+            }
+
+            // 7. Integer literal
+            if (char.IsDigit(c))
+            {
+                int start = i;
+                while (i < n && char.IsDigit(sql[i]))
+                {
+                    i++;
+                }
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.IntegerLiteral, sql[start..i]));
+                continue;
+            }
+
+            // 8. Multi-character symbols: >=, <=, !=, <>
+            if (i + 1 < n)
+            {
+                string two = sql.Substring(i, 2);
+                if (two is ">=" or "<=" or "!=" or "<>")
+                {
+                    tokens.Add(new SqlDdlToken(SqlDdlTokenType.Symbol, two));
+                    i += 2;
+                    continue;
+                }
+            }
+
+            // 9. Single-character symbols: (, ), ,, ;, >, <, =, +
+            if (c is '(' or ')' or ',' or ';' or '>' or '<' or '=' or '+')
+            {
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.Symbol, c.ToString()));
+                i++;
+                continue;
+            }
+
+            // 10. Minus sign
+            if (c == '-')
+            {
+                tokens.Add(new SqlDdlToken(SqlDdlTokenType.Symbol, "-"));
+                i++;
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                $"Existing database has malformed DDL for 'local_achievements': unexpected character '{c}'.");
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Validates that the native V8 local_achievements table contains the exact required CHECK constraints.
+    /// Distinguishes executable SQLite constraints from comments and quoted string contents via safe tokenization.
+    /// Fails closed on missing, altered, weakened or comment-spoofed constraints.
+    /// </summary>
+    private static void ValidateSchemaV8AchievementConstraints(string tableSql)
+    {
+        var tokens = TokenizeTableDdl(tableSql);
+        int cursor = 0;
+
+        SqlDdlToken Peek() => cursor < tokens.Count ? tokens[cursor] : default;
+
+        bool MatchKeyword(string expected)
+        {
+            var t = Peek();
+            if (t.Type == SqlDdlTokenType.IdentifierOrKeyword &&
+                string.Equals(t.Text, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                cursor++;
+                return true;
+            }
+            return false;
+        }
+
+        bool MatchSymbol(string expected)
+        {
+            var t = Peek();
+            if (t.Type == SqlDdlTokenType.Symbol &&
+                string.Equals(t.Text, expected, StringComparison.Ordinal))
+            {
+                cursor++;
+                return true;
+            }
+            return false;
+        }
+
+        bool MatchInteger(string expected)
+        {
+            var t = Peek();
+            if (t.Type == SqlDdlTokenType.IntegerLiteral &&
+                string.Equals(t.Text, expected, StringComparison.Ordinal))
+            {
+                cursor++;
+                return true;
+            }
+            return false;
+        }
+
+        bool MatchLengthComparison()
+        {
+            int saved = cursor;
+            if (MatchSymbol(">") && MatchInteger("0"))
+            {
+                return true;
+            }
+            cursor = saved;
+            if (MatchSymbol(">=") && MatchInteger("1"))
+            {
+                return true;
+            }
+            cursor = saved;
+            return false;
+        }
+
+        // 1. Header: CREATE TABLE [IF NOT EXISTS] local_achievements (
+        if (!MatchKeyword("CREATE") || !MatchKeyword("TABLE"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid DDL header for 'local_achievements'. Expected CREATE TABLE.");
+        }
+
+        if (MatchKeyword("IF"))
+        {
+            if (!MatchKeyword("NOT") || !MatchKeyword("EXISTS"))
+            {
+                throw new InvalidOperationException(
+                    "Existing database has invalid DDL header for 'local_achievements'. Expected IF NOT EXISTS.");
+            }
+        }
+
+        if (!MatchKeyword("local_achievements"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has unexpected table name in DDL for 'local_achievements'.");
+        }
+
+        if (!MatchSymbol("("))
+        {
+            throw new InvalidOperationException(
+                "Existing database has malformed DDL for 'local_achievements'. Expected '(' after table name.");
+        }
+
+        // 2. Column 1: achievement_id TEXT PRIMARY KEY NOT NULL CHECK (length(trim(achievement_id)) > 0)
+        if (!MatchKeyword("achievement_id") ||
+            !MatchKeyword("TEXT") ||
+            !MatchKeyword("PRIMARY") ||
+            !MatchKeyword("KEY") ||
+            !MatchKeyword("NOT") ||
+            !MatchKeyword("NULL"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid or missing 'achievement_id' column specification in 'local_achievements'.");
+        }
+
+        if (!MatchKeyword("CHECK") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("length") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("trim") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("achievement_id") ||
+            !MatchSymbol(")") ||
+            !MatchSymbol(")") ||
+            !MatchLengthComparison() ||
+            !MatchSymbol(")"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has missing or malformed CHECK constraint on 'local_achievements.achievement_id'. " +
+                "Expected CHECK (length(trim(achievement_id)) > 0).");
+        }
+
+        if (!MatchSymbol(","))
+        {
+            throw new InvalidOperationException(
+                "Existing database has malformed DDL for 'local_achievements'. Expected ',' after 'achievement_id'.");
+        }
+
+        // 3. Column 2: reset_epoch INTEGER NOT NULL CHECK (reset_epoch >= 0)
+        if (!MatchKeyword("reset_epoch") ||
+            !MatchKeyword("INTEGER") ||
+            !MatchKeyword("NOT") ||
+            !MatchKeyword("NULL"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid or missing 'reset_epoch' column specification in 'local_achievements'.");
+        }
+
+        if (!MatchKeyword("CHECK") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("reset_epoch") ||
+            !MatchSymbol(">=") ||
+            !MatchInteger("0") ||
+            !MatchSymbol(")"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has missing or malformed CHECK constraint on 'local_achievements.reset_epoch'. " +
+                "Expected CHECK (reset_epoch >= 0).");
+        }
+
+        if (!MatchSymbol(","))
+        {
+            throw new InvalidOperationException(
+                "Existing database has malformed DDL for 'local_achievements'. Expected ',' after 'reset_epoch'.");
+        }
+
+        // 4. Column 3: unlocked_at_utc TEXT NOT NULL CHECK (length(trim(unlocked_at_utc)) > 0)
+        if (!MatchKeyword("unlocked_at_utc") ||
+            !MatchKeyword("TEXT") ||
+            !MatchKeyword("NOT") ||
+            !MatchKeyword("NULL"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has invalid or missing 'unlocked_at_utc' column specification in 'local_achievements'.");
+        }
+
+        if (!MatchKeyword("CHECK") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("length") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("trim") ||
+            !MatchSymbol("(") ||
+            !MatchKeyword("unlocked_at_utc") ||
+            !MatchSymbol(")") ||
+            !MatchSymbol(")") ||
+            !MatchLengthComparison() ||
+            !MatchSymbol(")"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has missing or malformed CHECK constraint on 'local_achievements.unlocked_at_utc'. " +
+                "Expected CHECK (length(trim(unlocked_at_utc)) > 0).");
+        }
+
+        // 5. Closing parenthesis of CREATE TABLE
+        if (!MatchSymbol(")"))
+        {
+            throw new InvalidOperationException(
+                "Existing database has unexpected column or constraint in 'local_achievements'. Expected closing ')'.");
+        }
+
+        // 6. Optional trailing semicolon ';'
+        MatchSymbol(";");
+
+        // 7. Reject arbitrary trailing SQL clauses or tokens
+        if (cursor < tokens.Count)
+        {
+            throw new InvalidOperationException(
+                $"Existing database has unexpected trailing clauses in 'local_achievements' DDL: token '{tokens[cursor].Text}'.");
+        }
+    }
+
+    private static async Task ValidateSchemaV8AchievementsAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        string? tableSql;
+        using (var ddlCmd = connection.CreateCommand())
+        {
+            ddlCmd.CommandText = "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'local_achievements';";
+            var res = await ddlCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (res is null or DBNull)
+            {
+                throw new InvalidOperationException("Existing database is incomplete: missing table 'local_achievements'.");
+            }
+            tableSql = res.ToString();
+        }
+
+        if (string.IsNullOrWhiteSpace(tableSql))
+        {
+            throw new InvalidOperationException("Existing database is incomplete: missing DDL for table 'local_achievements'.");
+        }
+
+        var columns = new Dictionary<string, (string Type, bool NotNull, int PrimaryKey)>(StringComparer.OrdinalIgnoreCase);
+        using (var infoCmd = connection.CreateCommand())
+        {
+            infoCmd.CommandText = "PRAGMA table_info('local_achievements');";
+            using var reader = await infoCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string name = reader.GetString(1);
+                string type = reader.GetString(2);
+                bool notNull = reader.GetInt32(3) == 1;
+                int pk = reader.GetInt32(5);
+                columns[name] = (type, notNull, pk);
+            }
+        }
+
+        if (!columns.TryGetValue("achievement_id", out var idCol) ||
+            !string.Equals(idCol.Type, "TEXT", StringComparison.OrdinalIgnoreCase) ||
+            !idCol.NotNull || idCol.PrimaryKey != 1)
+        {
+            throw new InvalidOperationException("Existing database has invalid or missing 'achievement_id' in 'local_achievements'.");
+        }
+
+        if (!columns.TryGetValue("reset_epoch", out var epochCol) ||
+            !string.Equals(epochCol.Type, "INTEGER", StringComparison.OrdinalIgnoreCase) ||
+            !epochCol.NotNull)
+        {
+            throw new InvalidOperationException("Existing database has invalid or missing 'reset_epoch' in 'local_achievements'.");
+        }
+
+        if (!columns.TryGetValue("unlocked_at_utc", out var timeCol) ||
+            !string.Equals(timeCol.Type, "TEXT", StringComparison.OrdinalIgnoreCase) ||
+            !timeCol.NotNull)
+        {
+            throw new InvalidOperationException("Existing database has invalid or missing 'unlocked_at_utc' in 'local_achievements'.");
+        }
+
+        if (columns.Count != 3)
+        {
+            throw new InvalidOperationException("Existing database has unexpected column count in 'local_achievements'.");
+        }
+
+        ValidateSchemaV8AchievementConstraints(tableSql);
+
+        long activeResetEpoch;
+        using (var epochCmd = connection.CreateCommand())
+        {
+            epochCmd.CommandText = "SELECT reset_epoch FROM gameplay_progression WHERE id = 1;";
+            var res = await epochCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (res is null or DBNull)
+            {
+                throw new InvalidOperationException("Existing database is missing reset_epoch in 'gameplay_progression'.");
+            }
+            activeResetEpoch = Convert.ToInt64(res, CultureInfo.InvariantCulture);
+        }
+
+        using (var rowCmd = connection.CreateCommand())
+        {
+            rowCmd.CommandText = @"
+                SELECT achievement_id, reset_epoch, unlocked_at_utc,
+                       typeof(achievement_id) AS id_type,
+                       typeof(reset_epoch) AS epoch_type,
+                       typeof(unlocked_at_utc) AS time_type
+                FROM local_achievements;";
+            using var reader = await rowCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string idType = reader.GetString(3);
+                string epochType = reader.GetString(4);
+                string timeType = reader.GetString(5);
+
+                if (!string.Equals(idType, "text", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Existing database has invalid non-text 'achievement_id' in 'local_achievements'.");
+                }
+                if (!string.Equals(epochType, "integer", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Existing database has invalid non-integer 'reset_epoch' in 'local_achievements'.");
+                }
+                if (!string.Equals(timeType, "text", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Existing database has invalid non-text 'unlocked_at_utc' in 'local_achievements'.");
+                }
+
+                string achievementId = reader.GetString(0);
+                if (string.IsNullOrWhiteSpace(achievementId))
+                {
+                    throw new InvalidOperationException("Existing database has empty or whitespace 'achievement_id' in 'local_achievements'.");
+                }
+                if (!seenIds.Add(achievementId))
+                {
+                    throw new InvalidOperationException($"Duplicate achievement identifier '{achievementId}' found in 'local_achievements'.");
+                }
+
+                long rowEpoch = reader.GetInt64(1);
+                if (rowEpoch < 0)
+                {
+                    throw new InvalidOperationException($"Invalid negative reset epoch {rowEpoch} for achievement '{achievementId}' in 'local_achievements'.");
+                }
+                if (rowEpoch != activeResetEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Achievement '{achievementId}' has inconsistent reset epoch {rowEpoch} (expected current epoch {activeResetEpoch}).");
+                }
+
+                string timeStr = reader.GetString(2);
+                _ = ParseAndValidateUtcTimestamp(timeStr, $"local_achievements.{achievementId}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Canonical ISO-8601 UTC round-trip representation (matching DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture)).
+    /// Strict 33-character format: yyyy-MM-ddTHH:mm:ss.fffffff+00:00.
+    /// Lexically order-preserving and unambiguous in SQLite storage.
+    /// </summary>
+    internal const string CanonicalUtcTimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fffffffzzz";
+    private const int CanonicalUtcTimestampLength = 33;
+
+    private static DateTimeOffset ParseAndValidateUtcTimestamp(string text, string context)
+    {
+        if (string.IsNullOrWhiteSpace(text)
+            || text.Length != CanonicalUtcTimestampLength
+            || !text.EndsWith("+00:00", StringComparison.Ordinal)
+            || !DateTimeOffset.TryParseExact(
+                text,
+                CanonicalUtcTimestampFormat,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var timestamp)
+            || timestamp.Offset != TimeSpan.Zero)
+        {
+            throw new InvalidOperationException($"Invalid or non-UTC timestamp '{text}' in {context}.");
+        }
+        return timestamp;
     }
 
     private static async Task MigrateV1ToV3Async(SqliteConnection connection, CancellationToken cancellationToken)
@@ -2220,6 +2793,56 @@ public sealed class SqliteGameplayStore : IGameplayStore
         }
     }
 
+    private static async Task CreateSchemaV8AchievementsTableAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        using var ddlCmd = connection.CreateCommand();
+        ddlCmd.Transaction = transaction;
+        ddlCmd.CommandText = SchemaV8AchievementsDdl;
+        await ddlCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task MigrateV7ToV8Async(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // 1. Premature table check: local_achievements must not exist prior to Schema V8 migration.
+            using (var probeCmd = connection.CreateCommand())
+            {
+                probeCmd.Transaction = transaction;
+                probeCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'local_achievements';";
+                long existing = Convert.ToInt64(await probeCmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), CultureInfo.InvariantCulture);
+                if (existing != 0)
+                {
+                    throw new InvalidOperationException(
+                        "Malformed gameplay database: table 'local_achievements' already exists before Schema V8 migration. " +
+                        "Migration aborted to prevent data corruption.");
+                }
+            }
+
+            // 2. Create the local_achievements table
+            await CreateSchemaV8AchievementsTableAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+
+            // 3. Advance schema version to 8
+            using (var metaCmd = connection.CreateCommand())
+            {
+                metaCmd.Transaction = transaction;
+                metaCmd.CommandText = "UPDATE gameplay_schema_info SET value = '8' WHERE key = 'schema_version';";
+                await metaCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            try { transaction.Rollback(); } catch { }
+            throw;
+        }
+    }
+
     public Task<CyberDefenseRunState> GetRunStateAsync(CancellationToken cancellationToken = default)
     {
         return ExecuteWithConnectionGateAsync(async ct =>
@@ -2339,6 +2962,112 @@ public sealed class SqliteGameplayStore : IGameplayStore
                 updatedAt,
                 firewallRank,
                 activatedFirewallRank);
+        }, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<CyberDefenseAchievementRecord>> GetUnlockedAchievementsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ExecuteWithConnectionGateAsync(async ct =>
+        {
+            using var transaction = _connection!.BeginTransaction(deferred: true);
+
+            bool isPending;
+            long currentEpoch;
+            using (var resetCmd = _connection.CreateCommand())
+            {
+                resetCmd.Transaction = transaction;
+                resetCmd.CommandText = "SELECT is_pending, current_epoch, target_epoch FROM gameplay_reset_intent WHERE id = 1;";
+                using var reader = await resetCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                if (!await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException("Missing reset intent row in 'gameplay_reset_intent'.");
+                }
+                isPending = reader.GetInt32(0) == 1;
+                currentEpoch = reader.GetInt64(1);
+            }
+
+            if (isPending)
+            {
+                throw new InvalidOperationException("Achievements are unavailable while a reset is pending.");
+            }
+
+            long progressionEpoch;
+            using (var progCmd = _connection.CreateCommand())
+            {
+                progCmd.Transaction = transaction;
+                progCmd.CommandText = "SELECT reset_epoch FROM gameplay_progression WHERE id = 1;";
+                var res = await progCmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+                if (res is null or DBNull)
+                {
+                    throw new InvalidOperationException("Missing progression row in 'gameplay_progression'.");
+                }
+                progressionEpoch = Convert.ToInt64(res, CultureInfo.InvariantCulture);
+            }
+
+            if (currentEpoch != progressionEpoch)
+            {
+                throw new InvalidOperationException(
+                    $"Inconsistent reset epochs between progression ({progressionEpoch}) and reset intent ({currentEpoch}).");
+            }
+
+            var achievements = new List<CyberDefenseAchievementRecord>();
+            using (var queryCmd = _connection.CreateCommand())
+            {
+                queryCmd.Transaction = transaction;
+                queryCmd.CommandText = @"
+                    SELECT achievement_id, reset_epoch, unlocked_at_utc,
+                           typeof(achievement_id) AS id_type,
+                           typeof(reset_epoch) AS epoch_type,
+                           typeof(unlocked_at_utc) AS time_type
+                    FROM local_achievements
+                    ORDER BY unlocked_at_utc ASC, achievement_id ASC;";
+                using var reader = await queryCmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    string idType = reader.GetString(3);
+                    string epochType = reader.GetString(4);
+                    string timeType = reader.GetString(5);
+
+                    if (!string.Equals(idType, "text", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Corrupt database: non-text achievement_id in local_achievements.");
+                    }
+                    if (!string.Equals(epochType, "integer", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Corrupt database: non-integer reset_epoch in local_achievements.");
+                    }
+                    if (!string.Equals(timeType, "text", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidOperationException("Corrupt database: non-text unlocked_at_utc in local_achievements.");
+                    }
+
+                    string achievementId = reader.GetString(0);
+                    if (string.IsNullOrWhiteSpace(achievementId))
+                    {
+                        throw new InvalidOperationException("Corrupt database: empty or whitespace achievement_id in local_achievements.");
+                    }
+
+                    long rowEpoch = reader.GetInt64(1);
+                    if (rowEpoch < 0)
+                    {
+                        throw new InvalidOperationException($"Corrupt database: negative reset epoch {rowEpoch} in local_achievements.");
+                    }
+                    if (rowEpoch != currentEpoch)
+                    {
+                        throw new InvalidOperationException(
+                            $"Achievement '{achievementId}' has inconsistent reset epoch {rowEpoch} (expected current epoch {currentEpoch}).");
+                    }
+
+                    string timeStr = reader.GetString(2);
+                    var unlockedAt = ParseAndValidateUtcTimestamp(timeStr, $"local_achievements.{achievementId}");
+
+                    achievements.Add(new CyberDefenseAchievementRecord(achievementId, rowEpoch, unlockedAt));
+                }
+            }
+
+            transaction.Commit();
+            return (IReadOnlyList<CyberDefenseAchievementRecord>)achievements;
         }, cancellationToken);
     }
 
@@ -5526,6 +6255,7 @@ public sealed class SqliteGameplayStore : IGameplayStore
                     resetCmd.CommandText = @"
                         DELETE FROM gameplay_pending_intent;
                         DELETE FROM gameplay_receipt_ledger;
+                        DELETE FROM local_achievements;
 
                         UPDATE gameplay_run_state
                         SET sector = @sector,
