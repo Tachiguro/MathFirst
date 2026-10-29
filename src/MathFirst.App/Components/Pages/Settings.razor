@@ -381,7 +381,14 @@
     public ICyberDefenseAchievementReader? InjectedAchievementReader { get; set; }
 
     private ICyberDefenseAchievementReader? AchievementReader =>
-        InjectedAchievementReader ?? ScopeFactory?.CreateScope().ServiceProvider.GetService<ICyberDefenseAchievementReader>();
+        InjectedAchievementReader ?? ResolveAchievementReader();
+
+    private ICyberDefenseAchievementReader? ResolveAchievementReader()
+    {
+        using var scope = ScopeFactory?.CreateScope();
+        var provider = scope?.ServiceProvider;
+        return provider is null ? null : (ICyberDefenseAchievementReader?)provider.GetService(typeof(ICyberDefenseAchievementReader));
+    }
 
     private string? _languageMessage;
     private string? _appearanceMessage;
