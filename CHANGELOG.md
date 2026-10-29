@@ -9,7 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 4A (Offline Achievements Persistence Foundation & Gameplay Schema V8) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 4B (Offline Achievements Atomic Unlocking: Sector 10, Boss Slayer & First Upgrade) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **Three Authoritative Offline Achievement Unlocks**: Implemented atomic unlocking for exactly three permanent local Cyber Defense achievements in `SqliteGameplayStore` using Gameplay Schema V8 `local_achievements`:
+  - `sector_10`: Unlocks only when newly applied eligible combat transition proves crossing from Sector 9 into Sector 10 (`currentRunState.Sector == 9`, `transition.IsSectorCompleted == true`, `!transition.IsGameOver`, `transition.NextState.Sector == 10`). Calm Mode, non-completing attempts, high-sector states without crossing, and duplicate receipt replays never unlock.
+  - `boss_slayer`: Unlocks only when newly applied eligible combat transition defeats a Boss opponent (`currentRunState.CurrentOpponent.Kind == OpponentKind.Boss`, `transition.IsOpponentDefeated == true`). Legitimate zero-enemy-attack victories qualify; reaching a boss, surviving, normal opponents, or duplicate replays never unlock.
+  - `first_upgrade`: Unlocks after the first genuinely successful purchase from any existing upgrade family (Attack, Firewall, Critical Strike, Overdrive) when that purchase is the learner's first committed upgrade (`spent_sp == 0` before purchase). Unaffordable purchases, rejected rank/epoch checks, failed transactions, and historic upgrade ranks after migration never unlock.
+- **Transactional Atomicity & Crash Safety**: Combat unlocks occur within the exact same SQLite transaction as the receipt ledger and progression updates; purchase unlocks occur within the exact same SQLite transaction as the purchase and progression updates. Failure in receipt, purchase, or achievement insertion rolls back all mutations together without partial state.
+- **Strict Idempotency & Reset Contracts**: Insertion helper `UnlockAchievementInternalAsync` uses targeted conflict handling (`ON CONFLICT(achievement_id) DO NOTHING`) and retains existing rows without mutating original unlock timestamps. Conflicting reset epochs fail closed. Full Local Reset and pending-reset recovery clear all achievements; subsequent new-epoch achievements can unlock afresh.
+- **Zero Gameplay Side-Effects & Offline Data Safety**: Unlocks grant no XP, SP, shields, damage modifiers, or store revision increments. Processing is strictly local and offline (DATA_PROFILE: USER_DATA). No user-facing presentation UI in this slice.
+- **Scope & Delivery Boundaries**: Candidate under validation/review; unmerged. Issue #101 remains OPEN. Overall package remains Unreleased.
+
+### MF-CYBER-009 Slice 4A (Offline Achievements Persistence Foundation & Gameplay Schema V8) — Merged into main via PR #107 (Unreleased)
 
 - **Gameplay Schema V8 Foundation**: Introduced `mathfirst_gameplay.db` Schema V8 adding exactly one table, `local_achievements`, storing unlocked offline achievements (`achievement_id`, `reset_epoch`, `unlocked_at_utc`).
 - **Transactional Migrations & Historical Compatibility**: Implemented transactional forward migration from V7 to V8 and updated the entire historical upgrade chain (V1 through V6 to V8). Premature table existence or malformed schema fails closed and rolls back. Reconciled historical migration test suites (V2 through V6) and native schema tests for Schema V8.

@@ -3072,6 +3072,84 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
     }
 
     /// <summary>
+    /// Atomically unlocks a permanent local achievement within an existing transaction (MF-CYBER-009 Slice 4B).
+    /// Idempotently retains previously unlocked achievements without altering their unlock timestamp.
+    /// Validates reset epoch consistency and propagates integrity/constraint violations.
+    /// </summary>
+    private static async Task UnlockAchievementInternalAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string achievementId,
+        long currentEpoch,
+        DateTimeOffset unlockedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        if (!CyberDefenseAchievementIds.IsKnown(achievementId))
+        {
+            throw new ArgumentException($"Unknown or unauthorized achievement id '{achievementId}'.", nameof(achievementId));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(currentEpoch);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var utcTime = unlockedAtUtc.ToUniversalTime();
+        string formattedTimestamp = utcTime.ToString(CanonicalUtcTimestampFormat, CultureInfo.InvariantCulture);
+
+        // 1. Check existing achievement state for epoch conflict
+        using (var checkCmd = connection.CreateCommand())
+        {
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = @"
+                SELECT reset_epoch, typeof(reset_epoch) AS epoch_type
+                FROM local_achievements
+                WHERE achievement_id = @id;";
+            checkCmd.Parameters.AddWithValue("@id", achievementId);
+            using var reader = await checkCmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string epochType = reader.GetString(1);
+                if (!string.Equals(epochType, "integer", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Corrupt database: non-integer reset_epoch in local_achievements.");
+                }
+                long existingEpoch = reader.GetInt64(0);
+                if (existingEpoch < 0)
+                {
+                    throw new InvalidOperationException($"Corrupt database: negative reset epoch {existingEpoch} in local_achievements.");
+                }
+                if (existingEpoch != currentEpoch)
+                {
+                    throw new InvalidOperationException(
+                        $"Achievement '{achievementId}' has inconsistent reset epoch {existingEpoch} (expected current epoch {currentEpoch}).");
+                }
+
+                // Already unlocked in the current epoch: retain original row without modifying timestamp or attributes.
+                return;
+            }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // 2. Insert with targeted conflict handling
+        using (var insertCmd = connection.CreateCommand())
+        {
+            insertCmd.Transaction = transaction;
+            insertCmd.CommandText = @"
+                INSERT INTO local_achievements (achievement_id, reset_epoch, unlocked_at_utc)
+                VALUES (@achievement_id, @reset_epoch, @unlocked_at_utc)
+                ON CONFLICT(achievement_id) DO NOTHING;";
+            insertCmd.Parameters.AddWithValue("@achievement_id", achievementId);
+            insertCmd.Parameters.AddWithValue("@reset_epoch", currentEpoch);
+            insertCmd.Parameters.AddWithValue("@unlocked_at_utc", formattedTimestamp);
+            await insertCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Restores purchased modifier ranks and run state from one consistent, validated V7 read.
     /// Requires explicit <see cref="InitializeAsync"/> first: reading cannot create/migrate a database.
     /// Throws <see cref="InvalidOperationException"/> for corrupt state or a pending reset; never
@@ -3253,7 +3331,8 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
 
                 // Only these two internally selected identifiers are interpolated; all values are bound.
                 string rankColumn = criticalStrike ? "critical_strike_rank" : "overdrive_rank";
-                string now = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+                var commitTimeUtc = DateTimeOffset.UtcNow;
+                string now = commitTimeUtc.ToString(CanonicalUtcTimestampFormat, CultureInfo.InvariantCulture);
                 using (var command = _connection.CreateCommand())
                 {
                     command.Transaction = transaction;
@@ -3298,6 +3377,20 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
                 // Read the authoritative result before releasing this transaction/gate. A later
                 // purchase may commit immediately afterward, but cannot change this immutable result.
                 var result = await ReadCombatModifierSnapshotAsync(_connection, transaction, ct).ConfigureAwait(false);
+
+                // Authoritative offline achievement unlocking (MF-CYBER-009 Slice 4B)
+                // First Upgrade: Awarded only when this purchase is the learner's first committed upgrade.
+                if (spent == 0)
+                {
+                    await UnlockAchievementInternalAsync(
+                        _connection,
+                        transaction,
+                        CyberDefenseAchievementIds.FirstUpgrade,
+                        expectedResetEpoch,
+                        commitTimeUtc,
+                        ct).ConfigureAwait(false);
+                }
+
                 ct.ThrowIfCancellationRequested();
                 transaction.Commit();
                 return result;
@@ -3575,6 +3668,19 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
                         throw new InvalidOperationException(
                             $"Failed to update progression row. Concurrency conflict or row modified concurrently (rows affected: {rowsAffected}).");
                     }
+                }
+
+                // Authoritative offline achievement unlocking (MF-CYBER-009 Slice 4B)
+                // First Upgrade: Awarded only when this purchase is the learner's first committed upgrade.
+                if (currentSpentSp == 0)
+                {
+                    await UnlockAchievementInternalAsync(
+                        _connection,
+                        transaction,
+                        CyberDefenseAchievementIds.FirstUpgrade,
+                        currentEpoch,
+                        now,
+                        ct).ConfigureAwait(false);
                 }
 
                 // Step 15: Commit transaction
@@ -3991,6 +4097,19 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
                         throw new InvalidOperationException(
                             $"Failed to update progression row. Concurrency conflict or row modified concurrently (rows affected: {rowsAffected}).");
                     }
+                }
+
+                // Authoritative offline achievement unlocking (MF-CYBER-009 Slice 4B)
+                // First Upgrade: Awarded only when this purchase is the learner's first committed upgrade.
+                if (currentSpentSp == 0)
+                {
+                    await UnlockAchievementInternalAsync(
+                        _connection,
+                        transaction,
+                        CyberDefenseAchievementIds.FirstUpgrade,
+                        currentEpoch,
+                        now,
+                        ct).ConfigureAwait(false);
                 }
 
                 // Step 13: Commit
@@ -5845,6 +5964,35 @@ public sealed class SqliteGameplayStore : IGameplayStore, ICyberDefenseAchieveme
                     deletePendingCmd.CommandText = "DELETE FROM gameplay_pending_intent WHERE submission_id = @id;";
                     deletePendingCmd.Parameters.AddWithValue("@id", intent.SubmissionId);
                     await deletePendingCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+                }
+
+                // Authoritative offline achievement unlocking (MF-CYBER-009 Slice 4B)
+                // Sector 10: Player crossed from Sector 9 into Sector 10 in this applied combat transition.
+                if (currentRunState.Sector == 9 &&
+                    transition.IsSectorCompleted &&
+                    !transition.IsGameOver &&
+                    transition.NextState.Sector == 10)
+                {
+                    await UnlockAchievementInternalAsync(
+                        _connection,
+                        transaction,
+                        CyberDefenseAchievementIds.Sector10,
+                        currentEpoch,
+                        now,
+                        ct).ConfigureAwait(false);
+                }
+
+                // Boss Slayer: Authoritative combat transition actually defeated a Boss opponent.
+                if (currentRunState.CurrentOpponent.Kind == OpponentKind.Boss &&
+                    transition.IsOpponentDefeated)
+                {
+                    await UnlockAchievementInternalAsync(
+                        _connection,
+                        transaction,
+                        CyberDefenseAchievementIds.BossSlayer,
+                        currentEpoch,
+                        now,
+                        ct).ConfigureAwait(false);
                 }
 
                 transaction.Commit();
