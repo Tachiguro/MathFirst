@@ -40,29 +40,97 @@ public sealed class Issue112UiRepairsRegressionTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public void TutorialCss_CardLayering_IsAboveSpotlightZIndex()
+    public void TutorialCss_SpotlightThreeLayerStacking_DimmerUnderTarget_TargetVisiblyHighlighted_CardOnTop()
     {
         var css = ReadFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseTutorial.razor.css");
         var appCss = ReadFile("src", "MathFirst.App", "wwwroot", "app.css");
 
-        // Spotlight in app.css uses z-index: 96
+        // 1. Dark scrim/backdrop is at z-index: 90 (below spotlight target 96, above normal gameplay at z-index: 0)
+        Assert.Matches(@"\.tutorial-backdrop\s*\{[\s\S]*?z-index:\s*90\b", css);
+        Assert.Matches(@"\.tutorial-backdrop\s*\{[\s\S]*?background:\s*rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\.75\)", css);
+        Assert.Matches(@"\.tutorial-backdrop\s*\{[\s\S]*?backdrop-filter:\s*blur\(3px\)", css);
+
+        // 2. Active spotlight target is at z-index: 96 in app.css (above backdrop 90)
         Assert.Contains("z-index: 96", appCss, StringComparison.Ordinal);
 
-        // Tutorial card layer must be at z-index > 96 (e.g. 100) so highlighted math cannot obscure actions
-        Assert.Matches(@"(?:\.tutorial-card|\.tutorial-overlay)[\s\S]*?z-index:\s*(?:9[7-9]|1\d{2})", css);
+        // 3. Tutorial overlay container is at z-index: 100 with transparent background so it does not obscure or darken the target
+        Assert.Matches(@"\.tutorial-overlay\s*\{[\s\S]*?z-index:\s*100\b", css);
+        Assert.Matches(@"\.tutorial-overlay\s*\{[\s\S]*?background:\s*transparent\b", css);
+        Assert.Matches(@"\.tutorial-overlay\s*\{[\s\S]*?pointer-events:\s*none\b", css);
+
+        // 4. Tutorial card dialog is at z-index: 101 with pointer-events: auto (above spotlight target 96)
+        Assert.Matches(@"\.tutorial-card\s*\{[\s\S]*?z-index:\s*101\b", css);
+        Assert.Matches(@"\.tutorial-card\s*\{[\s\S]*?pointer-events:\s*auto\b", css);
     }
 
     [Fact]
-    public void TutorialCss_MobilePortraitLayout_MaintainsCompactCardHeightAndReliableSeparation()
+    public void TutorialCss_CardLayout_ProvidesContentSafeInternalScrollLayout()
     {
         var css = ReadFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseTutorial.razor.css");
 
-        // Compact indicator and actions on mobile viewports (< 480px)
-        Assert.Contains("@media (max-width: 480px)", css, StringComparison.Ordinal);
-        Assert.Matches(@"@media\s*\(max-width:\s*480px\)[\s\S]*?\.tutorial-card", css);
+        // Card container prevents uncontained overflow and respects viewport bounds
+        Assert.Matches(@"\.tutorial-card\s*\{[\s\S]*?overflow:\s*hidden\b", css);
+        Assert.Matches(@"\.tutorial-card\s*\{[\s\S]*?max-height:\s*min\(85vh,\s*85dvh\)", css);
 
-        // Expression keypad target placement must have strict top-clearance
-        Assert.Contains("data-target=\"expression-keypad\"", css, StringComparison.Ordinal);
+        // Header and actions are pinned (flex-shrink: 0) so controls remain visible and accessible
+        Assert.Matches(@"\.tutorial-card-header\s*\{[\s\S]*?flex-shrink:\s*0\b", css);
+        Assert.Matches(@"\.tutorial-card-actions\s*\{[\s\S]*?flex-shrink:\s*0\b", css);
+
+        // Card body has flex-grow/shrink and overflow-y: auto for content-safe scrolling
+        Assert.Matches(@"\.tutorial-card-body\s*\{[\s\S]*?overflow-y:\s*auto\b", css);
+        Assert.Matches(@"\.tutorial-card-body\s*\{[\s\S]*?min-height:\s*0\b", css);
+        Assert.Matches(@"\.tutorial-card-body\s*\{[\s\S]*?flex:\s*1\s+1\s+auto\b", css);
+
+        // Expression keypad step uses responsive max-height rather than a fixed rigid overflow trap
+        Assert.Matches(@"\.tutorial-overlay\[data-target=""expression-keypad""\]\s*\.tutorial-card\s*\{[\s\S]*?max-height:\s*min\(280px,\s*46vh\)", css);
+
+        // Compact landscape/short-screen overrides preserve clearance
+        Assert.Contains("@media (max-height: 480px)", css, StringComparison.Ordinal);
+        Assert.Contains("@media (max-width: 480px)", css, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("en", 0)]
+    [InlineData("en", 1)]
+    [InlineData("en", 2)]
+    [InlineData("en", 3)]
+    [InlineData("de", 2)]
+    [InlineData("ru", 2)]
+    public async Task TutorialComponent_RenderedMarkup_RendersBackdropAndAccessibleModalDialogAcrossAllSteps(string lang, int step)
+    {
+        var localizer = new LocalizationService();
+        localizer.ApplyLanguagePreference(lang);
+
+        var html = await RenderTutorialComponentAsync(step, localizer);
+
+        // Both backdrop and dialog overlay must be rendered as siblings
+        Assert.Contains("class=\"tutorial-backdrop\"", html);
+        Assert.Contains("aria-hidden=\"true\"", html);
+
+        Assert.Contains("class=\"tutorial-overlay\"", html);
+        Assert.Contains("role=\"dialog\"", html);
+        Assert.Contains("aria-modal=\"true\"", html);
+        Assert.Contains("class=\"tutorial-card\"", html);
+
+        // Header, body, and actions must be present
+        Assert.Contains("class=\"tutorial-card-header\"", html);
+        Assert.Contains("class=\"tutorial-card-body\"", html);
+        Assert.Contains("class=\"tutorial-card-actions\"", html);
+        Assert.Contains("tutorial-btn-skip", html);
+
+        if (step > 0)
+        {
+            Assert.Contains("tutorial-btn-back", html);
+        }
+
+        if (step == 3)
+        {
+            Assert.Contains("tutorial-btn-finish", html);
+        }
+        else
+        {
+            Assert.Contains("tutorial-btn-next", html);
+        }
     }
 
     // =========================================================================
@@ -469,5 +537,41 @@ public sealed class Issue112UiRepairsRegressionTests : IDisposable
         var match = Regex.Match(html, @"class=""scene-artwork-wrapper ([^""]*)""");
         Assert.True(match.Success, "Rendered HUD must contain the opponent artwork wrapper.");
         return match.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    }
+    private sealed class TutorialTestHost : ComponentBase
+    {
+        [Parameter] public ILocalizationService Localizer { get; set; } = null!;
+        [Parameter] public Action<global::MathFirst.Core.Tests.CyberDefenseTutorial> OnReady { get; set; } = null!;
+
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+        {
+            builder.OpenComponent<global::MathFirst.Core.Tests.CyberDefenseTutorial>(0);
+            builder.AddAttribute(1, "Localizer", Localizer);
+            builder.AddComponentReferenceCapture(2, inst => OnReady((global::MathFirst.Core.Tests.CyberDefenseTutorial)inst));
+            builder.CloseComponent();
+        }
+    }
+
+    private static async Task<string> RenderTutorialComponentAsync(int step, ILocalizationService localizer)
+    {
+        await using var services = new ServiceCollection().AddLogging().AddSingleton(localizer).BuildServiceProvider();
+        await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        return await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            global::MathFirst.Core.Tests.CyberDefenseTutorial? tutorial = null;
+            var root = await renderer.RenderComponentAsync<TutorialTestHost>(ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                ["Localizer"] = localizer,
+                ["OnReady"] = (Action<global::MathFirst.Core.Tests.CyberDefenseTutorial>)(t => tutorial = t)
+            }));
+
+            Assert.NotNull(tutorial);
+            for (var s = 0; s < step; s++)
+            {
+                await tutorial.NextAsync();
+            }
+
+            return WebUtility.HtmlDecode(root.ToHtmlString());
+        });
     }
 }
