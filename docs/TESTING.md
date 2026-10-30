@@ -1736,7 +1736,7 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
    - no substitution by bands above D10;
    - unchanged legacy migration predicates.
 3. **`Issue114ProficiencyUnlockPersonaTests.cs`**: deterministic synthetic personas drive a real `CurriculumManaged` `TrainingSession` against isolated temporary SQLite stores with a fake clock. Answers are scripted per durable fact encounter, with no random seeds.
-   - Each committed attempt evaluates `EvaluatePrerequisiteMastery` against durable store rows (`LoadItemStatesAsync`).
+   - Each committed attempt evaluates `EvaluatePrerequisiteMastery` against durable store rows (`LoadItemStatesAsync`, implemented by `SqliteLearnerStore`; see item 4 for adapters without it).
    - Every stage transition must occur on the first attempt whose durable state satisfies the predicate without broad weakness, with all D01..D10 prerequisite facts actually attempted.
    - Presented operations must always belong to the current stage.
 
@@ -1758,6 +1758,18 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
    - Subtraction, Multiplication and Division each start at their own `BandIndex 0`, with the first fact owned by their D01. Earlier operations stay scheduled after Division unlocks.
    - Custom Practice with all four operations remains independent of `CurriculumStage`.
    - Repeated runs are bitwise deterministic.
-4. **Adapted existing suites**: tests that pinned the superseded rule (`TrainingSessionUnlockIntegrationTests`, `P3SchedulerTransitionRegressionTests`, `P3MonotonicityRegressionTests`, `P3LegacyDormantEvidenceRegressionTests`, `P3PersonaSimulationRegressionTests`) now seed genuine durable D10 evidence through `D10MasteryTestSeed`. Their unlock, atomic-commit, durability, ordinal, monotonicity and dormant-evidence assertions are otherwise unchanged. PersonaB of the P3 suite and Issue #112 PersonaB now assert that a persistently missed foundation fact blocks the unlock while practice continues. Two `ProgressionCoherenceAuditTests` profiles that audit all-four band mechanics run in `Custom` all-four mode. The Issue #112 persona pins are re-measured (§36).
+4. **`Issue114MasteryReadContractTests.cs`**: store-capability contract for the durable mastery read ([ADR-0013 §4](decisions/ADR-0013-d10-proficiency-gated-operation-unlock.md)). There is no `LoadSnapshotAsync` fallback for `ILearnerStore.LoadItemStatesAsync`. A delegating adapter over a synthetic temporary SQLite database controls only the mastery read and the runtime-snapshot shape; commits stay genuine. Durable D10 Addition evidence is seeded through `D10MasteryTestSeed`.
+
+   | Test | Contract |
+   |---|---|
+   | M01 | Unsupported query with a sparse runtime snapshot never unlocks Subtraction across 12 correct restarted attempts. The same database then unlocks on the next accepted submission once an adapter implements the query, and the stage persists. |
+   | M02 | Unsupported query with a complete runtime snapshot (the default `LoadRuntimeSnapshotAsync`) unlocks from the snapshot item states. |
+   | M03 | A transient read failure (1 and 3 consecutive failures) withholds the unlock while practice and commits succeed. The read is retried on each commit, and the first accepted submission after the first successful read unlocks. |
+   | M04 | Unsupported is learned once per `(generation, stage)` and not retried on every commit. |
+   | M05 | With one D10 fact missed or unattempted, no store capability (supported, unsupported with a complete snapshot, supported after two transient failures) unlocks, over 12 attempts. |
+   | M06 | An earned Stage 2 survives wrong answers on an unsupported and on a persistently failing adapter, in memory and after reopening. |
+
+   Mutation check: making the failure path cache its key as loaded fails the M03 recovery assertions (2 of 9); the change was reverted.
+5. **Adapted existing suites**: tests that pinned the superseded rule (`TrainingSessionUnlockIntegrationTests`, `P3SchedulerTransitionRegressionTests`, `P3MonotonicityRegressionTests`, `P3LegacyDormantEvidenceRegressionTests`, `P3PersonaSimulationRegressionTests`) now seed genuine durable D10 evidence through `D10MasteryTestSeed`. Their unlock, atomic-commit, durability, ordinal, monotonicity and dormant-evidence assertions are otherwise unchanged. PersonaB of the P3 suite and Issue #112 PersonaB now assert that a persistently missed foundation fact blocks the unlock while practice continues. Two `ProgressionCoherenceAuditTests` profiles that audit all-four band mechanics run in `Custom` all-four mode. The Issue #112 persona pins are re-measured (§36).
 
 **Evidence boundaries**: synthetic scripted personas, not studies of real learners and not balance calibration. No real learner database was opened. Only Core automated tests and native builds were run; physical Android gameplay, device performance of the extra item-state query, and UI unlock notification ([Issue #116](https://github.com/Tachiguro/MathFirst/issues/116)) are not verified.

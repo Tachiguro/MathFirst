@@ -1468,13 +1468,15 @@ public sealed class TrainingSession
         }
         catch (NotSupportedException)
         {
-            // Stores without the durable query evaluate against the in-session item states only.
+            // Unsupported is a static store capability (ADR-0013 §4): there is no LoadSnapshotAsync fallback, so
+            // evaluation uses the in-session item states only and the unlock is withheld, never granted. Not retried.
             _prerequisiteMasteryStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
             _prerequisiteMasteryStatesKey = key;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Fail closed: without durable mastery rows the overlay stays empty, which can only delay an unlock.
+            // Transient failure, fail closed: without durable mastery rows the overlay stays empty, which can only
+            // delay an unlock. The key stays unset so the next evidence load (every commit) retries the read.
             _prerequisiteMasteryStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
             _prerequisiteMasteryStatesKey = null;
         }

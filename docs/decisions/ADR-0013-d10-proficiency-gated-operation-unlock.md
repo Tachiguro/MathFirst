@@ -72,11 +72,24 @@ Unlocks still never depend on age, grade, player level, boss victories, Skill Po
 
 ### 4. Authoritative evidence in the session
 
-- `ILearnerStore.LoadItemStatesAsync(factIds)` is a read-only query for durable item states by fact ID. `SqliteLearnerStore` implements it as a parameterized `fact_id IN (...)` read. Other stores get a default implementation over `LoadSnapshotAsync`. **No schema, index, migration or stored-data change is made.**
+- `ILearnerStore.LoadItemStatesAsync(factIds)` is a read-only query for durable item states by fact ID. `SqliteLearnerStore` implements it as a parameterized `fact_id IN (...)` read. **No schema, index, migration or stored-data change is made.**
+- **There is no `LoadSnapshotAsync` fallback.** The interface default throws `NotSupportedException`. An earlier draft of this section promised a snapshot-based default; it was never implemented and is withdrawn, so the contract below is the one that is implemented and tested.
 - After each selection-evidence load, `TrainingSession` loads the current stage's prerequisite mastery set once per `(learner-state generation, stage)` into a private overlay. On submission, stage evaluation uses the overlay with the in-session candidate item states layered on top, so the latest uncommitted outcome always wins.
 - The overlay is used **only** for stage evaluation. It does not feed selection, remediation, broad weakness, FSRS or any persisted value, so scheduling behavior is unchanged.
-- If the overlay cannot be loaded, it stays empty and the unlock is only delayed, never granted. The next evidence load retries.
 - Evaluation, persistence and publication keep the ADR-0012 atomic-commit order: the stage is computed before commit and published only after a successful commit.
+
+**Store capability contract.** Both outcomes below can only delay an unlock. Neither can grant one, lower an earned stage, or turn an unattempted or missed fact into mastery.
+
+| Adapter | Runtime snapshot | `LoadItemStatesAsync` | Reliable D10 unlock after restart |
+|---|---|---|---|
+| `SqliteLearnerStore` (the only production adapter; Android and Windows) | sparse (no item states) | implemented | **Supported** |
+| Adapter using the default `LoadRuntimeSnapshotAsync` (complete `LoadSnapshotAsync`) | complete | default (unsupported) | Supported: the session already holds every durable item state |
+| Adapter with a sparse runtime snapshot and no query | sparse | unsupported | **Not supported**: only in-session item states are evaluated, so the unlock is withheld indefinitely |
+
+- **Unsupported (`NotSupportedException`).** This is a static capability. The overlay stays empty, the result is cached for the `(generation, stage)` key and not retried on every commit. Evaluation falls back to the in-session item states.
+- **Failure (any other exception except cancellation).** The overlay stays empty and the key stays unset, so every following evidence load, which runs after each commit, retries the read. Practice itself is not interrupted. Once a read succeeds, the next accepted submission evaluates the full durable evidence and unlocks if it is complete. Cancellation propagates.
+- Failures are never represented as mastery: an empty overlay contributes no facts, and the predicate in §3 requires every D01..D10 fact to be attempted and correct.
+- Test evidence: `Issue114MasteryReadContractTests` (see [TESTING.md §38](../TESTING.md#38-issue-114-d10-proficiency-gated-operation-unlock-adr-0013)). Any future production `ILearnerStore` adapter with a sparse runtime snapshot must implement the query and extend that evidence.
 
 ### 5. Weak-fact handling and deadlock avoidance
 
@@ -125,7 +138,7 @@ Under ADR-0012, the Issue #112 seeded personas reached Stage 4 at attempts 39 (b
 
 ### Neutral
 
-- `ILearnerStore` gains one read-only query with a default implementation.
+- `ILearnerStore` gains one read-only query. Its default throws `NotSupportedException` and has no snapshot fallback; the capability contract is in §4.
 - The legacy introductory helpers remain in `CurriculumUnlockPolicy` only for the V8 → V9 migration.
 
 ### Negative / Trade-offs
@@ -134,6 +147,7 @@ Under ADR-0012, the Issue #112 seeded personas reached Stage 4 at attempts 39 (b
 - A single late error on any prerequisite D10 fact (while the learner is still in that stage) blocks the next unlock until a later correct remediation retrieval, a short delay.
 - A learner who persistently misses one fact receives that fact frequently through the existing remediation override (about half of the attempts in the `4 + 1` persona). Changing remediation cadence is outside this decision.
 - Existing installs that earned Stage 2–4 under ADR-0012 keep those stages without D10 evidence. Monotonicity and no-data-loss take precedence.
+- An adapter with a sparse runtime snapshot that does not implement `LoadItemStatesAsync` cannot reliably unlock operations after a restart (§4). No such production adapter exists, and a new one must implement the query.
 - The celebratory unlock notification is out of scope ([Issue #116](https://github.com/Tachiguro/MathFirst/issues/116)).
 
 ## Alternatives

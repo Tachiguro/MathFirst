@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Latency and fluency are not part of the rule. Introductory D01 exposure no longer unlocks anything.
 - **Fixed (in the same change)**: Stage evaluation now reads the prerequisite's durable item states through a new read-only `ILearnerStore.LoadItemStatesAsync` query, used by a stage-evaluation-only overlay in `TrainingSession`. Without it, the lazily filled in-session cache would deadlock learners after an app restart. Selection, remediation, broad weakness, FSRS, persistence schema and migrations are unchanged.
+- **Store contract (Gate C review)**: `LoadItemStatesAsync` has no `LoadSnapshotAsync` fallback; its default throws `NotSupportedException`. `SqliteLearnerStore` (the only production adapter) implements it. An unsupported or failing read withholds the unlock and never grants one: unsupported is cached per stage, failures are retried on each commit. The unimplemented fallback claim was removed from ADR-0013 §4, and no runtime behavior changed. See `Issue114MasteryReadContractTests`.
 - **Compatibility**: Earned stages stay monotonic and are never relocked. No learner data is rewritten. The Schema V8 → V9 migration keeps its legacy introductory predicates. Custom Practice and the 482-attempt benchmark are unaffected.
 - **Tests**:
   - RED/GREEN regressions in `Issue114UnlockRegressionTests` (8 of 11 fail on the previous policy).
