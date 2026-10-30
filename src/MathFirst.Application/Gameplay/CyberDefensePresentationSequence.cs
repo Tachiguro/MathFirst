@@ -15,7 +15,7 @@ public sealed class CyberDefensePresentationSequence
     public static readonly TimeSpan RevalidationInterval = TimeSpan.FromSeconds(2);
 
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
-    private readonly HashSet<string> _presented = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _acknowledged = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private CancellationTokenSource? _active;
     private TaskCompletionSource? _release;
@@ -36,24 +36,41 @@ public sealed class CyberDefensePresentationSequence
     public CyberDefensePresentationSequence(Func<TimeSpan, CancellationToken, Task>? delay = null)
         => _delay = delay ?? ((duration, ct) => Task.Delay(duration, ct));
 
+    /// <summary>True for the receipts that end in a sector recap or System Restart, which only the user may dismiss.</summary>
+    public static bool RequiresPresentation(CyberDefenseReceiptRecord receipt)
+        => receipt.ReceiptKind == CyberDefenseReceiptKind.Applied &&
+           receipt.TransitionResult is { } transition && (transition.IsSectorCompleted || transition.IsGameOver);
+
+    /// <summary>
+    /// True only when the user already acknowledged this exact receipt in the current reset epoch.
+    /// Cancelled, failed or invalidated presentations are never recorded, so they cannot satisfy the barrier.
+    /// </summary>
+    public bool HasAcknowledged(CyberDefenseReceiptRecord receipt)
+    {
+        lock (_gate) return receipt.ResetEpoch == _epoch && _acknowledged.Contains(receipt.SubmissionId);
+    }
+
     /// <summary>
     /// Presents a sector victory or System Restart until the user acknowledges it.
     /// Returns true only when the user acknowledged the current, still valid presentation; every other exit
-    /// (cancellation, invalidation, duplicate or non-presentable receipt) releases the caller without acknowledgement.
+    /// (cancellation, invalidation, failure, already acknowledged or non-presentable receipt) releases the caller
+    /// without acknowledgement. A presentation that was not acknowledged may be presented again.
     /// </summary>
     public async Task<bool> RunAsync(CyberDefenseReceiptRecord receipt, CyberDefenseSectorRecap? recap,
         Func<CancellationToken, Task<bool>> isCurrent, CancellationToken cancellationToken = default)
     {
         var transition = receipt.TransitionResult;
-        if (receipt.ReceiptKind != CyberDefenseReceiptKind.Applied || transition is null ||
-            (!transition.IsSectorCompleted && !transition.IsGameOver) || receipt.ResetEpoch < _epoch) return false;
+        if (!RequiresPresentation(receipt) || transition is null || receipt.ResetEpoch < _epoch) return false;
         if (receipt.ResetEpoch > _epoch)
         {
             Cancel();
-            _epoch = receipt.ResetEpoch;
-            _presented.Clear();
+            lock (_gate)
+            {
+                _epoch = receipt.ResetEpoch;
+                _acknowledged.Clear();
+            }
         }
-        if (!_presented.Add(receipt.SubmissionId)) return false;
+        if (HasAcknowledged(receipt)) return false;
         Cancel();
         long generation;
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -104,6 +121,10 @@ public sealed class CyberDefensePresentationSequence
 
             // Observe epoch/context invalidation before the caller releases its barrier.
             acknowledged = await StillCurrent();
+            if (acknowledged)
+            {
+                lock (_gate) _acknowledged.Add(receipt.SubmissionId);
+            }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         finally

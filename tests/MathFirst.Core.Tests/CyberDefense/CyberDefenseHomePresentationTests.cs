@@ -2,6 +2,7 @@ namespace MathFirst.Core.Tests.CyberDefense
 {
     using System.Globalization;
     using System.Reflection;
+    using System.Runtime.ExceptionServices;
     using System.Threading.Channels;
     using MathFirst.Application;
     using MathFirst.Application.Copy;
@@ -77,6 +78,8 @@ namespace MathFirst.Core.Tests.CyberDefense
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
             fixture.Clock.Advance(2000);
             var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
             var submission = fixture.Submit();
@@ -88,16 +91,37 @@ namespace MathFirst.Core.Tests.CyberDefense
                 await fixture.NextDelay();
                 Assert.Equal(stage, fixture.Sequence.Stage);
             }
+            var ledger = await fixture.TakeLedger();
+            var staleId = fixture.Sequence.PresentationId;
             await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
             await submission;
-            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
-            Assert.False(fixture.Sequence.IsBlocking);
-            Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
+            fixture.DrainDelays();
+
+            // Backgrounding cancels the unacknowledged recap: the committed answer must not advance by itself.
+            await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
             fixture.Clock.Advance(100000);
-            Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
-            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
-            fixture.Clock.Advance(50000);
+            Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
             Assert.False(fixture.Session.IsTimingActive);
+
+            // Foreground recovery replays the unacknowledged recap; only its own Continue releases the question.
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+            await replay;
+            var replayId = fixture.Sequence.PresentationId;
+            Assert.NotEqual(staleId, replayId);
+            await fixture.RevealContinue();
+            await fixture.Continue(staleId);
+            await Task.Delay(50);
+            Assert.True(fixture.Sequence.IsBlocking);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.False(fixture.Session.IsTimingActive);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            await fixture.Continue(replayId);
+            await fixture.WhenResumed(revision + 1);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
+            Assert.False(fixture.Session.IsTimingActive);
+            fixture.Clock.Advance(50000);
             Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
             await fixture.Invoke("Submit");
             Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
@@ -114,7 +138,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.NotNull(receipt);
             Assert.Equal(3456, receipt.ResponseLatencyMs);
             Assert.Equal(revision + 2, fixture.Session.FactInstanceRevision);
-            Assert.Equal(1, fixture.Victories);
+            Assert.Equal(2, fixture.Victories);
         }
 
         [Fact(Timeout = 10000)]
@@ -292,7 +316,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         }
 
         [Fact(Timeout = 10000)]
-        public async Task DisposalAndReentry_DoNotAdvanceDisposedViewOrReplayTheSameBossReceipt()
+        public async Task DisposalAndReentry_DoNotAdvanceDisposedView_AndReplayTheUnacknowledgedBossRecapUntilContinue()
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
@@ -301,13 +325,28 @@ namespace MathFirst.Core.Tests.CyberDefense
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            var ledger = await fixture.TakeLedger();
             await fixture.RemoveView();
             await submission;
+            fixture.DrainDelays();
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
             Assert.Equal(inputVersion, fixture.Field<int>("_inputRenderVersion"));
-            await fixture.MountView();
+            Assert.Equal(SessionInteractionState.CorrectFeedback, fixture.Session.InteractionState);
+
+            // Re-entry never advances the unacknowledged question on its own: the recap is presented again.
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var remount = fixture.MountView();
+            await Task.WhenAny(replay, remount);
+            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            await fixture.RevealContinue();
+            await Task.Delay(50);
+            Assert.False(remount.IsCompleted);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            await fixture.Continue();
+            await remount;
             Assert.True(fixture.Session.FactInstanceRevision > revision);
-            Assert.Equal(1, fixture.Victories);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Equal(2, fixture.Victories);
         }
 
         [Fact]
@@ -453,21 +492,24 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.False(fixture.Sequence.IsBlocking);
             Assert.False(fixture.Sequence.CanContinue);
             await fixture.Continue(staleId);
+
+            // The aborted ceremony must not prepare or advance the old question for any invalidation reason.
+            Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
+            Assert.Equal(inputVersionAfterChange, fixture.Field<int>("_inputRenderVersion"));
+            if (change != "reset") Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            if (change != "reset") Assert.Equal(inputVersion, fixture.Field<int>("_inputRenderVersion"));
+            if (change != "dispose" && change != "reset") Assert.Equal(SessionInteractionState.CorrectFeedback, fixture.Session.InteractionState);
             if (change == "background")
             {
-                Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
+                Assert.Equal(PracticeGateState.Running, fixture.Session.PracticeGate);
                 Assert.False(fixture.Session.IsTimingActive);
-                await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
-                fixture.Clock.Advance(50000);
-                Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
                 Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
             }
-            if (change is "dispose" or "reset")
+            if (change == "reset")
             {
-                // The aborted ceremony must not prepare or advance the old generation's question.
-                Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
-                Assert.Equal(inputVersionAfterChange, fixture.Field<int>("_inputRenderVersion"));
-                if (change == "dispose") Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+                // A stale receipt of the replaced learner generation is never replayed or re-acknowledged.
+                await fixture.PressEnter();
+                Assert.False(fixture.Sequence.IsBlocking);
             }
             Assert.Equal(1, fixture.Victories);
         }
@@ -544,11 +586,14 @@ namespace MathFirst.Core.Tests.CyberDefense
         public async Task ContextChangeDuringVictory_AbortsRecapWithoutLeakingTimeOrAdvancingOldGeneration(string change)
         {
             await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
             var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
             var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            var ledger = await fixture.TakeLedger();
             var delay = await fixture.NextDelay();
             Assert.Equal(TimeSpan.FromSeconds(2), fixture.LastDelay);
             if (change == "background") await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
@@ -561,20 +606,268 @@ namespace MathFirst.Core.Tests.CyberDefense
                 await fixture.Store.ClearResetIntentAsync(reset.TargetEpoch);
             }
             var revisionAfterChange = fixture.Session.FactInstanceRevision;
+            var inputVersionAfterChange = fixture.Field<int>("_inputRenderVersion");
             delay.TrySetResult();
             await submission;
             Assert.False(fixture.Sequence.IsBlocking);
+            Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
+            Assert.Equal(inputVersionAfterChange, fixture.Field<int>("_inputRenderVersion"));
             if (change == "background")
             {
-                Assert.False(fixture.Session.IsTimingActive);
-                Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
+                Assert.Equal(PracticeGateState.Running, fixture.Session.PracticeGate);
+                await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
             }
-            if (change == "mode") Assert.DoesNotContain("cyber-defense-hud", await fixture.Html());
+            if (change == "mode")
+            {
+                Assert.DoesNotContain("cyber-defense-hud", await fixture.Html());
+                await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
+            }
             if (change == "reset")
             {
-                Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
                 Assert.Equal(inputVersion, fixture.Field<int>("_inputRenderVersion"));
+                Assert.False(fixture.Session.IsTimingActive);
             }
+        }
+
+        private static async Task<(Task Submission, long Id)> SubmitBossAtContinueAsync(Fixture fixture)
+        {
+            fixture.Clock.Advance(2000);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            await fixture.RevealContinue();
+            return (submission, fixture.Sequence.PresentationId);
+        }
+
+        // Issue #121 review finding: Continue is the only authority that releases the boss recap into the next question.
+        [Theory(Timeout = 20000)]
+        [InlineData("clock-after-reveal")]
+        [InlineData("sqlite-revalidation")]
+        [InlineData("sqlite-after-continue")]
+        public async Task TimerOrValidityReadFailure_FailsClosed_ThenExplicitRecoveryReplaysAndOnlyContinueAdvances(string failure)
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
+            var (submission, staleId) = await SubmitBossAtContinueAsync(fixture);
+            var ledger = await fixture.TakeLedger();
+
+            var tick = await fixture.NextDelay();
+            Assert.Equal(TimeSpan.FromSeconds(2), fixture.LastDelay);
+            switch (failure)
+            {
+                case "clock-after-reveal":
+                    tick.TrySetException(new InvalidOperationException("Synthetic clock failure"));
+                    break;
+                case "sqlite-revalidation":
+                    fixture.FailValidityReads(true);
+                    tick.TrySetResult();
+                    break;
+                default:
+                    fixture.FailValidityReads(true);
+                    await fixture.Continue();
+                    break;
+            }
+            await submission;
+            fixture.FailValidityReads(false);
+            fixture.DrainDelays();
+            if (failure.StartsWith("sqlite")) Assert.True(fixture.FailedValidityReads > 0);
+
+            // The failure never acts as an acknowledgement.
+            await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
+            await fixture.Continue(staleId);
+            await Task.Delay(50);
+            await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
+            fixture.Clock.Advance(100000);
+            Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
+
+            // Explicit recovery (Enter) replays the unacknowledged recap; the stale id cannot release it.
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var recovery = fixture.PressEnter();
+            await Task.WhenAny(replay, recovery);
+            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            var replayId = fixture.Sequence.PresentationId;
+            Assert.NotEqual(staleId, replayId);
+            await fixture.RevealContinue();
+            await fixture.Continue(staleId);
+            await Task.Delay(50);
+            Assert.False(recovery.IsCompleted);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.False(fixture.Session.IsTimingActive);
+            await fixture.Continue(replayId);
+            await recovery;
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(inputVersion + 1, fixture.Field<int>("_inputRenderVersion"));
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Equal(2, fixture.Victories);
+        }
+
+        [Theory(Timeout = 20000)]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ModeInvalidation_FailsClosed_AndRecoveryFollowsTheCurrentMode(bool backToCyberDefense)
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
+            var (submission, _) = await SubmitBossAtContinueAsync(fixture);
+            var ledger = await fixture.TakeLedger();
+            fixture.Preferences.SetCyberDefenseEnabled(false);
+            (await fixture.NextDelay()).TrySetResult();
+            await submission;
+            fixture.DrainDelays();
+            await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
+
+            if (backToCyberDefense)
+            {
+                fixture.Preferences.SetCyberDefenseEnabled(true);
+                var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+                var recovery = fixture.PressEnter();
+                await Task.WhenAny(replay, recovery);
+                await fixture.RevealContinue();
+                await Task.Delay(50);
+                Assert.False(recovery.IsCompleted);
+                Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+                await fixture.Continue();
+                await recovery;
+                Assert.Equal(2, fixture.Victories);
+            }
+            else
+            {
+                // Calm mode has no ceremony to acknowledge: the pre-existing non-blocking path applies.
+                await fixture.PressEnter();
+                Assert.Equal(1, fixture.Victories);
+            }
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task RepeatedRecoveryTriggers_StartOneReplay_AndNeverDuplicateRewardsOrAnswers()
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var (submission, _) = await SubmitBossAtContinueAsync(fixture);
+            var ledger = await fixture.TakeLedger();
+            (await fixture.NextDelay()).TrySetException(new InvalidOperationException("Synthetic clock failure"));
+            await submission;
+            fixture.DrainDelays();
+
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var enters = Task.WhenAll(fixture.PressEnter(), fixture.PressEnter(), fixture.PressEnter());
+            await Task.WhenAny(replay, enters);
+            // Further Enter presses and foreground events while the replay is running start nothing new.
+            await fixture.PressEnter();
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+            await fixture.RevealContinue();
+            await Task.Delay(50);
+            Assert.False(enters.IsCompleted);
+            Assert.Equal(2, fixture.Victories);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            await fixture.Continue();
+            await enters;
+            await fixture.WhenResumed(revision + 1);
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Equal(2, fixture.Victories);
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task ReentryWithUnreadableReceipt_HoldsTheCommittedAnswer_UntilTheRecapIsAcknowledged()
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var (submission, _) = await SubmitBossAtContinueAsync(fixture);
+            var ledger = await fixture.TakeLedger();
+            await fixture.RemoveView();
+            await submission;
+            fixture.DrainDelays();
+
+            // An unreadable receipt cannot prove that no recap is owed, so re-entry must not advance.
+            fixture.FailReceiptReads(true);
+            await fixture.MountView();
+            Assert.True(fixture.FailedValidityReads > 0);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.Equal(SessionInteractionState.CorrectFeedback, fixture.Session.InteractionState);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            await fixture.Render();
+            Assert.Contains("held-answer-title", await fixture.Html());
+            await fixture.PressEnter();
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+
+            fixture.FailReceiptReads(false);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var recovery = fixture.PressEnter();
+            await Task.WhenAny(replay, recovery);
+            await fixture.RevealContinue();
+            await Task.Delay(50);
+            Assert.False(recovery.IsCompleted);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            await fixture.Continue();
+            await recovery;
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Equal(2, fixture.Victories);
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task PersistenceRetry_CancelledInTheBackground_KeepsTheCommittedAnswerAndDoesNotRenewTheInput()
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
+            fixture.FailNextLearnerCommit();
+            await fixture.Submit();
+            Assert.Equal(SessionInteractionState.PersistenceFailure, fixture.Session.InteractionState);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var retry = fixture.Invoke("RecoverFromPersistenceFailureAsync");
+            await Task.WhenAny(shown, retry);
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
+            await retry;
+            fixture.DrainDelays();
+            var ledger = await fixture.TakeLedger();
+            await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
+            Assert.Equal(176, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
+
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+            await replay;
+            await fixture.RevealContinue();
+            await Task.Delay(50);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            await fixture.Continue();
+            await fixture.WhenResumed(revision + 1);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Equal(2, fixture.Victories);
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task SystemRestart_CancelledInTheBackground_KeepsTheIncorrectFeedbackContract_WithoutReplayOrAutoAdvance()
+        {
+            await using var fixture = await Fixture.Create(victory: false);
+            var revision = fixture.Session.FactInstanceRevision;
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.SystemOverload);
+            var submission = fixture.Submit(correct: false);
+            await Task.WhenAny(shown, submission);
+            var ledger = await fixture.TakeLedger();
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
+            await submission;
+            fixture.DrainDelays();
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+            await Task.Delay(50);
+
+            // An incorrect answer never auto-advances: its own feedback Continue is still the only way forward.
+            Assert.False(fixture.Sequence.IsBlocking);
+            Assert.Equal(SessionInteractionState.IncorrectFeedback, fixture.Session.InteractionState);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.False(fixture.Session.IsTimingActive);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            await fixture.Invoke("AdvanceAsync");
+            Assert.True(fixture.Session.FactInstanceRevision > revision);
+            Assert.Equal(ledger, await fixture.TakeLedger());
         }
 
         private sealed class Fixture : IAsyncDisposable
@@ -584,6 +877,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             private readonly ServiceProvider _services;
             private readonly CyberDefenseCombatCoordinator _coordinator;
             private readonly InMemoryLearner _learner;
+            private readonly FaultingGameplayStore _faults;
             private HtmlRenderer _renderer = null!;
             private global::MathFirst.Core.Tests.Home _home = null!;
             private Microsoft.AspNetCore.Components.Web.HtmlRendering.HtmlRootComponent _root;
@@ -600,6 +894,44 @@ namespace MathFirst.Core.Tests.CyberDefense
                 .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(_home)!;
             public Task Render() => Dispatch(() => typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(_home, null));
             public Task<LearnerSnapshot> LearnerSnapshot() => _learner.LoadSnapshotAsync();
+            public void FailValidityReads(bool fail) => _faults.FailProgressionReads = fail;
+            public void FailReceiptReads(bool fail) => _faults.FailReceiptReads = fail;
+            public int FailedValidityReads => _faults.FailedReads;
+            public int DrainDelays() { var drained = 0; while (_delays.Reader.TryRead(out _)) drained++; return drained; }
+
+            /// <summary>Everything a cancelled or failed presentation must leave untouched: rewards, run state, answers and commits.</summary>
+            public sealed record Ledger(object Progression, object Run, int Attempts, int Commits);
+            public async Task<Ledger> TakeLedger() => new(await Store.GetProgressionAsync(), await Store.GetRunStateAsync(),
+                (await LearnerSnapshot()).RecentAttempts.Count, LearnerCommitCalls);
+
+            /// <summary>The committed CorrectFeedback question stays exactly where it was: no advance, no input renewal, no timing.</summary>
+            public async Task AssertHeld(long revision, int inputVersion, long preparedRevision, Ledger ledger)
+            {
+                Assert.False(Sequence.IsBlocking);
+                Assert.False(Sequence.CanContinue);
+                Assert.Equal(SessionInteractionState.CorrectFeedback, Session.InteractionState);
+                Assert.True(Session.IsCurrentSubmissionCommitted);
+                Assert.Equal(revision, Session.FactInstanceRevision);
+                Assert.Equal(inputVersion, Field<int>("_inputRenderVersion"));
+                Assert.Equal(preparedRevision, Field<long>("_lastPreparedFactInstanceRevision"));
+                Assert.False(Session.IsTimingActive);
+                Assert.Equal(ledger, await TakeLedger());
+
+                // The held answer is never a dead end: the explicit Continue recovery stays visible.
+                await Render();
+                Assert.Contains("held-answer-title", await Html());
+            }
+
+            /// <summary>Waits until a fire-and-forget recovery has advanced the question and released the submit latch.</summary>
+            public async Task WhenResumed(long revision)
+            {
+                var deadline = DateTime.UtcNow.AddSeconds(10);
+                while (Session.FactInstanceRevision < revision || Field<bool>("_isSubmitting"))
+                {
+                    if (DateTime.UtcNow > deadline) throw new TimeoutException("The recovery did not complete.");
+                    await Task.Delay(5);
+                }
+            }
             public Task ResetIndependentLearner() => _learner.ResetLearningProgressAsync();
             public int LearnerCommitCalls => _learner.CommitCalls;
             public async Task CommitIndependentLearnerAttempt()
@@ -641,6 +973,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             {
                 Directory.CreateDirectory(_directory);
                 Store = new SqliteGameplayStore(Path.Combine(_directory, "gameplay.db"));
+                _faults = FaultingGameplayStore.Wrap(Store);
                 _learner = new InMemoryLearner();
                 Session = new TrainingSession(_learner, Clock, preferenceStore: Preferences);
                 _coordinator = new CyberDefenseCombatCoordinator(Store, new CyberDefenseSubmissionConsumer(Store, _learner));
@@ -652,7 +985,7 @@ namespace MathFirst.Core.Tests.CyberDefense
                 });
                 Sequence.Changed += () => { if (Sequence.Stage == CyberDefensePresentationStage.Victory) Victories++; };
                 _services = new ServiceCollection().AddLogging()
-                    .AddSingleton(Session).AddSingleton(Sequence).AddSingleton<IGameplayStore>(Store)
+                    .AddSingleton(Session).AddSingleton(Sequence).AddSingleton<IGameplayStore>(_faults.Proxy)
                     .AddSingleton<ICyberDefenseCombatCoordinator>(_coordinator)
                     .AddSingleton<ILocalizationService>(new LocalizationService())
                     .AddSingleton<IPreferenceStore>(Preferences).AddSingleton<ICyberDefenseModePreferences>(Preferences)
@@ -802,6 +1135,38 @@ namespace MathFirst.Core.Tests.CyberDefense
                 await _services.DisposeAsync();
                 Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
                 Directory.Delete(_directory, recursive: true);
+            }
+        }
+
+        /// <summary>Forwards to the real SQLite store and fails the validity read (<c>GetProgressionAsync</c>) on demand.</summary>
+        public class FaultingGameplayStore : DispatchProxy
+        {
+            private IGameplayStore _inner = null!;
+            private int _failedReads;
+            public volatile bool FailProgressionReads;
+            public volatile bool FailReceiptReads;
+            public int FailedReads => Volatile.Read(ref _failedReads);
+            public IGameplayStore Proxy => (IGameplayStore)(object)this;
+            public static FaultingGameplayStore Wrap(IGameplayStore inner)
+            {
+                var proxy = (FaultingGameplayStore)(object)Create<IGameplayStore, FaultingGameplayStore>();
+                proxy._inner = inner;
+                return proxy;
+            }
+            protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+            {
+                if (FailProgressionReads && targetMethod!.Name == nameof(IGameplayStore.GetProgressionAsync))
+                {
+                    Interlocked.Increment(ref _failedReads);
+                    return Task.FromException<CyberDefenseProgressionRecord>(new InvalidOperationException("Synthetic transient SQLite read failure"));
+                }
+                if (FailReceiptReads && targetMethod!.Name == nameof(IGameplayStore.GetReceiptAsync))
+                {
+                    Interlocked.Increment(ref _failedReads);
+                    return Task.FromException<CyberDefenseReceiptRecord?>(new InvalidOperationException("Synthetic transient SQLite read failure"));
+                }
+                try { return targetMethod!.Invoke(_inner, args); }
+                catch (TargetInvocationException e) { ExceptionDispatchInfo.Capture(e.InnerException!).Throw(); throw; }
             }
         }
 

@@ -349,6 +349,82 @@ public sealed class CyberDefensePresentationSequenceTests
     }
 
     [Fact]
+    public async Task UnacknowledgedPresentation_IsNeverRecordedAsAcknowledged_AndCanBePresentedAgain()
+    {
+        var clock = new FakeClock();
+        var sequence = new CyberDefensePresentationSequence(clock.Delay);
+        var receipt = Receipt();
+
+        var (cancelled, firstId) = await ReachContinueAsync(clock, sequence);
+        sequence.Cancel();
+        Assert.False(await cancelled.WaitAsync(Wait));
+        Assert.False(sequence.HasAcknowledged(receipt));
+
+        var current = true;
+        var (failed, secondId) = await ReachContinueAsync(clock, sequence, isCurrent: _ => Task.FromResult(current));
+        current = false;
+        Assert.True(sequence.Acknowledge(secondId));
+        Assert.False(await failed.WaitAsync(Wait));
+        Assert.False(sequence.HasAcknowledged(receipt));
+
+        var (replayed, thirdId) = await ReachContinueAsync(clock, sequence);
+        Assert.NotEqual(firstId, thirdId);
+        Assert.NotEqual(secondId, thirdId);
+        Assert.False(sequence.Acknowledge(firstId));
+        Assert.False(sequence.Acknowledge(secondId));
+        Assert.False(replayed.IsCompleted);
+        Assert.True(sequence.Acknowledge(thirdId));
+        Assert.True(await replayed.WaitAsync(Wait));
+        Assert.True(sequence.HasAcknowledged(receipt));
+
+        // Once genuinely acknowledged it is neither presented nor acknowledged a second time.
+        Assert.False(await sequence.RunAsync(receipt, null, Current));
+        Assert.False(sequence.IsBlocking);
+        Assert.False(sequence.HasAcknowledged(Receipt(epoch: 1)));
+    }
+
+    [Fact]
+    public async Task DelayFailure_IsNotRecordedAsAcknowledged()
+    {
+        var calls = 0;
+        var sequence = new CyberDefensePresentationSequence((_, _) =>
+            ++calls < 3 ? Task.CompletedTask : Task.FromException(new InvalidOperationException("clock failed")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sequence.RunAsync(Receipt(), null, Current).WaitAsync(Wait));
+        Assert.False(sequence.HasAcknowledged(Receipt()));
+    }
+
+    [Fact]
+    public async Task NewResetEpoch_ForgetsAcknowledgementsOfTheOlderEpoch()
+    {
+        var clock = new FakeClock();
+        var sequence = new CyberDefensePresentationSequence(clock.Delay);
+        var (first, firstId) = await ReachContinueAsync(clock, sequence);
+        Assert.True(sequence.Acknowledge(firstId));
+        Assert.True(await first.WaitAsync(Wait));
+        Assert.True(sequence.HasAcknowledged(Receipt()));
+
+        var (second, secondId) = await ReachContinueAsync(clock, sequence, epoch: 1);
+        Assert.False(sequence.HasAcknowledged(Receipt()));
+        Assert.False(sequence.HasAcknowledged(Receipt(epoch: 1)));
+        Assert.True(sequence.Acknowledge(secondId));
+        Assert.True(await second.WaitAsync(Wait));
+        Assert.True(sequence.HasAcknowledged(Receipt(epoch: 1)));
+        Assert.False(sequence.HasAcknowledged(Receipt()));
+    }
+
+    [Fact]
+    public void RequiresPresentation_IsLimitedToAppliedBossVictoryAndGameOverReceipts()
+    {
+        var normal = CyberDefenseStateMachine.ApplyAttempt(CyberDefenseRunState.InitialRun(), true, 2);
+        Assert.True(CyberDefensePresentationSequence.RequiresPresentation(Receipt()));
+        Assert.True(CyberDefensePresentationSequence.RequiresPresentation(Receipt(victory: false)));
+        Assert.False(CyberDefensePresentationSequence.RequiresPresentation(CyberDefenseReceiptRecord.CreateApplied(
+            "normal", "1+1", true, true, 1000, 0, DateTimeOffset.UnixEpoch, normal)));
+        Assert.False(CyberDefensePresentationSequence.RequiresPresentation(CyberDefenseReceiptRecord.CreateCalmModeSuppressed(
+            "calm", "1+1", true, false, 1000, 0, DateTimeOffset.UnixEpoch)));
+    }
+
+    [Fact]
     public async Task NormalDefeatAndSuppressedReceipt_DoNotStartBlockingPresentation()
     {
         var sequence = new CyberDefensePresentationSequence((_, _) => throw new InvalidOperationException("Unexpected timer"));
