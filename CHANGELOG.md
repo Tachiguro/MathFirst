@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Issue #112 Cyber Defense Android UI Repairs — PR #113 (Open, Unreleased)
+
+- **Tutorial & Upgrade Terminal Layering**: Established three-layer spotlight architecture (`.tutorial-backdrop` at z-index 90 dimmer/blur < active target at z-index 96 visibly highlighted < `.tutorial-overlay` / `.tutorial-card` at z-index 100/101 dialog content above highlighted target, with transparent overlay ensuring dark scrim never obscures target). Implemented content-safe internal scroll layout (`.tutorial-card` `overflow: hidden`, header/actions pinned with `flex-shrink: 0`, `.tutorial-card-body` `overflow-y: auto` with responsive max-height) preventing clipping across narrow viewports (320px+), localized EN/DE/RU copy, and enlarged text. The Upgrade Terminal renders as a single fixed modal outside the training card, with background header, HUD and practice layout inert, input blocked and item timing suspended while open. Tutorial replay may present over a manual pause and keeps timing suspended until Resume.
+- **Header & Upgrade Discoverability**: Dedicated header Upgrades action with Skill Point badge whose text label remains visible on narrow phones (≤480 px); the brand heading compacts at ≤380 px and the decorative emblem hides at ≤340 px so actions do not overlap it. Mode toggle uses a controller icon with explicit localized labels.
+- **Upgrade Cards**: Purchase buttons sit inside each card; locked cards use a compact presentation (never at max rank). The Firewall locked notice derives its level from `CyberDefenseFirewallPolicy` (Player Level 5) in EN/DE/RU instead of hardcoded text.
+- **Early Boss Scale**: `CyberDefenseHudViewModel.FromRunState` applies the sector-aware scale policy, rendering Sector 1–2 bosses at Boss tier (1.42) and Sector 3+ bosses at Sector Boss tier (1.50). Presentation only; HP, damage, rewards and progression unchanged.
+- **Stage Labels & Stable Geometry**: Operation progress shows explicit localized stage labels; scene top bar and shield panel reserve minimum heights.
+- **Synthetic Persona Characterization**: Three seeded personas exercise fresh CurriculumManaged progression with deterministic timestamps and pinned measured outcomes (see `docs/TESTING.md` §36). No learning policy, persistence schema, economy or combat parameter changes.
+
 ### MF-CYBER-009 Slice 4C (Minimal Read-Only Offline Achievement Presentation in Settings) — Merged into main via PR #109 (Unreleased)
 
 - **Compact Read-Only Achievements Subsection**: Rendered a minimal, read-only achievements subsection in `Settings.razor` inside the existing Cyber Defense settings card below Tutorial Replay, displaying exactly three known offline achievements (`sector_10`, `boss_slayer`, `first_upgrade`).

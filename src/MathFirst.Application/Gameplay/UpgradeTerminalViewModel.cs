@@ -77,6 +77,7 @@ public sealed class UpgradeTerminalViewModel : IDisposable
     public bool HasSufficientFirewallSp => Status.HasSufficientFirewallSkillPoints;
     public bool IsFirewallMaxRank => Status.IsFirewallMaxRank;
     public bool CanPurchaseFirewall => Status.CanPurchaseFirewall && IsSynchronized && !IsBusy && !IsDisposed;
+    public bool IsFirewallShieldLocked => Status.IsFirewallShieldLocked;
     public bool IsSynchronized { get { lock (_stateLock) return _isSynchronized; } }
     public int? CurrentCriticalStrikeRank => Status.CurrentCriticalStrikeRank;
     public int? NextCriticalStrikeRank => Status.NextCriticalStrikeRank;

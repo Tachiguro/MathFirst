@@ -48,8 +48,26 @@ public static class CyberDefenseOpponentScalePolicy
         };
     }
 
+    public static CyberDefenseOpponentScaleTier GetScaleTier(int sector, CyberDefenseEnemy enemy, int enemyIndex)
+    {
+        ArgumentNullException.ThrowIfNull(enemy);
+        return GetScaleTier(sector, enemyIndex, enemyIndex, enemy.IsSectorBoss, enemy.IsBoss);
+    }
+
     public static string GetScaleClass(CyberDefenseEnemy enemy, int enemyIndex) =>
         GetScaleTier(enemy, enemyIndex) switch
+        {
+            CyberDefenseOpponentScaleTier.Small => SmallClass,
+            CyberDefenseOpponentScaleTier.MediumSmall => MediumSmallClass,
+            CyberDefenseOpponentScaleTier.Medium => MediumClass,
+            CyberDefenseOpponentScaleTier.Large => LargeClass,
+            CyberDefenseOpponentScaleTier.Boss => BossClass,
+            CyberDefenseOpponentScaleTier.SectorBoss => SectorBossClass,
+            _ => MediumClass
+        };
+
+    public static string GetScaleClass(int sector, CyberDefenseEnemy enemy, int enemyIndex) =>
+        GetScaleTier(sector, enemy, enemyIndex) switch
         {
             CyberDefenseOpponentScaleTier.Small => SmallClass,
             CyberDefenseOpponentScaleTier.MediumSmall => MediumSmallClass,
@@ -81,8 +99,46 @@ public static class CyberDefenseOpponentScalePolicy
         };
     }
 
+    public static CyberDefenseOpponentScaleTier GetScaleTier(int sector, int opponentIndex, int normalOpponentCount, bool isSectorBoss, bool isBoss)
+    {
+        if (isSectorBoss)
+        {
+            // Early sectors (1 and 2) calibrate the sector boss visual size to Boss tier (1.42)
+            // to prevent visual clipping on mobile viewports while preserving imposing presence.
+            // Sectors 3+ scale to full SectorBoss tier (1.50).
+            return sector <= 2
+                ? CyberDefenseOpponentScaleTier.Boss
+                : CyberDefenseOpponentScaleTier.SectorBoss;
+        }
+
+        if (isBoss)
+        {
+            return CyberDefenseOpponentScaleTier.Boss;
+        }
+
+        return opponentIndex switch
+        {
+            <= 1 => CyberDefenseOpponentScaleTier.Small,
+            <= 3 => CyberDefenseOpponentScaleTier.MediumSmall,
+            <= 5 => CyberDefenseOpponentScaleTier.Medium,
+            _ => CyberDefenseOpponentScaleTier.Large
+        };
+    }
+
     public static string GetScaleClass(int opponentIndex, int normalOpponentCount, bool isSectorBoss, bool isBoss) =>
         GetScaleTier(opponentIndex, normalOpponentCount, isSectorBoss, isBoss) switch
+        {
+            CyberDefenseOpponentScaleTier.Small => SmallClass,
+            CyberDefenseOpponentScaleTier.MediumSmall => MediumSmallClass,
+            CyberDefenseOpponentScaleTier.Medium => MediumClass,
+            CyberDefenseOpponentScaleTier.Large => LargeClass,
+            CyberDefenseOpponentScaleTier.Boss => BossClass,
+            CyberDefenseOpponentScaleTier.SectorBoss => SectorBossClass,
+            _ => MediumClass
+        };
+
+    public static string GetScaleClass(int sector, int opponentIndex, int normalOpponentCount, bool isSectorBoss, bool isBoss) =>
+        GetScaleTier(sector, opponentIndex, normalOpponentCount, isSectorBoss, isBoss) switch
         {
             CyberDefenseOpponentScaleTier.Small => SmallClass,
             CyberDefenseOpponentScaleTier.MediumSmall => MediumSmallClass,

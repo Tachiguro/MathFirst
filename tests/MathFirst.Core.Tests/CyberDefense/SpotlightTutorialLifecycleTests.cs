@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using MathFirst.Application;
@@ -711,6 +712,135 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
     // TEST FIXTURE HARNESS
     // =========================================================================
 
+    // =========================================================================
+    // ISSUE #112: PAUSE-STATE REPLAY, UPGRADE MODAL CONTAINMENT AND INPUT BLOCKING
+    // =========================================================================
+
+    [Fact(Timeout = 10000)]
+    public async Task Issue112_ReplayDuringManualPause_OpensOverInertPauseGate_AndKeepsTimingSuspendedUntilResume()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true);
+        await f.StartOrResumePracticeAsync();
+        f.Clock.Advance(1700);
+        var revision = f.Session.FactInstanceRevision;
+
+        await f.InvokeHomeAsync("PausePractice");
+        Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+
+        f.ReplayRequests.RequestTutorialReplay();
+        await f.MountOrSyncViewAsync();
+
+        Assert.True(f.IsTutorialOpen);
+        Assert.False(f.Session.IsTimingActive);
+        var html = await f.GetHtmlAsync();
+        Assert.Matches(@"practice-gate-overlay""[^>]*\binert\b", html);
+        Assert.Matches(@"<header class=""mathfirst-header""[^>]*\binert\b", html);
+        Assert.Contains("tutorial-btn-skip", html);
+        Assert.Contains("tutorial-btn-next", html);
+        Assert.DoesNotContain("tutorial-btn-back", html);
+
+        await f.NextTutorialStepAsync();
+        html = await f.GetHtmlAsync();
+        Assert.Contains("tutorial-btn-skip", html);
+        Assert.Contains("tutorial-btn-back", html);
+        Assert.Contains("tutorial-btn-next", html);
+
+        await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
+        html = await f.GetHtmlAsync();
+        Assert.Contains("tutorial-btn-skip", html);
+        Assert.Contains("tutorial-btn-back", html);
+        Assert.Contains("tutorial-btn-finish", html);
+        Assert.DoesNotContain("tutorial-btn-next", html);
+
+        f.Clock.Advance(9000);
+        await f.FinishTutorialAsync();
+
+        Assert.False(f.IsTutorialOpen);
+        Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Equal(1700, f.Session.GetCurrentActiveElapsedMs());
+        Assert.DoesNotMatch(@"practice-gate-overlay""[^>]*\binert\b", await f.GetHtmlAsync());
+
+        await f.StartOrResumePracticeAsync();
+        Assert.Equal(PracticeGateState.Running, f.Session.PracticeGate);
+        Assert.True(f.Session.IsTimingActive);
+        Assert.Equal(1700, f.Session.GetCurrentActiveElapsedMs());
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task Issue112_UpgradeTerminal_IsSingleTopLayerOutsideTrainingCard_BlocksBackgroundInput_AndSuspendsTiming()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true);
+        await f.StartOrResumePracticeAsync();
+        f.Clock.Advance(1200);
+        var revision = f.Session.FactInstanceRevision;
+        var before = await f.GetHtmlAsync();
+        var expressionBefore = Regex.Match(before, @"<div class=""expression-row[\s\S]*?</div>").Value;
+        Assert.NotEmpty(expressionBefore);
+        Assert.Matches(@"upgrade-nav-btn[^>]*>[\s\S]*?<span class=""upgrade-nav-text"">" + Regex.Escape(f.Localizer["UpgradeTerminal_HeaderAction"]) + "</span>", before);
+
+        await f.TryOpenUpgradeTerminalAsync();
+        await f.RerenderAsync();
+
+        Assert.True(f.IsUpgradeTerminalOpen);
+        Assert.False(f.Session.IsTimingActive);
+        var html = await f.GetHtmlAsync();
+        Assert.Single(Regex.Matches(html, @"upgrade-terminal-dialog"));
+        Assert.True(html.IndexOf("upgrade-terminal-dialog", StringComparison.Ordinal) > html.IndexOf("</main>", StringComparison.Ordinal),
+            "The Upgrade Terminal must render outside the training-card grid.");
+        Assert.Matches(@"<header class=""mathfirst-header""[^>]*\binert\b", html);
+        Assert.Matches(@"class=""training-top-region""[^>]*\binert\b", html);
+        Assert.Matches(@"class=""practice-layout""[^>]*\binert\b", html);
+        Assert.DoesNotContain("tutorial-overlay", html);
+
+        var input = f.Session.CurrentAnswerInput;
+        await f.TapKeypadAsync("7");
+        await f.PressKeyAsync("8");
+        Assert.Equal(input, f.Session.CurrentAnswerInput);
+
+        f.Clock.Advance(15000);
+        Assert.Equal(1200, f.Session.GetCurrentActiveElapsedMs());
+
+        await f.InvokeHomeAsync("CloseUpgradeTerminal");
+
+        Assert.False(f.IsUpgradeTerminalOpen);
+        Assert.True(f.Session.IsTimingActive);
+        Assert.Equal(1200, f.Session.GetCurrentActiveElapsedMs());
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        var after = await f.GetHtmlAsync();
+        Assert.DoesNotContain("upgrade-terminal-dialog", after);
+        Assert.DoesNotMatch(@"class=""practice-layout""[^>]*\binert\b", after);
+        Assert.Equal(expressionBefore, Regex.Match(after, @"<div class=""expression-row[\s\S]*?</div>").Value);
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task Issue112_UpgradeTerminalFromPauseOverlay_ClosesBackToResponsivePause_WithoutResumingTiming()
+    {
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true);
+        await f.StartOrResumePracticeAsync();
+        f.Clock.Advance(800);
+        await f.InvokeHomeAsync("PausePractice");
+        Assert.Contains("pause-upgrade-btn", await f.GetHtmlAsync());
+
+        await f.TryOpenUpgradeTerminalAsync();
+        await f.RerenderAsync();
+        var html = await f.GetHtmlAsync();
+        Assert.True(f.IsUpgradeTerminalOpen);
+        Assert.Matches(@"practice-gate-overlay""[^>]*\binert\b", html);
+        Assert.True(html.IndexOf("upgrade-terminal-dialog", StringComparison.Ordinal) > html.IndexOf("</main>", StringComparison.Ordinal));
+
+        await f.InvokeHomeAsync("CloseUpgradeTerminal");
+
+        Assert.False(f.IsUpgradeTerminalOpen);
+        Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Equal(800, f.Session.GetCurrentActiveElapsedMs());
+        Assert.DoesNotMatch(@"practice-gate-overlay""[^>]*\binert\b", await f.GetHtmlAsync());
+    }
+
     private sealed class HomeFixture : IAsyncDisposable
     {
         private readonly string _directory;
@@ -969,6 +1099,18 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
                     .GetMethod("Submit", BindingFlags.Instance | BindingFlags.NonPublic)!;
                 var task = (Task)method.Invoke(_home, null)!;
                 await task;
+            });
+
+        public Task InvokeHomeAsync(string methodName) =>
+            _renderer.Dispatcher.InvokeAsync(async () =>
+            {
+                var result = typeof(global::MathFirst.Core.Tests.Home)
+                    .GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(_home, null);
+                if (result is Task task) await task;
+                typeof(ComponentBase)
+                    .GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(_home, null);
             });
 
         public Task DispatchAsync(Action action) => _renderer.Dispatcher.InvokeAsync(action);

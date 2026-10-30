@@ -14,6 +14,7 @@
         <header class="upgrade-terminal-header">
             <h2 id="upgrade-terminal-title">@EffectiveLocalizer["UpgradeTerminal_Title"]</h2>
             <p id="upgrade-terminal-subtitle" class="upgrade-terminal-subtitle">@EffectiveLocalizer["UpgradeTerminal_Subtitle"]</p>
+            <p class="upgrade-sp-explainer">@EffectiveLocalizer["UpgradeTerminal_SkillPointsExplainer"]</p>
         </header>
 
         <!-- Player Meta: Level & Available Skill Points -->
@@ -71,11 +72,20 @@
                         <span class="cost-badge @(CanAfford ? "cost-affordable" : "cost-insufficient")">
                             @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCost ?? 0]
                         </span>
+                        <button type="button"
+                                @ref="_purchaseButton"
+                                class="button button-primary practice-overlay-action upgrade-card-purchase-btn attack-purchase-btn"
+                                disabled="@IsPurchaseDisabled"
+                                aria-disabled="@IsPurchaseDisabled"
+                                aria-label="@PurchaseButtonAriaLabel"
+                                @onclick="HandlePurchaseClick">
+                            @PurchaseButtonText
+                        </button>
                     }
                 </div>
             </article>
 
-            <article class="upgrade-card firewall-upgrade-card" role="listitem" aria-labelledby="firewall-upgrade-title">
+            <article class="upgrade-card firewall-upgrade-card @FirewallLockedCardClass" role="listitem" aria-labelledby="firewall-upgrade-title">
                 <div class="upgrade-card-header">
                     <div class="upgrade-icon-slot firewall-icon-slot" aria-hidden="true">
                         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -90,6 +100,10 @@
 
                 <p class="upgrade-card-desc">@EffectiveLocalizer["UpgradeTerminal_FirewallDescription"]</p>
                 <p class="upgrade-card-notice">@EffectiveLocalizer["UpgradeTerminal_FirewallActivationNotice"]</p>
+                @if (IsFirewallShieldLocked)
+                {
+                    <p class="upgrade-firewall-locked-notice">@EffectiveLocalizer["UpgradeTerminal_FirewallLockedNotice", EffectiveNextFirewallRequiredLevel ?? 0]</p>
+                }
 
                 <div class="upgrade-stats-grid">
                     <div class="stat-cell current-stat">
@@ -123,11 +137,20 @@
                         <span class="cost-badge @(HasSufficientFirewallSp ? "cost-affordable" : "cost-insufficient")">
                             @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextFirewallCost ?? 0]
                         </span>
+                        <button type="button"
+                                @ref="_firewallPurchaseButton"
+                                class="button button-primary practice-overlay-action upgrade-card-purchase-btn firewall-purchase-btn"
+                                disabled="@IsFirewallPurchaseDisabled"
+                                aria-disabled="@IsFirewallPurchaseDisabled"
+                                aria-label="@FirewallPurchaseButtonAriaLabel"
+                                @onclick="HandleFirewallPurchaseClick">
+                            @FirewallPurchaseButtonText
+                        </button>
                     }
                 </div>
             </article>
 
-            <article class="upgrade-card critical-strike-upgrade-card" role="listitem" aria-labelledby="critical-strike-upgrade-title">
+            <article class="upgrade-card critical-strike-upgrade-card @CriticalStrikeLockedCardClass" role="listitem" aria-labelledby="critical-strike-upgrade-title">
                 <div class="upgrade-card-header">
                     <div class="upgrade-icon-slot critical-strike-icon-slot" aria-hidden="true">
                         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -167,19 +190,31 @@
                     {
                         <span class="cost-badge cost-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
                     }
-                    else
+                    else if (!IsCriticalStrikeLevelUnlocked)
                     {
-                        <span class="cost-badge @(IsCriticalStrikeLevelUnlocked ? "cost-affordable" : "cost-locked")">
+                        <span class="cost-badge cost-locked">
                             @EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextCriticalStrikeRequiredLevel ?? 0]
                         </span>
+                    }
+                    else
+                    {
                         <span class="cost-badge @(HasSufficientCriticalStrikeSp ? "cost-affordable" : "cost-insufficient")">
                             @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextCriticalStrikeCost ?? 0]
                         </span>
+                        <button type="button"
+                                @ref="_criticalStrikePurchaseButton"
+                                class="button button-primary practice-overlay-action upgrade-card-purchase-btn critical-strike-purchase-btn"
+                                disabled="@IsCriticalStrikePurchaseDisabled"
+                                aria-disabled="@IsCriticalStrikePurchaseDisabled"
+                                aria-label="@CriticalStrikePurchaseButtonAriaLabel"
+                                @onclick="HandleCriticalStrikePurchaseClick">
+                            @CriticalStrikePurchaseButtonText
+                        </button>
                     }
                 </div>
             </article>
 
-            <article class="upgrade-card overdrive-upgrade-card" role="listitem" aria-labelledby="overdrive-upgrade-title">
+            <article class="upgrade-card overdrive-upgrade-card @OverdriveLockedCardClass" role="listitem" aria-labelledby="overdrive-upgrade-title">
                 <div class="upgrade-card-header">
                     <div class="upgrade-icon-slot overdrive-icon-slot" aria-hidden="true">
                         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -217,14 +252,26 @@
                     {
                         <span class="cost-badge cost-max">@EffectiveLocalizer["UpgradeTerminal_MaxRank"]</span>
                     }
-                    else
+                    else if (!IsOverdriveLevelUnlocked)
                     {
-                        <span class="cost-badge @(IsOverdriveLevelUnlocked ? "cost-affordable" : "cost-locked")">
+                        <span class="cost-badge cost-locked">
                             @EffectiveLocalizer["UpgradeTerminal_RequiredLevel", EffectiveNextOverdriveRequiredLevel ?? 0]
                         </span>
+                    }
+                    else
+                    {
                         <span class="cost-badge @(HasSufficientOverdriveSp ? "cost-affordable" : "cost-insufficient")">
                             @EffectiveLocalizer["UpgradeTerminal_Cost", EffectiveNextOverdriveCost ?? 0]
                         </span>
+                        <button type="button"
+                                @ref="_overdrivePurchaseButton"
+                                class="button button-primary practice-overlay-action upgrade-card-purchase-btn overdrive-purchase-btn"
+                                disabled="@IsOverdrivePurchaseDisabled"
+                                aria-disabled="@IsOverdrivePurchaseDisabled"
+                                aria-label="@OverdrivePurchaseButtonAriaLabel"
+                                @onclick="HandleOverdrivePurchaseClick">
+                            @OverdrivePurchaseButtonText
+                        </button>
                     }
                 </div>
             </article>
@@ -241,44 +288,8 @@
             }
         </div>
 
-        <!-- Dialog Actions: Purchase & Close -->
+        <!-- Dialog Actions: Close -->
         <div class="upgrade-terminal-actions">
-            <button type="button"
-                    @ref="_purchaseButton"
-                    class="button button-primary practice-overlay-action upgrade-purchase-btn attack-purchase-btn"
-                    disabled="@IsPurchaseDisabled"
-                    aria-disabled="@IsPurchaseDisabled"
-                    aria-label="@PurchaseButtonAriaLabel"
-                    @onclick="HandlePurchaseClick">
-                @PurchaseButtonText
-            </button>
-            <button type="button"
-                    @ref="_firewallPurchaseButton"
-                    class="button button-primary practice-overlay-action upgrade-purchase-btn firewall-purchase-btn"
-                    disabled="@IsFirewallPurchaseDisabled"
-                    aria-disabled="@IsFirewallPurchaseDisabled"
-                    aria-label="@FirewallPurchaseButtonAriaLabel"
-                    @onclick="HandleFirewallPurchaseClick">
-                @FirewallPurchaseButtonText
-            </button>
-            <button type="button"
-                    @ref="_criticalStrikePurchaseButton"
-                    class="button button-primary practice-overlay-action upgrade-purchase-btn critical-strike-purchase-btn"
-                    disabled="@IsCriticalStrikePurchaseDisabled"
-                    aria-disabled="@IsCriticalStrikePurchaseDisabled"
-                    aria-label="@CriticalStrikePurchaseButtonAriaLabel"
-                    @onclick="HandleCriticalStrikePurchaseClick">
-                @CriticalStrikePurchaseButtonText
-            </button>
-            <button type="button"
-                    @ref="_overdrivePurchaseButton"
-                    class="button button-primary practice-overlay-action upgrade-purchase-btn overdrive-purchase-btn"
-                    disabled="@IsOverdrivePurchaseDisabled"
-                    aria-disabled="@IsOverdrivePurchaseDisabled"
-                    aria-label="@OverdrivePurchaseButtonAriaLabel"
-                    @onclick="HandleOverdrivePurchaseClick">
-                @OverdrivePurchaseButtonText
-            </button>
             <button type="button"
                     @ref="_closeButton"
                     class="button button-secondary practice-overlay-action upgrade-close-btn"
@@ -291,6 +302,10 @@
 </section>
 
 @code {
+    // Max-rank skills report "not level unlocked" because no next rank exists; they must not render as locked.
+    private string FirewallLockedCardClass => !IsFirewallMaxRank && !IsFirewallLevelUnlocked ? "locked-card" : string.Empty;
+    private string CriticalStrikeLockedCardClass => !IsCriticalStrikeMaxRank && !IsCriticalStrikeLevelUnlocked ? "locked-card" : string.Empty;
+    private string OverdriveLockedCardClass => !IsOverdriveMaxRank && !IsOverdriveLevelUnlocked ? "locked-card" : string.Empty;
     private enum FeedbackKind
     {
         None,
@@ -350,6 +365,7 @@
     private int? EffectiveNextFirewallRequiredLevel => ViewModel?.NextRequiredLevel;
     private bool IsFirewallMaxRank => ViewModel?.IsFirewallMaxRank ?? false;
     private bool IsFirewallLevelUnlocked => ViewModel?.IsFirewallLevelUnlocked ?? false;
+    private bool IsFirewallShieldLocked => ViewModel?.IsFirewallShieldLocked ?? false;
     private bool HasSufficientFirewallSp => ViewModel?.HasSufficientFirewallSkillPoints ?? false;
     private bool CanPurchaseFirewall => ViewModel?.CanPurchaseFirewall ?? false;
 

@@ -401,7 +401,12 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_OverdriveMaxRank"] = "Overdrive is already at maximum rank.",
         ["UpgradeTerminal_Feedback_OverdriveLockedLevel"] = "Overdrive upgrade is locked until the required player level is reached.",
         ["UpgradeTerminal_Feedback_OverdriveStaleRank"] = "Overdrive rank was updated. Please try again.",
-        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}"
+        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}",
+        ["UpgradeTerminal_HeaderAction"] = "Upgrades",
+        ["UpgradeTerminal_SkillPointsExplainer"] = "Earn Skill Points by leveling up in practice. Upgrades are permanent.",
+        ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall shields unlock at Player Level {0}. Shields absorb mistake damage.",
+        ["ModeToggle_CyberDefense_Aria"] = "Game mode: Cyber Defense (Tap to switch to Calm Mode)",
+        ["ModeToggle_Calm_Aria"] = "Game mode: Calm Mode (Tap to switch to Cyber Defense)"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -690,7 +695,12 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_OverdriveMaxRank"] = "Overdrive hat bereits den Maximalrang erreicht.",
         ["UpgradeTerminal_Feedback_OverdriveLockedLevel"] = "Overdrive-Upgrade ist gesperrt, bis die erforderliche Spielerstufe erreicht ist.",
         ["UpgradeTerminal_Feedback_OverdriveStaleRank"] = "Overdrive-Rang wurde aktualisiert. Bitte erneut versuchen.",
-        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}"
+        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}",
+        ["UpgradeTerminal_HeaderAction"] = "Upgrades",
+        ["UpgradeTerminal_SkillPointsExplainer"] = "Verdiene Skill-Punkte durch Level-Aufstiege beim Üben. Upgrades sind dauerhaft.",
+        ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall-Schilde werden ab Spielerstufe {0} freigeschaltet und fangen Fehler-Schaden ab.",
+        ["ModeToggle_CyberDefense_Aria"] = "Spielmodus: Cyber Defense (Tippen für Ruhigen Modus)",
+        ["ModeToggle_Calm_Aria"] = "Spielmodus: Ruhiger Modus (Tippen für Cyber Defense)"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -979,6 +989,11 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_OverdriveMaxRank"] = "Овердрайв уже на максимальном ранге.",
         ["UpgradeTerminal_Feedback_OverdriveLockedLevel"] = "Улучшение овердрайва заблокировано до достижения требуемого уровня игрока.",
         ["UpgradeTerminal_Feedback_OverdriveStaleRank"] = "Ранг овердрайва изменился. Пожалуйста, повторите попытку.",
-        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}"
+        ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}",
+        ["UpgradeTerminal_HeaderAction"] = "Улучшения",
+        ["UpgradeTerminal_SkillPointsExplainer"] = "Получайте очки навыков за повышение уровня. Улучшения постоянны.",
+        ["UpgradeTerminal_FirewallLockedNotice"] = "Щиты файрвола открываются на уровне игрока {0} и поглощают урон от ошибок.",
+        ["ModeToggle_CyberDefense_Aria"] = "Режим игры: Киберзащита (нажмите для переключения в Спокойный режим)",
+        ["ModeToggle_Calm_Aria"] = "Режим игры: Спокойный режим (нажмите для переключения в Киберзащиту)"
     };
 }

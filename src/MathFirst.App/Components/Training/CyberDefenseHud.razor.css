@@ -25,6 +25,7 @@
 }
 
 .scene-top-bar {
+    min-height: 2.25rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -699,6 +700,7 @@
    PLAYER SHIELD & TACTICAL INTEGRITY AREA
    ======================================================== */
 .player-shield-panel {
+    min-height: 3.5rem;
     width: 100%;
     min-width: 0;
     display: flex;

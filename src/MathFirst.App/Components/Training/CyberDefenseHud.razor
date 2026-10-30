@@ -265,8 +265,10 @@
 
     private string OpponentDescription => Localizer[EffectiveModel.OpponentDescKey];
 
-    private string OpponentScaleClass => EffectiveModel.OpponentScaleClass ??
-        CyberDefenseOpponentScalePolicy.GetScaleClass(EffectiveModel.OpponentIndex, EffectiveModel.NormalOpponentCount, EffectiveModel.IsSectorBoss, EffectiveModel.IsBoss);
+    // The ViewModel projection is authoritative; the policy fallback only covers models built without a scale class.
+    private string OpponentScaleClass => !string.IsNullOrEmpty(EffectiveModel.OpponentScaleClass)
+        ? EffectiveModel.OpponentScaleClass
+        : CyberDefenseOpponentScalePolicy.GetScaleClass(EffectiveModel.SectorNumber, EffectiveModel.OpponentIndex, EffectiveModel.NormalOpponentCount, EffectiveModel.IsSectorBoss, EffectiveModel.IsBoss);
 
     private string ArtworkFeedbackClass => EffectiveModel.LastFeedback switch
     {

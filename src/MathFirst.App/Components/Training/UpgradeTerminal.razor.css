@@ -1,9 +1,16 @@
 .upgrade-terminal-dialog {
-    /* Inherits .practice-overlay from app.css */
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    padding: clamp(0.75rem, 2vw, 1.5rem);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+    overflow-y: auto;
 }
 
 .upgrade-terminal-content {
-    /* Inherits .practice-overlay-content */
     gap: var(--space-4);
     max-width: min(100%, 40rem);
     max-height: min(92vh, 92dvh);
@@ -23,6 +30,14 @@
     margin: 0;
     font-size: clamp(0.85rem, 1.3vw, 0.95rem);
     color: var(--color-muted);
+}
+
+.upgrade-sp-explainer {
+    margin: 0;
+    font-size: clamp(0.78rem, 1.1vw, 0.85rem);
+    color: var(--color-primary);
+    text-align: center;
+    max-width: 32rem;
 }
 
 .upgrade-meta-bar {
@@ -82,6 +97,12 @@
     background: var(--color-surface-elevated);
     box-shadow: var(--shadow-card);
     text-align: left;
+}
+
+.upgrade-card.locked-card {
+    opacity: 0.88;
+    background: var(--color-surface-muted);
+    border-style: dashed;
 }
 
 .upgrade-card-header {
@@ -163,7 +184,7 @@
 .upgrade-cost-row {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
     gap: var(--space-2);
 }
@@ -199,6 +220,13 @@
     border: 1px dashed var(--color-border);
 }
 
+.upgrade-card-purchase-btn {
+    min-height: 40px;
+    padding: 0.4rem 1.1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
 .firewall-icon-slot {
     background: var(--color-success-surface);
     color: var(--color-success);
@@ -220,6 +248,13 @@
     color: var(--color-primary);
     line-height: 1.35;
     font-style: italic;
+}
+
+.upgrade-firewall-locked-notice {
+    margin: 0;
+    font-size: clamp(0.78rem, 1.1vw, 0.85rem);
+    color: var(--color-warning);
+    font-weight: 600;
 }
 
 .upgrade-terminal-feedback {
