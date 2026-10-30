@@ -406,12 +406,13 @@ Under no circumstances may the lower mathematical area be squeezed, scaled down,
 - **Hit Feedback**: Floating combat text (+6 XP, -4 HP, Shield Blocked, Critical Hit!) rendered in a dedicated non-blocking overlay.
 - **Boss Victory**:
   - 1–3 second impactful victory animation.
-  - ~2 second compact sector recap (accuracy %, active time, XP gained, level-ups).
-  - Automatically advances to the next sector without requiring extra button taps `[FIXED PRODUCT RULE]`.
+  - Compact sector recap (accuracy %, mistakes, active time, XP gained, level-ups) that stays until the user explicitly continues. A localized Continue button appears after about 3 seconds on the recap; no timer ever dismisses it. When recap history is unavailable the existing "unavailable" message is shown, still with Continue. *(Owner-approved correction, Issue #121; supersedes the earlier automatic-advance rule.)*
+  - The next sector's mathematics is released only after Continue; question timing stays paused and the underlying practice surface stays inert until then.
 - **Game-Over Sequence**:
   - Respectful "System Overload — Reboot Initiated" presentation.
-  - Clearly confirms that all permanent XP, Player Levels, Skill Points, and arithmetic mastery are safely retained.
-  - Automatically resets the combat run to Sector 1 `[FIXED PRODUCT RULE]`.
+  - Clearly confirms that the run restarts in Sector 1 while XP, Player Level, Skill Points, purchased upgrades and arithmetic mastery are retained.
+  - Shows a localized Continue button after about 3 seconds; it never auto-dismisses. *(Owner-approved correction, Issue #121.)*
+  - The combat run resets to Sector 1 at the authoritative commit `[FIXED PRODUCT RULE]`; Continue only releases the presentation and changes no gameplay state.
 
 ---
 
@@ -505,7 +506,7 @@ A Cyber Defense implementation package is accepted only when all applicable crit
 - [ ] **Overdrive Reset**: Incorrect answers reset the combat combo to zero.
 - [ ] **Beginner Assistance**: Triggers cleanly on repeated early defeats without patronizing copy or math difficulty tampering.
 - [ ] **Terminal Pause Safety**: Opening the Upgrade Terminal freezes arithmetic thinking time and preserves partial input.
-- [ ] **Boss Ceremony**: Boss victory triggers an automatic 1–3s celebration and recap without requiring extra button clicks.
+- [ ] **Boss Ceremony**: Boss victory shows a 1–3s celebration, then a recap that remains until the user taps the Continue button (revealed after about 3s). Game-over shows the System Restart message with the same manual Continue. Nothing auto-dismisses (Issue #121).
 - [ ] **Layout Preservation**: Lower math area (expression, input, Solve-to-Attack, keypad, operation HUD) is never shrunk or clipped on any supported device.
 - [ ] **Headless Simulator**: Evaluates the five synthetic profiles using the live production state transition engine.
 - [ ] **Zero Prohibited Scope**: Zero ads, zero microtransactions, zero Google Play Games dependencies, and zero production release activity.

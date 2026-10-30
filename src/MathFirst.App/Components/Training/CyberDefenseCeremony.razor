@@ -5,15 +5,16 @@
 
 @if (Stage != CyberDefensePresentationStage.None)
 {
-    <section class="combat-ceremony-overlay" role="status" aria-live="assertive" aria-atomic="true" lang="@Localizer.CurrentUiLanguage">
+    <section class="combat-ceremony-overlay" role="dialog" aria-modal="true" aria-labelledby="combat-ceremony-title" lang="@Localizer.CurrentUiLanguage">
         <div class="combat-ceremony-card @(Stage == CyberDefensePresentationStage.Victory ? "ceremony-victory" : "")">
-            <h2 @ref="_heading" tabindex="-1">@Title</h2>
+            <h2 id="combat-ceremony-title" @ref="_heading" tabindex="-1">@Title</h2>
             @if (Stage == CyberDefensePresentationStage.Recap)
             {
-                @if (Recap is not null)
+                @if (Recap is { HasValidCounts: true })
                 {
                     <ul class="recap-metrics">
                         <li>@Localizer["CyberDefense_RecapAccuracy", Recap.AccuracyPercentage]</li>
+                        <li>@Localizer["CyberDefense_RecapMistakes", Recap.MistakeCount!.Value]</li>
                         <li>@Localizer["CyberDefense_RecapActiveAnswering", Recap.ActiveAnsweringTimeMs / 1000m]</li>
                         <li>@Localizer["CyberDefense_RecapXp", Recap.XpGained]</li>
                         <li>@Localizer["CyberDefense_RecapLevels", Recap.LevelUps]</li>
@@ -28,6 +29,12 @@
             {
                 <p>@Localizer["CyberDefense_ProgressRetained"]</p>
             }
+            <div class="ceremony-actions" aria-live="polite">
+                @if (CanContinue && !_continueRequested && Stage != CyberDefensePresentationStage.Victory)
+                {
+                    <button type="button" class="button button-primary ceremony-continue" @onclick="ContinueAsync">@Localizer["Common_Continue"]</button>
+                }
+            </div>
         </div>
     </section>
 }
@@ -36,14 +43,27 @@
     [Parameter] public CyberDefensePresentationStage Stage { get; set; }
     [Parameter] public CyberDefenseSectorRecap? Recap { get; set; }
     [Parameter] public int CompletedSector { get; set; }
+    [Parameter] public bool CanContinue { get; set; }
+    [Parameter] public long PresentationId { get; set; }
+    [Parameter] public EventCallback<long> OnContinue { get; set; }
     private ElementReference _heading;
     private CyberDefensePresentationStage _focusedStage;
+    private long _requestedPresentationId = -1;
+    private bool _continueRequested => _requestedPresentationId == PresentationId;
     private string Title => Stage switch
     {
         CyberDefensePresentationStage.Victory => Localizer["CyberDefense_Victory"],
         CyberDefensePresentationStage.Recap => Localizer["CyberDefense_RecapTitle", CompletedSector],
         _ => Localizer["CyberDefense_SystemOverload"]
     };
+
+    // One activation per presentation: repeated taps cannot raise the callback twice.
+    private async Task ContinueAsync()
+    {
+        if (!CanContinue || _continueRequested) return;
+        _requestedPresentationId = PresentationId;
+        await OnContinue.InvokeAsync(PresentationId);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

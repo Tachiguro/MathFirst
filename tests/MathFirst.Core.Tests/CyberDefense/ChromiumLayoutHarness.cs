@@ -56,7 +56,8 @@ internal static class ChromiumLayoutHarness
     public static IReadOnlyList<ScopedStyle> ScopedStyles() =>
     [
         new("b-mf-hud", ".cyber-defense-hud", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css")),
-        new("b-mf-upgrade", ".upgrade-terminal-dialog", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "UpgradeTerminal.razor.css"))
+        new("b-mf-upgrade", ".upgrade-terminal-dialog", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "UpgradeTerminal.razor.css")),
+        new("b-mf-ceremony", ".combat-ceremony-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseCeremony.razor.css"))
     ];
 
     public static string? FindBrowser()
@@ -394,6 +395,36 @@ internal static class ChromiumLayoutHarness
             return { terminalOpen: !!dialog, background, terminal: dialog ? terminalProbe(d, w) : null };
         }
 
+        function ceremonyProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const overlay = q('.combat-ceremony-overlay'), card = q('.combat-ceremony-card');
+            const heading = q('#combat-ceremony-title'), button = q('.ceremony-continue');
+            const result = {
+                present: !!overlay && !!card && !!heading,
+                hasButton: !!button,
+                dialogRole: overlay ? overlay.getAttribute('role') : null,
+                animationName: card ? w.getComputedStyle(card).animationName : null,
+                rects: { overlay: rectOf(overlay), card: rectOf(card), button: rectOf(button) }
+            };
+            if (!result.present) return result;
+            overlay.scrollTop = 0;
+            const overlayStyle = w.getComputedStyle(overlay);
+            result.overlay = { overflowY: overlayStyle.overflowY, scrollHeight: overlay.scrollHeight, clientHeight: overlay.clientHeight };
+            result.horizontalOverflow = overlay.scrollWidth > overlay.clientWidth + 1 || card.scrollWidth > card.clientWidth + 1;
+            result.headingAtTop = visibleFraction(w, heading);
+            if (button) {
+                result.buttonAtOpen = visibleFraction(w, button);
+                overlay.scrollTop = overlay.scrollHeight;
+                result.buttonAfterScroll = visibleFraction(w, button);
+                result.buttonHit = hits(d, button);
+                const b = button.getBoundingClientRect(), c = card.getBoundingClientRect();
+                result.buttonInsideCard = b.left >= c.left - 0.5 && b.right <= c.right + 0.5 && b.bottom <= c.bottom + 0.5;
+                result.buttonFontPx = parseFloat(w.getComputedStyle(button).fontSize);
+                overlay.scrollTop = 0;
+            }
+            return result;
+        }
+
         (async () => {
             try {
                 for (const scenario of MF_PAYLOAD.scenarios) {
@@ -402,7 +433,8 @@ internal static class ChromiumLayoutHarness
                     applyStyles(d, scenario);
                     void d.body.offsetHeight;
                     const focus = applyFocus(d, scenario);
-                    const probe = scenario.probe === 'home' ? homeProbe(d, w) : terminalProbe(d, w);
+                    const probe = scenario.probe === 'home' ? homeProbe(d, w)
+                        : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : terminalProbe(d, w);
                     state.results.push({
                         id: scenario.id,
                         viewport: { width: w.innerWidth, height: w.innerHeight },

@@ -11,6 +11,13 @@ public sealed record CyberDefenseSectorRecap(
 {
     public decimal AccuracyPercentage => 100m * CorrectAnswerCount / AnswerCount;
 
+    /// <summary>True only when every displayed metric is internally consistent; otherwise no totals may be shown.</summary>
+    public bool HasValidCounts => AnswerCount > 0 && CorrectAnswerCount >= 0 && CorrectAnswerCount <= AnswerCount &&
+        ActiveAnsweringTimeMs >= 0 && XpGained >= 0 && LevelUps >= 0;
+
+    /// <summary>Wrong answers derived from the real answer counts, never estimated.</summary>
+    public int? MistakeCount => HasValidCounts ? AnswerCount - CorrectAnswerCount : null;
+
     /// <summary>
     /// Applied receipts earn strictly positive XP. Cumulative XP, rather than wall time, is their
     /// durable transaction order. The complete epoch must chain from zero without missing rewards.

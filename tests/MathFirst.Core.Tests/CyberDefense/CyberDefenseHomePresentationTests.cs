@@ -32,8 +32,8 @@ namespace MathFirst.Core.Tests.CyberDefense
                 var submission = fixture.Submit();
                 await Task.WhenAny(shown, submission);
                 Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
-                (await fixture.NextDelay()).TrySetResult();
-                (await fixture.NextDelay()).TrySetResult();
+                await fixture.RevealContinue();
+                await fixture.Continue();
                 await submission;
             }
             else await fixture.Submit();
@@ -131,8 +131,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             var retry = fixture.Invoke("RecoverFromPersistenceFailureAsync");
             await Task.WhenAny(shown, retry);
             Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
-            (await fixture.NextDelay()).TrySetResult();
-            (await fixture.NextDelay()).TrySetResult();
+            await fixture.RevealContinue();
+            await Task.Delay(50);
+            Assert.False(retry.IsCompleted);
+            await fixture.Continue();
             await retry;
             await fixture.Invoke("RecoverFromPersistenceFailureAsync");
             Assert.Equal(176, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
@@ -277,8 +279,11 @@ namespace MathFirst.Core.Tests.CyberDefense
             await Task.WhenAny(shown, fixture.Rendering);
             Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
             Assert.False(fixture.Session.IsTimingActive);
-            (await fixture.NextDelay()).TrySetResult();
-            (await fixture.NextDelay()).TrySetResult();
+            await fixture.RevealContinue();
+            await Task.Delay(50);
+            Assert.False(fixture.Rendering.IsCompleted);
+            Assert.False(fixture.Session.IsTimingActive);
+            await fixture.Continue();
             await fixture.Rendering;
             Assert.Equal(2, (await fixture.Store.GetRunStateAsync()).Sector);
             Assert.Equal(PracticeGateState.InitialReadyGate, fixture.Session.PracticeGate);
@@ -328,15 +333,183 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
             (await fixture.NextDelay()).TrySetResult();
             var recapDelay = await fixture.NextDelay();
+            Assert.Equal(TimeSpan.FromSeconds(3), fixture.LastDelay);
             Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
             Assert.False(submission.IsCompleted);
+            Assert.DoesNotContain("ceremony-continue", await fixture.Html());
             recapDelay.TrySetResult();
+            await fixture.WhenContinue();
+            Assert.Contains("ceremony-continue", await fixture.Html());
+            await Task.Delay(50);
+            Assert.False(submission.IsCompleted);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            await fixture.Continue();
             await submission;
             Assert.True(fixture.Session.FactInstanceRevision > revision);
             Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
             fixture.Clock.Advance(1000);
             Assert.Equal(1000, fixture.Session.GetCurrentActiveElapsedMs());
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task BossRecap_StaysThirtySimulatedSeconds_AndOnlyTheUserContinuesOnceWithoutNewRewardsOrAnswers()
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            fixture.Clock.Advance(2000);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            var xp = (await fixture.Store.GetProgressionAsync()).CumulativeXp;
+            var commits = fixture.LearnerCommitCalls;
+            var run = await fixture.Store.GetRunStateAsync();
+
+            await fixture.RevealContinue();
+            await fixture.ElapseRevalidation(TimeSpan.FromSeconds(30));
+            fixture.Clock.Advance(30000);
+            Assert.False(submission.IsCompleted);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.False(fixture.Session.IsTimingActive);
+            Assert.Equal(2000, fixture.Session.GetCurrentActiveElapsedMs());
+            Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
+            Assert.Contains("ceremony-continue", await fixture.Html());
+
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => fixture.Continue()));
+            await submission;
+            await fixture.Continue();
+            await fixture.Continue(fixture.Sequence.PresentationId + 1);
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(xp, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
+            Assert.Equal(commits, fixture.LearnerCommitCalls);
+            Assert.Equal(run, await fixture.Store.GetRunStateAsync());
+            Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
+            Assert.Equal(1, fixture.Victories);
+            Assert.False(fixture.Sequence.IsBlocking);
+            Assert.DoesNotContain("ceremony-continue", await fixture.Html());
+        }
+
+        [Theory(Timeout = 20000)]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task GlobalEnterAndStaleContinue_CannotBypassTheModalAtAnyStage(bool afterReveal)
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            var commits = fixture.LearnerCommitCalls;
+            if (afterReveal) await fixture.RevealContinue();
+            var id = fixture.Sequence.PresentationId;
+
+            await fixture.PressEnter();
+            await fixture.PressEnter();
+            await fixture.Continue(id + 1);
+            await fixture.Continue(0);
+            if (!afterReveal) await fixture.Continue(id);
+            await Task.Delay(50);
+
+            Assert.False(submission.IsCompleted);
+            Assert.True(fixture.Sequence.IsBlocking);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.Equal(commits, fixture.LearnerCommitCalls);
+            Assert.False(fixture.Session.IsTimingActive);
+            Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
+        }
+
+        [Theory(Timeout = 20000)]
+        [InlineData("background")]
+        [InlineData("dispose")]
+        [InlineData("reset")]
+        [InlineData("mode")]
+        public async Task ContextChangeWhileAwaitingContinue_ReleasesFailClosed_WithoutAdvancingOrLeavingAPendingContinue(string change)
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var inputVersion = fixture.Field<int>("_inputRenderVersion");
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            await fixture.RevealContinue();
+            var staleId = fixture.Sequence.PresentationId;
+
+            if (change == "background") await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
+            if (change == "dispose") await fixture.RemoveView();
+            if (change == "mode") fixture.Preferences.SetCyberDefenseEnabled(false);
+            if (change == "reset")
+            {
+                await fixture.DispatchAsync(() => fixture.Session.ResetLearningProgressAsync(startTiming: false));
+                var reset = await fixture.Store.BeginOrGetResetIntentAsync();
+                await fixture.Store.ResetGameplayStateAsync(reset.TargetEpoch);
+                await fixture.Store.ClearResetIntentAsync(reset.TargetEpoch);
+            }
+            var revisionAfterChange = fixture.Session.FactInstanceRevision;
+            var inputVersionAfterChange = fixture.Field<int>("_inputRenderVersion");
+            if (change is "mode" or "reset") (await fixture.NextDelay()).TrySetResult();
+            await submission;
+
+            Assert.False(fixture.Sequence.IsBlocking);
+            Assert.False(fixture.Sequence.CanContinue);
+            await fixture.Continue(staleId);
+            if (change == "background")
+            {
+                Assert.Equal(PracticeGateState.BackgroundResumeGate, fixture.Session.PracticeGate);
+                Assert.False(fixture.Session.IsTimingActive);
+                await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+                fixture.Clock.Advance(50000);
+                Assert.Equal(0, fixture.Session.GetCurrentActiveElapsedMs());
+                Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
+            }
+            if (change is "dispose" or "reset")
+            {
+                // The aborted ceremony must not prepare or advance the old generation's question.
+                Assert.Equal(revisionAfterChange, fixture.Session.FactInstanceRevision);
+                Assert.Equal(inputVersionAfterChange, fixture.Field<int>("_inputRenderVersion"));
+                if (change == "dispose") Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            }
+            Assert.Equal(1, fixture.Victories);
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task SystemRestart_KeepsPermanentPurchasedUpgrades_AndNeedsManualContinueBeforeIncorrectFeedbackCompletes()
+        {
+            // No Firewall purchase: a purchased shield would absorb the final hit and the run would not end.
+            await using var fixture = await Fixture.Create(victory: false, upgrades: true, withoutFirewall: true);
+            var before = await fixture.Store.GetProgressionAsync();
+            var modifiersBefore = await fixture.Store.GetCombatModifierSnapshotAsync();
+            Assert.True(before.AttackRank > 0 && before.SpentSkillPoints > 0);
+            Assert.True(modifiersBefore.CriticalStrikeRank > 0 && modifiersBefore.OverdriveRank > 0);
+            var revision = fixture.Session.FactInstanceRevision;
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.SystemOverload);
+            var submission = fixture.Submit(correct: false);
+            await Task.WhenAny(shown, submission);
+            var restarted = await fixture.Store.GetProgressionAsync();
+            var modifiersRestarted = await fixture.Store.GetCombatModifierSnapshotAsync();
+            Assert.Equal(before.AttackRank, restarted.AttackRank);
+            Assert.Equal(before.FirewallRank, restarted.FirewallRank);
+            Assert.Equal(modifiersBefore.CriticalStrikeRank, modifiersRestarted.CriticalStrikeRank);
+            Assert.Equal(modifiersBefore.OverdriveRank, modifiersRestarted.OverdriveRank);
+            Assert.Equal(before.SpentSkillPoints, restarted.SpentSkillPoints);
+
+            await fixture.RevealContinue(boss: false);
+            await fixture.ElapseRevalidation(TimeSpan.FromSeconds(30));
+            Assert.False(submission.IsCompleted);
+            Assert.Equal(CyberDefensePresentationStage.SystemOverload, fixture.Sequence.Stage);
+            Assert.Contains("ceremony-continue", await fixture.Html());
+            await fixture.Continue();
+            await submission;
+
+            var after = await fixture.Store.GetProgressionAsync();
+            var modifiersAfter = await fixture.Store.GetCombatModifierSnapshotAsync();
+            Assert.Equal(restarted, after);
+            Assert.Equal(modifiersRestarted.CriticalStrikeRank, modifiersAfter.CriticalStrikeRank);
+            Assert.Equal(modifiersRestarted.OverdriveRank, modifiersAfter.OverdriveRank);
+            Assert.Equal(1, (await fixture.Store.GetRunStateAsync()).Sector);
+            Assert.Equal(SessionInteractionState.IncorrectFeedback, fixture.Session.InteractionState);
+            Assert.Equal(revision, fixture.Session.FactInstanceRevision);
+            Assert.False(fixture.Session.IsTimingActive);
         }
 
         [Fact]
@@ -352,6 +525,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             await fixture.Invoke("AdvanceAsync");
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
             (await fixture.NextDelay()).TrySetResult();
+            Assert.Equal(TimeSpan.FromSeconds(3), fixture.LastDelay);
+            await fixture.WhenContinue();
+            Assert.False(submission.IsCompleted);
+            await fixture.Continue();
             await submission;
             Assert.Equal(SessionInteractionState.IncorrectFeedback, fixture.Session.InteractionState);
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
@@ -373,6 +550,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             await Task.WhenAny(shown, submission);
             Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
             var delay = await fixture.NextDelay();
+            Assert.Equal(TimeSpan.FromSeconds(2), fixture.LastDelay);
             if (change == "background") await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
             if (change == "mode") fixture.Preferences.SetCyberDefenseEnabled(false);
             if (change == "reset")
@@ -402,7 +580,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         private sealed class Fixture : IAsyncDisposable
         {
             private readonly string _directory = Path.Combine(Path.GetTempPath(), "MathFirstHomeCeremony_" + Guid.NewGuid().ToString("N"));
-            private readonly Channel<TaskCompletionSource> _delays = Channel.CreateUnbounded<TaskCompletionSource>();
+            private readonly Channel<(TimeSpan Duration, TaskCompletionSource Gate)> _delays = Channel.CreateUnbounded<(TimeSpan Duration, TaskCompletionSource Gate)>();
             private readonly ServiceProvider _services;
             private readonly CyberDefenseCombatCoordinator _coordinator;
             private readonly InMemoryLearner _learner;
@@ -468,9 +646,8 @@ namespace MathFirst.Core.Tests.CyberDefense
                 _coordinator = new CyberDefenseCombatCoordinator(Store, new CyberDefenseSubmissionConsumer(Store, _learner));
                 Sequence = new CyberDefensePresentationSequence((duration, ct) =>
                 {
-                    Assert.Equal(TimeSpan.FromSeconds(2), duration);
                     var delay = new TaskCompletionSource();
-                    _delays.Writer.TryWrite(delay);
+                    _delays.Writer.TryWrite((duration, delay));
                     return delay.Task.WaitAsync(ct);
                 });
                 Sequence.Changed += () => { if (Sequence.Stage == CyberDefensePresentationStage.Victory) Victories++; };
@@ -486,7 +663,7 @@ namespace MathFirst.Core.Tests.CyberDefense
                     .AddSingleton<IJSRuntime>(new NoJs()).BuildServiceProvider();
             }
 
-            public static async Task<Fixture> Create(bool victory = true, bool recoveredStartup = false, bool ordinary = false, bool calm = false, bool upgrades = false)
+            public static async Task<Fixture> Create(bool victory = true, bool recoveredStartup = false, bool ordinary = false, bool calm = false, bool upgrades = false, bool withoutFirewall = false)
             {
                 var f = new Fixture();
                 f.Preferences.SetCyberDefenseEnabled(!calm);
@@ -504,7 +681,7 @@ namespace MathFirst.Core.Tests.CyberDefense
                     command.Parameters.AddWithValue("@xp", MathFirst.Domain.CyberDefense.CyberDefenseLevelPolicy.GetCumulativeXpThreshold(80));
                     await command.ExecuteNonQueryAsync();
                     await f.Store.PurchaseAttackUpgradeAsync(0, 0);
-                    await f.Store.PurchaseFirewallUpgradeAsync(0, 0);
+                    if (!withoutFirewall) await f.Store.PurchaseFirewallUpgradeAsync(0, 0);
                     await f.Store.PurchaseCriticalStrikeUpgradeAsync(0, 0);
                     await f.Store.PurchaseOverdriveUpgradeAsync(0, 0);
                 }
@@ -557,7 +734,56 @@ namespace MathFirst.Core.Tests.CyberDefense
             public Task Dispatch(Action action) => _renderer.Dispatcher.InvokeAsync(action);
             public Task DispatchAsync(Func<Task> action) => _renderer.Dispatcher.InvokeAsync(action);
             public Task<string> Html() => _renderer.Dispatcher.InvokeAsync(() => _root.ToHtmlString());
-            public Task<TaskCompletionSource> NextDelay() => _delays.Reader.ReadAsync().AsTask();
+            public TimeSpan LastDelay { get; private set; }
+            public async Task<TaskCompletionSource> NextDelay()
+            {
+                var next = await _delays.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+                LastDelay = next.Duration;
+                return next.Gate;
+            }
+
+            /// <summary>Elapses the fake victory (boss only) and the 3 s recap/restart reveal delay, then waits for Continue.</summary>
+            public async Task RevealContinue(bool boss = true)
+            {
+                if (boss)
+                {
+                    var victory = await NextDelay();
+                    Assert.Equal(TimeSpan.FromSeconds(2), LastDelay);
+                    victory.TrySetResult();
+                }
+                var reveal = await NextDelay();
+                Assert.Equal(TimeSpan.FromSeconds(3), LastDelay);
+                reveal.TrySetResult();
+                await WhenContinue();
+            }
+
+            /// <summary>Elapses fake revalidation ticks; the ceremony must still be waiting for the user afterwards.</summary>
+            public async Task ElapseRevalidation(TimeSpan total)
+            {
+                for (var elapsed = TimeSpan.Zero; elapsed < total;)
+                {
+                    var tick = await NextDelay();
+                    elapsed += LastDelay;
+                    tick.TrySetResult();
+                }
+            }
+
+            public Task WhenContinue()
+            {
+                var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                void Check() { if (Sequence.CanContinue) { Sequence.Changed -= Check; ready.TrySetResult(); } }
+                Sequence.Changed += Check;
+                Check();
+                return ready.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+
+            public Task Continue(long? presentationId = null) => _renderer.Dispatcher.InvokeAsync(() =>
+                typeof(global::MathFirst.Core.Tests.Home).GetMethod("HandleCeremonyContinue", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(_home, new object[] { presentationId ?? Sequence.PresentationId }));
+
+            public Task PressEnter() => _renderer.Dispatcher.InvokeAsync(() =>
+                (Task)typeof(global::MathFirst.Core.Tests.Home).GetMethod("HandleGlobalKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(_home, new object[] { new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" } })!);
             public void FailNextLearnerCommit() => _learner.FailNextCommit = true;
             public Task WhenStage(CyberDefensePresentationStage stage)
             {

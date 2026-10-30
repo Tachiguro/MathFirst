@@ -480,7 +480,9 @@
             }
             @if (IsCyberDefenseActive && Ceremony.IsBlocking)
             {
-                <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector" />
+                <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector"
+                                      CanContinue="Ceremony.CanContinue" PresentationId="Ceremony.PresentationId"
+                                      OnContinue="HandleCeremonyContinue" />
             }
             @if (_isTutorialOpen)
             {
@@ -1332,6 +1334,14 @@
             _isSubmitting = false;
             if (!_isDisposed) await InvokeAsync(StateHasChanged);
         }
+    }
+
+    // The user's Continue only releases the presentation barrier of the identified ceremony. It never submits,
+    // rewards or advances mathematics itself: the awaiting commit flow resumes through its own guarded checks.
+    private void HandleCeremonyContinue(long presentationId)
+    {
+        if (_isDisposed || !IsCyberDefenseActive || !Session.IsAppForeground) return;
+        Ceremony.Acknowledge(presentationId);
     }
 
     private void OnCeremonyChanged()
