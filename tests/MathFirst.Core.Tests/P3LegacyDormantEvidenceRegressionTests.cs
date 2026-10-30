@@ -154,22 +154,18 @@ public sealed class P3LegacyDormantEvidenceRegressionTests : IDisposable
             Assert.True(snapshot.FsrsStates.TryGetValue("mul:3*3", out var mulFsrs));
             Assert.Equal(5.0, mulFsrs.Stability);
 
+            // 2. The learner later earns Addition and Subtraction D10 prerequisite mastery (ADR-0013)
+            snapshot.Progression.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
+            snapshot.Progression.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, D10MasteryTestSeed.MasteredBandIndex, 0);
+            await store.SaveProgressionAsync(snapshot.Progression);
+            await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
+            await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Subtraction);
+
             var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
             await session.InitializeAsync(startTiming: false);
 
             Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
             Assert.Equal(10, session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Multiplication));
-
-            // 2. Complete ADD-D01 prerequisite
-            var addPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage1_Addition);
-            foreach (var id in addPrereqs)
-            {
-                var parts = id.Split([':', '+']);
-                var item = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Addition, int.Parse(parts[1]), int.Parse(parts[2])));
-                item.TotalAttempts = 1;
-                item.CorrectAttempts = 1;
-                session.ItemStates[id] = item;
-            }
 
             var evalStage2 = session.SubmitAnswer(session.CurrentFact.CorrectResult);
             Assert.Equal(CurriculumStage.Stage2_Subtraction, evalStage2.ChangeSet!.UpdatedProgression.CurriculumStage);
@@ -181,17 +177,7 @@ public sealed class P3LegacyDormantEvidenceRegressionTests : IDisposable
                 session.ContinuePractice(startTiming: false);
             }
 
-            // 3. Complete SUB-D01 prerequisite
-            var subPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage2_Subtraction);
-            foreach (var id in subPrereqs)
-            {
-                var parts = id.Split([':', '-']);
-                var item = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Subtraction, int.Parse(parts[1]), int.Parse(parts[2])));
-                item.TotalAttempts = 1;
-                item.CorrectAttempts = 1;
-                session.ItemStates[id] = item;
-            }
-
+            // 3. Subtraction D10 mastery advances to Stage 3 on the next accepted submission
             var evalStage3 = session.SubmitAnswer(session.CurrentFact.CorrectResult);
             Assert.Equal(CurriculumStage.Stage3_Multiplication, evalStage3.ChangeSet!.UpdatedProgression.CurriculumStage);
             await session.CommitCurrentEvaluationAsync();
@@ -424,23 +410,22 @@ public sealed class P3LegacyDormantEvidenceRegressionTests : IDisposable
         }
 
         using var store = new SqliteLearnerStore(path);
+        await store.InitializeAsync();
+        var migrated = await store.LoadSnapshotAsync();
+        Assert.Equal(CurriculumStage.Stage1_Addition, migrated.Progression.CurriculumStage);
+
+        // The migrated Stage 1 learner later earns Addition D10 mastery (ADR-0013); legacy Subtraction band 2 stays dormant.
+        migrated.Progression.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
+        await store.SaveProgressionAsync(migrated.Progression);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
+
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
 
         Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
+        Assert.Equal(2, session.Progression.OperationProgressions[ArithmeticOperation.Subtraction].BandIndex);
 
-        // Practice ADD-D01 facts
-        var addPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage1_Addition);
-        foreach (var id in addPrereqs)
-        {
-            var parts = id.Split([':', '+']);
-            var item = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Addition, int.Parse(parts[1]), int.Parse(parts[2])));
-            item.TotalAttempts = 1;
-            item.CorrectAttempts = 1;
-            session.ItemStates[id] = item;
-        }
-
-        // Submitting answer unlocks Stage 2 (and because Subtraction BandIndex >= 1, next will evaluate toward Stage 3)
+        // Submitting answer unlocks Stage 2 only; legacy Subtraction band 2 is not D10 mastery evidence for Stage 3
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.Equal(CurriculumStage.Stage2_Subtraction, eval.ChangeSet!.UpdatedProgression.CurriculumStage);
         await session.CommitCurrentEvaluationAsync();
@@ -870,8 +855,9 @@ public sealed class P3LegacyDormantEvidenceRegressionTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -978,8 +964,9 @@ public sealed class P3LegacyDormantEvidenceRegressionTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);

@@ -178,8 +178,9 @@ public sealed class P3SchedulerTransitionRegressionTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -202,8 +203,9 @@ public sealed class P3SchedulerTransitionRegressionTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -276,8 +278,9 @@ public sealed class P3SchedulerTransitionRegressionTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -314,8 +317,9 @@ public sealed class P3SchedulerTransitionRegressionTests : IDisposable
         prog.CurriculumStage = CurriculumStage.Stage2_Subtraction;
         prog.PracticePosition = 5;
         prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
-        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Subtraction);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -353,8 +357,9 @@ public sealed class P3SchedulerTransitionRegressionTests : IDisposable
         prog.PracticePosition = 12;
         prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
         prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, 1, 0);
-        prog.OperationProgressions[ArithmeticOperation.Multiplication] = new OperationProgression(ArithmeticOperation.Multiplication, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Multiplication] = new OperationProgression(ArithmeticOperation.Multiplication, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Multiplication);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -506,8 +511,9 @@ public sealed class P3SchedulerTransitionRegressionTests : IDisposable
         prog.CurriculumStage = CurriculumStage.Stage2_Subtraction;
         prog.PracticePosition = 4;
         prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
-        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Subtraction);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);

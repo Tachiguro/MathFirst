@@ -42,6 +42,11 @@ public sealed class TrainingSession
     private readonly Dictionary<ArithmeticOperation, CachedOperationEvidence> _selectionEvidenceCache = new();
     private Dictionary<ArithmeticOperation, long> _operationAcceptedAttemptCounts = Enum.GetValues<ArithmeticOperation>().ToDictionary(op => op, _ => 0L);
 
+    // ItemStates is a lazily filled selection cache, so stage unlocks read the current prerequisite's
+    // durable D01..D10 item states from this overlay (ADR-0013). It never feeds selection or broad weakness.
+    private Dictionary<string, ItemLearningState> _prerequisiteMasteryStates = new(StringComparer.Ordinal);
+    private (long Generation, CurriculumStage Stage)? _prerequisiteMasteryStatesKey;
+
     private enum GateSemanticKind
     {
         Unrestricted,
@@ -776,9 +781,15 @@ public sealed class TrainingSession
             _curriculum,
             candidateEffectiveGate);
 
+        var masteryItemStates = new Dictionary<string, ItemLearningState>(_prerequisiteMasteryStates, StringComparer.Ordinal);
+        foreach (var (factId, state) in candidateItemStates)
+        {
+            masteryItemStates[factId] = state;
+        }
+
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             candidateProgression.CurriculumStage,
-            candidateItemStates,
+            masteryItemStates,
             candidateHasBroadWeakness,
             operationProgressions);
 
@@ -1326,6 +1337,8 @@ public sealed class TrainingSession
     {
         _learnerStateGenerationRevision = checked(_learnerStateGenerationRevision + 1);
         _currentPresentationContext = null;
+        _prerequisiteMasteryStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+        _prerequisiteMasteryStatesKey = null;
         Progression = snapshot.Progression;
         ItemStates = snapshot.ItemStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
         _fsrsStates = snapshot.FsrsStates.ToDictionary(k => k.Key, v => v.Value, StringComparer.Ordinal);
@@ -1420,6 +1433,52 @@ public sealed class TrainingSession
         {
             _selectionEvidence = scheduledEvidence.Evidence;
             _currentDenseFrontierAttempts = scheduledEvidence.DenseFrontierAttempts;
+        }
+
+        await LoadPrerequisiteMasteryStatesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task LoadPrerequisiteMasteryStatesAsync(CancellationToken cancellationToken)
+    {
+        var stage = Progression.CurriculumStage;
+        var key = (_learnerStateGenerationRevision, stage);
+        if (_prerequisiteMasteryStatesKey == key)
+        {
+            return;
+        }
+
+        var prerequisiteOperation = CurriculumUnlockPolicy.GetPrerequisiteOperation(stage);
+        if (!prerequisiteOperation.HasValue)
+        {
+            _prerequisiteMasteryStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+            _prerequisiteMasteryStatesKey = key;
+            return;
+        }
+
+        try
+        {
+            var states = await _store.LoadItemStatesAsync(
+                CurriculumUnlockPolicy.GetMasteryFactIds(prerequisiteOperation.Value),
+                cancellationToken).ConfigureAwait(false);
+            _prerequisiteMasteryStates = states.ToDictionary(
+                pair => pair.Key,
+                pair => CloneItemState(pair.Value),
+                StringComparer.Ordinal);
+            _prerequisiteMasteryStatesKey = key;
+        }
+        catch (NotSupportedException)
+        {
+            // Unsupported is a static store capability (ADR-0013 §4): there is no LoadSnapshotAsync fallback, so
+            // evaluation uses the in-session item states only and the unlock is withheld, never granted. Not retried.
+            _prerequisiteMasteryStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+            _prerequisiteMasteryStatesKey = key;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Transient failure, fail closed: without durable mastery rows the overlay stays empty, which can only
+            // delay an unlock. The key stays unset so the next evidence load (every commit) retries the read.
+            _prerequisiteMasteryStates = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+            _prerequisiteMasteryStatesKey = null;
         }
     }
 

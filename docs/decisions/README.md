@@ -48,5 +48,6 @@ Every ADR must contain the following sections:
 | [ADR-0009](ADR-0009-guided-four-operation-number-space-gate.md) | Guided Four-Operation Number-Space Gate | Accepted | 2026-09-20 |
 | [ADR-0010](ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md) | Evidence-Adaptive Discovery, Operation-Specific Guided Decoupling, and Pace Calibration | Accepted | 2026-09-26 |
 | [ADR-0011](ADR-0011-tester-telemetry-persistence-export-and-share.md) | Tester Telemetry Persistence, Export, and Share | Accepted | 2026-09-28 |
-| [ADR-0012](ADR-0012-cumulative-operation-unlock-progression-and-monotonic-curriculum-stage.md) | Cumulative Operation Unlock Progression and Monotonic Curriculum Stage | Accepted | 2026-10-07 |
+| [ADR-0012](ADR-0012-cumulative-operation-unlock-progression-and-monotonic-curriculum-stage.md) | Cumulative Operation Unlock Progression and Monotonic Curriculum Stage | Accepted (§3 superseded by ADR-0013) | 2026-10-07 |
+| [ADR-0013](ADR-0013-d10-proficiency-gated-operation-unlock.md) | D10 Proficiency-Gated Operation Unlock | Accepted | 2026-10-30 |
 

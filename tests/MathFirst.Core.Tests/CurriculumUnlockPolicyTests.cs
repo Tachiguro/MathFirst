@@ -54,17 +54,20 @@ public sealed class CurriculumUnlockPolicyTests
     [Fact]
     public void Contract05_Stage4_CannotAdvanceFurther()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage4_Division, weakCount: 0);
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Multiplication);
+        var progressions = CreateProgressions(add: 10, sub: 10, mul: 10, div: 10);
 
         var canAdvance = CurriculumUnlockPolicy.CanAdvance(
             CurriculumStage.Stage4_Division,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            progressions);
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage4_Division,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            progressions);
 
         Assert.False(canAdvance);
         Assert.Equal(CurriculumStage.Stage4_Division, nextStage);
@@ -81,131 +84,126 @@ public sealed class CurriculumUnlockPolicyTests
 
     #endregion
 
-    #region 6-11: STAGE 1 -> 2
+    #region 6-11: STAGE 1 -> 2 (ADDITION D10 MASTERY)
 
     [Fact]
-    public void Contract06_Stage1To2_NoAddD01Coverage_StaysStage1()
+    public void Contract06_Stage1To2_NoAdditionEvidence_StaysStage1()
     {
-        var itemStates = new Dictionary<string, ItemLearningState>(); // 0 attempts on all facts
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage1_Addition,
-            itemStates,
-            hasBroadWeakness: false);
+            new Dictionary<string, ItemLearningState>(),
+            hasBroadWeakness: false,
+            CreateProgressions());
 
         Assert.Equal(CurriculumStage.Stage1_Addition, nextStage);
     }
 
     [Fact]
-    public void Contract07_Stage1To2_PartialAddD01Coverage_StaysStage1()
+    public void Contract07_Stage1To2_LegacyIntroductoryD01Evidence_NoLongerUnlocks()
     {
-        // ADD-D01 has 4 facts: add:0+0, add:0+1, add:1+0, add:1+1. Only 3 introduced:
-        var itemStates = new Dictionary<string, ItemLearningState>
-        {
-            ["add:0+0"] = CreateItemState(ArithmeticOperation.Addition, 0, 0, totalAttempts: 1),
-            ["add:0+1"] = CreateItemState(ArithmeticOperation.Addition, 0, 1, totalAttempts: 1),
-            ["add:1+0"] = CreateItemState(ArithmeticOperation.Addition, 1, 0, totalAttempts: 1)
-        };
+        var itemStates = CreateLegacyIntroducedItemStates(CurriculumStage.Stage1_Addition, weakCount: 0);
+        Assert.True(CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage1_Addition, itemStates));
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage1_Addition,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(add: 1));
 
         Assert.Equal(CurriculumStage.Stage1_Addition, nextStage);
     }
 
     [Fact]
-    public void Contract08_Stage1To2_FullCoverage_ZeroWeakFacts_CleanEvidence_AdvancesToStage2()
+    public void Contract08_Stage1To2_CompleteAdditionD10Mastery_AdvancesToStage2()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage1_Addition, weakCount: 0);
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage1_Addition,
-            itemStates,
-            hasBroadWeakness: false);
+            CreateMasteredStates(ArithmeticOperation.Addition),
+            hasBroadWeakness: false,
+            CreateProgressions(add: 10));
 
         Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
     }
 
     [Fact]
-    public void Contract09_Stage1To2_FullCoverage_ExactlyOneWeakFact_CleanEvidence_AdvancesToStage2()
+    public void Contract09_Stage1To2_OneUnresolvedMasteryFact_StaysStage1()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage1_Addition, weakCount: 1);
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Addition);
+        MarkMissed(itemStates["add:7+3"]);
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage1_Addition,
             itemStates,
-            hasBroadWeakness: false);
-
-        Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
-    }
-
-    [Fact]
-    public void Contract10_Stage1To2_FullCoverage_TwoWeakFacts_StaysStage1()
-    {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage1_Addition, weakCount: 2);
-
-        var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
-            CurriculumStage.Stage1_Addition,
-            itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(add: 10));
 
         Assert.Equal(CurriculumStage.Stage1_Addition, nextStage);
     }
 
     [Fact]
-    public void Contract11_Stage1To2_FullCoverage_BroadWeaknessTrue_StaysStage1()
+    public void Contract10_Stage1To2_MissingProgressions_FailsClosed()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage1_Addition, weakCount: 0);
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Addition);
 
+        Assert.False(CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, itemStates, hasBroadWeakness: false));
+        Assert.Equal(
+            CurriculumStage.Stage1_Addition,
+            CurriculumUnlockPolicy.EvaluateNextStage(CurriculumStage.Stage1_Addition, itemStates, hasBroadWeakness: false));
+    }
+
+    [Fact]
+    public void Contract11_Stage1To2_CompleteMastery_BroadWeaknessTrue_StaysStage1()
+    {
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage1_Addition,
-            itemStates,
-            hasBroadWeakness: true);
+            CreateMasteredStates(ArithmeticOperation.Addition),
+            hasBroadWeakness: true,
+            CreateProgressions(add: 10));
 
         Assert.Equal(CurriculumStage.Stage1_Addition, nextStage);
     }
 
     #endregion
 
-    #region 12-15: STAGE 2 -> 3
+    #region 12-15: STAGE 2 -> 3 (SUBTRACTION D10 MASTERY)
 
     [Fact]
-    public void Contract12_Stage2To3_FullSubD01Coverage_ZeroWeak_CleanEvidence_AdvancesToStage3()
+    public void Contract12_Stage2To3_CompleteSubtractionD10Mastery_AdvancesToStage3()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage2_Subtraction, weakCount: 0);
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage2_Subtraction,
-            itemStates,
-            hasBroadWeakness: false);
+            CreateMasteredStates(ArithmeticOperation.Subtraction),
+            hasBroadWeakness: false,
+            CreateProgressions(sub: 10));
 
         Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
     }
 
-    [Fact]
-    public void Contract13_Stage2To3_FullSubD01Coverage_OneWeak_CleanEvidence_AdvancesToStage3()
+    [Theory]
+    [InlineData("sub:10-9")]
+    [InlineData("sub:10-10")]
+    public void Contract13_Stage2To3_BoundaryFactUnresolved_StaysStage2(string boundaryFactId)
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage2_Subtraction, weakCount: 1);
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Subtraction);
+        MarkMissed(itemStates[boundaryFactId]);
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage2_Subtraction,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(sub: 10));
 
-        Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
+        Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
     }
 
     [Fact]
-    public void Contract14_Stage2To3_TwoPrerequisiteWeakFacts_StaysStage2()
+    public void Contract14_Stage2To3_SubtractionStillInsideD10_StaysStage2()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage2_Subtraction, weakCount: 2);
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage2_Subtraction,
-            itemStates,
-            hasBroadWeakness: false);
+            CreateMasteredStates(ArithmeticOperation.Subtraction),
+            hasBroadWeakness: false,
+            CreateProgressions(add: 25, sub: 9));
 
         Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
     }
@@ -213,55 +211,60 @@ public sealed class CurriculumUnlockPolicyTests
     [Fact]
     public void Contract15_Stage2To3_AggregateBroadWeakness_StaysStage2()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage2_Subtraction, weakCount: 0);
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage2_Subtraction,
-            itemStates,
-            hasBroadWeakness: true);
+            CreateMasteredStates(ArithmeticOperation.Subtraction),
+            hasBroadWeakness: true,
+            CreateProgressions(sub: 10));
 
         Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
     }
 
     #endregion
 
-    #region 16-19: STAGE 3 -> 4
+    #region 16-19: STAGE 3 -> 4 (MULTIPLICATION D10 MASTERY)
 
     [Fact]
-    public void Contract16_Stage3To4_FullMulD01Coverage_ZeroWeak_CleanEvidence_AdvancesToStage4()
+    public void Contract16_Stage3To4_CompleteMultiplicationD10Mastery_AdvancesToStage4()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage3_Multiplication, weakCount: 0);
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage3_Multiplication,
-            itemStates,
-            hasBroadWeakness: false);
+            CreateMasteredStates(ArithmeticOperation.Multiplication),
+            hasBroadWeakness: false,
+            CreateProgressions(mul: 10));
 
         Assert.Equal(CurriculumStage.Stage4_Division, nextStage);
     }
 
     [Fact]
-    public void Contract17_Stage3To4_FullMulD01Coverage_OneWeak_CleanEvidence_AdvancesToStage4()
+    public void Contract17_Stage3To4_Unattempted10Times10_StaysStage3()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage3_Multiplication, weakCount: 1);
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Multiplication);
+        itemStates.Remove("mul:10*10");
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage3_Multiplication,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(mul: 10));
 
-        Assert.Equal(CurriculumStage.Stage4_Division, nextStage);
+        Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
     }
 
     [Fact]
-    public void Contract18_Stage3To4_TwoPrerequisiteWeakFacts_StaysStage3()
+    public void Contract18_Stage3To4_OtherOperationsAdvancedButMultiplicationNot_StaysStage3()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage3_Multiplication, weakCount: 2);
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Addition);
+        foreach (var (factId, state) in CreateMasteredStates(ArithmeticOperation.Subtraction))
+        {
+            itemStates[factId] = state;
+        }
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage3_Multiplication,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(add: 30, sub: 20, mul: 2));
 
         Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
     }
@@ -269,12 +272,11 @@ public sealed class CurriculumUnlockPolicyTests
     [Fact]
     public void Contract19_Stage3To4_AggregateBroadWeakness_StaysStage3()
     {
-        var itemStates = CreateFullyIntroducedItemStates(CurriculumStage.Stage3_Multiplication, weakCount: 0);
-
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage3_Multiplication,
-            itemStates,
-            hasBroadWeakness: true);
+            CreateMasteredStates(ArithmeticOperation.Multiplication),
+            hasBroadWeakness: true,
+            CreateProgressions(mul: 10));
 
         Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
     }
@@ -286,7 +288,7 @@ public sealed class CurriculumUnlockPolicyTests
     [Fact]
     public void Contract20_Stage2_CannotEvaluateBackwardToStage1()
     {
-        // Even with 4 weak ADD facts and broad weakness true, Stage 2 does not regress to Stage 1.
+        // Even with every introductory ADD fact weak and broad weakness true, Stage 2 does not regress to Stage 1.
         var itemStates = new Dictionary<string, ItemLearningState>
         {
             ["add:0+0"] = CreateItemState(ArithmeticOperation.Addition, 0, 0, totalAttempts: 1, needsRemediation: true),
@@ -298,7 +300,8 @@ public sealed class CurriculumUnlockPolicyTests
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage2_Subtraction,
             itemStates,
-            hasBroadWeakness: true);
+            hasBroadWeakness: true,
+            CreateProgressions());
 
         Assert.True(nextStage >= CurriculumStage.Stage2_Subtraction);
         Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
@@ -312,7 +315,8 @@ public sealed class CurriculumUnlockPolicyTests
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage3_Multiplication,
             itemStates,
-            hasBroadWeakness: true);
+            hasBroadWeakness: true,
+            CreateProgressions());
 
         Assert.True(nextStage >= CurriculumStage.Stage3_Multiplication);
         Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
@@ -326,7 +330,8 @@ public sealed class CurriculumUnlockPolicyTests
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage4_Division,
             itemStates,
-            hasBroadWeakness: true);
+            hasBroadWeakness: true,
+            CreateProgressions());
 
         Assert.True(nextStage >= CurriculumStage.Stage4_Division);
         Assert.Equal(CurriculumStage.Stage4_Division, nextStage);
@@ -335,16 +340,21 @@ public sealed class CurriculumUnlockPolicyTests
     [Fact]
     public void Contract23_Stage1_CannotSkipDirectlyToStage3Or4()
     {
-        // Even if ADD, SUB, and MUL are all fully practiced with zero errors:
-        var itemStates = new Dictionary<string, ItemLearningState>();
-        PopulateIntroducedBands(itemStates, CurriculumStage.Stage1_Addition);
-        PopulateIntroducedBands(itemStates, CurriculumStage.Stage2_Subtraction);
-        PopulateIntroducedBands(itemStates, CurriculumStage.Stage3_Multiplication);
+        // Even if ADD, SUB, and MUL are all mastered through D10 with zero errors:
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Addition);
+        foreach (var operation in new[] { ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication })
+        {
+            foreach (var (factId, state) in CreateMasteredStates(operation))
+            {
+                itemStates[factId] = state;
+            }
+        }
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage1_Addition,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(add: 10, sub: 10, mul: 10));
 
         Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStage);
     }
@@ -352,15 +362,18 @@ public sealed class CurriculumUnlockPolicyTests
     [Fact]
     public void Contract24_Stage2_CannotSkipDirectlyToStage4()
     {
-        // Even if SUB and MUL are all fully practiced with zero errors:
-        var itemStates = new Dictionary<string, ItemLearningState>();
-        PopulateIntroducedBands(itemStates, CurriculumStage.Stage2_Subtraction);
-        PopulateIntroducedBands(itemStates, CurriculumStage.Stage3_Multiplication);
+        // Even if SUB and MUL are both mastered through D10 with zero errors:
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Subtraction);
+        foreach (var (factId, state) in CreateMasteredStates(ArithmeticOperation.Multiplication))
+        {
+            itemStates[factId] = state;
+        }
 
         var nextStage = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage2_Subtraction,
             itemStates,
-            hasBroadWeakness: false);
+            hasBroadWeakness: false,
+            CreateProgressions(sub: 10, mul: 10));
 
         Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage);
     }
@@ -584,7 +597,7 @@ public sealed class CurriculumUnlockPolicyTests
 
     #endregion
 
-    #region 36-41: MISSING UNLOCK POLICY BOUNDARY & ERROR CONTRACTS
+    #region 36-41: UNLOCK POLICY BOUNDARY & ERROR CONTRACTS
 
     [Fact]
     public void Contract36_GetPrerequisiteFactIds_InvalidStageAndStage4_BehaveExpectedly()
@@ -640,13 +653,16 @@ public sealed class CurriculumUnlockPolicyTests
     public void Contract40_CanAdvance_InvalidStageAndNullAndStage4_BehaveExpectedly()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CurriculumUnlockPolicy.CanAdvance((CurriculumStage)999, isPrerequisiteIntroduced: true, prerequisiteWeakCount: 0, hasBroadWeakness: false));
+            CurriculumUnlockPolicy.CanAdvance((CurriculumStage)999, isPrerequisiteMastered: true, hasBroadWeakness: false));
 
         Assert.False(CurriculumUnlockPolicy.CanAdvance(
             CurriculumStage.Stage4_Division,
-            isPrerequisiteIntroduced: true,
-            prerequisiteWeakCount: 0,
+            isPrerequisiteMastered: true,
             hasBroadWeakness: false));
+
+        Assert.True(CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, isPrerequisiteMastered: true, hasBroadWeakness: false));
+        Assert.False(CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, isPrerequisiteMastered: false, hasBroadWeakness: false));
+        Assert.False(CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, isPrerequisiteMastered: true, hasBroadWeakness: true));
 
         Assert.Throws<ArgumentNullException>(() =>
             CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, null!, hasBroadWeakness: false));
@@ -659,12 +675,11 @@ public sealed class CurriculumUnlockPolicyTests
     public void Contract41_EvaluateNextStage_InvalidStageAndNullAndStage4_BehaveExpectedly()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CurriculumUnlockPolicy.EvaluateNextStage((CurriculumStage)999, isPrerequisiteIntroduced: true, prerequisiteWeakCount: 0, hasBroadWeakness: false));
+            CurriculumUnlockPolicy.EvaluateNextStage((CurriculumStage)999, isPrerequisiteMastered: true, hasBroadWeakness: false));
 
         var stage4Next = CurriculumUnlockPolicy.EvaluateNextStage(
             CurriculumStage.Stage4_Division,
-            isPrerequisiteIntroduced: true,
-            prerequisiteWeakCount: 0,
+            isPrerequisiteMastered: true,
             hasBroadWeakness: false);
         Assert.Equal(CurriculumStage.Stage4_Division, stage4Next);
 
@@ -674,9 +689,214 @@ public sealed class CurriculumUnlockPolicyTests
 
     #endregion
 
+    #region 42-50: ADR-0013 D10 MASTERY EVIDENCE
+
+    [Fact]
+    public void Contract42_MasteryFactSets_AreTheCanonicalD01ToD10OwnedFrontiers()
+    {
+        Assert.Equal(10, CurriculumUnlockPolicy.PrerequisiteMasteryBandCount);
+
+        var addition = CurriculumUnlockPolicy.GetMasteryFactIds(ArithmeticOperation.Addition);
+        var subtraction = CurriculumUnlockPolicy.GetMasteryFactIds(ArithmeticOperation.Subtraction);
+        var multiplication = CurriculumUnlockPolicy.GetMasteryFactIds(ArithmeticOperation.Multiplication);
+
+        Assert.Equal(121, addition.Count);
+        Assert.Equal(66, subtraction.Count);
+        Assert.Equal(121, multiplication.Count);
+        Assert.Empty(CurriculumUnlockPolicy.GetMasteryFactIds(ArithmeticOperation.Division));
+
+        Assert.Equal(addition.Count, addition.Distinct().Count());
+        Assert.Contains("add:4+1", addition);
+        Assert.Contains("add:10+10", addition);
+        Assert.DoesNotContain("add:11+0", addition);
+        Assert.Contains("sub:10-9", subtraction);
+        Assert.Contains("sub:10-10", subtraction);
+        Assert.DoesNotContain("sub:11-1", subtraction);
+        Assert.Contains("mul:10*10", multiplication);
+        Assert.DoesNotContain("mul:11*1", multiplication);
+
+        foreach (var operation in new[] { ArithmeticOperation.Addition, ArithmeticOperation.Subtraction, ArithmeticOperation.Multiplication })
+        {
+            var ownership = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(operation));
+            Assert.All(CurriculumUnlockPolicy.GetMasteryFactIds(operation), factId =>
+            {
+                Assert.True(ownership.TryGetOwner(factId, 9, out var owner));
+                Assert.InRange(owner, 0, 9);
+            });
+            Assert.Equal(
+                Enumerable.Range(0, 10).Sum(band => ownership.GetOwnedFrontier(band).Count),
+                CurriculumUnlockPolicy.GetMasteryFactIds(operation).Count);
+        }
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => CurriculumUnlockPolicy.GetMasteryFactIds((ArithmeticOperation)99));
+    }
+
+    [Fact]
+    public void Contract43_RequiredBoundaryFacts_PinTheOwnerApprovedD10Boundaries()
+    {
+        Assert.Equal(["add:10+10"], CurriculumUnlockPolicy.GetRequiredBoundaryFactIds(CurriculumStage.Stage1_Addition));
+        Assert.Equal(["sub:10-9", "sub:10-10"], CurriculumUnlockPolicy.GetRequiredBoundaryFactIds(CurriculumStage.Stage2_Subtraction));
+        Assert.Equal(["mul:10*10"], CurriculumUnlockPolicy.GetRequiredBoundaryFactIds(CurriculumStage.Stage3_Multiplication));
+        Assert.Empty(CurriculumUnlockPolicy.GetRequiredBoundaryFactIds(CurriculumStage.Stage4_Division));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CurriculumUnlockPolicy.GetRequiredBoundaryFactIds((CurriculumStage)999));
+
+        foreach (var stage in new[] { CurriculumStage.Stage1_Addition, CurriculumStage.Stage2_Subtraction, CurriculumStage.Stage3_Multiplication })
+        {
+            var operation = CurriculumUnlockPolicy.GetPrerequisiteOperation(stage)!.Value;
+            Assert.All(CurriculumUnlockPolicy.GetRequiredBoundaryFactIds(stage), factId =>
+                Assert.Contains(factId, CurriculumUnlockPolicy.GetMasteryFactIds(operation)));
+        }
+    }
+
+    [Fact]
+    public void Contract44_FactMastery_RequiresAttemptedCorrectUnremediatedLatestCorrectEvidence()
+    {
+        Assert.False(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(null));
+
+        var unattempted = CreateItemState(ArithmeticOperation.Addition, 4, 1, totalAttempts: 0);
+        Assert.False(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(unattempted));
+
+        var exposedOnly = CreateItemState(ArithmeticOperation.Addition, 4, 1, totalAttempts: 1);
+        Assert.False(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(exposedOnly));
+
+        var cleanFirstTry = CreateItemState(ArithmeticOperation.Addition, 4, 1, totalAttempts: 0);
+        MarkCorrect(cleanFirstTry);
+        Assert.True(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(cleanFirstTry));
+
+        var latestWrong = CreateItemState(ArithmeticOperation.Addition, 4, 1, totalAttempts: 0);
+        MarkCorrect(latestWrong);
+        MarkCorrect(latestWrong);
+        MarkMissed(latestWrong);
+        Assert.False(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(latestWrong));
+
+        var inconsistentRemediation = CreateItemState(ArithmeticOperation.Addition, 4, 1, totalAttempts: 0);
+        MarkCorrect(inconsistentRemediation);
+        inconsistentRemediation.NeedsRemediation = true;
+        Assert.False(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(inconsistentRemediation));
+    }
+
+    [Fact]
+    public void Contract45_FactMastery_RepeatedlyMissedFactStaysUnresolvedUntilALaterCorrectRetrieval_RegardlessOfLatency()
+    {
+        var recovered = CreateItemState(ArithmeticOperation.Addition, 4, 1, totalAttempts: 0);
+        MarkMissed(recovered);
+        MarkMissed(recovered);
+        MarkMissed(recovered);
+        Assert.False(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(recovered));
+
+        MarkCorrect(recovered);
+        recovered.LastLatencyMs = 25_000;
+        recovered.RollingLatencyMs = 25_000;
+        recovered.FluentStreak = 0;
+        recovered.IsProvisionallyMastered = false;
+        Assert.True(CurriculumUnlockPolicy.IsFactMasteryDemonstrated(recovered));
+    }
+
+    [Fact]
+    public void Contract46_MasteryEvidence_ReportsBandCountsAndUnresolvedFactsInCurriculumOrder()
+    {
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Addition);
+        MarkMissed(itemStates["add:4+1"]);
+        itemStates.Remove("add:10+10");
+
+        var evidence = CurriculumUnlockPolicy.EvaluatePrerequisiteMastery(
+            CurriculumStage.Stage1_Addition,
+            itemStates,
+            CreateProgressions(add: 10));
+
+        Assert.Equal(CurriculumStage.Stage1_Addition, evidence.CurrentStage);
+        Assert.Equal(ArithmeticOperation.Addition, evidence.PrerequisiteOperation);
+        Assert.Equal(10, evidence.BandIndex);
+        Assert.True(evidence.HasCompletedMasteryBands);
+        Assert.Equal(121, evidence.MasteryFactCount);
+        Assert.Equal(119, evidence.DemonstratedFactCount);
+        Assert.Equal(["add:4+1", "add:10+10"], evidence.UnresolvedFactIds);
+        Assert.Equal(["add:10+10"], evidence.UnresolvedBoundaryFactIds);
+        Assert.False(evidence.IsSatisfied);
+    }
+
+    [Fact]
+    public void Contract47_MasteryEvidence_Stage4AndMissingProgressions_AreNeverSatisfied()
+    {
+        var stage4 = CurriculumUnlockPolicy.EvaluatePrerequisiteMastery(
+            CurriculumStage.Stage4_Division,
+            new Dictionary<string, ItemLearningState>(),
+            CreateProgressions(add: 10, sub: 10, mul: 10, div: 10));
+        Assert.Null(stage4.PrerequisiteOperation);
+        Assert.False(stage4.IsSatisfied);
+
+        var noProgressions = CurriculumUnlockPolicy.EvaluatePrerequisiteMastery(
+            CurriculumStage.Stage1_Addition,
+            CreateMasteredStates(ArithmeticOperation.Addition),
+            progressions: null);
+        Assert.Equal(-1, noProgressions.BandIndex);
+        Assert.Empty(noProgressions.UnresolvedFactIds);
+        Assert.False(noProgressions.IsSatisfied);
+
+        Assert.Throws<ArgumentNullException>(() =>
+            CurriculumUnlockPolicy.EvaluatePrerequisiteMastery(CurriculumStage.Stage1_Addition, null!, CreateProgressions()));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CurriculumUnlockPolicy.EvaluatePrerequisiteMastery((CurriculumStage)999, new Dictionary<string, ItemLearningState>(), CreateProgressions()));
+    }
+
+    [Fact]
+    public void Contract48_DivisionAndSkillsBeyondD10_DoNotSubstituteForPrerequisiteMastery()
+    {
+        // Advanced Addition (past D10) with every fact above D10 mastered does not compensate for one D10 gap.
+        var itemStates = CreateMasteredStates(ArithmeticOperation.Addition);
+        MarkMissed(itemStates["add:9+10"]);
+        var advanced = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Addition, 11, 7));
+        MarkCorrect(advanced);
+        itemStates[advanced.FactId] = advanced;
+
+        Assert.False(CurriculumUnlockPolicy.IsPrerequisiteMastered(
+            CurriculumStage.Stage1_Addition,
+            itemStates,
+            CreateProgressions(add: 40)));
+    }
+
+    [Fact]
+    public void Contract49_LegacyMigrationPredicates_RetainTheirAdr0012Semantics()
+    {
+        // Schema V8 -> V9 migration still evaluates the historical introductory predicates unchanged.
+        Assert.Equal(["add:0+0", "add:0+1", "add:1+0", "add:1+1"], CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage1_Addition));
+        Assert.Equal(["sub:0-0", "sub:1-0", "sub:1-1"], CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage2_Subtraction));
+        Assert.Equal(["mul:0*0", "mul:0*1", "mul:1*0", "mul:1*1"], CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage3_Multiplication));
+
+        var oneWeak = CreateLegacyIntroducedItemStates(CurriculumStage.Stage1_Addition, weakCount: 1);
+        Assert.True(CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage1_Addition, oneWeak));
+        Assert.Equal(1, CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage1_Addition, oneWeak));
+        Assert.True(CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(
+            CurriculumStage.Stage2_Subtraction,
+            new Dictionary<string, ItemLearningState>(),
+            CreateProgressions(sub: 1)));
+        Assert.False(CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(
+            CurriculumStage.Stage1_Addition,
+            new Dictionary<string, ItemLearningState> { ["add:0+0"] = CreateItemState(ArithmeticOperation.Addition, 0, 0, totalAttempts: 1) }));
+    }
+
+    #endregion
+
     #region Helpers
 
-    private static Dictionary<string, ItemLearningState> CreateFullyIntroducedItemStates(
+    private Dictionary<string, ItemLearningState> CreateMasteredStates(ArithmeticOperation operation)
+    {
+        var ownership = new AcquisitionOwnershipResolver(_curriculum.GetCurriculum(operation));
+        var dict = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+        for (var bandIndex = 0; bandIndex < CurriculumUnlockPolicy.PrerequisiteMasteryBandCount; bandIndex++)
+        {
+            foreach (var fact in ownership.GetOwnedFrontier(bandIndex))
+            {
+                var state = ItemLearningState.CreateNew(fact);
+                MarkCorrect(state);
+                dict[fact.Id] = state;
+            }
+        }
+
+        return dict;
+    }
+
+    private static Dictionary<string, ItemLearningState> CreateLegacyIntroducedItemStates(
         CurriculumStage currentStage,
         int weakCount)
     {
@@ -710,29 +930,20 @@ public sealed class CurriculumUnlockPolicyTests
         return dict;
     }
 
-    private static void PopulateIntroducedBands(
-        Dictionary<string, ItemLearningState> dict,
-        CurriculumStage stage)
+    private static void MarkCorrect(ItemLearningState state)
     {
-        var factIds = CurriculumUnlockPolicy.GetPrerequisiteFactIds(stage);
-        foreach (var factId in factIds)
-        {
-            if (!dict.ContainsKey(factId))
-            {
-                var parts = factId.Split([':', '+', '-', '*', '/']);
-                var op = parts[0] switch
-                {
-                    "add" => ArithmeticOperation.Addition,
-                    "sub" => ArithmeticOperation.Subtraction,
-                    "mul" => ArithmeticOperation.Multiplication,
-                    "div" => ArithmeticOperation.Division,
-                    _ => throw new InvalidOperationException($"Unknown fact prefix in {factId}")
-                };
-                var left = int.Parse(parts[1]);
-                var right = int.Parse(parts[2]);
-                dict[factId] = CreateItemState(op, left, right, totalAttempts: 1, needsRemediation: false);
-            }
-        }
+        state.TotalAttempts++;
+        state.CorrectAttempts++;
+        state.ConsecutiveCorrectStreak++;
+        state.NeedsRemediation = false;
+    }
+
+    private static void MarkMissed(ItemLearningState state)
+    {
+        state.TotalAttempts++;
+        state.IncorrectAttempts++;
+        state.ConsecutiveCorrectStreak = 0;
+        state.NeedsRemediation = true;
     }
 
     private static ItemLearningState CreateItemState(
@@ -753,6 +964,14 @@ public sealed class CurriculumUnlockPolicyTests
         Enum.GetValues<ArithmeticOperation>().ToDictionary(
             op => op,
             op => new OperationProgression(op, 0, 0));
+
+    private static Dictionary<ArithmeticOperation, OperationProgression> CreateProgressions(int add = 0, int sub = 0, int mul = 0, int div = 0) => new()
+    {
+        [ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, add, 0),
+        [ArithmeticOperation.Subtraction] = new(ArithmeticOperation.Subtraction, sub, 0),
+        [ArithmeticOperation.Multiplication] = new(ArithmeticOperation.Multiplication, mul, 0),
+        [ArithmeticOperation.Division] = new(ArithmeticOperation.Division, div, 0)
+    };
 
     #endregion
 }

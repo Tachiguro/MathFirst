@@ -105,129 +105,44 @@ public sealed class P3PersonaSimulationRegressionTests : IDisposable
             clock.Latency = TimeSpan.FromMilliseconds(15000); // 15 seconds
             Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
 
-            // A4. Resolve one of the two weaknesses (resolve add:0+0), leaving exactly one isolated weak ADD-D01 fact (add:1+1)
+            // A4. ADR-0013: resolving down to one weak fact no longer unlocks Stage 2 from introductory D01 exposure.
             session.ItemStates["add:0+0"].NeedsRemediation = false;
             session.ItemStates["add:0+0"].CorrectAttempts++;
 
-            // With only 1 weak fact left, HasBroadWeakness drops to false and Stage2 may unlock upon next accepted turn
             Assert.False(session.HasBroadWeakness);
             Assert.Equal(1, CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage1_Addition, session.ItemStates));
+            Assert.False(CurriculumUnlockPolicy.IsPrerequisiteMastered(
+                CurriculumStage.Stage1_Addition,
+                session.ItemStates,
+                session.Progression.OperationProgressions));
 
             var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
             Assert.NotNull(eval.ChangeSet);
-            Assert.Equal(CurriculumStage.Stage2_Subtraction, eval.ChangeSet.UpdatedProgression.CurriculumStage);
+            Assert.Equal(CurriculumStage.Stage1_Addition, eval.ChangeSet.UpdatedProgression.CurriculumStage);
 
             await session.CommitCurrentEvaluationAsync();
-            Assert.Equal(CurriculumStage.Stage2_Subtraction, session.Progression.CurriculumStage);
+            Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
 
-            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
-            {
-                session.ContinuePractice(startTiming: false);
-            }
-
-            // A5. After Stage2 is earned, create a second eligible ADD weakness again:
-            session.ItemStates["add:0+1"].NeedsRemediation = true;
-            Assert.True(session.HasBroadWeakness);
-
-            // A6. Stage2 remains retained (never relocks to Stage 1)
-            Assert.Equal(CurriculumStage.Stage2_Subtraction, session.Progression.CurriculumStage);
-
-            // A7. Even if SUB prerequisite (sub:0-0, sub:1-0, sub:1-1) becomes introduced with clean answers while broad weakness is active:
-            var subPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage2_Subtraction);
-            foreach (var subFactId in subPrereqs)
-            {
-                var parts = subFactId.Split([':', '-']);
-                var l = int.Parse(parts[1]);
-                var r = int.Parse(parts[2]);
-                var item = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Subtraction, l, r));
-                item.TotalAttempts = 1;
-                item.CorrectAttempts = 1;
-                item.NeedsRemediation = false;
-                session.ItemStates[subFactId] = item;
-            }
-
-            // Prerequisite is fully introduced, but broad weakness is active -> Stage3 remains blocked
-            Assert.True(CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage2_Subtraction, session.ItemStates));
-            Assert.True(session.HasBroadWeakness);
-
-            var nextStageBlocked = CurriculumUnlockPolicy.EvaluateNextStage(
-                CurriculumStage.Stage2_Subtraction,
-                session.ItemStates,
-                hasBroadWeakness: session.HasBroadWeakness);
-            Assert.Equal(CurriculumStage.Stage2_Subtraction, nextStageBlocked);
-
-            // A8. Resolve enough weakness to fall below broad threshold (resolve add:0+1)
-            session.ItemStates["add:0+1"].NeedsRemediation = false;
-            Assert.False(session.HasBroadWeakness);
-
-            // A9. Once SUB prerequisite is ready and broad weakness is resolved: Stage3 unlocks
-            var evalStage3 = session.SubmitAnswer(session.CurrentFact.CorrectResult);
-            Assert.NotNull(evalStage3.ChangeSet);
-            Assert.Equal(CurriculumStage.Stage3_Multiplication, evalStage3.ChangeSet.UpdatedProgression.CurriculumStage);
-            await session.CommitCurrentEvaluationAsync();
-            Assert.Equal(CurriculumStage.Stage3_Multiplication, session.Progression.CurriculumStage);
-
-            if (!session.AdvanceAfterCorrectAnswer(startTiming: false))
-            {
-                session.ContinuePractice(startTiming: false);
-            }
-
-            // A10. Systemic weakness block before Stage4: 2 weak facts across active ops (1 ADD + 1 SUB)
-            session.ItemStates["sub:1-0"].NeedsRemediation = true;
-            // add:1+1 is already weak, so total active weak facts = 2 -> HasBroadWeakness = true
-            Assert.True(session.HasBroadWeakness);
-
-            // Introduce MUL prerequisite (mul:0*0, mul:0*1, mul:1*0, mul:1*1)
-            var mulPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage3_Multiplication);
-            foreach (var mulFactId in mulPrereqs)
-            {
-                var parts = mulFactId.Split([':', '*']);
-                var l = int.Parse(parts[1]);
-                var r = int.Parse(parts[2]);
-                var item = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Multiplication, l, r));
-                item.TotalAttempts = 1;
-                item.CorrectAttempts = 1;
-                item.NeedsRemediation = false;
-                session.ItemStates[mulFactId] = item;
-            }
-
-            // Stage4 blocked by broad weakness
-            Assert.True(session.HasBroadWeakness);
-            var nextStage4Blocked = CurriculumUnlockPolicy.EvaluateNextStage(
-                CurriculumStage.Stage3_Multiplication,
-                session.ItemStates,
-                hasBroadWeakness: session.HasBroadWeakness);
-            Assert.Equal(CurriculumStage.Stage3_Multiplication, nextStage4Blocked);
-
-            // A11. Resolve weakness (resolve sub:1-0) -> HasBroadWeakness false -> Stage4 unlocks
-            session.ItemStates["sub:1-0"].NeedsRemediation = false;
-            Assert.False(session.HasBroadWeakness);
-
-            var evalStage4 = session.SubmitAnswer(session.CurrentFact.CorrectResult);
-            Assert.NotNull(evalStage4.ChangeSet);
-            Assert.Equal(CurriculumStage.Stage4_Division, evalStage4.ChangeSet.UpdatedProgression.CurriculumStage);
-            await session.CommitCurrentEvaluationAsync();
-            Assert.Equal(CurriculumStage.Stage4_Division, session.Progression.CurriculumStage);
-
-            // A12. No timeout/latency-only rule prevents progress
-            Assert.Equal(CurriculumStage.Stage4_Division, session.Progression.CurriculumStage);
+            // A5. Only Addition remains scheduled for the beginner.
+            var unlockedOps = CurriculumUnlockPolicy.GetUnlockedOperations(session.Progression.CurriculumStage);
+            Assert.Equal([ArithmeticOperation.Addition], unlockedOps);
         }
 
-        // Verify durability of Stage4 on cold reload
+        // Verify Stage 1 durability on cold reload
         using (var reopened = new SqliteLearnerStore(path))
         {
             var reopenedSession = new TrainingSession(reopened, clock, practiceMode: PracticeMode.CurriculumManaged);
             await reopenedSession.InitializeAsync(startTiming: false);
-            Assert.Equal(CurriculumStage.Stage4_Division, reopenedSession.Progression.CurriculumStage);
+            Assert.Equal(CurriculumStage.Stage1_Addition, reopenedSession.Progression.CurriculumStage);
         }
     }
 
     // =========================================================================
-    // PERSONA B — PERSISTENT ISOLATED WEAK FACT (NO DEADLOCK REGRESSION)
+    // PERSONA B — PERSISTENT ISOLATED WEAK FACT (ADR-0013: BLOCKS UNTIL RESOLVED, NO RELOCK)
     // =========================================================================
 
     [Fact]
-    public async Task PersonaB_PersistentIsolatedWeakFact_ProgressesToStage4WithoutDeadlockOrBandMutation()
+    public async Task PersonaB_PersistentIsolatedWeakFact_BlocksUnlockUntilResolvedWithoutBandMutation()
     {
         var path = GetDatabasePath("persona_b");
         var clock = new ScriptedLatencyClock { Latency = TimeSpan.FromMilliseconds(1200) };
@@ -236,114 +151,57 @@ public sealed class P3PersonaSimulationRegressionTests : IDisposable
         {
             await store.InitializeAsync();
 
-            // Seed 4 ADD-D01 facts in database: add:0+0, add:0+1, add:1+0 are clean, add:1+1 is persistently weak
-            var addItems = new List<ItemLearningState>
+            // Addition has completed D01..D10 except one persistently weak foundation fact (add:1+1).
+            var progression = LearnerProgression.CreateFresh();
+            progression.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
+            await store.SaveProgressionAsync(progression);
+            await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition, exceptFactId: "add:1+1");
+            await SeedItemStateAsync(path, new ItemLearningState
             {
-                new() { FactId = "add:0+0", Operation = ArithmeticOperation.Addition, LeftOperand = 0, RightOperand = 0, TotalAttempts = 5, CorrectAttempts = 5, NeedsRemediation = false },
-                new() { FactId = "add:0+1", Operation = ArithmeticOperation.Addition, LeftOperand = 0, RightOperand = 1, TotalAttempts = 5, CorrectAttempts = 5, NeedsRemediation = false },
-                new() { FactId = "add:1+0", Operation = ArithmeticOperation.Addition, LeftOperand = 1, RightOperand = 0, TotalAttempts = 5, CorrectAttempts = 5, NeedsRemediation = false },
-                new() { FactId = "add:1+1", Operation = ArithmeticOperation.Addition, LeftOperand = 1, RightOperand = 1, TotalAttempts = 5, CorrectAttempts = 0, IncorrectAttempts = 5, NeedsRemediation = true }
-            };
-            foreach (var item in addItems)
-            {
-                await SeedItemStateAsync(path, item);
-            }
+                FactId = "add:1+1", Operation = ArithmeticOperation.Addition, LeftOperand = 1, RightOperand = 1,
+                TotalAttempts = 5, CorrectAttempts = 0, IncorrectAttempts = 5, NeedsRemediation = true
+            });
 
             var session = new TrainingSession(store, clock, practiceMode: PracticeMode.CurriculumManaged);
             await session.InitializeAsync(startTiming: false);
 
-            // B1. ADD-D01 complete with 1 weak fact (add:1+1)
-            Assert.True(session.ItemStates["add:1+1"].NeedsRemediation);
-            Assert.Equal(1, CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage1_Addition, session.ItemStates));
+            // B1. One isolated weak fact is not broad weakness, but it is unresolved D10 evidence.
             Assert.False(session.HasBroadWeakness);
+            Assert.NotEqual("add:1+1", session.CurrentFact.Id);
 
-            // B2. Stage2 unlocks
-            Assert.True(CurriculumUnlockPolicy.CanAdvance(CurriculumStage.Stage1_Addition, session.ItemStates, session.HasBroadWeakness));
+            // B2. Correct answers on other facts keep the learner in Stage 1 (no unearned mastery).
+            for (var turn = 0; turn < 3; turn++)
+            {
+                await SubmitPersonaBTurnAsync(session);
+                Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
+            }
 
-            // Answer current fact: if add:1+1, answer wrong; otherwise answer right
+            // B3. ADD BandIndex is not mutated by the stage decision.
+            Assert.Equal(D10MasteryTestSeed.MasteredBandIndex, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+
+            // B4. A later correct remediation retrieval resolves add:1+1; the next accepted submission unlocks Stage 2.
+            var recovered = session.ItemStates.TryGetValue("add:1+1", out var cached)
+                ? cached
+                : ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Addition, 1, 1));
+            recovered.TotalAttempts = 6;
+            recovered.CorrectAttempts = 1;
+            recovered.IncorrectAttempts = 5;
+            recovered.ConsecutiveCorrectStreak = 1;
+            recovered.NeedsRemediation = false;
+            session.ItemStates["add:1+1"] = recovered;
+
             await SubmitPersonaBTurnAsync(session);
             Assert.Equal(CurriculumStage.Stage2_Subtraction, session.Progression.CurriculumStage);
-
-            // B3. ADD BandIndex remains 0 (strict Dense progression requires all latest correctness; not mutated)
-            Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-
-            // B4. Learner is NOT trapped at Stage 1
-            Assert.NotEqual(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
-
-            // B5. At Stage 2, SUB prerequisite becomes clean and only the one ADD weakness remains -> Stage3 unlocks
-            var subPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage2_Subtraction);
-            foreach (var factId in subPrereqs)
-            {
-                var parts = factId.Split([':', '-']);
-                var l = int.Parse(parts[1]);
-                var r = int.Parse(parts[2]);
-                var item = new ItemLearningState
-                {
-                    FactId = factId,
-                    Operation = ArithmeticOperation.Subtraction,
-                    LeftOperand = l,
-                    RightOperand = r,
-                    TotalAttempts = 3,
-                    CorrectAttempts = 3,
-                    NeedsRemediation = false
-                };
-                await SeedItemStateAsync(path, item);
-                session.ItemStates[factId] = item;
-            }
-
-            Assert.False(session.HasBroadWeakness);
-            Assert.Equal(0, CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage2_Subtraction, session.ItemStates));
-
-            await SubmitPersonaBTurnAsync(session);
-            Assert.Equal(CurriculumStage.Stage3_Multiplication, session.Progression.CurriculumStage);
-
-            // B6. At Stage 3, MUL prerequisite becomes clean and only the one ADD weakness remains -> Stage4 unlocks
-            var mulPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage3_Multiplication);
-            foreach (var factId in mulPrereqs)
-            {
-                var parts = factId.Split([':', '*']);
-                var l = int.Parse(parts[1]);
-                var r = int.Parse(parts[2]);
-                var item = new ItemLearningState
-                {
-                    FactId = factId,
-                    Operation = ArithmeticOperation.Multiplication,
-                    LeftOperand = l,
-                    RightOperand = r,
-                    TotalAttempts = 3,
-                    CorrectAttempts = 3,
-                    NeedsRemediation = false
-                };
-                await SeedItemStateAsync(path, item);
-                session.ItemStates[factId] = item;
-            }
-
-            Assert.False(session.HasBroadWeakness);
-            Assert.Equal(0, CurriculumUnlockPolicy.CountPrerequisiteWeakFacts(CurriculumStage.Stage3_Multiplication, session.ItemStates));
-
-            await SubmitPersonaBTurnAsync(session);
-            Assert.Equal(CurriculumStage.Stage4_Division, session.Progression.CurriculumStage);
-
-            // B7-B10. Persist/restart, Stage4 remains Stage4, persistent ADD fact remains NeedsRemediation, BandIndex intact
-            Assert.Equal(0, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
-            Assert.True(session.ItemStates["add:1+1"].NeedsRemediation);
         }
 
-        // B7. Reopen
+        // B5. Reopen: Stage 2 is durable and the band is unchanged.
         using (var reopened = new SqliteLearnerStore(path))
         {
             var reopenedSession = new TrainingSession(reopened, clock, practiceMode: PracticeMode.CurriculumManaged);
             await reopenedSession.InitializeAsync(startTiming: false);
 
-            // B8. Stage4 remains Stage4
-            Assert.Equal(CurriculumStage.Stage4_Division, reopenedSession.Progression.CurriculumStage);
-
-            // B9. The persistent ADD fact remains NeedsRemediation / historical evidence preserved
-            Assert.True(reopenedSession.ItemStates["add:1+1"].NeedsRemediation);
-            Assert.Equal(5, reopenedSession.ItemStates["add:1+1"].IncorrectAttempts);
-
-            // B10. BandIndex not mutated
-            Assert.Equal(0, reopenedSession.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
+            Assert.Equal(CurriculumStage.Stage2_Subtraction, reopenedSession.Progression.CurriculumStage);
+            Assert.True(reopenedSession.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex >= D10MasteryTestSeed.MasteredBandIndex);
         }
     }
 
