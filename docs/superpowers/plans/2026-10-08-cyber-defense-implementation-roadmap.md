@@ -221,8 +221,8 @@ Work is structured into ten sequential, single-responsibility development packag
 - **Scope & Deliverables**:
   - Upper HUD layout: 100/100 HP health bar, opponent status, sector indicator, compact tactical radar.
   - Dynamic display: Shields appear only when Firewall is unlocked (no empty slots); subtle glowing upgrade arrow when $\text{SP} > 0$.
-  - Boss ceremony: 1–3s victory fanfare, ~2s compact sector recap, automatic advance to next sector.
-  - System Overload sequence: Respectful reboot screen resetting to Sector 1.
+  - Boss ceremony: 1–3s victory fanfare, then a compact sector recap that waits for an explicit user Continue (button revealed after ~3s; never auto-dismissed — Issue #121).
+  - System Overload sequence: Respectful reboot screen resetting to Sector 1, with the same manual Continue.
   - Rigid Geometric Invariant: Verify that `expression-row`, `answer-input`, `solve-to-attack-panel`, `keypad-grid`, and `progress-hud` retain their exact pixel/touch dimensions across Light and Dark modes.
   - Responsive audit: Samsung Galaxy S26 Ultra portrait, compact Android, Windows wide/narrow.
 - **Test Taxonomy**:

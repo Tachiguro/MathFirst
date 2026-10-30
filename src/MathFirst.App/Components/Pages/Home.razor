@@ -286,6 +286,23 @@
                         </div>
                     </section>
                 }
+                else if (IsHeldCommittedAnswer)
+                {
+                    <section class="practice-overlay feedback-dialog feedback-held"
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="held-answer-title">
+                        <div class="practice-overlay-content">
+                            <h2 id="held-answer-title">@Localizer["Training_Correct"]</h2>
+                            <button type="button"
+                                    @ref="_primaryOverlayButton"
+                                    class="button button-primary practice-overlay-action"
+                                    @onclick="ResumeCommittedAnswerAsync">
+                                @Localizer["Common_Continue"] (Enter)
+                            </button>
+                        </div>
+                    </section>
+                }
                 else if (IsAwaitingAcknowledgement && Session.LastEvaluation is not null)
                 {
                     <section class="practice-overlay feedback-dialog @(Session.InteractionState == SessionInteractionState.TimeoutFeedback ? "feedback-timeout" : "feedback-incorrect")"
@@ -480,7 +497,9 @@
             }
             @if (IsCyberDefenseActive && Ceremony.IsBlocking)
             {
-                <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector" />
+                <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector"
+                                      CanContinue="Ceremony.CanContinue" PresentationId="Ceremony.PresentationId"
+                                      OnContinue="HandleCeremonyContinue" />
             }
             @if (_isTutorialOpen)
             {
@@ -600,6 +619,7 @@
         {
             _shouldFocusInput = true;
         }
+        ScheduleCommittedAnswerRecovery();
     }
     private bool IsActiveGameplay =>
         !_startupFailed &&
@@ -693,13 +713,7 @@
                 Session.LastEvaluation?.ChangeSet is { } committed)
             {
                 _isSubmitting = true;
-                try
-                {
-                    CyberDefenseReceiptRecord? receipt = null;
-                    try { receipt = await GameplayStore.GetReceiptAsync(committed.SubmissionId, _presentationLifetime.Token); }
-                    catch { /* Gameplay history availability must not block committed mathematics. */ }
-                    await CompleteCommittedOutcomeAsync(receipt);
-                }
+                try { await CompleteCommittedAnswerAsync(committed.SubmissionId); }
                 finally { _isSubmitting = false; }
             }
             if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
@@ -957,6 +971,7 @@
                 SyncPracticeGateCopy();
             }
             StateHasChanged();
+            if (Session.IsAppForeground) ScheduleCommittedAnswerRecovery();
         });
     }
 
@@ -1065,6 +1080,10 @@
         else if (Session.InteractionState == SessionInteractionState.PersistenceFailure)
         {
             await RecoverFromPersistenceFailureAsync();
+        }
+        else if (IsHeldCommittedAnswer)
+        {
+            await ResumeCommittedAnswerAsync();
         }
         else if (Session.PracticeGate != PracticeGateState.Running)
         {
@@ -1191,7 +1210,8 @@
                     ScheduleUpgradeTerminalRefresh();
                 }
 
-                var advancedAutomatically = persistence.IsSuccess && await CompleteCommittedOutcomeAsync(receipt);
+                var advancedAutomatically = persistence.IsSuccess &&
+                    await CompleteCommittedOutcomeAsync(receipt) == CommittedOutcome.Advanced;
 
                 if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
 
@@ -1209,6 +1229,7 @@
                     if (Session.LastEvaluation?.ChangeSet.SubmissionId != submissionId) return;
                     _shouldFocusPrimaryOverlay =
                         !eval.IsCorrect ||
+                        Session.InteractionState == SessionInteractionState.CorrectFeedback ||
                         Session.InteractionState == SessionInteractionState.PersistenceFailure ||
                         Session.InteractionState == SessionInteractionState.TeachingIntervention ||
                         Session.InteractionState == SessionInteractionState.SessionCheckIn;
@@ -1309,8 +1330,15 @@
                     ScheduleUpgradeTerminalRefresh();
                 }
 
-                await CompleteCommittedOutcomeAsync(receipt);
+                var outcome = await CompleteCommittedOutcomeAsync(receipt);
                 if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
+                if (outcome == CommittedOutcome.Held)
+                {
+                    // The recap was not acknowledged: the committed answer stays put and the question is not renewed.
+                    _shouldFocusInput = false;
+                    _shouldFocusPrimaryOverlay = true;
+                    return;
+                }
 
                 if (Session.InteractionState != SessionInteractionState.SessionCheckIn)
                 {
@@ -1334,60 +1362,148 @@
         }
     }
 
+    // The user's Continue only releases the presentation barrier of the identified ceremony. It never submits,
+    // rewards or advances mathematics itself: the awaiting commit flow resumes through its own guarded checks.
+    private void HandleCeremonyContinue(long presentationId)
+    {
+        if (_isDisposed || !IsCyberDefenseActive || !Session.IsAppForeground) return;
+        Ceremony.Acknowledge(presentationId);
+    }
+
     private void OnCeremonyChanged()
     {
         if (!_isDisposed) _ = InvokeAsync(StateHasChanged);
     }
 
-    private async Task<bool> CompleteCommittedOutcomeAsync(CyberDefenseReceiptRecord? receipt)
+    private enum CommittedOutcome
+    {
+        /// <summary>The committed answer did not advance and nothing is held (not a correct answer, stale submission, check-in).</summary>
+        NotAdvanced,
+        /// <summary>The committed correct answer advanced to the next question.</summary>
+        Advanced,
+        /// <summary>A required recap/System Restart was not acknowledged: the committed answer stays on CorrectFeedback.</summary>
+        Held
+    }
+
+    // The only way a presentable boss/game-over receipt releases the committed answer is a valid user Continue.
+    // No-presentation outcomes (ordinary hits, Calm mode, no receipt) keep their existing immediate path.
+    private async Task<CommittedOutcome> CompleteCommittedOutcomeAsync(CyberDefenseReceiptRecord? receipt)
     {
         var generation = Session.LearnerStateGenerationRevision;
         var submissionId = Session.LastEvaluation?.ChangeSet.SubmissionId;
         bool IsSameSubmission() => !_isDisposed && Session.LearnerStateGenerationRevision == generation &&
             Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet.SubmissionId == submissionId;
-        if (!IsSameSubmission()) return false;
-        var epochCurrent = await ShowCommittedCeremonyAsync(receipt, IsSameSubmission);
-        if (!epochCurrent || !IsSameSubmission()) return false;
+        if (!IsSameSubmission()) return CommittedOutcome.NotAdvanced;
+        var cleared = await ShowCommittedCeremonyAsync(receipt, IsSameSubmission);
+        if (!IsSameSubmission()) return CommittedOutcome.NotAdvanced;
+        if (!cleared) return CommittedOutcome.Held;
         Session.SetPracticeSurfaceActive(true);
         // startTiming controls surface availability. Foreground and the explicit resume gate
         // remain authoritative, including when a ceremony was cancelled in the background.
         return Session.InteractionState == SessionInteractionState.CorrectFeedback &&
-            await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
+            await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true)
+            ? CommittedOutcome.Advanced
+            : CommittedOutcome.NotAdvanced;
     }
 
+    // Re-reads the committed receipt of the current submission (re-entry, foreground return, explicit retry).
+    // An unreadable receipt cannot prove that no recap is required, so it holds the answer instead of advancing.
+    private async Task<CommittedOutcome> CompleteCommittedAnswerAsync(string submissionId)
+    {
+        CyberDefenseReceiptRecord? receipt;
+        try { receipt = await GameplayStore.GetReceiptAsync(submissionId, _presentationLifetime.Token); }
+        catch { return CommittedOutcome.Held; }
+        return await CompleteCommittedOutcomeAsync(receipt);
+    }
+
+    // Returns true only when mathematics may continue: no presentation is required, or the user acknowledged
+    // the current presentation of this receipt. Cancellation, invalidation and failures never count as consent.
     private async Task<bool> ShowCommittedCeremonyAsync(CyberDefenseReceiptRecord? receipt, Func<bool> isCurrent)
     {
-        if (receipt?.TransitionResult is not { } transition || !IsCyberDefenseActive ||
-            (!transition.IsSectorCompleted && !transition.IsGameOver)) return true;
+        if (receipt is null || !CyberDefensePresentationSequence.RequiresPresentation(receipt) || !IsCyberDefenseActive) return true;
+        if (Ceremony.HasAcknowledged(receipt)) return true;
         Session.PauseItemTiming();
         _shouldFocusInput = _shouldFocusPrimaryOverlay = false;
-        var epochCurrent = true;
         try
         {
             var ct = _presentationLifetime.Token;
             CyberDefenseSectorRecap? recap = null;
-            if (transition.IsSectorCompleted)
+            if (receipt.TransitionResult!.IsSectorCompleted)
             {
                 try { recap = await GameplayStore.GetCompletedSectorRecapAsync(receipt.SubmissionId, receipt.ResetEpoch, ct); }
                 catch (OperationCanceledException) { throw; }
                 catch { /* Invalid or unreadable history shows an unavailable recap, never fabricated totals. */ }
             }
-            await Ceremony.RunAsync(receipt, recap, async token =>
+            return await Ceremony.RunAsync(receipt, recap, async token =>
             {
                 if (!isCurrent() || !IsCyberDefenseActive || !Session.IsAppForeground) return false;
                 var progression = await GameplayStore.GetProgressionAsync(token);
-                epochCurrent = progression.ResetEpoch == receipt.ResetEpoch &&
-                    !(await GameplayStore.GetResetIntentAsync(token)).IsPending;
-                return epochCurrent && receipt.CumulativeXpAfter == progression.CumulativeXp && isCurrent();
+                return progression.ResetEpoch == receipt.ResetEpoch &&
+                    !(await GameplayStore.GetResetIntentAsync(token)).IsPending &&
+                    receipt.CumulativeXpAfter == progression.CumulativeXp && isCurrent();
             }, ct);
         }
-        catch (OperationCanceledException) when (_isDisposed) { return false; }
+        catch (OperationCanceledException) { return false; }
         catch
         {
-            // Presentation/history failure cannot invalidate an already committed mathematics answer.
+            // Presentation/history failure never acknowledges the recap: the committed answer is held for recovery.
             Ceremony.Cancel();
+            return false;
         }
-        return epochCurrent;
+    }
+
+    // Explicit recovery of a committed correct answer whose recap was not acknowledged. It runs the same guarded
+    // flow as the original submission: the recap is presented again, creates no receipt or reward, and only its
+    // own Continue advances the question.
+    private async Task ResumeCommittedAnswerAsync()
+    {
+        if (_isDisposed || _isSubmitting || _isTutorialOpen || _isUpgradeTerminalOpen || !Session.IsAppForeground ||
+            Ceremony.IsBlocking || Session.InteractionState != SessionInteractionState.CorrectFeedback ||
+            !Session.IsCurrentSubmissionCommitted || Session.LastEvaluation?.ChangeSet is not { } committed)
+        {
+            return;
+        }
+
+        var generation = Session.LearnerStateGenerationRevision;
+        var factRevision = Session.FactInstanceRevision;
+        _isSubmitting = true;
+        try
+        {
+            var outcome = await CompleteCommittedAnswerAsync(committed.SubmissionId);
+            if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
+            if (outcome == CommittedOutcome.Advanced)
+            {
+                if (Session.FactInstanceRevision == factRevision + 1 &&
+                    _lastPreparedFactInstanceRevision != Session.FactInstanceRevision)
+                {
+                    PrepareNextFactUi();
+                }
+            }
+            else
+            {
+                _shouldFocusInput = false;
+                _shouldFocusPrimaryOverlay = true;
+            }
+        }
+        finally
+        {
+            _isSubmitting = false;
+            if (!_isDisposed) await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // Automatic recovery triggers (foreground return, mode change) must never throw into the UI thread;
+    // a failed attempt simply leaves the answer held for the explicit Continue / Enter recovery.
+    private void ScheduleCommittedAnswerRecovery()
+    {
+        if (_isDisposed || !IsHeldCommittedAnswer) return;
+        _ = ObserveAsync();
+
+        async Task ObserveAsync()
+        {
+            try { await ResumeCommittedAnswerAsync(); }
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning("Committed answer recovery failed: {0}", ex); }
+        }
     }
 
     private void PrepareNextFactUi()
@@ -1621,6 +1737,14 @@
         Session.InteractionState is SessionInteractionState.IncorrectFeedback
             or SessionInteractionState.TimeoutFeedback
             or SessionInteractionState.TeachingIntervention;
+
+    // A committed correct answer whose recap was not acknowledged (background, failure, re-entry) waits here.
+    // It only offers the explicit recovery: the recap is shown again and only its own Continue advances the question.
+    private bool IsHeldCommittedAnswer =>
+        !_isSubmitting && !_isInitializing && !_startupFailed && !Ceremony.IsBlocking &&
+        Session.IsInitialized && Session.CurrentFact is not null &&
+        Session.InteractionState == SessionInteractionState.CorrectFeedback &&
+        Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null;
 
     private bool IsAnswerEntryVisible =>
         Session.IsInitialized &&
