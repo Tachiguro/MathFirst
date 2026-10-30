@@ -326,7 +326,9 @@ public sealed class ProgressionCoherenceAuditTests
             ProfileName: "Profile C (Slow Correct)",
             MaxAttempts: 50,
             LatencyMs: 4500,
-            SubmitAnswerFn: (fact, attemptNumber, opAttemptNumber) => fact.CorrectResult));
+            SubmitAnswerFn: (fact, attemptNumber, opAttemptNumber) => fact.CorrectResult,
+            // All-four Custom (Guided) practice isolates band fluency mechanics from ADR-0013 operation unlocks.
+            Mode: PracticeMode.Custom));
 
         // Verify all 50 attempts are Correct, but IsFluent is false
         Assert.Equal(50, result.Telemetry.Count);
@@ -390,7 +392,10 @@ public sealed class ProgressionCoherenceAuditTests
                     return fact.CorrectResult + 1; // deliberate failure on large addition
                 }
                 return fact.CorrectResult;
-            }));
+            },
+            // All-four Custom (Guided) practice isolates G3 decoupling from ADR-0013 operation unlocks: under
+            // CurriculumManaged this Addition weakness correctly keeps the learner in Stage 1.
+            Mode: PracticeMode.Custom));
 
         var mulProgression = result.FinalProgression.OperationProgressions[ArithmeticOperation.Multiplication];
         var divProgression = result.FinalProgression.OperationProgressions[ArithmeticOperation.Division];
@@ -435,7 +440,8 @@ public sealed class ProgressionCoherenceAuditTests
         string ProfileName,
         int MaxAttempts,
         long LatencyMs,
-        Func<ArithmeticFact, int, int, int> SubmitAnswerFn);
+        Func<ArithmeticFact, int, int, int> SubmitAnswerFn,
+        PracticeMode Mode = PracticeMode.CurriculumManaged);
 
     private sealed class SimulationResult
     {
@@ -480,7 +486,7 @@ public sealed class ProgressionCoherenceAuditTests
         var preferences = new TestPreferenceStore();
         preferences.SetEnabledOperations(PracticeOperationPreferencePolicy.AllOperations);
 
-        var session = new TrainingSession(store, clock, preferenceStore: preferences);
+        var session = new TrainingSession(store, clock, preferenceStore: preferences, practiceMode: config.Mode);
         await session.InitializeAsync(startTiming: true);
 
         var milestones = new Dictionary<(ArithmeticOperation, int), long>();

@@ -306,6 +306,56 @@ public sealed class SqliteLearnerStore : ILearnerStore
             positionedCorrectAttemptCount);
     }
 
+    public async Task<IReadOnlyDictionary<string, ItemLearningState>> LoadItemStatesAsync(
+        IReadOnlyCollection<string> factIds,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(factIds);
+
+        var result = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+        var distinctFactIds = factIds.Distinct(StringComparer.Ordinal).ToArray();
+        if (distinctFactIds.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException("Fact IDs must not be null or blank.", nameof(factIds));
+        }
+
+        if (_connection is null || distinctFactIds.Length == 0)
+        {
+            return result;
+        }
+
+        const int batchSize = 200;
+        for (var offset = 0; offset < distinctFactIds.Length; offset += batchSize)
+        {
+            var batch = distinctFactIds.Skip(offset).Take(batchSize).ToArray();
+            var parameters = batch.Select((_, index) => $"@fact_{index}").ToArray();
+
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = $@"
+                SELECT fact_id, operation, left_operand, right_operand,
+                       total_attempts, correct_attempts, incorrect_attempts,
+                       consecutive_correct, last_latency_ms, rolling_latency_ms,
+                       fluent_streak, is_mastered, needs_remediation,
+                       remediation_due_order, last_practiced_order, last_practiced_at
+                FROM item_learning_state
+                WHERE fact_id IN ({string.Join(", ", parameters)});";
+            for (var index = 0; index < batch.Length; index++)
+            {
+                cmd.Parameters.AddWithValue(parameters[index], batch[index]);
+            }
+
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var state = ReadItemStateRow(reader);
+                result[state.FactId] = state;
+            }
+        }
+
+        return result;
+    }
+
     public async Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
         ArithmeticOperation operation,
         long bandStartedPracticePosition,
@@ -1631,47 +1681,53 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var factId = reader.GetString(0);
-            var opStr = reader.GetString(1);
-            var left = reader.GetInt32(2);
-            var right = reader.GetInt32(3);
-            var total = reader.GetInt32(4);
-            var correct = reader.GetInt32(5);
-            var incorrect = reader.GetInt32(6);
-            var streak = reader.GetInt32(7);
-            var lastLat = reader.GetInt64(8);
-            var rollingLat = reader.GetInt64(9);
-            var fluent = reader.GetInt32(10);
-            var mastered = reader.GetInt32(11) == 1;
-            var remed = reader.GetInt32(12) == 1;
-            var remedOrder = reader.GetInt32(13);
-            var lastOrder = reader.GetInt32(14);
-            var lastPracticedAt = reader.IsDBNull(15) ? null : (DateTimeOffset?)DateTimeOffset.Parse(reader.GetString(15));
-
-            var op = Enum.TryParse<ArithmeticOperation>(opStr, out var parsedOp) ? parsedOp : ArithmeticOperation.Addition;
-
-            dict[factId] = new ItemLearningState
-            {
-                FactId = factId,
-                Operation = op,
-                LeftOperand = left,
-                RightOperand = right,
-                TotalAttempts = total,
-                CorrectAttempts = correct,
-                IncorrectAttempts = incorrect,
-                ConsecutiveCorrectStreak = streak,
-                LastLatencyMs = lastLat,
-                RollingLatencyMs = rollingLat,
-                FluentStreak = fluent,
-                IsProvisionallyMastered = mastered,
-                NeedsRemediation = remed,
-                RemediationDueOrder = remedOrder,
-                LastPracticedOrder = lastOrder,
-                LastPracticedAt = lastPracticedAt
-            };
+            var state = ReadItemStateRow(reader);
+            dict[state.FactId] = state;
         }
 
         return dict;
+    }
+
+    private static ItemLearningState ReadItemStateRow(SqliteDataReader reader)
+    {
+        var factId = reader.GetString(0);
+        var opStr = reader.GetString(1);
+        var left = reader.GetInt32(2);
+        var right = reader.GetInt32(3);
+        var total = reader.GetInt32(4);
+        var correct = reader.GetInt32(5);
+        var incorrect = reader.GetInt32(6);
+        var streak = reader.GetInt32(7);
+        var lastLat = reader.GetInt64(8);
+        var rollingLat = reader.GetInt64(9);
+        var fluent = reader.GetInt32(10);
+        var mastered = reader.GetInt32(11) == 1;
+        var remed = reader.GetInt32(12) == 1;
+        var remedOrder = reader.GetInt32(13);
+        var lastOrder = reader.GetInt32(14);
+        var lastPracticedAt = reader.IsDBNull(15) ? null : (DateTimeOffset?)DateTimeOffset.Parse(reader.GetString(15));
+
+        var op = Enum.TryParse<ArithmeticOperation>(opStr, out var parsedOp) ? parsedOp : ArithmeticOperation.Addition;
+
+        return new ItemLearningState
+        {
+            FactId = factId,
+            Operation = op,
+            LeftOperand = left,
+            RightOperand = right,
+            TotalAttempts = total,
+            CorrectAttempts = correct,
+            IncorrectAttempts = incorrect,
+            ConsecutiveCorrectStreak = streak,
+            LastLatencyMs = lastLat,
+            RollingLatencyMs = rollingLat,
+            FluentStreak = fluent,
+            IsProvisionallyMastered = mastered,
+            NeedsRemediation = remed,
+            RemediationDueOrder = remedOrder,
+            LastPracticedOrder = lastOrder,
+            LastPracticedAt = lastPracticedAt
+        };
     }
 
     private async Task<IReadOnlyDictionary<string, FsrsCardState>> ReadAllFsrsStatesAsync(CancellationToken cancellationToken)

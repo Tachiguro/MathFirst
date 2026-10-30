@@ -15,6 +15,10 @@ public interface ILearnerStore : IDisposable
         PracticeSelectionEvidence.FromSnapshot(
             await LoadSnapshotAsync(cancellationToken).ConfigureAwait(false),
             request);
+    Task<IReadOnlyDictionary<string, ItemLearningState>> LoadItemStatesAsync(
+        IReadOnlyCollection<string> factIds,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Authoritative item-state query requires explicit store support.");
     Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(
         ArithmeticOperation operation,
         long bandStartedPracticePosition,

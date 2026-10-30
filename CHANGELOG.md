@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Issue #114 D10 Proficiency-Gated Operation Unlock (Unreleased)
+
+- **Changed**: Subtraction, Multiplication and Division now unlock only after the previous operation shows mastery through Dense Band 10 ([ADR-0013](docs/decisions/ADR-0013-d10-proficiency-gated-operation-unlock.md), superseding [ADR-0012](docs/decisions/ADR-0012-cumulative-operation-unlock-progression-and-monotonic-curriculum-stage.md) §3). Each step requires all of the following:
+  - the prerequisite's `BandIndex >= 10`;
+  - every fact owned by its `D01..D10` bands (121 additions, 66 subtractions, 121 multiplications) attempted, latest outcome correct and not awaiting remediation, including the boundary facts `10 + 10`, `10 − 9`, `10 − 10` and `10 × 10`;
+  - no aggregate broad weakness.
+
+  Latency and fluency are not part of the rule. Introductory D01 exposure no longer unlocks anything.
+- **Fixed (in the same change)**: Stage evaluation now reads the prerequisite's durable item states through a new read-only `ILearnerStore.LoadItemStatesAsync` query, used by a stage-evaluation-only overlay in `TrainingSession`. Without it, the lazily filled in-session cache would deadlock learners after an app restart. Selection, remediation, broad weakness, FSRS, persistence schema and migrations are unchanged.
+- **Compatibility**: Earned stages stay monotonic and are never relocked. No learner data is rewritten. The Schema V8 → V9 migration keeps its legacy introductory predicates. Custom Practice and the 482-attempt benchmark are unaffected.
+- **Tests**:
+  - RED/GREEN regressions in `Issue114UnlockRegressionTests` (8 of 11 fail on the previous policy).
+  - Rewritten `CurriculumUnlockPolicyTests` contracts.
+  - Deterministic persona suite `Issue114ProficiencyUnlockPersonaTests`, covering fresh, fast, slow, struggling `4 + 1`, weak-near-D10, boundary misses, restarts, existing Stage 2–4 learners, Division start, Custom Practice and role/operation non-starvation.
+  - Re-pinned Issue #112 persona metrics.
+
+  See `docs/TESTING.md` §38. Physical Android gameplay is not verified.
+
 ### Issue #117 Upgrade Terminal Scroll/Focus Trap (Unreleased)
 
 - **Fixed**: The Upgrade Terminal no longer opens scrolled to the bottom with an unscrollable card list. It now uses a local bounded flex column so title, Level/SP and Close stay visible while only the upgrade cards scroll. Short landscape phones get a compact header. Enlarged text falls back to scrolling the whole terminal instead of clipping it. Initial focus keeps its affordable-purchase-then-Close target but uses `preventScroll`. The shared overlay dialog styling is unchanged.

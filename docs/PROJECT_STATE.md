@@ -305,6 +305,10 @@ This document records stable, verified facts about MathFirst. It excludes transi
   - aligns `PracticeMode.CurriculumManaged` Stage 3 and Stage 4 with Guided number-space gating (`AdditionCeiling`), while preserving unrestricted custom subset practice under `PracticeMode.Custom`;
   - renders Settings operation controls as read-only curriculum status indicators ("Unlocked" / "Locked") derived from `CurriculumStage`, preventing bypass of locked operations or disabling of unlocked operations;
   - preserves MF-STAB-003 scheduler invariants and isolates the 482 normative benchmark under `PracticeMode.Custom`.
+- [ADR-0013](decisions/ADR-0013-d10-proficiency-gated-operation-unlock.md) (Issue #114) supersedes ADR-0012's tolerant D01 predicates for live stage advancement:
+  - Subtraction, Multiplication and Division unlock only after the prerequisite operation has `BandIndex >= 10`, every fact owned by its D01..D10 bands (121/66/121) shows durable evidence (attempted, latest outcome Correct, not in remediation) including `10 + 10`, `10 − 9`, `10 − 10` and `10 × 10`, and there is no broad weakness;
+  - stage evaluation reads durable prerequisite item states through the read-only `ILearnerStore.LoadItemStatesAsync`;
+  - no schema, migration, FSRS or stored-data change; earned stages stay monotonic; the V8 → V9 migration keeps the ADR-0012 predicates.
 
 
 ---

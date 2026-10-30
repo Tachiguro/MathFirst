@@ -241,12 +241,15 @@ public sealed class PracticeVisibilityAndTimerLifecycleTests
         var prefStore = new InMemoryPreferenceStore();
         var clock = new FakeClock();
 
-        var session = new TrainingSession(store, clock: clock, preferenceStore: prefStore);
+        // Preference-driven operation sets are Custom practice; CurriculumManaged unlocks Multiplication only after
+        // Subtraction D10 mastery (ADR-0013).
+        var session = new TrainingSession(store, clock: clock, preferenceStore: prefStore, practiceMode: PracticeMode.Custom);
         await session.InitializeAsync(startTiming: true);
 
         // Advance to a Multiplication question
-        while (session.CurrentFact.Operation != ArithmeticOperation.Multiplication)
+        for (var guard = 0; session.CurrentFact.Operation != ArithmeticOperation.Multiplication; guard++)
         {
+            Assert.True(guard < 50, "Multiplication must be scheduled within 50 attempts of all-four Custom practice.");
             session.SubmitAnswer(session.CurrentFact.CorrectResult);
             await session.CommitCurrentEvaluationAsync();
             session.AdvanceAfterCorrectAnswer(startTiming: true);

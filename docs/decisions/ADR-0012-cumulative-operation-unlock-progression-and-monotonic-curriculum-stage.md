@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. §3 "Tolerant Prerequisite Unlock Predicates" is **superseded by [ADR-0013](ADR-0013-d10-proficiency-gated-operation-unlock.md)** for live stage advancement. The §6 migration still uses the introductory predicates unchanged. All other decisions remain in force.
 
 ## Date
 
@@ -57,6 +57,8 @@ Normal product practice operates under `PracticeMode.CurriculumManaged`, where a
    UI preference resets (*Reset to Defaults*) do NOT alter `CurriculumStage`.
 
 ### 3. Tolerant Prerequisite Unlock Predicates
+
+> **Superseded by [ADR-0013](ADR-0013-d10-proficiency-gated-operation-unlock.md)** (Issue #114): live stage advancement now requires D10 prerequisite mastery. This section is retained as the historical record and as the predicate used by the §6 migration.
 
 Stage advancement requires demonstrated introductory mastery without vulnerability to single-fact deadlocks:
 

@@ -90,30 +90,23 @@ public sealed class P3MonotonicityRegressionTests : IDisposable
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage2_Subtraction;
         prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 0, 0);
-        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, 0, 0);
+        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+
+        // Subtraction D10 prerequisite mastery is complete (ADR-0013).
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Subtraction);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
 
-        // Introduce all SUB-D01 prerequisite facts
-        var subPrereqs = CurriculumUnlockPolicy.GetPrerequisiteFactIds(CurriculumStage.Stage2_Subtraction);
-        foreach (var id in subPrereqs)
-        {
-            var parts = id.Split([':', '-']);
-            var item = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Subtraction, int.Parse(parts[1]), int.Parse(parts[2])));
-            item.TotalAttempts = 1;
-            item.CorrectAttempts = 1;
-            item.NeedsRemediation = false;
-            session.ItemStates[id] = item;
-        }
-
-        // 1 ADD weakness (add:0+0) + 1 SUB weakness (sub:0-0)
+        // 1 ADD weakness (add:0+0) + 1 SUB weakness outside the D10 mastery set (sub:11-1, owned by SUB-I11)
         session.ItemStates["add:0+0"] = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Addition, 0, 0));
         session.ItemStates["add:0+0"].NeedsRemediation = true;
         session.ItemStates["add:0+0"].TotalAttempts = 1;
 
-        session.ItemStates["sub:0-0"].NeedsRemediation = true;
+        session.ItemStates["sub:11-1"] = ItemLearningState.CreateNew(new ArithmeticFact(ArithmeticOperation.Subtraction, 11, 1));
+        session.ItemStates["sub:11-1"].NeedsRemediation = true;
+        session.ItemStates["sub:11-1"].TotalAttempts = 1;
 
         Assert.True(session.HasBroadWeakness);
 
@@ -132,7 +125,7 @@ public sealed class P3MonotonicityRegressionTests : IDisposable
             session.ContinuePractice(startTiming: false);
         }
 
-        // Now Stage 3 unlocks because SUB prerequisite has <= 1 weak fact and broad weakness is false
+        // Now Stage 3 unlocks: Subtraction D10 mastery is complete and broad weakness is false
         var evalUnlocked = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.Equal(CurriculumStage.Stage3_Multiplication, evalUnlocked.ChangeSet!.UpdatedProgression.CurriculumStage);
         await session.CommitCurrentEvaluationAsync();
@@ -277,8 +270,9 @@ public sealed class P3MonotonicityRegressionTests : IDisposable
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
         prog.PracticePosition = 5;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync(startTiming: false);
@@ -336,8 +330,9 @@ public sealed class P3MonotonicityRegressionTests : IDisposable
 
             var prog = LearnerProgression.CreateFresh();
             prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-            prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+            prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
             await store.SaveProgressionAsync(prog);
+            await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
             var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
             await session.InitializeAsync(startTiming: false);

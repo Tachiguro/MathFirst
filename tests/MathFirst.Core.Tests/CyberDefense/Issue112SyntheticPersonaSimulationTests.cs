@@ -57,8 +57,8 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
         catch (UnauthorizedAccessException) { }
     }
 
-    // The pinned metrics below characterize the current ADR-0012 tolerant introduction gate (prerequisite facts
-    // attempted, at most one remediation, no broad weakness). They record observed pacing; they do not endorse it.
+    // The pinned metrics below characterize the ADR-0013 D10 proficiency unlock gate (Issue #114), which replaced the
+    // ADR-0012 tolerant introduction gate (Stage 4 previously at attempts 39 / 30 / 19). They record observed pacing.
 
     // =========================================================================
     // PERSONA A — BEGINNER (slow responses, 55% answer probability)
@@ -77,9 +77,9 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
         Assert.Equal(
             new PersonaMetrics(
                 Correct: 32, Incorrect: 18,
-                Transitions: "Stage2_Subtraction@4,Stage3_Multiplication@9,Stage4_Division@39",
-                OperationCounts: "Addition:19,Subtraction:16,Multiplication:13,Division:2",
-                TimingEligibleAttempts: 50, TeachingInterventions: 5, BroadWeaknessObservations: 35,
+                Transitions: "",
+                OperationCounts: "Addition:50",
+                TimingEligibleAttempts: 50, TeachingInterventions: 5, BroadWeaknessObservations: 16,
                 OpponentsDefeated: 11, GameOvers: 0, FinalPlayerHp: 32, PlayerLevel: 3, CumulativeXp: 264),
             result.Metrics);
     }
@@ -89,22 +89,25 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task PersonaB_Intermediate_ProgressesWithoutDeadlockFromPersistentWeakFact()
+    public async Task PersonaB_Intermediate_PersistentWeakFactBlocksUnlockWithoutDeadlockingPractice()
     {
         var result = await RunPersonaAsync(IntermediatePersona);
         _output.WriteLine(result.Describe());
 
         AssertCommonInvariants(IntermediatePersona, result);
-        Assert.True(result.StageTransitions.Count > 0, "One persistently missed prerequisite fact must not deadlock stage advancement.");
+        // ADR-0013: an always-missed foundation fact (add:1+1) is unresolved D10 evidence, so Subtraction stays locked,
+        // while Addition practice (including targeted revisits of add:1+1) continues.
+        Assert.Empty(result.StageTransitions);
+        Assert.True(result.FactTrace.Count(id => id == "add:1+1") > 1, "The persistently weak fact must keep being revisited.");
         Assert.True(result.TeachingInterventions > 0);
 
         Assert.Equal(
             new PersonaMetrics(
-                Correct: 47, Incorrect: 28,
-                Transitions: "Stage2_Subtraction@7,Stage3_Multiplication@17,Stage4_Division@30",
-                OperationCounts: "Addition:28,Subtraction:20,Multiplication:16,Division:11",
-                TimingEligibleAttempts: 75, TeachingInterventions: 10, BroadWeaknessObservations: 34,
-                OpponentsDefeated: 13, GameOvers: 1, FinalPlayerHp: 94, PlayerLevel: 4, CumulativeXp: 368),
+                Correct: 33, Incorrect: 42,
+                Transitions: "",
+                OperationCounts: "Addition:75",
+                TimingEligibleAttempts: 75, TeachingInterventions: 18, BroadWeaknessObservations: 21,
+                OpponentsDefeated: 10, GameOvers: 1, FinalPlayerHp: 18, PlayerLevel: 3, CumulativeXp: 260),
             result.Metrics);
     }
 
@@ -125,8 +128,8 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
         Assert.Equal(
             new PersonaMetrics(
                 Correct: 79, Incorrect: 1,
-                Transitions: "Stage2_Subtraction@4,Stage3_Multiplication@9,Stage4_Division@19",
-                OperationCounts: "Addition:24,Subtraction:22,Multiplication:19,Division:15",
+                Transitions: "",
+                OperationCounts: "Addition:80",
                 TimingEligibleAttempts: 80, TeachingInterventions: 0, BroadWeaknessObservations: 0,
                 OpponentsDefeated: 24, GameOvers: 0, FinalPlayerHp: 100, PlayerLevel: 6, CumulativeXp: 621),
             result.Metrics);

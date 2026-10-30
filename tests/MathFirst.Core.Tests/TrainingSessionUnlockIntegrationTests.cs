@@ -214,8 +214,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task R06_AtomicUnlock_AdditionD01Completed_CandidateStage1ToStage2()
+    public async Task R06_IntroductoryAdditionD01Evidence_NoLongerUnlocksStage2()
     {
+        // ADR-0013: complete ADD-D01 exposure (the superseded ADR-0012 gate) is not D10 mastery evidence.
         var path = GetDatabasePath("r06");
         using var store = new SqliteLearnerStore(path);
         await store.InitializeAsync();
@@ -236,22 +237,19 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
 
-        for (var i = 0; i < 20 && session.Progression.CurriculumStage == CurriculumStage.Stage1_Addition; i++)
+        for (var i = 0; i < 20; i++)
         {
             session.SubmitAnswer(session.CurrentFact.CorrectResult);
             await session.CommitCurrentEvaluationAsync();
-            if (session.Progression.CurriculumStage == CurriculumStage.Stage2_Subtraction)
-            {
-                break;
-            }
             await session.AdvanceToNextFactAsync();
         }
 
-        Assert.Equal(CurriculumStage.Stage2_Subtraction, session.Progression.CurriculumStage);
+        Assert.True(CurriculumUnlockPolicy.IsPrerequisiteFullyIntroduced(CurriculumStage.Stage1_Addition, session.ItemStates));
+        Assert.Equal(CurriculumStage.Stage1_Addition, session.Progression.CurriculumStage);
     }
 
     [Fact]
-    public async Task R07_AtomicUnlock_SubtractionD01Completed_Stage2ToStage3()
+    public async Task R07_AtomicUnlock_SubtractionD10Mastered_Stage2ToStage3()
     {
         var path = GetDatabasePath("r07");
         using var store = new SqliteLearnerStore(path);
@@ -259,9 +257,10 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage2_Subtraction;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
-        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
+        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Subtraction);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
@@ -275,7 +274,7 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task R08_AtomicUnlock_MultiplicationD01Completed_Stage3ToStage4()
+    public async Task R08_AtomicUnlock_MultiplicationD10Mastered_Stage3ToStage4()
     {
         var path = GetDatabasePath("r08");
         using var store = new SqliteLearnerStore(path);
@@ -283,10 +282,11 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage3_Multiplication;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
-        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, 1, 0);
-        prog.OperationProgressions[ArithmeticOperation.Multiplication] = new OperationProgression(ArithmeticOperation.Multiplication, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
+        prog.OperationProgressions[ArithmeticOperation.Subtraction] = new OperationProgression(ArithmeticOperation.Subtraction, D10MasteryTestSeed.MasteredBandIndex, 0);
+        prog.OperationProgressions[ArithmeticOperation.Multiplication] = new OperationProgression(ArithmeticOperation.Multiplication, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Multiplication);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
@@ -304,32 +304,28 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public async Task R09_AtomicUnlock_OneIsolatedPrerequisiteWeakFact_AllowsUnlockIfBroadWeaknessFalse()
+    public async Task R09_AtomicUnlock_OneUnresolvedD10Fact_BlocksUnlockEvenWithoutBroadWeakness()
     {
+        // ADR-0013 replaces the ADR-0012 tolerance of one weak prerequisite fact.
         var path = GetDatabasePath("r09");
         using var store = new SqliteLearnerStore(path);
         await store.InitializeAsync();
 
-        var items = new List<ItemLearningState>
-        {
-            new() { FactId = "add:0+0", Operation = ArithmeticOperation.Addition, LeftOperand = 0, RightOperand = 0, TotalAttempts = 1, CorrectAttempts = 1, NeedsRemediation = false },
-            new() { FactId = "add:0+1", Operation = ArithmeticOperation.Addition, LeftOperand = 0, RightOperand = 1, TotalAttempts = 1, CorrectAttempts = 1, NeedsRemediation = false },
-            new() { FactId = "add:1+0", Operation = ArithmeticOperation.Addition, LeftOperand = 1, RightOperand = 0, TotalAttempts = 1, CorrectAttempts = 1, NeedsRemediation = false },
-            new() { FactId = "add:1+1", Operation = ArithmeticOperation.Addition, LeftOperand = 1, RightOperand = 1, TotalAttempts = 1, CorrectAttempts = 0, NeedsRemediation = true },
-        };
-        foreach (var item in items)
-        {
-            await SeedItemStateAsync(path, item);
-        }
+        var prog = LearnerProgression.CreateFresh();
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
+        await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition, exceptFactId: "add:1+1");
+        await SeedItemStateAsync(path, new() { FactId = "add:1+1", Operation = ArithmeticOperation.Addition, LeftOperand = 1, RightOperand = 1, TotalAttempts = 1, CorrectAttempts = 0, IncorrectAttempts = 1, NeedsRemediation = true });
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
 
         Assert.False(session.HasBroadWeakness);
 
+        Assert.NotEqual("add:1+1", session.CurrentFact.Id);
         var eval = session.SubmitAnswer(session.CurrentFact.CorrectResult);
         Assert.NotNull(eval.ChangeSet);
-        Assert.Equal(CurriculumStage.Stage2_Subtraction, eval.ChangeSet.UpdatedProgression.CurriculumStage);
+        Assert.Equal(CurriculumStage.Stage1_Addition, eval.ChangeSet.UpdatedProgression.CurriculumStage);
     }
 
     [Fact]
@@ -480,8 +476,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
@@ -508,8 +505,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
@@ -542,8 +540,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
@@ -568,8 +567,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
             var prog = LearnerProgression.CreateFresh();
             prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-            prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+            prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
             await store.SaveProgressionAsync(prog);
+            await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
             var session1 = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
             await session1.InitializeAsync();
@@ -603,8 +603,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();
@@ -630,8 +631,9 @@ public sealed class TrainingSessionUnlockIntegrationTests : IDisposable
 
         var prog = LearnerProgression.CreateFresh();
         prog.CurriculumStage = CurriculumStage.Stage1_Addition;
-        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, 1, 0);
+        prog.OperationProgressions[ArithmeticOperation.Addition] = new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
         await store.SaveProgressionAsync(prog);
+        await D10MasteryTestSeed.SeedMasteredAsync(path, ArithmeticOperation.Addition);
 
         var session = new TrainingSession(store, practiceMode: PracticeMode.CurriculumManaged);
         await session.InitializeAsync();

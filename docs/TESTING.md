@@ -887,6 +887,8 @@ The bounded P2b package implements digit-scaled Cyber Defense critical hit timin
 
 ## 26. P3 Cumulative Operation Unlock Progression Contracts & Reviewed Test Evidence
 
+> **Superseded unlock predicate**: Issue #114 / [ADR-0013](decisions/ADR-0013-d10-proficiency-gated-operation-unlock.md) replaced the tolerant D01 readiness below with D10 prerequisite mastery for live advancement. The affected P3 suites were adapted (see §38). This section remains the historical P3 record.
+
 The P3 implementation establishes a cumulative arithmetic progression across four discrete stages in `PracticeMode.CurriculumManaged`, governed by monotonic persisted learner state, tolerant prerequisite D01 frontier readiness, and aggregate broad weakness gating. This behavior is covered by automated contract, regression, and simulation suites in `MathFirst.Core.Tests`:
 
 1. **Cumulative Operation Unlock Progression Contracts (`CurriculumUnlockPolicyTests`, `CurriculumStage`)**:
@@ -1680,11 +1682,13 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
 
 | Persona | Seed | Attempts | Answer rule | Observed correct | Stage transitions (attempt) | Final HP / Level |
 |---|---|---|---|---|---|---|
-| A Beginner | 42 | 50 | 55% probability, 4.5–8 s | 32 (64.0%) | S2@4, S3@9, S4@39 | 32 / 3 |
-| B Intermediate | 1337 | 75 | 85% probability, 1.8–3.5 s, `add:1+1` always wrong | 47 (62.7%) | S2@7, S3@17, S4@30 | 94 / 4 (1 game over) |
-| C Fluent | 20261030 | 80 | 98% probability, 0.7–1.4 s | 79 (98.8%) | S2@4, S3@9, S4@19 | 100 / 6 |
+| A Beginner | 42 | 50 | 55% probability, 4.5–8 s | 32 (64.0%) | none (Addition only) | 32 / 3 |
+| B Intermediate | 1337 | 75 | 85% probability, 1.8–3.5 s, `add:1+1` always wrong | 33 (44.0%) | none (Addition only) | 18 / 3 (1 game over) |
+| C Fluent | 20261030 | 80 | 98% probability, 0.7–1.4 s | 79 (98.8%) | none (Addition only) | 100 / 6 |
 
-   These are characterizations of the current ADR-0012 tolerant introduction gate, not a balance or pacing assessment, and they are distinct from the P3 personas in §26. Under that gate even Persona A reaches Stage 4 within 39 attempts; whether that pacing is pedagogically intended is an open product question, not a gating defect. Production `TrainingSession` still stamps `LastPracticedAt`/`UpdatedAt` from the wall clock; the simulations do not depend on those values.
+   These are characterizations, not a balance or pacing assessment, and they are distinct from the P3 personas in §26.
+   - **Current pins (Issue #114)**: re-measured under the ADR-0013 D10 proficiency gate (§38). No persona earns Subtraction within its 50–80 attempts, since that requires all 121 Addition facts through `10 + 10`. Persona B now asserts that the always-missed `add:1+1` keeps the learner in Addition while it continues to be revisited.
+   - **Historical pins**: under the superseded ADR-0012 tolerant introduction gate, the personas reached S2/S3/S4 at 4/9/39 (A), 7/17/30 (B) and 4/9/19 (C). Production `TrainingSession` still stamps `LastPracticedAt`/`UpdatedAt` from the wall clock; the simulations do not depend on those values.
 
 **Evidence boundaries**: Narrow-header geometry and tutorial spotlight layering and scrolling were measured in a local Chromium headless harness across narrow and standard mobile viewports (320x568, 360x640, 412x915) and landscape viewports (640x360, 800x400) in EN, DE, and RU with 1.0x, 1.25x, and 1.35x text scaling. Bounding rectangles, stacking order, element hit testing (`document.elementFromPoint`), and internal scrollability were empirically verified. However, automated Chromium measurements and C# `HtmlRenderer` tests do **not** constitute Android WebView, Android OS font-scaling, or physical device verification. Exact-candidate `FULL_VALIDATION` evidence is recorded on PR #113.
 
@@ -1705,3 +1709,55 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
 **RED/GREEN**: all five focused tests (four rendered plus `UpgradeTerminal_InitialFocus_HandlesAffordabilitySensibly`) fail against base `61d1e6d` (at 384x744 with no affordable upgrade the content is a grid with `scrollTop` 790 and the title 0% visible) and pass after the correction.
 
 **Evidence boundaries**: Chromium on Windows is not Android System WebView; 130% root font size approximates but is not Android font scaling; the Razor isolation emulation is not the build-time rewriter. With `preventScroll`, a focused purchase button may begin outside the visible cards viewport in short landscape or enlarged-text layouts. Physical Android acceptance of Issue #117 requires a separate owner-authorized device retest.
+
+---
+
+## 38. Issue #114 D10 Proficiency-Gated Operation Unlock (ADR-0013)
+
+[Issue #114](https://github.com/Tachiguro/MathFirst/issues/114) replaces the ADR-0012 introductory D01 unlock with D10 prerequisite mastery ([ADR-0013](decisions/ADR-0013-d10-proficiency-gated-operation-unlock.md)). Evidence lives in `tests/MathFirst.Core.Tests/`:
+
+1. **`Issue114UnlockRegressionTests.cs`**: focused RED/GREEN regressions over the long-standing `EvaluateNextStage` and `TrainingSession` surfaces. They cover the following cases:
+   - introductory D01 evidence alone;
+   - `10 + 10` unresolved after the Addition band passed D10;
+   - a repeatedly incorrect `4 + 1`, and recovery only through a later correct retrieval;
+   - all Addition facts mastered while the band is still D10;
+   - unattempted `10 − 10`;
+   - missed `10 × 10`;
+   - complete D10 mastery unlocking exactly the next stage, blocked by broad weakness;
+   - a fresh fluent learner staying Addition-only for 100 attempts.
+
+   **RED**: 8 of 11 fail against the ADR-0012 policy at `2b52563`. The 3 positive complete-mastery cases also pass there. **GREEN** after the change.
+2. **`CurriculumUnlockPolicyTests.cs`**: stage mapping, monotonicity, no stage skipping and the broad-weakness contracts are kept. Stage-transition contracts are rewritten for D10 mastery. New contracts cover:
+   - mastery-set sizes and ownership (121/66/121; Division none);
+   - boundary facts;
+   - fact evidence (unattempted, exposed-only, latest incorrect or in remediation are never mastered; latency is ignored);
+   - `PrerequisiteMasteryEvidence` reporting;
+   - fail-closed missing progressions;
+   - no substitution by bands above D10;
+   - unchanged legacy migration predicates.
+3. **`Issue114ProficiencyUnlockPersonaTests.cs`**: deterministic synthetic personas drive a real `CurriculumManaged` `TrainingSession` against isolated temporary SQLite stores with a fake clock. Answers are scripted per durable fact encounter, with no random seeds.
+   - Each committed attempt evaluates `EvaluatePrerequisiteMastery` against durable store rows (`LoadItemStatesAsync`).
+   - Every stage transition must occur on the first attempt whose durable state satisfies the predicate without broad weakness, with all D01..D10 prerequisite facts actually attempted.
+   - Presented operations must always belong to the current stage.
+
+   Pinned measurements (attempt positions):
+
+| Persona | Script | Stage 2 | Stage 3 | Stage 4 | Notes |
+|---|---|---|---|---|---|
+| Fast fluent adult | all correct, 800 ms | 121 | 254 | 618 | Addition only until 121 = minimum possible |
+| Slow but correct | all correct, 9,000 ms | 121 | 254 | 618 | identical fact sequence to 800 ms |
+| Beginner never solves `4 + 1` | `4 + 1` always wrong, 7,000 ms | — | — | — | 400 attempts: 212 correct / 188 incorrect, Addition only, stays `ADD-D04`, ≥ 5 other accessible facts keep being practiced |
+| Beginner recovers `4 + 1` | wrong on first 6 encounters | 134 | — | — | unlock after the last miss |
+| Weak fact inside D10 | `10 + 7` wrong on first 20 encounters | 160 | — | — | Addition passes D10 (90% rule) before the unlock |
+| Boundary miss `add:10+10` / `sub:10-9` / `sub:10-10` / `mul:10*10` | first 2 encounters wrong | 124 / 121 / 121 / 121 | 256 / 258 / 260 / 254 | 618 / 620 / 623 / 623 | dependent unlock later than the error-free reference |
+| Restart every 100 attempts | each `7 − x` wrong once | 121 | 272 | 632 | 7 restart segments |
+| Mixed learner | first encounter wrong when `(a + b) mod 7 = 0` | 148 | 312 | 723 | New, Due, Remediation all present; every unlocked operation appears in each 30-attempt window |
+
+   Further persona coverage:
+   - Existing learners seeded at Stage 2/3/4 keep their stage and every unlocked operation without D10 evidence, even with every third answer wrong.
+   - Subtraction, Multiplication and Division each start at their own `BandIndex 0`, with the first fact owned by their D01. Earlier operations stay scheduled after Division unlocks.
+   - Custom Practice with all four operations remains independent of `CurriculumStage`.
+   - Repeated runs are bitwise deterministic.
+4. **Adapted existing suites**: tests that pinned the superseded rule (`TrainingSessionUnlockIntegrationTests`, `P3SchedulerTransitionRegressionTests`, `P3MonotonicityRegressionTests`, `P3LegacyDormantEvidenceRegressionTests`, `P3PersonaSimulationRegressionTests`) now seed genuine durable D10 evidence through `D10MasteryTestSeed`. Their unlock, atomic-commit, durability, ordinal, monotonicity and dormant-evidence assertions are otherwise unchanged. PersonaB of the P3 suite and Issue #112 PersonaB now assert that a persistently missed foundation fact blocks the unlock while practice continues. Two `ProgressionCoherenceAuditTests` profiles that audit all-four band mechanics run in `Custom` all-four mode. The Issue #112 persona pins are re-measured (§36).
+
+**Evidence boundaries**: synthetic scripted personas, not studies of real learners and not balance calibration. No real learner database was opened. Only Core automated tests and native builds were run; physical Android gameplay, device performance of the extra item-state query, and UI unlock notification ([Issue #116](https://github.com/Tachiguro/MathFirst/issues/116)) are not verified.
