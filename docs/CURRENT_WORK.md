@@ -19,10 +19,31 @@ This document provides operational context for current repository work.
   - `MF-CYBER-009` Slice 3B (Tutorial Activation, Settings Replay, Spotlight Targeting & Timing-Safe Lifecycle Integration, [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) was completed, fully validated, and merged into `main` via [PR #106](https://github.com/Tachiguro/MathFirst/pull/106) at `abe0534a864c2149e085c81fea03c9903d42658b` on 2026-10-28.
   - `MF-CYBER-009` Slice 4A (Offline Achievements Persistence Foundation & Gameplay Schema V8, [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) was completed, fully validated, and merged into `main` via [PR #107](https://github.com/Tachiguro/MathFirst/pull/107) at `31866f4d48b7a535c248ac673ff471edc89e9596` on 2026-10-29.
   - `MF-CYBER-009` Slice 4B (Offline Achievements Atomic Unlocking: Sector 10, Boss Slayer & First Upgrade, [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) was completed, fully validated, and merged into `main` via [PR #108](https://github.com/Tachiguro/MathFirst/pull/108) at `a0dbd738d835d8f6b9dc899c87a47d435710531e` on 2026-10-29.
-  - `MF-CYBER-009` Slice 4C (Minimal Read-Only Offline Achievement Presentation in Settings, [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) renders authoritative Locked and Unlocked offline achievement states for `sector_10`, `boss_slayer`, and `first_upgrade` in a compact, read-only subsection in `Settings.razor` below Tutorial Replay. Reuses the existing `SqliteGameplayStore` singleton via `ICyberDefenseAchievementReader` DI alias in `MauiProgram.cs` without secondary stores or connection overhead. Implements fail-closed error presentation with accessible retry action, timing isolation (`PauseItemTiming()`), cancellation token fencing, sequence tracking, and complete EN/DE/RU localization parity. Calm Mode suppresses presentation without deleting achievements; Full Local Reset clears achievements upon reload; combat reboot preserves milestones. Zero database/schema changes, no HUD alerts, no timestamps, no fabricated progress counters. Candidate under validation/review; unmerged. Overall package remains Unreleased.
-- **Current Follow-up**: MF-CYBER-009 Slice 4C PR publication and coordinator review under [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101).
-- **Official Package Objective**: Upper combat HUD (100 HP, authoritative dynamic shields, opponent/sector status, compact radar, SP > 0 upgrade indicator), boss victory ceremony with truthful sector recap, respectful System Overload reboot, and strict protection of the lower mathematics area. Question selection, telemetry, FSRS, Learner Store Schema V9, Gameplay Schema V7, and the combat economy are preserved. Preserves both MF-CYBER-008 and MF-CYBER-093 persistence recovery contracts.
-- **Repository State & Synchronization Anchor (verified 2026-10-27, before documentation branch creation)**:
+  - `MF-CYBER-009` Slice 4C (Minimal Read-Only Offline Achievement Presentation in Settings, [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) is complete, fully validated, reviewed, and merged into `main` via [PR #109](https://github.com/Tachiguro/MathFirst/pull/109) at `f5924cd1983e91453b54c219b92680cc22b731c5` on 2026-10-29. Renders authoritative Locked and Unlocked offline achievement states for `sector_10`, `boss_slayer`, and `first_upgrade` in a compact, read-only subsection in `Settings.razor` below Tutorial Replay. Reuses the existing `SqliteGameplayStore` singleton via `ICyberDefenseAchievementReader` DI alias in `MauiProgram.cs` without secondary stores or connection overhead. Implements fail-closed error presentation with accessible retry action, timing isolation (`PauseItemTiming()`), cancellation token fencing, sequence tracking, and complete EN/DE/RU localization parity. Calm Mode suppresses presentation without deleting achievements; Full Local Reset clears achievements upon reload; combat reboot preserves milestones. Zero database/schema changes, no HUD alerts, no timestamps, no fabricated progress counters. Overall package remains Unreleased.
+- **Current Program Status & Follow-up**:
+  - Code-level implementation and acceptance for MF-CYBER-009 ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) are complete with all feature slices merged into `main` via PRs #103–#109.
+  - The remaining step is final documentation reconciliation and administrative closure of Issue #101 by the coordinator following review and merge of the closeout documentation PR.
+  - Issue #101 remains OPEN pending coordinator review and final integration.
+  - Package 9 remains Unreleased; Package 10 (MF-CYBER-010) has not started.
+  - Physical-device, screen-reader, release, signing, or store acceptance is not claimed.
+- **Official Package Objective**: Deliver narrative framing, copy hygiene, spotlight tutorial, and offline achievement foundations for Cyber Defense without gameplay disruption or telemetry leakage:
+  - Narrative story framing (`CyberDefense_Story_Intro`) introducing arithmetic defense energy.
+  - First-launch and return-copy hygiene across welcoming pools.
+  - Story Card plus three spotlight stages (Opponent Status, Expression & Keypad, System Integrity).
+  - Skippable tutorial and Settings replay navigation.
+  - Timing-safe tutorial lifecycle suspending active thinking-time accrual during presentation.
+  - Offline Gameplay Schema V8 achievements foundation (`local_achievements`, `ICyberDefenseAchievementReader`).
+  - Atomic milestone unlocking for three permanent local achievements (`sector_10`, `boss_slayer`, `first_upgrade`).
+  - Read-only localized achievement display in Settings below Tutorial Replay.
+  Preserves 100% mathematical domain isolation, zero Learner Store Schema V9 changes, and strict `DATA_PROFILE: USER_DATA` offline data safety.
+- **Repository State & Synchronization Anchor (verified 2026-10-30, pre-documentation-PR baseline)**:
+  - Canonical checkout `C:\Dev\MathFirst`; one normal worktree and one repository writer.
+  - Clean canonical `main` verified before creating the documentation reconciliation branch.
+  - Local `main`, `origin/main`, and GitHub `main`: `f5924cd1983e91453b54c219b92680cc22b731c5`.
+  - PRs #103–#109 are CLOSED/MERGED; PR #109 merged at `f5924cd1983e91453b54c219b92680cc22b731c5`.
+  - Issue #101 remains OPEN pending coordinator review and final integration.
+  - Package 9 remains Unreleased; no physical-device, screen-reader, release, signing, or store acceptance is claimed.
+- **Historical MF-CYBER-008 Synchronization Anchor (verified 2026-10-27, historical context)**:
   - Canonical checkout `C:\Dev\MathFirst`; one normal worktree and one repository writer.
   - Clean canonical `main` was verified before creating the separate documentation branch; the feature branch is historical.
   - Local `main`, `origin/main`, and GitHub `main`: `4214d106fe6424191a4db08e18c0e845d07649c7`.
@@ -140,8 +161,8 @@ This document provides operational context for current repository work.
   - **P1 (Normal Practice Without Deadline Failure)**: Merged via PR #61 (`4e3ca4943c5809cbe470a4b0ac4f192b24b66795`, 1,936 Core tests).
   - **P0 (Zero-Answer / `0 + 0` Core-Flow Freeze Blocker)**: Merged via PR #60 (`4df7a5f4c8230700b427f0c1d9ebdabfcd98d823`, 1,917 Core tests).
 - **Downstream Scope**:
-  - **Current Sequence**: MF-CYBER-008 is merged via PR #94; Issue #92 remains open for post-merge documentation reconciliation. MF-CYBER-009 and MF-CYBER-010 remain planned.
-  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (PR #73) $\to$ MF-CYBER-002 (PR #74/#75) $\to$ MF-CYBER-003 (PR #76/#77/#78) $\to$ MF-CYBER-004 (PR #79/#80) $\to$ MF-CYBER-005 (PR #82/#83) $\to$ MF-CYBER-006 (PR #87/#89) $\to$ MF-CYBER-007 (merged PR #91) $\to$ MF-CYBER-093 (merged PR #95) $\to$ MF-CYBER-008 (Combat HUD, merged PR #94) $\to$ MF-CYBER-009 (Narrative) $\to$ MF-CYBER-010 (Simulation Matrix).
+  - **Current Sequence**: MF-CYBER-008 is merged via PR #94 (reconciled in PR #100). MF-CYBER-009 is complete and merged via PRs #103–#109; Issue #101 remains open pending post-implementation documentation reconciliation. MF-CYBER-010 remains planned (unstarted).
+  - **Cyber Defense Roadmap Sequence**: MF-CYBER-001 (PR #73) $\to$ MF-CYBER-002 (PR #74/#75) $\to$ MF-CYBER-003 (PR #76/#77/#78) $\to$ MF-CYBER-004 (PR #79/#80) $\to$ MF-CYBER-005 (PR #82/#83) $\to$ MF-CYBER-006 (PR #87/#89) $\to$ MF-CYBER-007 (merged PR #91) $\to$ MF-CYBER-093 (merged PR #95) $\to$ MF-CYBER-008 (Combat HUD, merged PR #94) $\to$ MF-CYBER-009 (Narrative, merged PRs #103–#109) $\to$ MF-CYBER-010 (Simulation Matrix).
   - Roadmap Step 55 remains **NOT AUTHORIZED**. Build 4 does **NOT EXIST**.
 
 ### 1.1 Pre-Step55 Refinement Program Sequence
@@ -157,7 +178,7 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 8. **P5**: Cyber Defense Visual Consistency (`Merged` — PR #67 at `aeb7bc46e8b425d9da95493a367f99f7ed330871`, candidate `33dd87b4977e8ebf3f61683771ca830f74f69c34`)
 9. **P6**: Tester Diagnostics / Telemetry Release Boundary (`Merged` — PR #68 at `049ec1d5d3859a139f8d5493d6dae7607d321b02`, validated candidate `bceede18dd5bc2007f4bdc211f721979a50f2c35`, `P6_FULL_VALIDATION_PASSED`; post-merge docs reconciled via PR #69 at `4ba870ad0bd6c516e74d2000a8f5c0878fb609a5`)
 10. **P8**: Test-Coverage Audit & Targeted Hardening (`Merged` — PR #70 at `cc81242177dd75114934c3ad48b830c9ce87c70b`, validated candidate `cbbbd31ec00a1a2b55a4dea5b827761157a67a89`, `MF_AUDIT_002_FULL_VALIDATION_PASSED`, post-merge sync `MF_AUDIT_002_POST_MERGE_SYNC_COMPLETED`)
-11. **P7**: Game-Design & Game-Polish Program (GDD/Roadmap PR #72; MF-CYBER-001 through MF-CYBER-007 and MF-CYBER-093 merged; MF-CYBER-008 merged via PR #94; MF-CYBER-009 and MF-CYBER-010 planned). Remaining post-Core scope stays deferred.
+11. **P7**: Game-Design & Game-Polish Program (GDD/Roadmap PR #72; MF-CYBER-001 through MF-CYBER-007 and MF-CYBER-093 merged; MF-CYBER-008 merged via PR #94; MF-CYBER-009 merged via PRs #103–#109; MF-CYBER-010 planned). Remaining post-Core scope stays deferred.
 
 ### 1.2 Current Verified Quality State
 
@@ -353,8 +374,9 @@ The canonical pre-production program ([docs/V1_PRE_STEP55_REFINEMENT_PLAN.md](V1
 20. MF-CYBER-006 (Firewall Shield Mechanics & Fair Beginner Assistance, [Issue #85](https://github.com/Tachiguro/MathFirst/issues/85)) is complete, fully validated (`MF_CYBER_006_FULL_VALIDATION_PASS` on candidate `650e6619c640b963f1ecc614f4fdbaf1cc6bb6d1`), and merged into `main` via [PR #87](https://github.com/Tachiguro/MathFirst/pull/87) at `71da7276c8eb965ed65d419ee80354c3cbb16da3`; governance reconciliation followed via [PR #89](https://github.com/Tachiguro/MathFirst/pull/89) at `5992b7790436a78d30be72fb7fadeb45b020ae9f`.
 21. MF-CYBER-007 (Critical Strike & Overdrive, [Issue #90](https://github.com/Tachiguro/MathFirst/issues/90)) is complete, validated on candidate `9862eec9c6073e54a865d481ed28f3296cfdd268`, and merged into `main` via [PR #91](https://github.com/Tachiguro/MathFirst/pull/91) at `74b02362bd4fbc78a15ac814ef90e2f014491e6d` on 2026-10-21 (5,095 Core tests in Debug and Release).
 22. MF-CYBER-093 (Orphaned Pending Intent Recovery after Learner RevisionConflict, [Issue #93](https://github.com/Tachiguro/MathFirst/issues/93)) is complete, fully validated, and merged into `main` via [PR #95](https://github.com/Tachiguro/MathFirst/pull/95) at merge commit `13ec44cbd00e65a163b5ec18823d8b78eba085ea` on 2026-10-22 (5,110 Core tests in Debug and Release). Issue #93 is closed.
-23. MF-CYBER-008 is **MERGED** into `main` through [PR #94](https://github.com/Tachiguro/MathFirst/pull/94) on 2026-10-27 at `4214d106fe6424191a4db08e18c0e845d07649c7` (validated candidate `8e4161bce8368299a758bef3ade07d72c55fa56d`). Issue #93 is CLOSED after merged PR #95. The package remains unreleased; no deployment or physical-device acceptance is claimed.
-24. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
+23. MF-CYBER-008 is **MERGED** into `main` through [PR #94](https://github.com/Tachiguro/MathFirst/pull/94) on 2026-10-27 at `4214d106fe6424191a4db08e18c0e845d07649c7` (validated candidate `8e4161bce8368299a758bef3ade07d72c55fa56d`). Issue #93 is CLOSED after merged PR #95; post-merge reconciliation merged via PR #100. The package remains unreleased; no deployment or physical-device acceptance is claimed.
+24. MF-CYBER-009 (Narrative Spotlight Tutorial, Copy Hygiene & Local Achievements, [Issue #101](https://github.com/Tachiguro/MathFirst/issues/101)) is complete and merged into `main` via PRs #103–#109 (final slice PR #109 merged at `f5924cd1983e91453b54c219b92680cc22b731c5` on 2026-10-29). The package remains unreleased; no physical-device, screen-reader, release, signing, or store acceptance is claimed. Issue #101 remains open pending coordinator documentation closeout. MF-CYBER-010 has not started.
+25. Step 55 production packaging and release operations remain deferred and strictly require separate affirmative user authorization.
 
 > [!IMPORTANT]
 > Step 55 is **NOT AUTHORIZED**. Build 4 does not exist yet (not packaged, not signed, not tested). No production packaging, release signing, ADB, or release action is authorized without explicit user dispatch.

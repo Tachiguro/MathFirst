@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 4C (Minimal Read-Only Offline Achievement Presentation in Settings) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 4C (Minimal Read-Only Offline Achievement Presentation in Settings) — Merged into main via PR #109 (Unreleased)
 
 - **Compact Read-Only Achievements Subsection**: Rendered a minimal, read-only achievements subsection in `Settings.razor` inside the existing Cyber Defense settings card below Tutorial Replay, displaying exactly three known offline achievements (`sector_10`, `boss_slayer`, `first_upgrade`).
 - **Authoritative Presentation & Zero Progression Side-Effects**: Shows authoritative Locked or Unlocked states read through `ICyberDefenseAchievementReader` from Gameplay Schema V8 `local_achievements`. An empty successful read displays all achievements as Locked. Does not expose unlock timestamps or invent fabricated progress counters.
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Calm Mode Respect & Reset Integration**: Displayed strictly while Cyber Defense is active; completely omitted in Calm Mode without deleting achievements. Full Local Reset clears unlocked achievement records when Settings is next loaded; combat overload reboot preserves unlocked achievement milestones.
 - **Singleton DI Alias**: Registered `ICyberDefenseAchievementReader` in `MauiProgram.cs` as a singleton alias resolving the existing `IGameplayStore` / `SqliteGameplayStore` instance with fail-closed validation, ensuring no duplicate stores or second SQLite connections.
 - **Localization & Accessibility**: Added comprehensive English, German, and Russian strings for section titles, explanations, locked/unlocked statuses, unavailable errors, and achievement titles/descriptions. Structured with semantic heading hierarchy (`<h3>`), proper list semantics (`<ul role="list">`, `<li>`), visible status text, screen-reader labels, and non-color-dependent theme badges.
-- **Scope & Delivery Boundaries**: Strictly limited to read-only presentation in Settings. No database schema changes, triggers, new routes, HUD notifications, toast animations, or gameplay rewards. Physical device UX acceptance deferred. Overall package remains Unreleased. Candidate under review; unmerged.
+- **Scope & Delivery Boundaries**: Strictly limited to read-only presentation in Settings. No database schema changes, triggers, new routes, HUD notifications, toast animations, or gameplay rewards. Physical device UX acceptance deferred. Merged into `main` via PR #109 at `f5924cd1983e91453b54c219b92680cc22b731c5`. Overall package remains Unreleased.
 
 ### MF-CYBER-009 Slice 4B (Offline Achievements Atomic Unlocking: Sector 10, Boss Slayer & First Upgrade) — Merged into main via PR #108 (Unreleased)
 
@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Transactional Atomicity & Crash Safety**: Combat unlocks occur within the exact same SQLite transaction as the receipt ledger and progression updates; purchase unlocks occur within the exact same SQLite transaction as the purchase and progression updates. Failure in receipt, purchase, or achievement insertion rolls back all mutations together without partial state.
 - **Strict Idempotency & Reset Contracts**: Insertion helper `UnlockAchievementInternalAsync` uses targeted conflict handling (`ON CONFLICT(achievement_id) DO NOTHING`) and retains existing rows without mutating original unlock timestamps. Conflicting reset epochs fail closed. Full Local Reset and pending-reset recovery clear all achievements; subsequent new-epoch achievements can unlock afresh.
 - **Zero Gameplay Side-Effects & Offline Data Safety**: Unlocks grant no XP, SP, shields, damage modifiers, or store revision increments. Processing is strictly local and offline (DATA_PROFILE: USER_DATA). No user-facing presentation UI in this slice.
-- **Scope & Delivery Boundaries**: Candidate under validation/review; unmerged. Issue #101 remains OPEN. Overall package remains Unreleased.
+- **Scope & Delivery Boundaries**: Merged into `main` via PR #108 at `a0dbd738d835d8f6b9dc899c87a47d435710531e`. Issue #101 remains OPEN. Overall package remains Unreleased.
 
 ### MF-CYBER-009 Slice 4A (Offline Achievements Persistence Foundation & Gameplay Schema V8) — Merged into main via PR #107 (Unreleased)
 
