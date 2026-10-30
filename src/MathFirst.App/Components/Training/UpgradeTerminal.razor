@@ -652,27 +652,28 @@
         if (firstRender && !_initialFocusSet)
         {
             _initialFocusSet = true;
+            // preventScroll keeps the terminal opening at its top; default focus scrolling hid the header and cards.
             try
             {
                 if (ViewModel?.CanPurchase == true)
                 {
-                    await _purchaseButton.FocusAsync();
+                    await _purchaseButton.FocusAsync(preventScroll: true);
                 }
                 else if (ViewModel?.CanPurchaseFirewall == true)
                 {
-                    await _firewallPurchaseButton.FocusAsync();
+                    await _firewallPurchaseButton.FocusAsync(preventScroll: true);
                 }
                 else if (ViewModel?.CanPurchaseCriticalStrike == true)
                 {
-                    await _criticalStrikePurchaseButton.FocusAsync();
+                    await _criticalStrikePurchaseButton.FocusAsync(preventScroll: true);
                 }
                 else if (ViewModel?.CanPurchaseOverdrive == true)
                 {
-                    await _overdrivePurchaseButton.FocusAsync();
+                    await _overdrivePurchaseButton.FocusAsync(preventScroll: true);
                 }
                 else
                 {
-                    await _closeButton.FocusAsync();
+                    await _closeButton.FocusAsync(preventScroll: true);
                 }
             }
             catch
