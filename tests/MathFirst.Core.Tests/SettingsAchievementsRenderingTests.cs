@@ -270,24 +270,149 @@ public sealed class SettingsAchievementsRenderingTests
     }
 
     [Fact]
-    public async Task T12_CancellationDisposalPreventsStaleUpdatesOrUnhandledExceptions()
+    public async Task T12_A1_CalmModeSwitchDuringRead_CompletesWithoutObjectDisposedException()
     {
-        var tcs = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>();
+        var tcs = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reader = new FakeAchievementReader(_ => tcs.Task);
+        await using var fixture = await SettingsFixture.CreateAsync(this, reader: reader);
 
-        var fixture = await SettingsFixture.CreateAsync(this, reader: reader);
+        var loadTask = await fixture.StartLoadAchievementsAsync();
 
-        // Dispose while read is pending
-        await fixture.DisposeAsync();
+        // Switch to Calm Mode while read is in-flight: cancels and disposes cts
+        await fixture.InvokeSetCyberDefenseModeAsync(false);
 
-        // Complete the task after disposal
+        // Complete the old read after mode switch
         tcs.SetResult(new List<CyberDefenseAchievementRecord>
         {
             new(CyberDefenseAchievementIds.Sector10, 0, DateTimeOffset.UtcNow)
         });
 
-        // No unhandled exception should be observed
-        await Task.Delay(50);
+        // Awaiting the loadTask must not throw ObjectDisposedException
+        var ex = await Record.ExceptionAsync(() => loadTask);
+        Assert.Null(ex);
+
+        // Subsection must be hidden in Calm Mode
+        var html = await fixture.GetHtmlAsync();
+        Assert.DoesNotContain("cyber-achievements-subsection", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task T12_A2_DisposalDuringRead_CompletesWithoutObjectDisposedExceptionOrPostDisposalRender()
+    {
+        var tcs = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeAchievementReader(_ => tcs.Task);
+        var fixture = await SettingsFixture.CreateAsync(this, reader: reader);
+
+        var loadTask = await fixture.StartLoadAchievementsAsync();
+
+        // Dispose the Settings component while read is in-flight
+        await fixture.DisposeAsync();
+
+        // Complete the old read after disposal
+        tcs.SetResult(new List<CyberDefenseAchievementRecord>
+        {
+            new(CyberDefenseAchievementIds.Sector10, 0, DateTimeOffset.UtcNow)
+        });
+
+        // Awaiting the loadTask must not throw ObjectDisposedException or fail due to post-disposal render
+        var ex = await Record.ExceptionAsync(() => loadTask);
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public async Task T12_A3_ReplacementReadDuringRead_OlderReadDoesNotThrowOrOverwriteNewerResults()
+    {
+        var tcs1 = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tcs2 = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callIndex = 0;
+        var reader = new FakeAchievementReader(_ =>
+        {
+            var idx = Interlocked.Increment(ref callIndex);
+            return idx == 1 ? tcs1.Task : tcs2.Task;
+        });
+
+        await using var fixture = await SettingsFixture.CreateAsync(this, reader: reader);
+
+        // Start first read
+        var loadTask1 = await fixture.StartLoadAchievementsAsync();
+
+        // Start replacement read (cancels and disposes cts1)
+        var loadTask2 = await fixture.StartLoadAchievementsAsync();
+
+        // Complete replacement read with BossSlayer unlocked
+        tcs2.SetResult(new List<CyberDefenseAchievementRecord>
+        {
+            new(CyberDefenseAchievementIds.BossSlayer, 0, DateTimeOffset.UtcNow)
+        });
+        await loadTask2;
+
+        // Verify newer result is rendered
+        var html = await fixture.GetHtmlAsync();
+        var sub = GetSubsectionHtml(html);
+        Assert.Contains(fixture.Localizer["Achievement_boss_slayer_Title"], sub, StringComparison.Ordinal);
+
+        // Now complete the older read with Sector10
+        tcs1.SetResult(new List<CyberDefenseAchievementRecord>
+        {
+            new(CyberDefenseAchievementIds.Sector10, 0, DateTimeOffset.UtcNow)
+        });
+
+        // Old read must complete without throwing ObjectDisposedException
+        var ex1 = await Record.ExceptionAsync(() => loadTask1);
+        Assert.Null(ex1);
+
+        // Old read must not overwrite newer results
+        html = await fixture.GetHtmlAsync();
+        sub = GetSubsectionHtml(html);
+        var unlockedBadges = sub.Split("badge-unlocked").Length - 1;
+        Assert.Equal(1, unlockedBadges);
+        Assert.Contains(fixture.Localizer["Achievement_boss_slayer_Title"], sub, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task T12_A4_FullLocalResetDuringRead_OlderReadDoesNotThrowOrRestoreStaleResults()
+    {
+        var dir = CreateTempDirectory();
+        var learnerDbPath = Path.Combine(dir, "learner.db");
+        var gameplayDbPath = Path.Combine(dir, "gameplay.db");
+
+        var learnerStore = new SqliteLearnerStore(learnerDbPath);
+        var gameplayStore = new SqliteGameplayStore(gameplayDbPath);
+        await learnerStore.InitializeAsync();
+        await gameplayStore.InitializeAsync();
+
+        var prefs = new TestPreferenceStore();
+        var sessionState = new CyberDefenseSessionState(prefs);
+        var clock = new FakeClock();
+        var session = new TrainingSession(learnerStore, clock, preferenceStore: prefs);
+        await session.InitializeAsync(startTiming: false);
+        var resetCoordinator = new AppResetCoordinator(
+            session,
+            prefs,
+            new DummyInstallationIdProvider(),
+            new DummyTelemetryShareCacheCleaner(),
+            sessionState,
+            gameplayStore);
+
+        var tcs = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeAchievementReader(_ => tcs.Task);
+
+        await using var fixture = await SettingsFixture.CreateAsync(this, reader: reader, resetCoordinator: resetCoordinator);
+
+        var loadTask = await fixture.StartLoadAchievementsAsync();
+
+        // Begin full local reset (cancels and disposes cts)
+        await fixture.InvokeFullLocalResetAsync();
+
+        // Complete the old read with Sector10
+        tcs.SetResult(new List<CyberDefenseAchievementRecord>
+        {
+            new(CyberDefenseAchievementIds.Sector10, 0, DateTimeOffset.UtcNow)
+        });
+
+        // Old read must complete without throwing ObjectDisposedException
+        var ex = await Record.ExceptionAsync(() => loadTask);
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -566,6 +691,140 @@ public sealed class SettingsAchievementsRenderingTests
         Assert.DoesNotContain("100%", sub, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task T21_B1_B2_UnknownInitialStateDisplaysLoadingNotFalseLocked()
+    {
+        var readStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var readTcs = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeAchievementReader(_ =>
+        {
+            readStarted.TrySetResult(true);
+            return readTcs.Task;
+        });
+
+        using var testCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        await using var fixture = await SettingsFixture.CreateAsync(
+            this,
+            reader: reader,
+            settleInitialLoad: false);
+
+        await readStarted.Task.WaitAsync(testCts.Token);
+
+        // Intermediate render while achievement read is pending
+        var html = await fixture.GetHtmlAsync();
+        var sub = GetSubsectionHtml(html);
+
+        // Complete reader task so cleanup can complete
+        readTcs.TrySetResult(Array.Empty<CyberDefenseAchievementRecord>());
+
+        // B1: Unknown initial state must NOT display any achievement as Locked
+        Assert.DoesNotContain("badge-locked", sub, StringComparison.Ordinal);
+        Assert.DoesNotContain("achievement-item", sub, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixture.Localizer["Settings_Achievements_Locked"], sub, StringComparison.Ordinal);
+
+        // B2: Loading state must be represented explicitly
+        Assert.Contains("achievement-loading-panel", sub, StringComparison.Ordinal);
+        Assert.Contains(fixture.Localizer["Training_Loading"], sub, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task T22_B3_B4_EmptyAndNonEmptyAuthoritativeStatuses()
+    {
+        // B3: Successful empty read displays exactly three Locked achievements
+        var emptyReader = new FakeAchievementReader();
+        await using (var fixtureEmpty = await SettingsFixture.CreateAsync(this, reader: emptyReader))
+        {
+            var html = await fixtureEmpty.GetHtmlAsync();
+            var sub = GetSubsectionHtml(html);
+            var lockedBadges = sub.Split("badge-locked").Length - 1;
+            Assert.Equal(3, lockedBadges);
+            Assert.DoesNotContain("badge-unlocked", sub, StringComparison.Ordinal);
+        }
+
+        // B4: Successful non-empty read displays the correct authoritative status
+        var reader = new FakeAchievementReader(CyberDefenseAchievementIds.FirstUpgrade);
+        await using (var fixture = await SettingsFixture.CreateAsync(this, reader: reader))
+        {
+            var html = await fixture.GetHtmlAsync();
+            var sub = GetSubsectionHtml(html);
+            var unlockedBadges = sub.Split("badge-unlocked").Length - 1;
+            var lockedBadges = sub.Split("badge-locked").Length - 1;
+            Assert.Equal(1, unlockedBadges);
+            Assert.Equal(2, lockedBadges);
+        }
+    }
+
+    [Fact]
+    public async Task T23_B5_B7_ReadFailureShowsUnavailableAndRetryRestoresValidStatus()
+    {
+        var shouldFail = true;
+        var reader = new FakeAchievementReader(_ =>
+        {
+            if (shouldFail)
+            {
+                throw new InvalidOperationException("Simulated SQLite failure");
+            }
+
+            var list = new List<CyberDefenseAchievementRecord>
+            {
+                new(CyberDefenseAchievementIds.Sector10, 0, DateTimeOffset.UtcNow)
+            };
+            return Task.FromResult<IReadOnlyList<CyberDefenseAchievementRecord>>(list);
+        });
+
+        await using var fixture = await SettingsFixture.CreateAsync(this, reader: reader);
+
+        // B5: Failure shows localized unavailable state and Retry action
+        var html1 = await fixture.GetHtmlAsync();
+        var sub1 = GetSubsectionHtml(html1);
+        Assert.Contains("achievement-error-panel", sub1, StringComparison.Ordinal);
+        Assert.Contains(fixture.Localizer["Settings_Achievements_LoadFailed"], sub1, StringComparison.Ordinal);
+        Assert.Contains("achievement-retry-btn", sub1, StringComparison.Ordinal);
+        Assert.DoesNotContain("badge-locked", sub1, StringComparison.Ordinal);
+        Assert.DoesNotContain("badge-unlocked", sub1, StringComparison.Ordinal);
+
+        // B7: Successful Retry restores valid status
+        shouldFail = false;
+        await fixture.InvokeRetryAsync();
+
+        var html2 = await fixture.GetHtmlAsync();
+        var sub2 = GetSubsectionHtml(html2);
+        Assert.DoesNotContain("achievement-error-panel", sub2, StringComparison.Ordinal);
+        Assert.Contains("badge-unlocked", sub2, StringComparison.Ordinal);
+        Assert.Contains(fixture.Localizer["Achievement_sector_10_Title"], sub2, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task T24_B6_CancellationResetOrModeSwitchCannotTurnUnknownStateIntoFalseLocked()
+    {
+        var tcs = new TaskCompletionSource<IReadOnlyList<CyberDefenseAchievementRecord>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeAchievementReader(_ => tcs.Task);
+
+        await using var fixture = await SettingsFixture.CreateAsync(this, reader: reader);
+
+        // In-flight read is pending: verify loading panel, no locked badges
+        var html1 = await fixture.GetHtmlAsync();
+        var sub1 = GetSubsectionHtml(html1);
+        Assert.Contains("achievement-loading-panel", sub1, StringComparison.Ordinal);
+        Assert.DoesNotContain("badge-locked", sub1, StringComparison.Ordinal);
+        Assert.DoesNotContain("achievement-item", sub1, StringComparison.Ordinal);
+
+        // Switch to Calm Mode then back to Cyber Defense with pending read
+        await fixture.InvokeSetCyberDefenseModeAsync(false);
+        var html2 = await fixture.GetHtmlAsync();
+        Assert.DoesNotContain("cyber-achievements-subsection", html2, StringComparison.Ordinal);
+
+        // Switch back: must be in loading state, NEVER false locked
+        await fixture.InvokeSetCyberDefenseModeAsync(true);
+        var html3 = await fixture.GetHtmlAsync();
+        var sub3 = GetSubsectionHtml(html3);
+        Assert.DoesNotContain("badge-locked", sub3, StringComparison.Ordinal);
+        Assert.DoesNotContain("achievement-item", sub3, StringComparison.Ordinal);
+
+        tcs.TrySetCanceled();
+    }
+
     // =========================================================================
     // Fixture and Helpers
     // =========================================================================
@@ -612,16 +871,20 @@ public sealed class SettingsAchievementsRenderingTests
             Localizer = localizer;
         }
 
+        public Settings Settings => _settings;
+
         public static async Task<SettingsFixture> CreateAsync(
             SettingsAchievementsRenderingTests suite,
             bool cyberDefense = true,
             ICyberDefenseAchievementReader? reader = null,
             IAppResetCoordinator? resetCoordinator = null,
-            LocalizationService? localizer = null)
+            LocalizationService? localizer = null,
+            ILearnerStore? customLearnerStore = null,
+            bool settleInitialLoad = true)
         {
             var dir = suite.CreateTempDirectory();
             var dbPath = Path.Combine(dir, "learner.db");
-            var learner = new SqliteLearnerStore(dbPath);
+            var learner = customLearnerStore ?? new SqliteLearnerStore(dbPath);
 
             var preferences = new TestPreferenceStore();
             preferences.SetCyberDefenseEnabled(cyberDefense);
@@ -672,8 +935,11 @@ public sealed class SettingsAchievementsRenderingTests
                 }));
             });
 
-            // Allow initial async load to settle
-            await Task.Delay(20);
+            if (settleInitialLoad)
+            {
+                // Allow initial async load to settle
+                await Task.Delay(20);
+            }
 
             return new SettingsFixture(
                 sp,
@@ -693,12 +959,35 @@ public sealed class SettingsAchievementsRenderingTests
             return WebUtility.HtmlDecode(raw);
         }
 
+        public async Task<Task> StartLoadAchievementsAsync()
+        {
+            Task loadTask = null!;
+            await _renderer.Dispatcher.InvokeAsync(() =>
+            {
+                var method = typeof(Settings).GetMethod("LoadAchievementsAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(method);
+                loadTask = (Task)method.Invoke(_settings, null)!;
+            });
+            return loadTask;
+        }
+
+        public Task InvokeFullLocalResetAsync() =>
+            _renderer.Dispatcher.InvokeAsync(async () =>
+            {
+                var method = typeof(Settings).GetMethod("ExecuteFullLocalReset", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(method);
+                var task = (Task)method.Invoke(_settings, null)!;
+                await task;
+            });
+
         public Task InvokeSetCyberDefenseModeAsync(bool enabled) =>
             _renderer.Dispatcher.InvokeAsync(async () =>
             {
                 var method = typeof(Settings).GetMethod("SetCyberDefenseMode", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.NotNull(method);
                 method.Invoke(_settings, new object[] { enabled });
+                var stateHasChanged = typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+                stateHasChanged?.Invoke(_settings, null);
                 await Task.Delay(20);
             });
 
@@ -886,5 +1175,41 @@ public sealed class SettingsAchievementsRenderingTests
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
             ValueTask.FromResult(default(TValue)!);
+    }
+
+    private sealed class DeferredLearnerStore : ILearnerStore
+    {
+        private readonly SqliteLearnerStore _inner;
+        private readonly TaskCompletionSource<bool> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public DeferredLearnerStore(string path)
+        {
+            _inner = new SqliteLearnerStore(path);
+        }
+
+        public Task InitializationTask => _tcs.Task;
+        public void CompleteInitialization() => _tcs.TrySetResult(true);
+
+        public string StoragePath => _inner.StoragePath;
+
+        public async Task InitializeAsync(CancellationToken cancellationToken = default)
+        {
+            await _tcs.Task;
+            await _inner.InitializeAsync(cancellationToken);
+        }
+
+        public Task<LearnerSnapshot> LoadSnapshotAsync(CancellationToken cancellationToken = default) =>
+            _inner.LoadSnapshotAsync(cancellationToken);
+
+        public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet changeSet, CancellationToken cancellationToken = default) =>
+            _inner.CommitSubmissionAsync(changeSet, cancellationToken);
+
+        public Task ResetLearningProgressAsync(CancellationToken cancellationToken = default) =>
+            _inner.ResetLearningProgressAsync(cancellationToken);
+
+        public Task CloseAsync(CancellationToken cancellationToken = default) =>
+            _inner.CloseAsync(cancellationToken);
+
+        public void Dispose() => _inner.Dispose();
     }
 }

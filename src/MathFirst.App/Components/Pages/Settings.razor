@@ -121,13 +121,13 @@
                     <h3 id="cyber-achievements-title" class="settings-subsection-title">@Localizer["Settings_Achievements_Title"]</h3>
                     <p class="setting-help">@Localizer["Settings_Achievements_Desc"]</p>
 
-                    @if (_achievementsLoading)
+                    @if (_achievementState == AchievementLoadState.Loading || _achievementState == AchievementLoadState.NotLoaded)
                     {
                         <div class="achievement-loading-panel" role="status">
                             <span class="achievement-loading-text">@Localizer["Training_Loading"]</span>
                         </div>
                     }
-                    else if (_achievementsFailed)
+                    else if (_achievementState == AchievementLoadState.Failed)
                     {
                         <div class="achievement-error-panel" role="alert">
                             <p class="achievement-error-text">@Localizer["Settings_Achievements_LoadFailed"]</p>
@@ -139,12 +139,12 @@
                             </button>
                         </div>
                     }
-                    else
+                    else if (_achievementState == AchievementLoadState.Loaded && _unlockedAchievements != null)
                     {
                         <ul class="cyber-achievements-list" role="list">
                             @foreach (var achievement in KnownAchievements)
                             {
-                                var isUnlocked = _unlockedAchievements != null && _unlockedAchievements.Contains(achievement.Id);
+                                var isUnlocked = _unlockedAchievements.Contains(achievement.Id);
                                 var statusText = isUnlocked
                                     ? Localizer["Settings_Achievements_Unlocked"]
                                     : Localizer["Settings_Achievements_Locked"];
@@ -364,6 +364,14 @@
 @code {
     private enum ConfirmAction { None, ResetLearning, ResetUi, ResetFull }
 
+    private enum AchievementLoadState
+    {
+        NotLoaded,
+        Loading,
+        Loaded,
+        Failed
+    }
+
     private static readonly (string Id, string TitleKey, string DescKey)[] KnownAchievements =
     [
         (CyberDefenseAchievementIds.Sector10, "Achievement_sector_10_Title", "Achievement_sector_10_Desc"),
@@ -373,9 +381,9 @@
 
     private CancellationTokenSource? _achievementCts;
     private int _achievementLoadSequence;
-    private bool _achievementsLoading;
-    private bool _achievementsFailed;
+    private AchievementLoadState _achievementState = AchievementLoadState.NotLoaded;
     private HashSet<string>? _unlockedAchievements;
+    private bool _disposed;
 
     [Parameter]
     public ICyberDefenseAchievementReader? InjectedAchievementReader { get; set; }
@@ -413,6 +421,11 @@
         _selectedKeypadLayout = PreferenceStore.GetNumericKeypadLayout();
         _hapticFeedbackEnabled = PreferenceStore.GetHapticFeedbackEnabled();
 
+        if (CyberDefensePreferences.GetCyberDefenseEnabled())
+        {
+            _achievementState = AchievementLoadState.Loading;
+        }
+
         if (!Session.IsInitialized)
         {
             await Session.InitializeAsync(startTiming: false);
@@ -426,11 +439,29 @@
         }
     }
 
+    private void CancelAndDisposeAchievementCts()
+    {
+        var cts = _achievementCts;
+        _achievementCts = null;
+        if (cts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        cts.Dispose();
+    }
+
     public void Dispose()
     {
-        _achievementCts?.Cancel();
-        _achievementCts?.Dispose();
-        _achievementCts = null;
+        _disposed = true;
+        CancelAndDisposeAchievementCts();
         _achievementLoadSequence++;
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
@@ -454,15 +485,31 @@
         Navigation.NavigateTo("/");
     }
 
+    private async Task SafeInvokeStateHasChangedAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         _selectedLanguage = Localizer.SelectedLanguagePreference;
-        _ = InvokeAsync(StateHasChanged);
+        _ = SafeInvokeStateHasChangedAsync();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
     {
-        _ = InvokeAsync(StateHasChanged);
+        _ = SafeInvokeStateHasChangedAsync();
     }
 
     private void HandleLanguageChanged()
@@ -519,11 +566,10 @@
         }
         else
         {
-            _achievementCts?.Cancel();
-            _achievementCts?.Dispose();
-            _achievementCts = null;
+            CancelAndDisposeAchievementCts();
             _achievementLoadSequence++;
-            _achievementsLoading = false;
+            _achievementState = AchievementLoadState.NotLoaded;
+            _ = SafeInvokeStateHasChangedAsync();
         }
     }
 
@@ -627,13 +673,10 @@
 
     private async Task ExecuteFullLocalReset()
     {
-        _achievementCts?.Cancel();
-        _achievementCts?.Dispose();
-        _achievementCts = null;
+        CancelAndDisposeAchievementCts();
         _achievementLoadSequence++;
         _unlockedAchievements = null;
-        _achievementsLoading = false;
-        _achievementsFailed = false;
+        _achievementState = AchievementLoadState.NotLoaded;
 
         await ResetCoordinator.ExecuteFullResetAsync();
 
@@ -647,20 +690,20 @@
 
     private async Task LoadAchievementsAsync()
     {
-        if (!CyberDefensePreferences.GetCyberDefenseEnabled())
+        if (_disposed || !CyberDefensePreferences.GetCyberDefenseEnabled())
         {
             return;
         }
 
-        _achievementCts?.Cancel();
-        _achievementCts?.Dispose();
+        CancelAndDisposeAchievementCts();
+
         var cts = new CancellationTokenSource();
         _achievementCts = cts;
+        var token = cts.Token;
         var sequence = ++_achievementLoadSequence;
 
-        _achievementsLoading = true;
-        _achievementsFailed = false;
-        await InvokeAsync(StateHasChanged);
+        _achievementState = AchievementLoadState.Loading;
+        await SafeInvokeStateHasChangedAsync();
 
         try
         {
@@ -669,9 +712,9 @@
                 throw new InvalidOperationException("Achievement reader is not configured.");
             }
 
-            var records = await AchievementReader.GetUnlockedAchievementsAsync(cts.Token);
+            var records = await AchievementReader.GetUnlockedAchievementsAsync(token);
 
-            if (cts.Token.IsCancellationRequested || sequence != _achievementLoadSequence)
+            if (_disposed || token.IsCancellationRequested || sequence != _achievementLoadSequence)
             {
                 return;
             }
@@ -688,8 +731,7 @@
             }
 
             _unlockedAchievements = unlocked;
-            _achievementsFailed = false;
-            _achievementsLoading = false;
+            _achievementState = AchievementLoadState.Loaded;
         }
         catch (OperationCanceledException)
         {
@@ -697,17 +739,21 @@
         }
         catch (Exception)
         {
-            if (cts.Token.IsCancellationRequested || sequence != _achievementLoadSequence)
+            if (_disposed || token.IsCancellationRequested || sequence != _achievementLoadSequence)
             {
                 return;
             }
 
             _unlockedAchievements = null;
-            _achievementsFailed = true;
-            _achievementsLoading = false;
+            _achievementState = AchievementLoadState.Failed;
         }
 
-        await InvokeAsync(StateHasChanged);
+        if (_disposed || token.IsCancellationRequested || sequence != _achievementLoadSequence)
+        {
+            return;
+        }
+
+        await SafeInvokeStateHasChangedAsync();
     }
 
     private Task RetryLoadAchievementsAsync()
