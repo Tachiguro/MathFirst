@@ -78,6 +78,17 @@ public static class MauiProgram
 		builder.Services.AddSingleton<ILearnerStore>(_ => new SqliteLearnerStore(dbPath));
 		var gameplayDbPath = Path.Combine(FileSystem.AppDataDirectory, "mathfirst_gameplay.db");
 		builder.Services.AddSingleton<IGameplayStore>(_ => new SqliteGameplayStore(gameplayDbPath));
+		builder.Services.AddSingleton<ICyberDefenseAchievementReader>(sp =>
+		{
+			var store = sp.GetRequiredService<IGameplayStore>();
+			if (store is ICyberDefenseAchievementReader reader)
+			{
+				return reader;
+			}
+
+			throw new InvalidOperationException(
+				$"Registered {nameof(IGameplayStore)} instance does not implement {nameof(ICyberDefenseAchievementReader)}.");
+		});
 		builder.Services.AddSingleton<IClock>(_ => MonotonicClock.Instance);
 		builder.Services.AddSingleton<AdaptivePracticeSelector>();
 		builder.Services.AddSingleton<TrainingSession>();

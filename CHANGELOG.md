@@ -9,7 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### MF-CYBER-009 Slice 4B (Offline Achievements Atomic Unlocking: Sector 10, Boss Slayer & First Upgrade) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+### MF-CYBER-009 Slice 4C (Minimal Read-Only Offline Achievement Presentation in Settings) — Work in Progress ([Issue #101](https://github.com/Tachiguro/MathFirst/issues/101))
+
+- **Compact Read-Only Achievements Subsection**: Rendered a minimal, read-only achievements subsection in `Settings.razor` inside the existing Cyber Defense settings card below Tutorial Replay, displaying exactly three known offline achievements (`sector_10`, `boss_slayer`, `first_upgrade`).
+- **Authoritative Presentation & Zero Progression Side-Effects**: Shows authoritative Locked or Unlocked states read through `ICyberDefenseAchievementReader` from Gameplay Schema V8 `local_achievements`. An empty successful read displays all achievements as Locked. Does not expose unlock timestamps or invent fabricated progress counters.
+- **Fail-Closed Availability & Safe Retry Lifecycle**: SQLite or validation errors (unknown achievement IDs, duplicates, corrupt records, or pending reset fencing) fail closed, displaying a localized unavailable notice (`Settings_Achievements_LoadFailed`) and an accessible Retry control (`Training_Retry`), never fictitious locked data.
+- **Lifecycle & Timing Isolation**: Preserves `Session.PauseItemTiming()` and existing navigation and reset lifecycles. Achievement reads run asynchronously without adding measured thinking time. Requests are cancellation-token-fenced and sequence-guarded to prevent stale out-of-order updates across mode toggles, navigation, reset, or component disposal.
+- **Calm Mode Respect & Reset Integration**: Displayed strictly while Cyber Defense is active; completely omitted in Calm Mode without deleting achievements. Full Local Reset clears unlocked achievement records when Settings is next loaded; combat overload reboot preserves unlocked achievement milestones.
+- **Singleton DI Alias**: Registered `ICyberDefenseAchievementReader` in `MauiProgram.cs` as a singleton alias resolving the existing `IGameplayStore` / `SqliteGameplayStore` instance with fail-closed validation, ensuring no duplicate stores or second SQLite connections.
+- **Localization & Accessibility**: Added comprehensive English, German, and Russian strings for section titles, explanations, locked/unlocked statuses, unavailable errors, and achievement titles/descriptions. Structured with semantic heading hierarchy (`<h3>`), proper list semantics (`<ul role="list">`, `<li>`), visible status text, screen-reader labels, and non-color-dependent theme badges.
+- **Scope & Delivery Boundaries**: Strictly limited to read-only presentation in Settings. No database schema changes, triggers, new routes, HUD notifications, toast animations, or gameplay rewards. Physical device UX acceptance deferred. Overall package remains Unreleased. Candidate under review; unmerged.
+
+### MF-CYBER-009 Slice 4B (Offline Achievements Atomic Unlocking: Sector 10, Boss Slayer & First Upgrade) — Merged into main via PR #108 (Unreleased)
 
 - **Three Authoritative Offline Achievement Unlocks**: Implemented atomic unlocking for exactly three permanent local Cyber Defense achievements in `SqliteGameplayStore` using Gameplay Schema V8 `local_achievements`:
   - `sector_10`: Unlocks only when newly applied eligible combat transition proves crossing from Sector 9 into Sector 10 (`currentRunState.Sector == 9`, `transition.IsSectorCompleted == true`, `!transition.IsGameOver`, `transition.NextState.Sector == 10`). Calm Mode, non-completing attempts, high-sector states without crossing, and duplicate receipt replays never unlock.
