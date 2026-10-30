@@ -266,7 +266,7 @@
     private string OpponentDescription => Localizer[EffectiveModel.OpponentDescKey];
 
     private string OpponentScaleClass => EffectiveModel.OpponentScaleClass ??
-        CyberDefenseOpponentScalePolicy.GetScaleClass(EffectiveModel.OpponentIndex, EffectiveModel.NormalOpponentCount, EffectiveModel.IsSectorBoss, EffectiveModel.IsBoss);
+        CyberDefenseOpponentScalePolicy.GetScaleClass(EffectiveModel.SectorNumber, EffectiveModel.OpponentIndex, EffectiveModel.NormalOpponentCount, EffectiveModel.IsSectorBoss, EffectiveModel.IsBoss);
 
     private string ArtworkFeedbackClass => EffectiveModel.LastFeedback switch
     {
