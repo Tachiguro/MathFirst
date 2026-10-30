@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Issue #117 Upgrade Terminal Scroll/Focus Trap (Unreleased)
+
+- **Fixed**: The Upgrade Terminal no longer opens scrolled to the bottom with an unscrollable card list. It now uses a local bounded flex column so title, Level/SP and Close stay visible while only the upgrade cards scroll. Short landscape phones get a compact header. Enlarged text falls back to scrolling the whole terminal instead of clipping it. Initial focus keeps its affordable-purchase-then-Close target but uses `preventScroll`. The shared overlay dialog styling is unchanged.
+- **Tests**: Added a headless Chromium rendered regression over production markup and CSS (viewports, EN/DE/RU, affordability, theme, text size, reduced motion, HUD and Pause opening). See `docs/TESTING.md` §37. Upgrade costs, rewards, levels, unlocks, timing, curriculum and persistence are unchanged. Physical Android acceptance is pending.
+
 ### Issue #112 Cyber Defense Android UI Repairs — PR #113 (Open, Unreleased)
 
 - **Tutorial & Upgrade Terminal Layering**: Established three-layer spotlight architecture (`.tutorial-backdrop` at z-index 90 dimmer/blur < active target at z-index 96 visibly highlighted < `.tutorial-overlay` / `.tutorial-card` at z-index 100/101 dialog content above highlighted target, with transparent overlay ensuring dark scrim never obscures target). Implemented content-safe internal scroll layout (`.tutorial-card` `overflow: hidden`, header/actions pinned with `flex-shrink: 0`, `.tutorial-card-body` `overflow-y: auto` with responsive max-height) preventing clipping across narrow viewports (320px+), localized EN/DE/RU copy, and enlarged text. The Upgrade Terminal renders as a single fixed modal outside the training card, with background header, HUD and practice layout inert, input blocked and item timing suspended while open. Tutorial replay may present over a manual pause and keeps timing suspended until Resume.

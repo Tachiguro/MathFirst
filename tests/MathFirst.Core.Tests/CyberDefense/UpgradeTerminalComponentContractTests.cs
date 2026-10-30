@@ -429,12 +429,14 @@ public sealed class UpgradeTerminalComponentContractTests
     {
         var content = ReadUpgradeTerminalRazor();
 
-        // Initial focus targets purchase button when affordable, close button otherwise
-        Assert.Contains("_purchaseButton.FocusAsync()", content, StringComparison.Ordinal);
-        Assert.Contains("_closeButton.FocusAsync()", content, StringComparison.Ordinal);
-        Assert.Contains("_firewallPurchaseButton.FocusAsync()", content, StringComparison.Ordinal);
-        Assert.Contains("_criticalStrikePurchaseButton.FocusAsync()", content, StringComparison.Ordinal);
-        Assert.Contains("_overdrivePurchaseButton.FocusAsync()", content, StringComparison.Ordinal);
+        // Initial focus targets purchase button when affordable, close button otherwise,
+        // without scrolling the terminal (Issue #117; rendered proof in Issue117UpgradeTerminalRenderedLayoutTests).
+        Assert.Contains("_purchaseButton.FocusAsync(preventScroll: true)", content, StringComparison.Ordinal);
+        Assert.Contains("_closeButton.FocusAsync(preventScroll: true)", content, StringComparison.Ordinal);
+        Assert.Contains("_firewallPurchaseButton.FocusAsync(preventScroll: true)", content, StringComparison.Ordinal);
+        Assert.Contains("_criticalStrikePurchaseButton.FocusAsync(preventScroll: true)", content, StringComparison.Ordinal);
+        Assert.Contains("_overdrivePurchaseButton.FocusAsync(preventScroll: true)", content, StringComparison.Ordinal);
+        Assert.DoesNotContain(".FocusAsync()", content, StringComparison.Ordinal);
     }
 
     // =========================================================================

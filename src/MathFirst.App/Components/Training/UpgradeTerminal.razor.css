@@ -10,11 +10,19 @@
     overflow-y: auto;
 }
 
+/* The shared .practice-overlay-content is a grid; the terminal overrides it locally with a bounded
+   flex column so header, Level/SP and Close stay pinned and only the cards container scrolls.
+   If very large text cannot fit the pinned parts, the content itself scrolls instead of clipping. */
 .upgrade-terminal-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: var(--space-4);
     max-width: min(100%, 40rem);
     max-height: min(92vh, 92dvh);
-    overflow: hidden;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .upgrade-terminal-header {
@@ -42,6 +50,7 @@
 
 .upgrade-meta-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
     gap: var(--space-3);
@@ -81,7 +90,7 @@
     flex-direction: column;
     gap: var(--space-3);
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: min(10rem, 30vh);
     overflow-y: auto;
     padding-right: var(--space-1);
 }
@@ -315,4 +324,37 @@
 
 .upgrade-close-btn {
     flex-shrink: 0;
+}
+
+/* Short landscape phones: compact the pinned header, status and Close so the cards keep a usable scroll viewport. */
+@media (max-height: 520px) {
+    .upgrade-terminal-dialog {
+        padding: 0.5rem;
+    }
+
+    .upgrade-terminal-content {
+        gap: var(--space-2);
+        max-height: min(calc(100vh - 1rem), calc(100dvh - 1rem));
+    }
+
+    .upgrade-terminal-header {
+        gap: 0;
+    }
+
+    .upgrade-terminal-header h2 {
+        font-size: clamp(1.1rem, 3vw, 1.35rem);
+    }
+
+    .meta-stat-pill {
+        padding: 0.15rem 0.75rem;
+    }
+
+    .upgrade-terminal-feedback.feedback-empty {
+        min-height: 0;
+        padding: 0;
+    }
+
+    .upgrade-terminal-actions .practice-overlay-action {
+        min-height: 2.5rem;
+    }
 }
