@@ -375,6 +375,60 @@ internal static class ChromiumLayoutHarness
             return result;
         }
 
+        // Issue #122: active-gameplay HUD geometry. Clipping is measured against ancestor overflow only, because the
+        // page itself may scroll vertically on short viewports.
+        function clippedByAncestors(w, el) {
+            if (!el) return 0;
+            const r = el.getBoundingClientRect();
+            if (r.width <= 0 || r.height <= 0) return 0;
+            let top = r.top, left = r.left, bottom = r.bottom, right = r.right;
+            // Only hidden/clip ancestors make content unreachable; auto/scroll containers can be scrolled.
+            const cuts = v => v === 'hidden' || v === 'clip';
+            for (let a = el.parentElement; a; a = a.parentElement) {
+                const cs = w.getComputedStyle(a);
+                if (cuts(cs.overflowX) || cuts(cs.overflowY)) {
+                    const ar = a.getBoundingClientRect();
+                    top = Math.max(top, ar.top + a.clientTop);
+                    left = Math.max(left, ar.left + a.clientLeft);
+                    bottom = Math.min(bottom, ar.top + a.clientTop + a.clientHeight);
+                    right = Math.min(right, ar.left + a.clientLeft + a.clientWidth);
+                }
+            }
+            return (Math.max(0, bottom - top) * Math.max(0, right - left)) / (r.width * r.height);
+        }
+
+        function hudProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const selectors = ['.mathfirst-header', '.upgrade-nav-btn', '.pause-practice-btn', '.settings-nav-btn', '.header-sp-badge',
+                '.player-shield-panel', '.player-hp-bar', '.player-hp-value', '.player-xp-cluster', '.player-level-label', '.player-xp-bar',
+                '.player-xp-value', '.shield-status-column', '.tactical-radar-widget', '.training-top-region', '.practice-layout',
+                '.expression-row', '.answer-input', '.numeric-keypad', '.operation-progress-hud'];
+            const rects = {}, clip = {}, hit = {}, textOverflow = {};
+            for (const sel of selectors) {
+                const el = q(sel);
+                rects[sel] = rectOf(el);
+                if (!el) continue;
+                clip[sel] = clippedByAncestors(w, el);
+                hit[sel] = hits(d, el);
+                textOverflow[sel] = el.scrollWidth > el.clientWidth + 1;
+            }
+            const keypad = [...d.querySelectorAll('.numeric-keypad-button')].map(rectOf);
+            const operations = [...d.querySelectorAll('.operation-progress-entry')].map(el => ({ rect: rectOf(el), clip: clippedByAncestors(w, el), overflow: el.scrollWidth > el.clientWidth + 1 }));
+            const overlap = (a, b) => !!a && !!b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+            const pairs = [['.player-hp-bar', '.player-xp-bar'], ['.player-hp-value', '.player-level-label'], ['.player-hp-value', '.player-xp-value'],
+                ['.player-hp-bar', '.player-level-label'], ['.player-xp-bar', '.player-level-label'], ['.player-xp-bar', '.player-xp-value'],
+                ['.player-level-label', '.player-xp-value'], ['.upgrade-nav-btn', '.pause-practice-btn'], ['.pause-practice-btn', '.settings-nav-btn'],
+                ['.upgrade-nav-btn', '.settings-nav-btn'], ['.player-xp-cluster', '.tactical-radar-widget'], ['.shield-status-column', '.tactical-radar-widget']];
+            const overlaps = pairs.filter(([a, b]) => overlap(rects[a], rects[b])).map(([a, b]) => a + ' x ' + b);
+            const doc = d.documentElement;
+            return {
+                rects, clip, hit, textOverflow, keypad, operations, overlaps,
+                horizontalOverflow: doc.scrollWidth > w.innerWidth + 1 || d.body.scrollWidth > w.innerWidth + 1,
+                scrollWidth: doc.scrollWidth, scrollHeight: doc.scrollHeight, viewportHeight: w.innerHeight, viewportWidth: w.innerWidth,
+                header: { fontPx: q('.upgrade-nav-btn') ? parseFloat(w.getComputedStyle(q('.upgrade-nav-btn')).fontSize) : null }
+            };
+        }
+
         function homeProbe(d, w) {
             const q = s => d.querySelector(s);
             const dialog = q('.upgrade-terminal-dialog');
@@ -433,7 +487,7 @@ internal static class ChromiumLayoutHarness
                     applyStyles(d, scenario);
                     void d.body.offsetHeight;
                     const focus = applyFocus(d, scenario);
-                    const probe = scenario.probe === 'home' ? homeProbe(d, w)
+                    const probe = scenario.probe === 'hud' ? hudProbe(d, w) : scenario.probe === 'home' ? homeProbe(d, w)
                         : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : terminalProbe(d, w);
                     state.results.push({
                         id: scenario.id,

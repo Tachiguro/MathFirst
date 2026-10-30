@@ -695,22 +695,26 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
     }
 
     [Fact]
-    public void CyberDefenseHud_Contract_AcceptsAvailableSkillPointsAndOpenCallback()
+    public void CyberDefenseHud_Contract_HasNoUpgradeEntry_AndAcceptsAuthoritativePlayerProgress()
     {
         var hud = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor"));
 
-        Assert.Matches(@"\[Parameter[^\]]*\]\s*public\s+int\s+AvailableSkillPoints\s*\{\s*get;\s*set;\s*\}", hud);
-        Assert.Matches(@"\[Parameter[^\]]*\]\s*public\s+EventCallback\s+OnOpenUpgradeTerminal\s*\{\s*get;\s*set;\s*\}", hud);
+        // Issue #122: the header Upgrade button is the single entry; the sector HUD only presents progression.
+        Assert.DoesNotContain("AvailableSkillPoints", hud, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnOpenUpgradeTerminal", hud, StringComparison.Ordinal);
+        Assert.Matches(@"\[Parameter[^\]]*\]\s*public\s+PlayerLevelProgress\?\s+PlayerProgress\s*\{\s*get;\s*set;\s*\}", hud);
     }
 
     [Fact]
-    public void CyberDefenseHud_Contract_RendersUpgradeIndicatorOnlyWhenSpGreaterThanZero()
+    public void Home_Contract_PrimaryUpgradeButtonRendersSkillPointBadgeOnlyWhenSpGreaterThanZero()
     {
+        var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var hud = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor"));
 
-        Assert.Contains("AvailableSkillPoints > 0", hud, StringComparison.Ordinal);
-        Assert.Contains("upgrade-indicator", hud, StringComparison.Ordinal);
-        Assert.Contains("UpgradeTerminal_IndicatorAriaLabel", hud, StringComparison.Ordinal);
+        Assert.Contains("EffectiveAvailableSp > 0", home, StringComparison.Ordinal);
+        Assert.Contains("header-sp-badge", home, StringComparison.Ordinal);
+        Assert.Contains("UpgradeTerminal_IndicatorAriaLabel", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("upgrade-indicator", hud, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -724,7 +728,6 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
 
         string[] requiredKeys =
         [
-            "UpgradeTerminal_IndicatorAction",
             "UpgradeTerminal_IndicatorAriaLabel"
         ];
 
@@ -817,13 +820,14 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         // MAJOR-01 Requirement 2: State-dependent aria-hidden protection on mathfirst-header
         Assert.Contains("aria-hidden=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? \"true\" : null)\"", headerOpeningTag, StringComparison.Ordinal);
 
-        // 2. Locate the Mode Toggle button inside the header
+        // 2. Locate the Upgrade button inside the header
         var headerEnd = home.IndexOf("</header>", headerStart, StringComparison.Ordinal);
         Assert.True(headerEnd > headerTagEnd, "</header> closing tag must exist after header opening tag.");
         var headerContent = home.Substring(headerStart, headerEnd - headerStart + 9);
 
-        // MINOR-01 Requirement 3: Mode toggle button is disabled when modal is open
-        Assert.Contains("mode-toggle-btn", headerContent, StringComparison.Ordinal);
+        // MINOR-01 Requirement 3: the Upgrade button is disabled when modal is open; the mode toggle no longer exists (Issue #122)
+        Assert.Contains("upgrade-nav-btn", headerContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("mode-toggle", headerContent, StringComparison.Ordinal);
         Assert.Contains("disabled=\"@(_isSubmitting || _isUpgradeTerminalOpen)\"", headerContent, StringComparison.Ordinal);
 
         // 3. Requirement 4: State-dependent evaluation simulation
@@ -840,13 +844,13 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         Assert.Null(inertWhenClosed); // Attribute removed -> header accessible
         Assert.Null(ariaHiddenWhenClosed); // Attribute removed -> header visible in accessibility tree
 
-        // Mode toggle disabled evaluation simulation:
+        // Upgrade button disabled evaluation simulation:
         // Closed + Not submitting -> Enabled
-        Assert.False(false || isModalClosed, "Mode toggle must be enabled when modal is closed and not submitting.");
+        Assert.False(false || isModalClosed, "Upgrade button must be enabled when modal is closed and not submitting.");
         // Open + Not submitting -> Disabled
-        Assert.True(false || isModalOpen, "Mode toggle must be disabled when modal is open.");
+        Assert.True(false || isModalOpen, "Upgrade button must be disabled when modal is open.");
         // Closed + Submitting -> Disabled
-        Assert.True(true || isModalClosed, "Mode toggle must be disabled when submitting.");
+        Assert.True(true || isModalClosed, "Upgrade button must be disabled when submitting.");
 
         // 4. Requirement 5: UpgradeTerminal is rendered outside the header and outside all inert containers
         var upgradeTerminalPos = home.IndexOf("<UpgradeTerminal", StringComparison.Ordinal);
@@ -884,8 +888,10 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         // 2. Keypad click handler rejects while Upgrade Terminal is open
         Assert.Matches(@"HandleKeypadKeyAsync[^{]*\{[\s\S]*?if\s*\(_isUpgradeTerminalOpen\)\s*\{\s*return;\s*\}", home);
 
-        // 3. Mode Toggle handler rejects while Upgrade Terminal is open
-        Assert.Matches(@"ToggleCyberDefenseMode\(\)[\s\S]*?if\s*\(_isSubmitting\s*\|\|\s*_isUpgradeTerminalOpen\)\s*\{\s*return;\s*\}", home);
+        // 3. The header mode toggle was removed (Issue #122): Home has no handler that could change the mode mid-question.
+        Assert.DoesNotContain("ToggleCyberDefenseMode", home, StringComparison.Ordinal);
+        // 3b. The Upgrade opener rejects re-entry, submissions and an open tutorial.
+        Assert.Matches(@"OpenUpgradeTerminalAsync\(\)[\s\S]*?if\s*\(_isUpgradeTerminalOpen\s*\|\|\s*_isSubmitting\s*\|\|\s*_isDisposed\s*\|\|\s*_isTutorialOpen\)\s*\{\s*return;\s*\}", home);
 
         // Requirement 7: Existing focus restoration contracts remain intact across all three gate states
         // In CloseUpgradeTerminalCore:

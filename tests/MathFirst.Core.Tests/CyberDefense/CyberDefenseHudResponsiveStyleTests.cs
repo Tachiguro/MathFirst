@@ -58,8 +58,8 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         Assert.Contains("width: 100%;", Rule(narrow, ".scene-intel"));
         Assert.Contains("display: none;", Rule(narrow, ".tactical-telemetry-list")); // Decorative, aria-hidden already.
         Assert.Contains("flex-shrink: 0;", Rule(css, ".tactical-radar-widget"));
-        foreach (var essential in new[] { ".scene-sector-tag", ".scene-wave-tag", ".upgrade-indicator-badge",
-                     ".upgrade-indicator-text", ".shield-badges-row", ".player-hp-value", ".tactical-radar-widget" })
+        foreach (var essential in new[] { ".scene-sector-tag", ".scene-wave-tag", ".shield-badges-row", ".player-hp-value",
+                     ".player-level-label", ".player-xp-value", ".tactical-radar-widget" })
         {
             foreach (Match match in Regex.Matches(css, Regex.Escape(essential) + @"\s*\{([^{}]*)\}"))
                 Assert.DoesNotMatch(@"display:\s*none|visibility:\s*hidden|font-size:\s*0(?:;|\s)", match.Value);
@@ -92,16 +92,15 @@ public sealed class CyberDefenseHudResponsiveStyleTests
     }
 
     [Fact]
-    public void UpgradeFocus_UsesThemeRing_AndReducedMotionStopsRadarAndControlTransitions()
+    public void ReducedMotion_StopsRadarShieldAndMeterTransitions_ForTheXpAndHpBars()
     {
         var css = HudCss;
-        var focus = Rule(css, ".upgrade-indicator-badge:focus-visible");
-        Assert.Contains("outline: 2px solid var(--color-primary);", focus);
-        Assert.Contains("outline-offset: 2px;", focus);
+        Assert.DoesNotContain("upgrade-indicator", css); // The sector HUD has no Upgrade control of its own (Issue #122).
         var reduced = Media(css, "@media (prefers-reduced-motion: reduce)");
         Assert.Contains(".radar-sweep", reduced);
         Assert.Contains(".radar-blip", reduced);
-        Assert.Matches(@"\.upgrade-indicator-badge[^{]*\{[^}]*transition:\s*none", reduced);
+        // .meter-fill covers both the HP fill and the XP fill.
+        Assert.Matches(@"\.shield-badge,\s*\.meter-fill[^{]*\{[^}]*transition:\s*none", reduced);
         var theme = ReadSource("wwwroot", "app.css");
         Assert.Contains(".app-theme-root[data-theme=\"light\"]", theme);
         Assert.Contains(".app-theme-root[data-theme=\"dark\"]", theme);

@@ -551,7 +551,9 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         Assert.Contains("_operationProgressLearnerStateGeneration", home, StringComparison.Ordinal);
         Assert.Contains("_operationProgressPracticePosition", home, StringComparison.Ordinal);
         Assert.Contains("Session.LearnerStateGenerationRevision", home, StringComparison.Ordinal);
-        Assert.Contains("LearningProgressDiagnostics.Create(Session.Progression, _curriculum)", home, StringComparison.Ordinal);
+        Assert.Contains("_operationProgressCurriculumStage", home, StringComparison.Ordinal);
+        Assert.Contains("OperationStageHudProjection.Create(progression, _curriculum, Session.PracticeMode, _enabledOperations)", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("_enabledOperations.Contains", home, StringComparison.Ordinal);
         Assert.DoesNotContain("LearningProgressDiagnostics.Create(Session.Progression, new ArithmeticCurriculum())", home, StringComparison.Ordinal);
     }
 

@@ -1,6 +1,7 @@
 @using MathFirst.Application
 @using MathFirst.Application.Gameplay
 @using MathFirst.Application.Practice
+@using MathFirst.Domain.CyberDefense
 @inject ILocalizationService Localizer
 
 <div class="cyber-defense-hud @(EffectiveModel.IsBoss ? "hud-boss-active" : "")" role="region" aria-label='@Localizer["CyberDefense_Title"]'>
@@ -23,18 +24,6 @@
                 <span class="scene-sector-tag">@Localizer["CyberDefense_SectorDisplay", EffectiveModel.SectorNumber]</span>
             </div>
             <div class="scene-top-actions">
-                @if (AvailableSkillPoints > 0)
-                {
-                    <button type="button"
-                            class="upgrade-indicator-badge"
-                            aria-label='@Localizer["UpgradeTerminal_IndicatorAriaLabel", AvailableSkillPoints]'
-                            title='@Localizer["UpgradeTerminal_IndicatorAriaLabel", AvailableSkillPoints]'
-                            @onclick="HandleUpgradeIndicatorClick">
-                        <span class="upgrade-indicator-icon" aria-hidden="true">▲</span>
-                        <span class="upgrade-indicator-text">@Localizer["UpgradeTerminal_IndicatorAction"]</span>
-                        <span class="upgrade-indicator-count">(@AvailableSkillPoints)</span>
-                    </button>
-                }
                 <div class="scene-wave-tag @(EffectiveModel.IsBoss ? "wave-boss-active" : "")">
                     @if (EffectiveModel.IsSectorBoss)
                     {
@@ -175,6 +164,33 @@
                 </div>
                 <span class="player-hp-value">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
             </div>
+            <!-- Persistent player level and XP: authoritative durable progression, never the run's sector. -->
+            <div class="player-xp-cluster">
+                <span class="player-level-label">@Localizer["CyberDefense_PlayerLevelDisplay", PlayerProgress is null ? Localizer["Training_Unavailable"] : PlayerProgress.Level]</span>
+                @if (PlayerProgress is { } progress)
+                {
+                    <div class="meter-bar player-xp-bar"
+                         role="progressbar"
+                         aria-label='@Localizer["CyberDefense_PlayerLevelAria", progress.Level]'
+                         aria-valuemin="0"
+                         aria-valuenow="@progress.XpIntoCurrentLevel"
+                         aria-valuemax="@progress.XpRequiredForNextLevel"
+                         aria-valuetext='@Localizer["CyberDefense_PlayerXpAria", progress.XpIntoCurrentLevel, progress.XpRequiredForNextLevel]'>
+                        <div class="meter-fill player-xp-fill" style="width: @(XpPercentage(progress))%"></div>
+                    </div>
+                    <span class="player-xp-value">@Localizer["CyberDefense_PlayerXpDisplay", progress.XpIntoCurrentLevel, progress.XpRequiredForNextLevel]</span>
+                }
+                else
+                {
+                    <div class="meter-bar player-xp-bar"
+                         role="progressbar"
+                         aria-label='@Localizer["CyberDefense_PlayerLevelUnavailableAria"]'
+                         aria-valuetext='@Localizer["CyberDefense_PlayerLevelUnavailableAria"]'>
+                        <div class="meter-fill player-xp-fill" style="width: 0%"></div>
+                    </div>
+                    <span class="player-xp-value">@Localizer["Training_Unavailable"]</span>
+                }
+            </div>
         </div>
 
         <!-- Right: Tactical Radar & Telemetry -->
@@ -241,19 +257,15 @@
     [Parameter]
     public string? TaskKey { get; set; }
 
+    /// <summary>
+    /// Latest committed permanent player progression, or null while no authoritative status is known yet.
+    /// The component never derives level or XP itself.
+    /// </summary>
     [Parameter]
-    public int AvailableSkillPoints { get; set; }
+    public PlayerLevelProgress? PlayerProgress { get; set; }
 
-    [Parameter]
-    public EventCallback OnOpenUpgradeTerminal { get; set; }
-
-    private async Task HandleUpgradeIndicatorClick()
-    {
-        if (OnOpenUpgradeTerminal.HasDelegate)
-        {
-            await OnOpenUpgradeTerminal.InvokeAsync();
-        }
-    }
+    private static string XpPercentage(PlayerLevelProgress progress) =>
+        (Math.Clamp(progress.ProgressRatio, 0d, 1d) * 100d).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
     private CyberDefenseHudViewModel EffectiveModel =>
         ViewModel ?? (State != null ? CyberDefenseHudViewModel.FromEncounterState(State) : CyberDefenseHudViewModel.Initial());

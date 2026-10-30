@@ -1133,25 +1133,21 @@ public sealed class CyberDefenseUiContractTests
     }
 
     [Fact]
-    public void T2_2_Practice_ContainsQuickModeToggleUsingPreferences()
+    public void T2_2_Practice_HeaderHasNoModeToggle_AndKeepsModePreferenceDependencies()
     {
         var homePath = GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor");
         Assert.True(File.Exists(homePath));
         var content = File.ReadAllText(homePath);
 
-        // Quick toggle button near practice header controls
-        Assert.Contains("mode-toggle-btn", content, StringComparison.Ordinal);
-        Assert.Contains("ToggleCyberDefenseMode", content, StringComparison.Ordinal);
-        Assert.Contains("disabled=\"@_isSubmitting\"", content, StringComparison.Ordinal);
-        Assert.Contains("aria-pressed=\"@IsCyberDefenseActive\"", content, StringComparison.Ordinal);
+        // Issue #122: the header mode toggle was removed; Settings owns the Cyber Defense / Calm preference.
+        Assert.DoesNotContain("mode-toggle", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToggleCyberDefenseMode", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-pressed=\"@IsCyberDefenseActive\"", content, StringComparison.Ordinal);
 
         // Uses ICyberDefenseModePreferences and ICyberDefenseCombatCoordinator
         Assert.Contains("ICyberDefenseModePreferences", content, StringComparison.Ordinal);
         Assert.Contains("ICyberDefenseCombatCoordinator", content, StringComparison.Ordinal);
 
-        // Accessible labels and tooltips for both states
-        Assert.Contains("CalmMode_SwitchAction", content, StringComparison.Ordinal);
-        Assert.Contains("CyberDefense_EnableAction", content, StringComparison.Ordinal);
     }
 
     [Fact]
