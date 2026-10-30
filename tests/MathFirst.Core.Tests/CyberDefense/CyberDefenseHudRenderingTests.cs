@@ -60,21 +60,20 @@ public sealed class CyberDefenseHudRenderingTests
     [InlineData("en")]
     [InlineData("de")]
     [InlineData("ru")]
-    public async Task Hud_UpgradeAvailabilityAndRadarTrackParametersWithoutRemovingCombatStatus(string language)
+    public async Task Hud_RadarTracksParametersWithoutRemovingCombatStatus_AndRendersNoSectorUpgradeEntry(string language)
     {
         await using var hud = await RenderedHud.CreateAsync(language);
-        await hud.ShowControlsAsync(0, 3000);
+        await hud.ShowControlsAsync(3000);
         var html = await hud.HtmlAsync();
-        Assert.DoesNotContain("upgrade-indicator-badge", html);
+        // The single Upgrade entry lives in the page header (Issue #122); the sector HUD renders no button at all.
+        Assert.DoesNotContain("upgrade-indicator", html);
+        Assert.DoesNotContain("<button", html);
         Assert.DoesNotContain("class=\"radar-timing-arc\"", html);
         Assert.Contains("tactical-radar-widget", html);
 
-        await hud.ShowControlsAsync(7, 0);
+        await hud.ShowControlsAsync(0);
         html = await hud.HtmlAsync();
-        var localizer = new LocalizationService();
-        localizer.ApplyLanguagePreference(language);
-        Assert.Contains($"aria-label=\"{localizer["UpgradeTerminal_IndicatorAriaLabel", 7]}\"", html);
-        Assert.Contains($"<span class=\"upgrade-indicator-text\">{localizer["UpgradeTerminal_IndicatorAction"]}</span>", html);
+        Assert.DoesNotContain("upgrade-indicator", html);
         Assert.Contains("class=\"radar-timing-arc\"", html);
         Assert.Contains("scene-sector-tag", html);
         Assert.Contains("player-hp-bar", html);
@@ -258,14 +257,13 @@ public sealed class CyberDefenseHudRenderingTests
         Assert.Contains($"aria-valuenow=\"{opponentHp}\"", enemyMeter);
         Assert.Contains("tactical-radar-widget", html);
         Assert.Contains("scene-sector-tag", html);
-        Assert.Contains("upgrade-indicator-badge", html);
+        Assert.DoesNotContain("upgrade-indicator", html); // Issue #122: the header owns the single Upgrade entry.
     }
 
     public sealed class HudHost : ComponentBase
     {
         [Parameter] public Action<HudHost> Capture { get; set; } = null!;
         private CyberDefenseHudViewModel _model = CyberDefenseHudViewModel.Initial();
-        private int _skillPoints = 1;
         private long _elapsed;
         protected override void OnInitialized() => Capture(this);
         public void Show(CyberDefenseRunState run)
@@ -276,9 +274,8 @@ public sealed class CyberDefenseHudRenderingTests
             StateHasChanged();
         }
 
-        public void ShowControls(int skillPoints, long elapsed)
+        public void ShowControls(long elapsed)
         {
-            _skillPoints = skillPoints;
             _elapsed = elapsed;
             StateHasChanged();
         }
@@ -287,7 +284,6 @@ public sealed class CyberDefenseHudRenderingTests
         {
             builder.OpenComponent<global::MathFirst.Core.Tests.CyberDefenseHud>(0);
             builder.AddAttribute(1, "ViewModel", _model);
-            builder.AddAttribute(2, "AvailableSkillPoints", _skillPoints);
             builder.AddAttribute(3, "ActiveElapsedMs", _elapsed);
             builder.CloseComponent();
         }
@@ -312,7 +308,7 @@ public sealed class CyberDefenseHudRenderingTests
 
         public Task ShowAsync(CyberDefenseRunState run) => renderer.Dispatcher.InvokeAsync(() => _host.Show(run));
         public Task ShowModelAsync(CyberDefenseHudViewModel model) => renderer.Dispatcher.InvokeAsync(() => _host.ShowModel(model));
-        public Task ShowControlsAsync(int skillPoints, long elapsed) => renderer.Dispatcher.InvokeAsync(() => _host.ShowControls(skillPoints, elapsed));
+        public Task ShowControlsAsync(long elapsed) => renderer.Dispatcher.InvokeAsync(() => _host.ShowControls(elapsed));
         public Task<string> HtmlAsync() => renderer.Dispatcher.InvokeAsync(() => WebUtility.HtmlDecode(_root.ToHtmlString()));
         public async ValueTask DisposeAsync()
         {

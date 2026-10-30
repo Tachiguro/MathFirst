@@ -216,12 +216,13 @@ public sealed class Issue112UiRepairsRegressionTests : IDisposable
     }
 
     [Fact]
-    public void HomeRazor_Header_ModeToggleUsesUnambiguousDesignation()
+    public void HomeRazor_Header_HasNoModeToggle_SinceIssue122()
     {
         var home = ReadFile("src", "MathFirst.App", "Components", "Pages", "Home.razor");
 
-        // The mode toggle button must have clear mode switch aria label / title
-        Assert.Contains("ModeToggle_", home, StringComparison.Ordinal);
+        // The Cyber Defense / Calm mode lives in Settings; the gameplay header carries no ambiguous toggle.
+        Assert.DoesNotContain("ModeToggle_", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("mode-toggle", home, StringComparison.Ordinal);
     }
 
     // =========================================================================
@@ -350,7 +351,9 @@ public sealed class Issue112UiRepairsRegressionTests : IDisposable
 
         // Must display stage label explicitly, not just raw concatenation of symbol and number
         Assert.Contains("Training_ProgressStageDisplay", home, StringComparison.Ordinal);
-        Assert.Contains("Settings_OperationLocked", home, StringComparison.Ordinal);
+        // An unlocked operation without a stored stage is "unavailable", never presented as locked (Issue #122).
+        Assert.Contains("Training_Unavailable", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("Settings_OperationLocked", home, StringComparison.Ordinal);
     }
 
     // =========================================================================

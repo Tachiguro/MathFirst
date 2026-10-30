@@ -269,6 +269,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_EnemyHpLabel"] = "Opponent integrity",
         ["CyberDefense_ShieldDisplay"] = "Shield: {0} / {1}",
         ["CyberDefense_HpDisplay"] = "HP: {0} / {1}",
+        ["CyberDefense_PlayerLevelDisplay"] = "Lv. {0}",
+        ["CyberDefense_PlayerLevelAria"] = "Player level {0}",
+        ["CyberDefense_PlayerXpDisplay"] = "{0} / {1} XP",
+        ["CyberDefense_PlayerXpAria"] = "{0} of {1} XP to the next level",
+        ["CyberDefense_PlayerLevelUnavailableAria"] = "Player level unavailable",
         ["CyberDefense_Opponent_GlitchDrone"] = "Glitch Drone",
         ["CyberDefense_Opponent_VirusCore"] = "Virus Core",
         ["CyberDefense_Opponent_CrystalMalware"] = "Crystal Malware",
@@ -363,7 +368,6 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Disposed"] = "Terminal is no longer available.",
         ["UpgradeTerminal_Feedback_Cancelled"] = "Purchase operation was cancelled.",
         ["UpgradeTerminal_Feedback_Error"] = "Failed to purchase upgrade.",
-        ["UpgradeTerminal_IndicatorAction"] = "Upgrade ↑",
         ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade Terminal: {0} Skill Points available",
         ["UpgradeTerminal_FirewallTitle"] = "Firewall Shield",
         ["UpgradeTerminal_FirewallDescription"] = "Absorbs incoming damage. Recharges through practice and activates at the next question.",
@@ -406,8 +410,6 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_HeaderAction"] = "Upgrades",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Earn Skill Points by leveling up in practice. Upgrades are permanent.",
         ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall shields unlock at Player Level {0}. Shields absorb mistake damage.",
-        ["ModeToggle_CyberDefense_Aria"] = "Game mode: Cyber Defense (Tap to switch to Calm Mode)",
-        ["ModeToggle_Calm_Aria"] = "Game mode: Calm Mode (Tap to switch to Cyber Defense)"
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -564,6 +566,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_EnemyHpLabel"] = "Gegnerintegrität",
         ["CyberDefense_ShieldDisplay"] = "Schild: {0} / {1}",
         ["CyberDefense_HpDisplay"] = "KP: {0} / {1}",
+        ["CyberDefense_PlayerLevelDisplay"] = "Lv. {0}",
+        ["CyberDefense_PlayerLevelAria"] = "Spielerlevel {0}",
+        ["CyberDefense_PlayerXpDisplay"] = "{0} / {1} XP",
+        ["CyberDefense_PlayerXpAria"] = "{0} von {1} XP bis zum nächsten Level",
+        ["CyberDefense_PlayerLevelUnavailableAria"] = "Spielerlevel nicht verfügbar",
         ["CyberDefense_Opponent_GlitchDrone"] = "Glitch-Drohne",
         ["CyberDefense_Opponent_VirusCore"] = "Virus-Kern",
         ["CyberDefense_Opponent_CrystalMalware"] = "Kristall-Malware",
@@ -658,7 +665,6 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Disposed"] = "Terminal ist nicht mehr verfügbar.",
         ["UpgradeTerminal_Feedback_Cancelled"] = "Kaufvorgang wurde abgebrochen.",
         ["UpgradeTerminal_Feedback_Error"] = "Upgrade konnte nicht gekauft werden.",
-        ["UpgradeTerminal_IndicatorAction"] = "Upgrade ↑",
         ["UpgradeTerminal_IndicatorAriaLabel"] = "Upgrade-Terminal: {0} Fähigkeitspunkte verfügbar",
         ["UpgradeTerminal_FirewallTitle"] = "Firewall-Schild",
         ["UpgradeTerminal_FirewallDescription"] = "Absorbiert eingehenden Schaden. Lädt sich durch Üben auf und aktiviert sich bei der nächsten Aufgabe.",
@@ -701,8 +707,6 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_HeaderAction"] = "Upgrades",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Verdiene Skill-Punkte durch Level-Aufstiege beim Üben. Upgrades sind dauerhaft.",
         ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall-Schilde werden ab Spielerstufe {0} freigeschaltet und fangen Fehler-Schaden ab.",
-        ["ModeToggle_CyberDefense_Aria"] = "Spielmodus: Cyber Defense (Tippen für Ruhigen Modus)",
-        ["ModeToggle_Calm_Aria"] = "Spielmodus: Ruhiger Modus (Tippen für Cyber Defense)"
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -859,6 +863,11 @@ public sealed class LocalizationService : ILocalizationService
         ["CyberDefense_EnemyHpLabel"] = "Прочность противника",
         ["CyberDefense_ShieldDisplay"] = "Щит: {0} / {1}",
         ["CyberDefense_HpDisplay"] = "ОЗ: {0} / {1}",
+        ["CyberDefense_PlayerLevelDisplay"] = "Ур. {0}",
+        ["CyberDefense_PlayerLevelAria"] = "Уровень игрока {0}",
+        ["CyberDefense_PlayerXpDisplay"] = "{0} / {1} XP",
+        ["CyberDefense_PlayerXpAria"] = "{0} из {1} XP до следующего уровня",
+        ["CyberDefense_PlayerLevelUnavailableAria"] = "Уровень игрока недоступен",
         ["CyberDefense_Opponent_GlitchDrone"] = "Глитч-дрон",
         ["CyberDefense_Opponent_VirusCore"] = "Ядро вируса",
         ["CyberDefense_Opponent_CrystalMalware"] = "Кристальный червь",
@@ -953,7 +962,6 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_Feedback_Disposed"] = "Терминал больше недоступен.",
         ["UpgradeTerminal_Feedback_Cancelled"] = "Покупка была отменена.",
         ["UpgradeTerminal_Feedback_Error"] = "Не удалось приобрести улучшение.",
-        ["UpgradeTerminal_IndicatorAction"] = "Улучшения ↑",
         ["UpgradeTerminal_IndicatorAriaLabel"] = "Терминал улучшений: доступно {0} очков навыков",
         ["UpgradeTerminal_FirewallTitle"] = "Щит файрвола",
         ["UpgradeTerminal_FirewallDescription"] = "Поглощает входящий урон. Заряжается при решении задач и активируется со следующего вопроса.",
@@ -996,7 +1004,5 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_HeaderAction"] = "Улучшения",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Получайте очки навыков за повышение уровня. Улучшения постоянны.",
         ["UpgradeTerminal_FirewallLockedNotice"] = "Щиты файрвола открываются на уровне игрока {0} и поглощают урон от ошибок.",
-        ["ModeToggle_CyberDefense_Aria"] = "Режим игры: Киберзащита (нажмите для переключения в Спокойный режим)",
-        ["ModeToggle_Calm_Aria"] = "Режим игры: Спокойный режим (нажмите для переключения в Киберзащиту)"
     };
 }

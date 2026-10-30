@@ -19,6 +19,7 @@ public sealed class UpgradeTerminalViewModel : IDisposable
     private int _isPurchasingFlag;
     private bool _isDisposed;
     private bool _isSynchronized;
+    private bool _hasAuthoritativeStatus;
     private long _minimumEpoch;
     private long _minimumRevision = 1;
     private long _refreshRequest;
@@ -39,6 +40,16 @@ public sealed class UpgradeTerminalViewModel : IDisposable
     }
 
     public bool IsBusy => Volatile.Read(ref _isPurchasingFlag) != 0;
+
+    /// <summary>
+    /// True once a consistent committed progression snapshot was accepted. Before that, <see cref="Status"/> holds
+    /// placeholder values that presentation must not show as the player's level or XP. It stays true afterwards: a
+    /// later failed read keeps the last coherent status instead of inventing a different one.
+    /// </summary>
+    public bool HasAuthoritativeStatus
+    {
+        get { lock (_stateLock) return _hasAuthoritativeStatus; }
+    }
 
     public UpgradeTerminalStatus Status
     {
@@ -137,6 +148,7 @@ public sealed class UpgradeTerminalViewModel : IDisposable
                         continue;
                     bool synchronizationChanged = !_isSynchronized;
                     _isSynchronized = true;
+                    _hasAuthoritativeStatus = true;
                     _lastCompletedRefresh = request;
                     if (candidate != _status)
                     {
@@ -402,6 +414,7 @@ public sealed class UpgradeTerminalViewModel : IDisposable
             if (_isDisposed) return;
             _isDisposed = true;
             _isSynchronized = false;
+            _hasAuthoritativeStatus = false;
             _gameplayStore.AttackUpgradeSnapshotChanged -= OnAttackUpgradeSnapshotChanged;
             _gameplayStore.FirewallUpgradeSnapshotChanged -= OnFirewallUpgradeSnapshotChanged;
             StatusChanged = null;

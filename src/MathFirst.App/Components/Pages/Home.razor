@@ -10,6 +10,7 @@
 @using MathFirst.App.Components.Training
 @using MathFirst.Domain
 @using MathFirst.Domain.Curriculum
+@using MathFirst.Domain.CyberDefense
 @inject ILocalizationService Localizer
 @inject TrainingSession Session
 @inject IAppResetCoordinator ResetCoordinator
@@ -60,31 +61,6 @@
                         }
                     </button>
                 }
-                <button type="button"
-                        class="button button-secondary mode-toggle-btn @(IsCyberDefenseActive ? "mode-cyber" : "mode-calm")"
-                        disabled="@(_isSubmitting || _isUpgradeTerminalOpen)"
-                        aria-label="@(IsCyberDefenseActive ? Localizer["ModeToggle_CyberDefense_Aria"] : Localizer["ModeToggle_Calm_Aria"])"
-                        title="@(IsCyberDefenseActive ? Localizer["CalmMode_SwitchAction"] : Localizer["CyberDefense_EnableAction"])"
-                        aria-pressed="@IsCyberDefenseActive"
-                        @onclick="ToggleCyberDefenseMode">
-                    <span class="mode-toggle-icon" aria-hidden="true">
-                        @if (IsCyberDefenseActive)
-                        {
-                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                                <path d="M11.5 6.004a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm-1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm1.5 1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm1.5-1.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
-                                <path d="M2.5 4A2.5 2.5 0 0 0 0 6.5v3A2.5 2.5 0 0 0 2.5 12h11a2.5 2.5 0 0 0 2.5-2.5v-3A2.5 2.5 0 0 0 13.5 4h-11zm3.854 2.146a.5.5 0 0 1 0 .708L5.707 7.5l.647.646a.5.5 0 1 1-.708.708L5 8.207l-.646.647a.5.5 0 1 1-.708-.708L4.293 7.5l-.647-.646a.5.5 0 0 1 .708-.708L5 6.793l.646-.647a.5.5 0 0 1 .708 0z"/>
-                            </svg>
-                        }
-                        else
-                        {
-                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none" />
-                                <circle cx="8" cy="8" r="3" fill="currentColor" />
-                            </svg>
-                        }
-                    </span>
-                    <span class="mode-toggle-text">@(IsCyberDefenseActive ? Localizer["CyberDefense_Mode_CyberDefense"] : Localizer["CyberDefense_Mode_Calm"])</span>
-                </button>
                 @if (CanPausePractice)
                 {
                     <button type="button"
@@ -345,8 +321,7 @@
                                              CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                              ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
                                              TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")"
-                                             AvailableSkillPoints="EffectiveAvailableSp"
-                                             OnOpenUpgradeTerminal="OpenUpgradeTerminalAsync" />
+                                             PlayerProgress="HudPlayerProgress" />
 
                             <PracticeCountdownTimer Session="Session"
                                                     IsVisible="false"
@@ -477,7 +452,7 @@
                                     var isCurrent = Session.CurrentFact?.Operation == progress.Operation;
                                     var stageDisplay = progress.PresentationStage is int stageNumber
                                         ? Localizer["Training_ProgressStageDisplay", stageNumber]
-                                        : Localizer["Settings_OperationLocked"];
+                                        : Localizer["Training_Unavailable"];
                                     <span class="operation-progress-entry @(isCurrent ? "op-current" : null)"
                                           aria-label="@progressLabel"
                                           title="@progressLabel">
@@ -574,6 +549,12 @@
     private bool _hasQueuedTerminalRefresh;
     private CancellationTokenSource? _terminalRefreshCts = new();
     private int EffectiveAvailableSp => _upgradeTerminalViewModel?.AvailableSkillPoints ?? 0;
+
+    // Permanent player Level/XP for the HUD. It is read from the terminal view model's last accepted committed
+    // snapshot (revision/reset-epoch fenced), never from the database during render, and stays null until a real
+    // snapshot exists so a placeholder is never presented as Level 1.
+    private PlayerLevelProgress? HudPlayerProgress =>
+        _upgradeTerminalViewModel is { HasAuthoritativeStatus: true } viewModel ? viewModel.LevelProgress : null;
     private string _answerInput = string.Empty;
     private string? _validationError;
     private string? _submittedAnswerDisplay;
@@ -593,34 +574,11 @@
     private IReadOnlyList<OperationProgressDiagnostics> _operationProgress = [];
     private long _operationProgressLearnerStateGeneration = long.MinValue;
     private long _operationProgressPracticePosition = long.MinValue;
+    private CurriculumStage _operationProgressCurriculumStage;
     private HashSet<ArithmeticOperation>? _enabledOperations;
     private bool IsCyberDefenseActive => CyberDefensePreferences.GetCyberDefenseEnabled();
     private bool IsCalmMode => !IsCyberDefenseActive;
 
-    private void ToggleCyberDefenseMode()
-    {
-        if (_isSubmitting || _isUpgradeTerminalOpen)
-        {
-            return;
-        }
-
-        if (_isTutorialOpen)
-        {
-            return;
-        }
-
-        var newMode = !CyberDefensePreferences.GetCyberDefenseEnabled();
-        CyberDefensePreferences.SetCyberDefenseEnabled(newMode);
-        if (newMode)
-        {
-            _ = CombatCoordinator.RefreshStateAsync();
-        }
-        if (IsAnswerEntryVisible)
-        {
-            _shouldFocusInput = true;
-        }
-        ScheduleCommittedAnswerRecovery();
-    }
     private bool IsActiveGameplay =>
         !_startupFailed &&
         Session.IsInitialized &&
@@ -965,6 +923,7 @@
             if (Session.IsAppForeground)
             {
                 SyncStateWithSession();
+                ScheduleUpgradeTerminalRefresh();
             }
             else
             {
@@ -1843,20 +1802,19 @@
     private void UpdateOperationProgress()
     {
         _enabledOperations ??= new HashSet<ArithmeticOperation>(PreferenceStore.GetEnabledOperations());
-        var learnerStateGeneration = Session.LearnerStateGenerationRevision;
-        var practicePosition = Session.Progression.PracticePosition;
-        var allDiagnostics = LearningProgressDiagnostics.Create(Session.Progression, _curriculum).Operations;
-        _operationProgress = allDiagnostics.Where(d => _enabledOperations.Contains(d.Operation)).ToList();
-        _operationProgressLearnerStateGeneration = learnerStateGeneration;
-        _operationProgressPracticePosition = practicePosition;
+        var progression = Session.Progression;
+        _operationProgress = OperationStageHudProjection.Create(progression, _curriculum, Session.PracticeMode, _enabledOperations);
+        _operationProgressLearnerStateGeneration = Session.LearnerStateGenerationRevision;
+        _operationProgressPracticePosition = progression.PracticePosition;
+        _operationProgressCurriculumStage = progression.CurriculumStage;
     }
 
     private void EnsureOperationProgressUpToDate()
     {
-        var learnerStateGeneration = Session.LearnerStateGenerationRevision;
-        var practicePosition = Session.Progression.PracticePosition;
-        if (_operationProgressLearnerStateGeneration != learnerStateGeneration ||
-            _operationProgressPracticePosition != practicePosition ||
+        var progression = Session.Progression;
+        if (_operationProgressLearnerStateGeneration != Session.LearnerStateGenerationRevision ||
+            _operationProgressPracticePosition != progression.PracticePosition ||
+            _operationProgressCurriculumStage != progression.CurriculumStage ||
             _operationProgress.Count == 0)
         {
             UpdateOperationProgress();
@@ -1872,12 +1830,15 @@
         }
     }
 
+    // The ready overview follows the same rule as the in-game strip and only appears once practice history exists.
     private IReadOnlyList<OperationProgressDiagnostics> ReadyOperationProgress =>
-        PracticeProgressOverview.Create(
-            Session.Progression,
-            _curriculum,
-            _enabledOperations?.ToList() ?? PreferenceStore.GetEnabledOperations(),
-            Session.HasCompletedPracticeHistory);
+        Session.HasCompletedPracticeHistory
+            ? OperationStageHudProjection.Create(
+                Session.Progression,
+                _curriculum,
+                Session.PracticeMode,
+                _enabledOperations?.ToList() ?? PreferenceStore.GetEnabledOperations())
+            : [];
 
     private static string GetOperationSymbol(ArithmeticOperation operation) => operation switch
     {
