@@ -404,7 +404,7 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}",
         ["UpgradeTerminal_HeaderAction"] = "Upgrades",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Earn Skill Points by leveling up in practice. Upgrades are permanent.",
-        ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall shields unlock at Level 2. Shields absorb mistake damage.",
+        ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall shields unlock at Player Level {0}. Shields absorb mistake damage.",
         ["ModeToggle_CyberDefense_Aria"] = "Game mode: Cyber Defense (Tap to switch to Calm Mode)",
         ["ModeToggle_Calm_Aria"] = "Game mode: Calm Mode (Tap to switch to Cyber Defense)"
     };
@@ -698,7 +698,7 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}",
         ["UpgradeTerminal_HeaderAction"] = "Upgrades",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Verdiene Skill-Punkte durch Level-Aufstiege beim Üben. Upgrades sind dauerhaft.",
-        ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall-Schilde werden ab Level 2 freigeschaltet und fangen Fehler-Schaden ab.",
+        ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall-Schilde werden ab Spielerstufe {0} freigeschaltet und fangen Fehler-Schaden ab.",
         ["ModeToggle_CyberDefense_Aria"] = "Spielmodus: Cyber Defense (Tippen für Ruhigen Modus)",
         ["ModeToggle_Calm_Aria"] = "Spielmodus: Ruhiger Modus (Tippen für Cyber Defense)"
     };
@@ -992,7 +992,7 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_FirewallPurchaseAriaLabel"] = "{0}: {1}",
         ["UpgradeTerminal_HeaderAction"] = "Улучшения",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Получайте очки навыков за повышение уровня. Улучшения постоянны.",
-        ["UpgradeTerminal_FirewallLockedNotice"] = "Щиты файрвола открываются на уровне 2 и поглощают урон от ошибок.",
+        ["UpgradeTerminal_FirewallLockedNotice"] = "Щиты файрвола открываются на уровне игрока {0} и поглощают урон от ошибок.",
         ["ModeToggle_CyberDefense_Aria"] = "Режим игры: Киберзащита (нажмите для переключения в Спокойный режим)",
         ["ModeToggle_Calm_Aria"] = "Режим игры: Спокойный режим (нажмите для переключения в Киберзащиту)"
     };

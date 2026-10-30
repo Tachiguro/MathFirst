@@ -40,6 +40,8 @@ public sealed record UpgradeTerminalStatus
     public bool HasSufficientFirewallSp => HasSufficientFirewallSkillPoints;
     public bool IsFirewallMaxRank => !NextFirewallRank.HasValue;
     public bool CanPurchaseFirewall => !IsFirewallMaxRank && IsFirewallLevelUnlocked && HasSufficientFirewallSkillPoints;
+    // True only before the first shield slot is reachable; NextFirewallRequiredLevel then equals the policy unlock level.
+    public bool IsFirewallShieldLocked => CurrentFirewallRank == 0 && !IsFirewallLevelUnlocked;
     // Null means this legacy projection did not include an authoritative modifier read.
     public int? CurrentCriticalStrikeRank { get; }
     public int? NextCriticalStrikeRank => CurrentCriticalStrikeRank is < CyberDefenseCriticalStrikePolicy.MaxRank ? CurrentCriticalStrikeRank + 1 : null;

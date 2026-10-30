@@ -2,14 +2,14 @@ namespace MathFirst.Core.Tests.CyberDefense;
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Threading;
+using System.Text;
 using System.Threading.Tasks;
 using MathFirst.Application;
 using MathFirst.Application.Gameplay;
 using MathFirst.Application.Persistence;
-using MathFirst.Application.Practice;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
 using MathFirst.Domain.CyberDefense;
@@ -17,23 +17,35 @@ using MathFirst.Infrastructure.Sqlite;
 using MathFirst.Infrastructure.Sqlite.Gameplay;
 using Microsoft.Data.Sqlite;
 using Xunit;
+using Xunit.Abstractions;
 
 /// <summary>
-/// Authoritative Phase 4 deterministic offline headless simulations with three synthetic learner personas.
-/// Verifies ADR-0012 monotonic curriculum stage progression, mathematical isolation, adaptive timing,
-/// remediation queues, combat survival, SP economy, and absence of premature operation unlocks.
+/// Deterministic offline headless simulations with three synthetic learner personas (Issue #112).
+/// Each persona drives a real <see cref="TrainingSession"/> in fresh CurriculumManaged mode against isolated
+/// temporary learner and gameplay SQLite stores, a fake clock and a seeded answer generator, and applies
+/// committed attempts to Cyber Defense combat with synthetic timestamps.
+/// The tests pin the measured outcome of each seeded run; they are a progression-safety probe, not a balance assessment.
 /// </summary>
 public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
 {
-    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "MathFirstPersonaSim_" + Guid.NewGuid().ToString("N"));
+    private static readonly DateTimeOffset SyntheticEpoch = new(2026, 1, 5, 9, 0, 0, TimeSpan.Zero);
 
-    public Issue112SyntheticPersonaSimulationTests()
+    private static readonly PersonaProfile BeginnerPersona = new("A-Beginner", Seed: 42, Attempts: 50, CorrectProbability: 0.55, MinLatencyMs: 4500, MaxLatencyMs: 8000, PersistentWeakFactId: null);
+    private static readonly PersonaProfile IntermediatePersona = new("B-Intermediate", Seed: 1337, Attempts: 75, CorrectProbability: 0.85, MinLatencyMs: 1800, MaxLatencyMs: 3500, PersistentWeakFactId: "add:1+1");
+    private static readonly PersonaProfile FluentPersona = new("C-Fluent", Seed: 20261030, Attempts: 80, CorrectProbability: 0.98, MinLatencyMs: 700, MaxLatencyMs: 1400, PersistentWeakFactId: null);
+
+    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "MathFirstPersonaSim_" + Guid.NewGuid().ToString("N"));
+    private readonly ITestOutputHelper _output;
+
+    public Issue112SyntheticPersonaSimulationTests(ITestOutputHelper output)
     {
+        _output = output;
         Directory.CreateDirectory(_tempDir);
     }
 
     public void Dispose()
     {
+        SqliteConnection.ClearAllPools();
         try
         {
             if (Directory.Exists(_tempDir))
@@ -41,43 +53,161 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
                 Directory.Delete(_tempDir, recursive: true);
             }
         }
-        catch { }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
-    private string GetDatabasePath(string name) => Path.Combine(_tempDir, $"{name}_{Guid.NewGuid():N}.db");
+    // The pinned metrics below characterize the current ADR-0012 tolerant introduction gate (prerequisite facts
+    // attempted, at most one remediation, no broad weakness). They record observed pacing; they do not endorse it.
 
-    private sealed class PersonaSimulationClock : IClock
+    // =========================================================================
+    // PERSONA A — BEGINNER (slow responses, 55% answer probability)
+    // =========================================================================
+
+    [Fact]
+    public async Task PersonaA_Beginner_ProgressesOnlyThroughStageGatedOperations_AndSurvives()
     {
-        private long _timestamp = 10_000_000;
-        public TimeSpan CurrentTurnLatency { get; set; } = TimeSpan.FromMilliseconds(1000);
+        var result = await RunPersonaAsync(BeginnerPersona);
+        _output.WriteLine(result.Describe());
 
-        public long GetTimestamp() => _timestamp;
+        AssertCommonInvariants(BeginnerPersona, result);
+        Assert.True(result.BroadWeaknessObservations > 0, "A struggling beginner should trigger broad-weakness remediation.");
+        Assert.True(result.TeachingInterventions > 0, "A struggling beginner should receive teaching interventions.");
 
-        public TimeSpan GetElapsedTime(long startTimestamp) => CurrentTurnLatency;
+        Assert.Equal(
+            new PersonaMetrics(
+                Correct: 32, Incorrect: 18,
+                Transitions: "Stage2_Subtraction@4,Stage3_Multiplication@9,Stage4_Division@39",
+                OperationCounts: "Addition:19,Subtraction:16,Multiplication:13,Division:2",
+                TimingEligibleAttempts: 50, TeachingInterventions: 5, BroadWeaknessObservations: 35,
+                OpponentsDefeated: 11, GameOvers: 0, FinalPlayerHp: 32, PlayerLevel: 3, CumulativeXp: 264),
+            result.Metrics);
+    }
 
-        public void AdvanceMs(long ms)
+    // =========================================================================
+    // PERSONA B — INTERMEDIATE (moderate pace, 85% answer probability, always misses add:1+1)
+    // =========================================================================
+
+    [Fact]
+    public async Task PersonaB_Intermediate_ProgressesWithoutDeadlockFromPersistentWeakFact()
+    {
+        var result = await RunPersonaAsync(IntermediatePersona);
+        _output.WriteLine(result.Describe());
+
+        AssertCommonInvariants(IntermediatePersona, result);
+        Assert.True(result.StageTransitions.Count > 0, "One persistently missed prerequisite fact must not deadlock stage advancement.");
+        Assert.True(result.TeachingInterventions > 0);
+
+        Assert.Equal(
+            new PersonaMetrics(
+                Correct: 47, Incorrect: 28,
+                Transitions: "Stage2_Subtraction@7,Stage3_Multiplication@17,Stage4_Division@30",
+                OperationCounts: "Addition:28,Subtraction:20,Multiplication:16,Division:11",
+                TimingEligibleAttempts: 75, TeachingInterventions: 10, BroadWeaknessObservations: 34,
+                OpponentsDefeated: 13, GameOvers: 1, FinalPlayerHp: 94, PlayerLevel: 4, CumulativeXp: 368),
+            result.Metrics);
+    }
+
+    // =========================================================================
+    // PERSONA C — FLUENT (fast responses, 98% answer probability)
+    // =========================================================================
+
+    [Fact]
+    public async Task PersonaC_Fluent_AdvancesMonotonically_EarnsSkillPoints_AndCanPurchaseUpgrade()
+    {
+        var result = await RunPersonaAsync(FluentPersona, purchaseAttackUpgrade: true);
+        _output.WriteLine(result.Describe());
+
+        AssertCommonInvariants(FluentPersona, result);
+        Assert.True(result.EarnedSkillPoints > 0);
+        Assert.Equal(UpgradePurchaseStatus.Success, result.AttackPurchaseStatus);
+
+        Assert.Equal(
+            new PersonaMetrics(
+                Correct: 79, Incorrect: 1,
+                Transitions: "Stage2_Subtraction@4,Stage3_Multiplication@9,Stage4_Division@19",
+                OperationCounts: "Addition:24,Subtraction:22,Multiplication:19,Division:15",
+                TimingEligibleAttempts: 80, TeachingInterventions: 0, BroadWeaknessObservations: 0,
+                OpponentsDefeated: 24, GameOvers: 0, FinalPlayerHp: 100, PlayerLevel: 6, CumulativeXp: 621),
+            result.Metrics);
+    }
+
+    // =========================================================================
+    // REPRODUCIBILITY
+    // =========================================================================
+
+    [Fact]
+    public async Task Personas_RepeatedSeededRuns_ProduceIdenticalTraces()
+    {
+        foreach (var persona in new[] { BeginnerPersona, IntermediatePersona, FluentPersona })
         {
-            _timestamp += ms;
+            var first = await RunPersonaAsync(persona);
+            var second = await RunPersonaAsync(persona);
+
+            Assert.Equal(first.FactTrace, second.FactTrace);
+            Assert.Equal(first.Metrics, second.Metrics);
+            Assert.Equal(first.StageTransitions, second.StageTransitions);
+            Assert.Equal(first.FinalPlayerHp, second.FinalPlayerHp);
+            Assert.Equal(first.CumulativeXp, second.CumulativeXp);
         }
     }
 
     // =========================================================================
-    // PERSONA A — BEGINNER (Slow responses, frequent errors, remediation, survival)
+    // SIMULATION
     // =========================================================================
 
-    [Fact]
-    public async Task PersonaA_BeginnerLearner_ExecutesDeterministicSimulation_AndProtectsFromPrematureUnlocks()
+    private static void AssertCommonInvariants(PersonaProfile persona, PersonaResult result)
     {
-        const int seed = 42;
-        var rng = new Random(seed);
-        var learnerDb = GetDatabasePath("persona_a_learner");
-        var gameplayDb = GetDatabasePath("persona_a_gameplay");
+        Assert.Equal(persona.Attempts, result.Correct + result.Incorrect);
+        Assert.Equal(CurriculumStage.Stage1_Addition, result.InitialStage);
+        Assert.Equal(ArithmeticOperation.Addition, result.FirstOperation);
 
+        var stages = new[] { result.InitialStage }.Concat(result.StageTransitions.Select(t => t.Stage)).ToArray();
+        for (int i = 1; i < stages.Length; i++)
+        {
+            Assert.True(stages[i] > stages[i - 1], $"Curriculum stage regressed or repeated: {stages[i - 1]} -> {stages[i]}.");
+        }
+
+        // ADR-0012 weakness boundary: no stage was earned on an attempt that left broad weakness active.
+        Assert.DoesNotContain(result.StageTransitions, t => result.BroadWeaknessAttempts.Contains(t.Attempt));
+
+        // Operations appear only after the stage that unlocks them.
+        foreach (var (operation, unlockingStage) in new[]
+        {
+            (ArithmeticOperation.Subtraction, CurriculumStage.Stage2_Subtraction),
+            (ArithmeticOperation.Multiplication, CurriculumStage.Stage3_Multiplication),
+            (ArithmeticOperation.Division, CurriculumStage.Stage4_Division)
+        })
+        {
+            if (!result.FirstAttemptByOperation.TryGetValue(operation, out var firstAttempt))
+            {
+                continue;
+            }
+            var unlock = result.StageTransitions.FirstOrDefault(t => t.Stage == unlockingStage);
+            Assert.True(unlock.Attempt > 0 && unlock.Attempt < firstAttempt, $"{operation} appeared at attempt {firstAttempt} before {unlockingStage} unlocked.");
+        }
+
+        if (result.FinalStage < CurriculumStage.Stage3_Multiplication)
+        {
+            Assert.False(result.AttemptsPerOperation.ContainsKey(ArithmeticOperation.Multiplication), "Multiplication must not be presented before Stage 3.");
+        }
+        if (result.FinalStage < CurriculumStage.Stage4_Division)
+        {
+            Assert.False(result.AttemptsPerOperation.ContainsKey(ArithmeticOperation.Division), "Division must not be presented before Stage 4.");
+        }
+
+        Assert.Equal(persona.Attempts, result.AppliedCombatReceipts);
+    }
+
+    private async Task<PersonaResult> RunPersonaAsync(PersonaProfile persona, bool purchaseAttackUpgrade = false)
+    {
+        var rng = new Random(persona.Seed);
         var clock = new PersonaSimulationClock();
-        using var learnerStore = new SqliteLearnerStore(learnerDb);
-        await learnerStore.InitializeAsync();
+        string runId = Guid.NewGuid().ToString("N");
 
-        using var gameplayStore = new SqliteGameplayStore(gameplayDb);
+        using var learnerStore = new SqliteLearnerStore(Path.Combine(_tempDir, $"{persona.Name}_{runId}_learner.db"));
+        await learnerStore.InitializeAsync();
+        using var gameplayStore = new SqliteGameplayStore(Path.Combine(_tempDir, $"{persona.Name}_{runId}_gameplay.db"));
         await gameplayStore.InitializeAsync();
 
         var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
@@ -90,76 +220,40 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
         session.SetPracticeSurfaceActive(true);
         session.StartOrResumePractice();
 
-        var stageHistory = new List<CurriculumStage> { session.Progression.CurriculumStage };
-        var attemptsPerOp = new Dictionary<ArithmeticOperation, int>();
-        int totalAttempts = 50;
-        int correct = 0;
-        int incorrect = 0;
-        bool sawBroadWeakness = false;
+        var result = new PersonaResult
+        {
+            InitialStage = session.Progression.CurriculumStage,
+            FirstOperation = session.CurrentFact.Operation
+        };
+        var currentStage = result.InitialStage;
 
-        for (int i = 0; i < totalAttempts; i++)
+        for (int attempt = 1; attempt <= persona.Attempts; attempt++)
         {
             var fact = session.CurrentFact;
             Assert.NotNull(fact);
+            Assert.Contains(fact.Operation, CurriculumUnlockPolicy.GetUnlockedOperations(session.Progression.CurriculumStage));
+            result.FactTrace.Add(fact.Id);
+            result.AttemptsPerOperation[fact.Operation] = result.AttemptsPerOperation.GetValueOrDefault(fact.Operation) + 1;
+            result.FirstAttemptByOperation.TryAdd(fact.Operation, attempt);
 
-            // ADR-0012 Invariant check: In each stage, NEVER present unearned operations
-            switch (session.Progression.CurriculumStage)
-            {
-                case CurriculumStage.Stage1_Addition:
-                    Assert.Equal(ArithmeticOperation.Addition, fact.Operation);
-                    break;
-                case CurriculumStage.Stage2_Subtraction:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction);
-                    break;
-                case CurriculumStage.Stage3_Multiplication:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction or ArithmeticOperation.Multiplication);
-                    break;
-            }
-
-            // ADR-0012 Invariant check: In each stage, NEVER present unearned operations
-            switch (session.Progression.CurriculumStage)
-            {
-                case CurriculumStage.Stage1_Addition:
-                    Assert.Equal(ArithmeticOperation.Addition, fact.Operation);
-                    break;
-                case CurriculumStage.Stage2_Subtraction:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction);
-                    break;
-                case CurriculumStage.Stage3_Multiplication:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction or ArithmeticOperation.Multiplication);
-                    break;
-            }
-
-            attemptsPerOp[fact.Operation] = attemptsPerOp.GetValueOrDefault(fact.Operation, 0) + 1;
-
-            // Beginner characteristics: Slow latency (4,500ms - 8,000ms), 55% accuracy
-            int latency = rng.Next(4500, 8000);
+            int latency = rng.Next(persona.MinLatencyMs, persona.MaxLatencyMs);
             clock.CurrentTurnLatency = TimeSpan.FromMilliseconds(latency);
             clock.AdvanceMs(latency);
 
-            bool isCorrect = rng.NextDouble() < 0.55;
-            if (isCorrect)
-            {
-                correct++;
-                session.SubmitAnswer(fact.CorrectResult);
-            }
-            else
-            {
-                incorrect++;
-                session.SubmitAnswer(fact.CorrectResult + 1);
-            }
+            bool isPersistentWeakFact = fact.Id == persona.PersistentWeakFactId;
+            bool isCorrect = !isPersistentWeakFact && rng.NextDouble() < persona.CorrectProbability;
+            session.SubmitAnswer(isCorrect ? fact.CorrectResult : fact.CorrectResult + 1);
+            if (isCorrect) result.Correct++; else result.Incorrect++;
 
             var commitResult = await session.CommitCurrentEvaluationAsync();
             Assert.True(commitResult.IsSuccess);
 
-            if (session.HasBroadWeakness)
-            {
-                sawBroadWeakness = true;
-            }
+            if (session.InteractionState == SessionInteractionState.TeachingIntervention) result.TeachingInterventions++;
+            if (session.HasBroadWeakness) result.BroadWeaknessAttempts.Add(attempt);
 
-            // Sync with combat
             if (session.LastEvaluation?.ChangeSet is { } committed)
             {
+                if (committed.Attempt.IsTimingEligible) result.TimingEligibleAttempts++;
                 var boundDamage = await combatCoordinator.GetOrBindEffectiveAttackDamageAsync(session.FactInstanceRevision);
                 var intent = new CyberDefensePendingIntentRecord(
                     committed.SubmissionId,
@@ -168,299 +262,51 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
                     committed.Attempt.IsTimingEligible,
                     latency,
                     0L,
-                    DateTimeOffset.UtcNow,
+                    SyntheticEpoch.AddMilliseconds(clock.GetTimestamp()),
                     effectiveAttackDamage: boundDamage,
                     boundCriticalStrikeRank: 0,
                     boundOverdriveRank: 0,
                     practicePosition: committed.Attempt.PracticePosition);
 
                 await gameplayStore.StagePendingIntentAsync(intent);
-                await gameplayStore.ApplyAttemptTransactionAsync(intent);
+                var receipt = await gameplayStore.ApplyAttemptTransactionAsync(intent);
+                if (receipt.ReceiptKind == CyberDefenseReceiptKind.Applied && receipt.TransitionResult is { } transition)
+                {
+                    result.AppliedCombatReceipts++;
+                    if (transition.IsOpponentDefeated) result.OpponentsDefeated++;
+                    if (transition.IsGameOver) result.GameOvers++;
+                }
             }
 
-            if (session.Progression.CurriculumStage != stageHistory.Last())
+            if (session.Progression.CurriculumStage != currentStage)
             {
-                // Monotonic check: stage must never regress
-                Assert.True(session.Progression.CurriculumStage >= stageHistory.Last(), "Curriculum stage must be strictly monotonic!");
-                stageHistory.Add(session.Progression.CurriculumStage);
+                currentStage = session.Progression.CurriculumStage;
+                result.StageTransitions.Add((attempt, currentStage));
             }
 
             await AdvanceSessionTurnAsync(session);
         }
 
-        // Beginner metrics
         var runState = await gameplayStore.GetRunStateAsync();
-        var prog = await gameplayStore.GetProgressionAsync();
+        var progression = await gameplayStore.GetProgressionAsync();
+        result.FinalStage = session.Progression.CurriculumStage;
+        result.FinalPlayerHp = runState.PlayerCurrentHp;
+        result.FinalSector = runState.Sector;
+        result.FinalOpponentIndex = runState.OpponentIndex;
+        result.PlayerLevel = progression.PlayerLevel;
+        result.CumulativeXp = progression.CumulativeXp;
+        result.EarnedSkillPoints = progression.EarnedSkillPoints;
 
-        Assert.True(sawBroadWeakness, "Persona A should experience broad weakness during early struggle.");
-        Assert.True(stageHistory.Count >= 1);
-        Assert.True(runState.PlayerCurrentHp > 0, "Persona A should survive with beginner assistance.");
-
-        // PROOF OF ADR-0012: In fresh CurriculumManaged state, operations unlock only upon reaching the designated stage
-        if (session.Progression.CurriculumStage < CurriculumStage.Stage3_Multiplication)
+        if (purchaseAttackUpgrade)
         {
-            Assert.False(attemptsPerOp.ContainsKey(ArithmeticOperation.Multiplication), "Multiplication must NOT be attempted before Stage 3!");
-        }
-        if (session.Progression.CurriculumStage < CurriculumStage.Stage4_Division)
-        {
-            Assert.False(attemptsPerOp.ContainsKey(ArithmeticOperation.Division), "Division must NOT be attempted before Stage 4!");
-        }
-    }
-
-    // =========================================================================
-    // PERSONA B — INTERMEDIATE (Moderate pace, 82% accuracy, isolated weak fact, unlocks Stage 3)
-    // =========================================================================
-
-    [Fact]
-    public async Task PersonaB_IntermediateLearner_ProgressesToStage3_WithoutDeadlockFromIsolatedWeakFact()
-    {
-        const int seed = 1337;
-        var rng = new Random(seed);
-        var learnerDb = GetDatabasePath("persona_b_learner");
-        var gameplayDb = GetDatabasePath("persona_b_gameplay");
-
-        var clock = new PersonaSimulationClock();
-        using var learnerStore = new SqliteLearnerStore(learnerDb);
-        await learnerStore.InitializeAsync();
-
-        using var gameplayStore = new SqliteGameplayStore(gameplayDb);
-        await gameplayStore.InitializeAsync();
-
-        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
-        var combatCoordinator = new CyberDefenseCombatCoordinator(gameplayStore, consumer);
-        await combatCoordinator.InitializeAsync();
-
-        var session = new TrainingSession(learnerStore, clock, practiceMode: PracticeMode.CurriculumManaged);
-        await session.InitializeAsync(startTiming: false);
-        session.ShowInitialReadyGate();
-        session.SetPracticeSurfaceActive(true);
-        session.StartOrResumePractice();
-
-        var stageHistory = new List<CurriculumStage> { session.Progression.CurriculumStage };
-        var attemptsPerOp = new Dictionary<ArithmeticOperation, int>();
-        int totalAttempts = 75;
-        int correct = 0;
-        int incorrect = 0;
-
-        for (int i = 0; i < totalAttempts; i++)
-        {
-            var fact = session.CurrentFact;
-            Assert.NotNull(fact);
-
-            // ADR-0012 Invariant check: In each stage, NEVER present unearned operations
-            switch (session.Progression.CurriculumStage)
-            {
-                case CurriculumStage.Stage1_Addition:
-                    Assert.Equal(ArithmeticOperation.Addition, fact.Operation);
-                    break;
-                case CurriculumStage.Stage2_Subtraction:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction);
-                    break;
-                case CurriculumStage.Stage3_Multiplication:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction or ArithmeticOperation.Multiplication);
-                    break;
-            }
-
-            attemptsPerOp[fact.Operation] = attemptsPerOp.GetValueOrDefault(fact.Operation, 0) + 1;
-
-            // Intermediate latency (1,800ms - 3,500ms), 82% accuracy, but struggles persistently on 1 specific fact
-            int latency = rng.Next(1800, 3500);
-            clock.CurrentTurnLatency = TimeSpan.FromMilliseconds(latency);
-            clock.AdvanceMs(latency);
-
-            bool isSpecificWeakFact = fact.Id == "add:1+1";
-            bool isCorrect = !isSpecificWeakFact && rng.NextDouble() < 0.85;
-
-            if (isCorrect)
-            {
-                correct++;
-                session.SubmitAnswer(fact.CorrectResult);
-            }
-            else
-            {
-                incorrect++;
-                session.SubmitAnswer(fact.CorrectResult + 1);
-            }
-
-            var commitResult = await session.CommitCurrentEvaluationAsync();
-            Assert.True(commitResult.IsSuccess);
-
-            if (session.LastEvaluation?.ChangeSet is { } committed)
-            {
-                var boundDamage = await combatCoordinator.GetOrBindEffectiveAttackDamageAsync(session.FactInstanceRevision);
-                var intent = new CyberDefensePendingIntentRecord(
-                    committed.SubmissionId,
-                    committed.Attempt.FactId,
-                    committed.Attempt.IsCorrect,
-                    committed.Attempt.IsTimingEligible,
-                    latency,
-                    0L,
-                    DateTimeOffset.UtcNow,
-                    effectiveAttackDamage: boundDamage,
-                    boundCriticalStrikeRank: 0,
-                    boundOverdriveRank: 0,
-                    practicePosition: committed.Attempt.PracticePosition);
-
-                await gameplayStore.StagePendingIntentAsync(intent);
-                await gameplayStore.ApplyAttemptTransactionAsync(intent);
-            }
-
-            if (session.Progression.CurriculumStage != stageHistory.Last())
-            {
-                Assert.True(session.Progression.CurriculumStage >= stageHistory.Last());
-                stageHistory.Add(session.Progression.CurriculumStage);
-            }
-
-            await AdvanceSessionTurnAsync(session);
+            using var terminal = new UpgradeTerminalViewModel(gameplayStore);
+            await terminal.InitializeAsync();
+            Assert.Equal(progression.AvailableSkillPoints, terminal.AvailableSkillPoints);
+            Assert.True(terminal.CanPurchase, "A fluent learner with earned SP must be able to buy Attack rank 1.");
+            result.AttackPurchaseStatus = (await terminal.PurchaseUpgradeAsync()).Status;
         }
 
-        var prog = await gameplayStore.GetProgressionAsync();
-        Assert.True(prog.AvailableSkillPoints >= 0);
-        Assert.True(stageHistory.Count >= 2, "Persona B should progress beyond Stage 1.");
-
-        // Division must remain locked unless Stage 4 is reached
-        if (session.Progression.CurriculumStage < CurriculumStage.Stage4_Division)
-        {
-            Assert.False(attemptsPerOp.ContainsKey(ArithmeticOperation.Division), "Division must not appear before Stage 4.");
-        }
-    }
-
-    // =========================================================================
-    // PERSONA C — FLUENT (Fast responses, 98% accuracy, rapid monotonic unlock of all stages)
-    // =========================================================================
-
-    [Fact]
-    public async Task PersonaC_FluentLearner_AdvancesThroughStagesMonotonically_AndProvesADR0012StrictInvariants()
-    {
-        const int seed = 20261030;
-        var rng = new Random(seed);
-        var learnerDb = GetDatabasePath("persona_c_learner");
-        var gameplayDb = GetDatabasePath("persona_c_gameplay");
-
-        var clock = new PersonaSimulationClock();
-        using var learnerStore = new SqliteLearnerStore(learnerDb);
-        await learnerStore.InitializeAsync();
-
-        using var gameplayStore = new SqliteGameplayStore(gameplayDb);
-        await gameplayStore.InitializeAsync();
-
-        var consumer = new CyberDefenseSubmissionConsumer(gameplayStore, learnerStore);
-        var combatCoordinator = new CyberDefenseCombatCoordinator(gameplayStore, consumer);
-        await combatCoordinator.InitializeAsync();
-
-        var session = new TrainingSession(learnerStore, clock, practiceMode: PracticeMode.CurriculumManaged);
-        await session.InitializeAsync(startTiming: false);
-        session.ShowInitialReadyGate();
-        session.SetPracticeSurfaceActive(true);
-        session.StartOrResumePractice();
-
-        var stageHistory = new List<CurriculumStage> { session.Progression.CurriculumStage };
-        var attemptsPerOp = new Dictionary<ArithmeticOperation, int>();
-        int totalAttempts = 80;
-        int correct = 0;
-        int incorrect = 0;
-
-        for (int i = 0; i < totalAttempts; i++)
-        {
-            var fact = session.CurrentFact;
-            Assert.NotNull(fact);
-
-            // Verify strict operation availability invariants:
-            switch (session.Progression.CurriculumStage)
-            {
-                case CurriculumStage.Stage1_Addition:
-                    Assert.Equal(ArithmeticOperation.Addition, fact.Operation);
-                    break;
-                case CurriculumStage.Stage2_Subtraction:
-                    Assert.True(fact.Operation == ArithmeticOperation.Addition || fact.Operation == ArithmeticOperation.Subtraction);
-                    break;
-                case CurriculumStage.Stage3_Multiplication:
-                    Assert.True(fact.Operation == ArithmeticOperation.Addition || fact.Operation == ArithmeticOperation.Subtraction || fact.Operation == ArithmeticOperation.Multiplication);
-                    break;
-                case CurriculumStage.Stage4_Division:
-                    // All operations permitted
-                    break;
-            }
-
-            // ADR-0012 Invariant check: In each stage, NEVER present unearned operations
-            switch (session.Progression.CurriculumStage)
-            {
-                case CurriculumStage.Stage1_Addition:
-                    Assert.Equal(ArithmeticOperation.Addition, fact.Operation);
-                    break;
-                case CurriculumStage.Stage2_Subtraction:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction);
-                    break;
-                case CurriculumStage.Stage3_Multiplication:
-                    Assert.True(fact.Operation is ArithmeticOperation.Addition or ArithmeticOperation.Subtraction or ArithmeticOperation.Multiplication);
-                    break;
-            }
-
-            attemptsPerOp[fact.Operation] = attemptsPerOp.GetValueOrDefault(fact.Operation, 0) + 1;
-
-            // Fluent latency (700ms - 1,400ms), 98% accuracy
-            int latency = rng.Next(700, 1400);
-            clock.CurrentTurnLatency = TimeSpan.FromMilliseconds(latency);
-            clock.AdvanceMs(latency);
-
-            bool isCorrect = rng.NextDouble() < 0.98;
-            if (isCorrect)
-            {
-                correct++;
-                session.SubmitAnswer(fact.CorrectResult);
-            }
-            else
-            {
-                incorrect++;
-                session.SubmitAnswer(fact.CorrectResult + 1);
-            }
-
-            var commitResult = await session.CommitCurrentEvaluationAsync();
-            Assert.True(commitResult.IsSuccess);
-
-            if (session.LastEvaluation?.ChangeSet is { } committed)
-            {
-                var boundDamage = await combatCoordinator.GetOrBindEffectiveAttackDamageAsync(session.FactInstanceRevision);
-                var intent = new CyberDefensePendingIntentRecord(
-                    committed.SubmissionId,
-                    committed.Attempt.FactId,
-                    committed.Attempt.IsCorrect,
-                    committed.Attempt.IsTimingEligible,
-                    latency,
-                    0L,
-                    DateTimeOffset.UtcNow,
-                    effectiveAttackDamage: boundDamage,
-                    boundCriticalStrikeRank: 0,
-                    boundOverdriveRank: 0,
-                    practicePosition: committed.Attempt.PracticePosition);
-
-                await gameplayStore.StagePendingIntentAsync(intent);
-                await gameplayStore.ApplyAttemptTransactionAsync(intent);
-            }
-
-            if (session.Progression.CurriculumStage != stageHistory.Last())
-            {
-                Assert.True(session.Progression.CurriculumStage > stageHistory.Last(), "Stage must advance strictly monotonically!");
-                stageHistory.Add(session.Progression.CurriculumStage);
-            }
-
-            await AdvanceSessionTurnAsync(session);
-        }
-
-        // Persona C achieves high level and earns SP
-        var prog = await gameplayStore.GetProgressionAsync();
-        Assert.True(prog.PlayerLevel > 1);
-        Assert.True(prog.EarnedSkillPoints > 0);
-
-        // Can purchase upgrade in terminal
-        var terminalVm = new UpgradeTerminalViewModel(gameplayStore);
-        await terminalVm.InitializeAsync();
-        Assert.True(terminalVm.AvailableSkillPoints > 0);
-        if (terminalVm.CanPurchase)
-        {
-            var purchaseRes = await terminalVm.PurchaseUpgradeAsync();
-            Assert.Equal(UpgradePurchaseStatus.Success, purchaseRes.Status);
-        }
+        return result;
     }
 
     private static async Task AdvanceSessionTurnAsync(TrainingSession session)
@@ -484,5 +330,86 @@ public sealed class Issue112SyntheticPersonaSimulationTests : IDisposable
         }
 
         Assert.Equal(SessionInteractionState.AwaitingAnswer, session.InteractionState);
+    }
+
+    private sealed record PersonaProfile(
+        string Name,
+        int Seed,
+        int Attempts,
+        double CorrectProbability,
+        int MinLatencyMs,
+        int MaxLatencyMs,
+        string? PersistentWeakFactId);
+
+    private sealed record PersonaMetrics(
+        int Correct,
+        int Incorrect,
+        string Transitions,
+        string OperationCounts,
+        int TimingEligibleAttempts,
+        int TeachingInterventions,
+        int BroadWeaknessObservations,
+        int OpponentsDefeated,
+        int GameOvers,
+        int FinalPlayerHp,
+        int PlayerLevel,
+        long CumulativeXp);
+
+    private sealed class PersonaResult
+    {
+        public CurriculumStage InitialStage { get; init; }
+        public ArithmeticOperation FirstOperation { get; init; }
+        public CurriculumStage FinalStage { get; set; }
+        public List<(int Attempt, CurriculumStage Stage)> StageTransitions { get; } = [];
+        public Dictionary<ArithmeticOperation, int> AttemptsPerOperation { get; } = [];
+        public Dictionary<ArithmeticOperation, int> FirstAttemptByOperation { get; } = [];
+        public HashSet<int> BroadWeaknessAttempts { get; } = [];
+        public List<string> FactTrace { get; } = [];
+        public int Correct { get; set; }
+        public int Incorrect { get; set; }
+        public int TimingEligibleAttempts { get; set; }
+        public int TeachingInterventions { get; set; }
+        public int BroadWeaknessObservations => BroadWeaknessAttempts.Count;
+        public int AppliedCombatReceipts { get; set; }
+        public int OpponentsDefeated { get; set; }
+        public int GameOvers { get; set; }
+        public int FinalPlayerHp { get; set; }
+        public int FinalSector { get; set; }
+        public int FinalOpponentIndex { get; set; }
+        public int PlayerLevel { get; set; }
+        public long CumulativeXp { get; set; }
+        public int EarnedSkillPoints { get; set; }
+        public UpgradePurchaseStatus? AttackPurchaseStatus { get; set; }
+
+        public string TransitionsText => string.Join(",", StageTransitions.Select(t => $"{t.Stage}@{t.Attempt}"));
+        public string OperationCountsText => string.Join(",", AttemptsPerOperation.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"));
+
+        public PersonaMetrics Metrics => new(
+            Correct, Incorrect, TransitionsText, OperationCountsText, TimingEligibleAttempts, TeachingInterventions,
+            BroadWeaknessObservations, OpponentsDefeated, GameOvers, FinalPlayerHp, PlayerLevel, CumulativeXp);
+
+        public string Describe()
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine(CultureInfo.InvariantCulture, $"correct={Correct} incorrect={Incorrect} accuracy={(double)Correct / (Correct + Incorrect):P1}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"initialStage={InitialStage} finalStage={FinalStage} transitions=[{TransitionsText}]");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"attemptsPerOperation=[{OperationCountsText}] firstAttempt=[{string.Join(",", FirstAttemptByOperation.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))}]");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"timingEligible={TimingEligibleAttempts} teachingInterventions={TeachingInterventions} broadWeaknessObservations={BroadWeaknessObservations}");
+            builder.AppendLine(CultureInfo.InvariantCulture, $"combatReceipts={AppliedCombatReceipts} opponentsDefeated={OpponentsDefeated} gameOvers={GameOvers} finalHp={FinalPlayerHp} sector={FinalSector} opponentIndex={FinalOpponentIndex}");
+            builder.Append(CultureInfo.InvariantCulture, $"playerLevel={PlayerLevel} cumulativeXp={CumulativeXp} earnedSp={EarnedSkillPoints} attackPurchase={AttackPurchaseStatus?.ToString() ?? "n/a"}");
+            return builder.ToString();
+        }
+    }
+
+    private sealed class PersonaSimulationClock : IClock
+    {
+        private long _timestamp = 10_000_000;
+        public TimeSpan CurrentTurnLatency { get; set; } = TimeSpan.FromMilliseconds(1000);
+
+        public long GetTimestamp() => _timestamp;
+
+        public TimeSpan GetElapsedTime(long startTimestamp) => CurrentTurnLatency;
+
+        public void AdvanceMs(long ms) => _timestamp += ms;
     }
 }

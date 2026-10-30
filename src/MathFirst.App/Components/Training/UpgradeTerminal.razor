@@ -100,9 +100,9 @@
 
                 <p class="upgrade-card-desc">@EffectiveLocalizer["UpgradeTerminal_FirewallDescription"]</p>
                 <p class="upgrade-card-notice">@EffectiveLocalizer["UpgradeTerminal_FirewallActivationNotice"]</p>
-                @if (!IsFirewallLevelUnlocked)
+                @if (IsFirewallShieldLocked)
                 {
-                    <p class="upgrade-firewall-locked-notice">@EffectiveLocalizer["UpgradeTerminal_FirewallLockedNotice"]</p>
+                    <p class="upgrade-firewall-locked-notice">@EffectiveLocalizer["UpgradeTerminal_FirewallLockedNotice", EffectiveNextFirewallRequiredLevel ?? 0]</p>
                 }
 
                 <div class="upgrade-stats-grid">
@@ -302,9 +302,10 @@
 </section>
 
 @code {
-    private string FirewallLockedCardClass => !IsFirewallLevelUnlocked ? "locked-card" : string.Empty;
-    private string CriticalStrikeLockedCardClass => !IsCriticalStrikeLevelUnlocked ? "locked-card" : string.Empty;
-    private string OverdriveLockedCardClass => !IsOverdriveLevelUnlocked ? "locked-card" : string.Empty;
+    // Max-rank skills report "not level unlocked" because no next rank exists; they must not render as locked.
+    private string FirewallLockedCardClass => !IsFirewallMaxRank && !IsFirewallLevelUnlocked ? "locked-card" : string.Empty;
+    private string CriticalStrikeLockedCardClass => !IsCriticalStrikeMaxRank && !IsCriticalStrikeLevelUnlocked ? "locked-card" : string.Empty;
+    private string OverdriveLockedCardClass => !IsOverdriveMaxRank && !IsOverdriveLevelUnlocked ? "locked-card" : string.Empty;
     private enum FeedbackKind
     {
         None,
@@ -364,6 +365,7 @@
     private int? EffectiveNextFirewallRequiredLevel => ViewModel?.NextRequiredLevel;
     private bool IsFirewallMaxRank => ViewModel?.IsFirewallMaxRank ?? false;
     private bool IsFirewallLevelUnlocked => ViewModel?.IsFirewallLevelUnlocked ?? false;
+    private bool IsFirewallShieldLocked => ViewModel?.IsFirewallShieldLocked ?? false;
     private bool HasSufficientFirewallSp => ViewModel?.HasSufficientFirewallSkillPoints ?? false;
     private bool CanPurchaseFirewall => ViewModel?.CanPurchaseFirewall ?? false;
 

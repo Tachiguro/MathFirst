@@ -106,7 +106,8 @@ public sealed class AuthoritativeCyberDefenseHudIntegrationTests : IDisposable
         Assert.Equal(bossMaxHp, vm.OpponentMaxHp);
         Assert.Equal("CyberDefense_Opponent_NexusOverlord", vm.OpponentNameKey);
         Assert.Equal("images/cyber-defense/nexus-overlord.svg", vm.OpponentAssetPath);
-        Assert.Equal(CyberDefenseOpponentScalePolicy.SectorBossClass, vm.OpponentScaleClass);
+        // Issue #112: sector 1-2 bosses render at Boss tier (1.42); presentation only.
+        Assert.Equal(CyberDefenseOpponentScalePolicy.BossClass, vm.OpponentScaleClass);
     }
 
     [Fact]

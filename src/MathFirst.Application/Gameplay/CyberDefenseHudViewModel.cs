@@ -143,14 +143,15 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
         string opponentNameKey;
         string opponentDescKey;
         string opponentAssetPath;
-        string opponentScaleClass;
+        // Presentation-only; sector-aware so early sector bosses (sectors 1-2) render at Boss tier.
+        string opponentScaleClass = CyberDefenseOpponentScalePolicy.GetScaleClass(
+            sector, opponentIndex, normalCount, isSectorBoss, isBoss);
 
         if (isBoss)
         {
             opponentNameKey = "CyberDefense_Opponent_NexusOverlord";
             opponentDescKey = "CyberDefense_Opponent_NexusOverlord_Desc";
             opponentAssetPath = "images/cyber-defense/nexus-overlord.svg";
-            opponentScaleClass = CyberDefenseOpponentScalePolicy.SectorBossClass;
         }
         else
         {
@@ -158,13 +159,6 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
             opponentNameKey = profile.NameKey;
             opponentDescKey = profile.DescKey;
             opponentAssetPath = profile.AssetPath;
-            opponentScaleClass = opponentIndex switch
-            {
-                <= 1 => CyberDefenseOpponentScalePolicy.SmallClass,
-                <= 3 => CyberDefenseOpponentScalePolicy.MediumSmallClass,
-                <= 5 => CyberDefenseOpponentScalePolicy.MediumClass,
-                _ => CyberDefenseOpponentScalePolicy.LargeClass
-            };
         }
 
         CyberDefenseFeedbackKind lastFeedback = CyberDefenseFeedbackKind.None;

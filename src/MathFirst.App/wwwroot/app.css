@@ -1043,12 +1043,29 @@ select:disabled {
     margin-left: 0.15rem;
 }
 
+/* Issue #112: the Upgrades label stays visible on narrow phones so the action is discoverable without assistive tech. */
 @media (max-width: 480px) {
-    .upgrade-nav-btn .upgrade-nav-text {
-        display: none;
-    }
     .upgrade-nav-btn {
-        padding: 0.35rem 0.55rem;
+        gap: 0.25rem;
+        padding: 0.3rem 0.45rem;
+        font-size: 0.72rem;
+    }
+}
+
+/* Keeps the brand heading clear of the labelled Upgrades action on the narrowest phones (320-380px). */
+@media (max-width: 380px) {
+    .mathfirst-title {
+        font-size: 1.15rem;
+    }
+
+    .mathfirst-title-group {
+        gap: 0.35rem;
+    }
+}
+
+@media (max-width: 340px) {
+    .brand-shield-emblem {
+        display: none;
     }
 }
 
