@@ -39,6 +39,8 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
     public int PlayerHpPercentage { get; }
     public int ShieldCapacity { get; }
     public int ActiveShields { get; }
+    /// <summary>Authoritative run-state progress towards the next shield, in Firewall recharge units.</summary>
+    public int ShieldRechargeUnits { get; }
     public string OpponentNameKey { get; }
     public string OpponentDescKey { get; }
     public string OpponentAssetPath { get; }
@@ -79,7 +81,8 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
         long feedbackRevision,
         CyberDefenseTerminalRunSnapshot? terminalSnapshot,
         int shieldCapacity = 0,
-        int activeShields = 0)
+        int activeShields = 0,
+        int shieldRechargeUnits = 0)
     {
         SectorNumber = sectorNumber;
         OpponentIndex = opponentIndex;
@@ -96,6 +99,7 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
         PlayerHpPercentage = playerHpPercentage;
         ShieldCapacity = shieldCapacity;
         ActiveShields = activeShields;
+        ShieldRechargeUnits = shieldRechargeUnits;
         OpponentNameKey = opponentNameKey ?? string.Empty;
         OpponentDescKey = opponentDescKey ?? string.Empty;
         OpponentAssetPath = opponentAssetPath ?? string.Empty;
@@ -215,7 +219,8 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
             feedbackRevision: feedbackRevision,
             terminalSnapshot: terminalSnapshot,
             shieldCapacity: runState.ShieldCapacity,
-            activeShields: runState.ActiveShields);
+            activeShields: runState.ActiveShields,
+            shieldRechargeUnits: runState.ShieldRechargeUnits);
     }
 
     public static CyberDefenseHudViewModel FromEncounterState(CyberDefenseEncounterState state)
@@ -249,6 +254,7 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
                PlayerHpPercentage == other.PlayerHpPercentage &&
                ShieldCapacity == other.ShieldCapacity &&
                ActiveShields == other.ActiveShields &&
+               ShieldRechargeUnits == other.ShieldRechargeUnits &&
                OpponentNameKey == other.OpponentNameKey &&
                OpponentDescKey == other.OpponentDescKey &&
                OpponentAssetPath == other.OpponentAssetPath &&
@@ -274,6 +280,7 @@ public sealed class CyberDefenseHudViewModel : IEquatable<CyberDefenseHudViewMod
         hash.Add(PlayerCurrentHp);
         hash.Add(ShieldCapacity);
         hash.Add(ActiveShields);
+        hash.Add(ShieldRechargeUnits);
         hash.Add(LastFeedback);
         hash.Add(FeedbackRevision);
         return hash.ToHashCode();

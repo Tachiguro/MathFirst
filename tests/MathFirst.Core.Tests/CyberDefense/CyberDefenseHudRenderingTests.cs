@@ -285,6 +285,8 @@ public sealed class CyberDefenseHudRenderingTests
             builder.OpenComponent<global::MathFirst.Core.Tests.CyberDefenseHud>(0);
             builder.AddAttribute(1, "ViewModel", _model);
             builder.AddAttribute(3, "ActiveElapsedMs", _elapsed);
+            // Issue #134: the radar is shown only for a purchased Critical Strike rank; these tests cover an earned radar.
+            builder.AddAttribute(4, "CriticalStrikeRank", (int?)1);
             builder.CloseComponent();
         }
     }
