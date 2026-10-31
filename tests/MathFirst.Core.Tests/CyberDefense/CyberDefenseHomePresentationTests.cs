@@ -8,6 +8,7 @@ namespace MathFirst.Core.Tests.CyberDefense
     using MathFirst.Application.Copy;
     using MathFirst.Application.Gameplay;
     using MathFirst.Application.Lifecycle;
+    using MathFirst.Application.Navigation;
     using MathFirst.Application.Persistence;
     using MathFirst.Application.Practice;
     using MathFirst.Domain;
@@ -554,6 +555,60 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.False(fixture.Session.IsTimingActive);
         }
 
+        [Fact(Timeout = 20000)]
+        public async Task BossRecap_KeepsTheGameMenuAndAndroidBackOut_UntilItsOwnContinue()
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            await fixture.RevealContinue();
+
+            // Issue #125: the ceremony stays authoritative; no menu or pause gate competes with it,
+            // and native Back is safely consumed without escaping or bypassing Continue.
+            Assert.False(fixture.Property<bool>("CanOpenGameMenu"));
+            Assert.True(fixture.Back.TryHandleBack());
+            await fixture.Invoke("OpenGameMenu");
+            Assert.Equal(PracticeGateState.Running, fixture.Session.PracticeGate);
+            var html = await fixture.Html();
+            Assert.Matches(@"<header class=""mathfirst-header""[^>]*\binert\b", html);
+            Assert.DoesNotContain("game-menu-overlay", html);
+            Assert.True(fixture.Sequence.IsBlocking);
+
+            await fixture.Continue();
+            await submission;
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            await fixture.Render();
+            Assert.True(fixture.Property<bool>("CanOpenGameMenu"));
+            await fixture.Invoke("OpenGameMenu");
+            Assert.Equal(PracticeGateState.ManualPause, fixture.Session.PracticeGate);
+            Assert.False(fixture.Session.IsTimingActive);
+        }
+
+        [Fact(Timeout = 20000)]
+        public async Task SystemRestart_KeepsUpgradeDiscovered_AfterTheManualContinue()
+        {
+            await using var fixture = await Fixture.Create(victory: false, upgrades: true, withoutFirewall: true);
+            await fixture.Render();
+            Assert.Contains("upgrade-nav-btn", await fixture.Html());
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.SystemOverload);
+            var submission = fixture.Submit(correct: false);
+            await Task.WhenAny(shown, submission);
+            await fixture.RevealContinue(boss: false);
+            await fixture.Continue();
+            await submission;
+            await fixture.Invoke("AdvanceAsync");
+            await fixture.Render();
+
+            Assert.Equal(1, (await fixture.Store.GetRunStateAsync()).Sector);
+            Assert.True(fixture.Field<UpgradeTerminalViewModel>("_upgradeTerminalViewModel").IsUpgradeDiscovered);
+            Assert.Contains("upgrade-nav-btn", await fixture.Html());
+            await fixture.Invoke("OpenGameMenu");
+            await fixture.Render();
+            Assert.Contains("pause-upgrade-btn", await fixture.Html());
+        }
+
         [Fact]
         public async Task GameOver_AlreadyRebootedButStillRequiresExplicitIncorrectAnswerAcknowledgement()
         {
@@ -892,6 +947,9 @@ namespace MathFirst.Core.Tests.CyberDefense
             public string LastSubmittedAnswer { get; private set; } = string.Empty;
             public T Field<T>(string name) => (T)typeof(global::MathFirst.Core.Tests.Home)
                 .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(_home)!;
+            public T Property<T>(string name) => (T)typeof(global::MathFirst.Core.Tests.Home)
+                .GetProperty(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(_home)!;
+            public AppBackNavigationCoordinator Back { get; } = new();
             public Task Render() => Dispatch(() => typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(_home, null));
             public Task<LearnerSnapshot> LearnerSnapshot() => _learner.LoadSnapshotAsync();
             public void FailValidityReads(bool fail) => _faults.FailProgressionReads = fail;
@@ -992,6 +1050,7 @@ namespace MathFirst.Core.Tests.CyberDefense
                     .AddSingleton<ICyberDefenseTutorialPreferences>(Preferences)
                     .AddSingleton(new CyberDefenseSessionState(Preferences))
                     .AddSingleton(new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary()))).AddSingleton<IAppResetCoordinator>(new NoReset())
+                    .AddSingleton<IAppBackNavigationCoordinator>(Back)
                     .AddSingleton<IHapticFeedbackService>(new HapticFeedbackService())
                     .AddSingleton<IJSRuntime>(new NoJs()).BuildServiceProvider();
             }

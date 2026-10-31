@@ -410,6 +410,16 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_HeaderAction"] = "Upgrades",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Earn Skill Points by leveling up in practice. Upgrades are permanent.",
         ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall shields unlock at Player Level {0}. Shields absorb mistake damage.",
+        ["GameMenu_Button"] = "Menu",
+        ["GameMenu_OpenAriaLabel"] = "Open menu and pause",
+        ["GameMenu_Kicker"] = "Main menu",
+        ["GameMenu_ActionsAriaLabel"] = "Menu actions",
+        ["GameMenu_Continue"] = "Continue",
+        ["GameMenu_Progress"] = "Progress & statistics",
+        ["GameMenu_ProgressTitle"] = "Learning progress",
+        ["GameMenu_StagesTitle"] = "Arithmetic stages",
+        ["GameMenu_PlayerLevel"] = "Player level {0} · {1} / {2} XP",
+        ["GameMenu_Tutorial"] = "Tutorial & help",
     };
 
     private static readonly Dictionary<string, string> GermanStrings = new(StringComparer.Ordinal)
@@ -707,6 +717,16 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_HeaderAction"] = "Upgrades",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Verdiene Skill-Punkte durch Level-Aufstiege beim Üben. Upgrades sind dauerhaft.",
         ["UpgradeTerminal_FirewallLockedNotice"] = "Firewall-Schilde werden ab Spielerstufe {0} freigeschaltet und fangen Fehler-Schaden ab.",
+        ["GameMenu_Button"] = "Menü",
+        ["GameMenu_OpenAriaLabel"] = "Menü öffnen und pausieren",
+        ["GameMenu_Kicker"] = "Hauptmenü",
+        ["GameMenu_ActionsAriaLabel"] = "Menüaktionen",
+        ["GameMenu_Continue"] = "Fortsetzen",
+        ["GameMenu_Progress"] = "Lernfortschritt",
+        ["GameMenu_ProgressTitle"] = "Lernfortschritt",
+        ["GameMenu_StagesTitle"] = "Rechenstufen",
+        ["GameMenu_PlayerLevel"] = "Spielerlevel {0} · {1} / {2} XP",
+        ["GameMenu_Tutorial"] = "Tutorial und Hilfe",
     };
 
     private static readonly Dictionary<string, string> RussianStrings = new(StringComparer.Ordinal)
@@ -1004,5 +1024,15 @@ public sealed class LocalizationService : ILocalizationService
         ["UpgradeTerminal_HeaderAction"] = "Улучшения",
         ["UpgradeTerminal_SkillPointsExplainer"] = "Получайте очки навыков за повышение уровня. Улучшения постоянны.",
         ["UpgradeTerminal_FirewallLockedNotice"] = "Щиты файрвола открываются на уровне игрока {0} и поглощают урон от ошибок.",
+        ["GameMenu_Button"] = "Меню",
+        ["GameMenu_OpenAriaLabel"] = "Открыть меню и поставить на паузу",
+        ["GameMenu_Kicker"] = "Главное меню",
+        ["GameMenu_ActionsAriaLabel"] = "Действия меню",
+        ["GameMenu_Continue"] = "Продолжить",
+        ["GameMenu_Progress"] = "Прогресс и статистика",
+        ["GameMenu_ProgressTitle"] = "Прогресс обучения",
+        ["GameMenu_StagesTitle"] = "Уровни арифметики",
+        ["GameMenu_PlayerLevel"] = "Уровень игрока {0} · {1} / {2} XP",
+        ["GameMenu_Tutorial"] = "Обучение и помощь",
     };
 }

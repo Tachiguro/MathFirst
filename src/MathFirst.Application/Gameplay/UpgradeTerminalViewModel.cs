@@ -56,6 +56,16 @@ public sealed class UpgradeTerminalViewModel : IDisposable
         get { lock (_stateLock) return _status; }
     }
 
+    /// <summary>
+    /// Issue #125: true once an accepted committed snapshot shows an earned purchasing opportunity
+    /// (<see cref="UpgradeDiscoveryPolicy"/>). It is false until the first authoritative read, so an unreadable store
+    /// never advertises Upgrade, and a later failed read keeps the last coherent answer like <see cref="Status"/>.
+    /// </summary>
+    public bool IsUpgradeDiscovered
+    {
+        get { lock (_stateLock) return _hasAuthoritativeStatus && UpgradeDiscoveryPolicy.IsDiscovered(_status); }
+    }
+
     public int PlayerLevel => Status.PlayerLevel;
     public long CumulativeXp => Status.CumulativeXp;
     public long XpIntoCurrentLevel => Status.XpIntoCurrentLevel;

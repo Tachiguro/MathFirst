@@ -5,6 +5,7 @@
 @using MathFirst.Application.Diagnostics
 @using MathFirst.Application.Gameplay
 @using MathFirst.Application.Lifecycle
+@using MathFirst.Application.Navigation
 @using MathFirst.Application.Persistence
 @using MathFirst.Application.Practice
 @using MathFirst.App.Components.Training
@@ -24,6 +25,7 @@
 @inject IGameplayStore GameplayStore
 @inject IJSRuntime JSRuntime
 @inject IHapticFeedbackService HapticService
+@inject IAppBackNavigationCoordinator BackCoordinator
 
 <div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container" data-spotlight-active="@ActiveSpotlightTarget">
@@ -43,7 +45,8 @@
                 </div>
             </div>
             <div class="practice-header-actions">
-                @if (IsCyberDefenseActive)
+                @* Issue #125: Upgrade is advertised only after the first earned purchasing opportunity. *@
+                @if (IsCyberDefenseActive && IsUpgradeDiscovered)
                 {
                     <button type="button"
                             class="button button-secondary upgrade-nav-btn"
@@ -61,26 +64,23 @@
                         }
                     </button>
                 }
-                @if (CanPausePractice)
+                @* Issue #125: the single Menu control replaces Pause and Settings; it opens the ManualPause menu. *@
+                @if (CanOpenGameMenu)
                 {
                     <button type="button"
                             class="button button-pause pause-practice-btn"
-                            title='@Localizer["Training_Pause"]'
-                            aria-label='@Localizer["Training_Pause"]'
-                            @onclick="PausePractice">
-                        <span class="pause-icon" aria-hidden="true">
-                            <span class="pause-icon-bar"></span>
-                            <span class="pause-icon-bar"></span>
+                            title='@Localizer["GameMenu_OpenAriaLabel"]'
+                            aria-label='@Localizer["GameMenu_OpenAriaLabel"]'
+                            aria-haspopup="dialog"
+                            @onclick="OpenGameMenu">
+                        <span class="game-menu-icon" aria-hidden="true">
+                            <span class="game-menu-icon-bar"></span>
+                            <span class="game-menu-icon-bar"></span>
+                            <span class="game-menu-icon-bar"></span>
                         </span>
+                        <span class="game-menu-label">@Localizer["GameMenu_Button"]</span>
                     </button>
                 }
-                <a href="settings" class="button button-secondary settings-nav-btn" title='@Localizer["Settings_Title"]' aria-label='@Localizer["Settings_Title"]'>
-                    <svg class="settings-gear-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-                        <path d="M8 4.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5zM6 8a2 2 0 1 1 4 0 2 2 0 0 1-4 0z"/>
-                        <path d="M9.79 1.156a1.5 1.5 0 0 0-1.58-.946H7.79a1.5 1.5 0 0 0-1.58.946l-.28.84a5.03 5.03 0 0 0-1.25.72l-.84-.28a1.5 1.5 0 0 0-1.78.58L1.31 4.75a1.5 1.5 0 0 0 .2 1.86l.66.57a4.98 4.98 0 0 0 0 1.64l-.66.57a1.5 1.5 0 0 0-.2 1.86l.75 1.734a1.5 1.5 0 0 0 1.78.58l.84-.28c.38.3.8.54 1.25.72l.28.84a1.5 1.5 0 0 0 1.58.946h1.02a1.5 1.5 0 0 0 1.58-.946l.28-.84c.45-.18.87-.42 1.25-.72l.84.28a1.5 1.5 0 0 0 1.78-.58l.75-1.734a1.5 1.5 0 0 0-.2-1.86l-.66-.57c.05-.27.08-.54.08-.82s-.03-.55-.08-.82l.66-.57a1.5 1.5 0 0 0 .2-1.86L14.69 3.02a1.5 1.5 0 0 0-1.78-.58l-.84.28a5.03 5.03 0 0 0-1.25-.72l-.28-.84z"/>
-                    </svg>
-                    <span class="settings-nav-label">@Localizer["Settings_Title"]</span>
-                </a>
             </div>
         </header>
 
@@ -100,6 +100,7 @@
                                 @onclick="RetryInitializationAsync">
                             @Localizer["Training_Retry"]
                         </button>
+                        <a href="settings" class="button button-secondary game-menu-action gate-settings-link" @onkeydown:stopPropagation="true">@Localizer["Settings_Title"]</a>
                     </div>
                 </section>
             </main>
@@ -116,13 +117,19 @@
                   inert="@(Ceremony.IsBlocking || _isTutorialOpen ? true : null)" aria-hidden="@(Ceremony.IsBlocking || _isTutorialOpen ? "true" : null)">
                 @if (Session.PracticeGate != PracticeGateState.Running)
                 {
-                    <section class="practice-overlay practice-gate-overlay"
+                    // Issue #125: the ManualPause gate is the cyber main menu itself, never a second stacked dialog.
+                    var isGameMenu = Session.PracticeGate == PracticeGateState.ManualPause;
+                    <section class="@(isGameMenu ? "practice-overlay game-menu-overlay practice-gate-overlay" : "practice-overlay practice-gate-overlay")"
                              role="dialog"
                              aria-modal="true"
                              aria-labelledby="practice-gate-title"
                              inert="@(_isUpgradeTerminalOpen || _isTutorialOpen ? true : null)"
                              aria-hidden="@(_isUpgradeTerminalOpen || _isTutorialOpen ? "true" : null)">
-                        <div class="practice-overlay-content">
+                        <div class="@(isGameMenu ? "practice-overlay-content game-menu-panel" : "practice-overlay-content")">
+                            @if (isGameMenu)
+                            {
+                                <p class="game-menu-kicker">@Localizer["GameMenu_Kicker"]</p>
+                            }
                             <h2 id="practice-gate-title">@PracticeGateTitle</h2>
                             @if (Session.PracticeGate == PracticeGateState.InitialReadyGate && Session.HasCompletedPracticeHistory)
                             {
@@ -146,43 +153,77 @@
                                     </div>
                                 </section>
                             }
-                            else if (Session.PracticeGate == PracticeGateState.ManualPause)
-                            {
-                                var summary = Session.GetSessionSummary();
-                                <div class="pause-session-summary" role="region" aria-label="@Localizer["Training_PauseSummaryTitle"]">
-                                    <div class="pause-summary-row">
-                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryCompleted"]</span>
-                                        <span class="pause-summary-value">@summary.CompletedCount</span>
-                                    </div>
-                                    <div class="pause-summary-row">
-                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryCorrect"]</span>
-                                        <span class="pause-summary-value">@summary.CorrectCount</span>
-                                    </div>
-                                    <div class="pause-summary-row">
-                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryStreak"]</span>
-                                        <span class="pause-summary-value">@summary.CurrentCorrectStreak</span>
-                                    </div>
-                                    <div class="pause-summary-row">
-                                        <span class="pause-summary-label">@Localizer["Training_PauseSummaryMedianSpeed"]</span>
-                                        <span class="pause-summary-value">@LearningPolicy.FormatLatencySeconds(summary.MedianCorrectLatencyMs, Localizer["Training_Unavailable"])</span>
-                                    </div>
-                                </div>
-                                @if (IsCyberDefenseActive)
-                                {
-                                    <button type="button"
-                                            class="button button-secondary practice-overlay-action pause-upgrade-btn"
-                                            aria-label='@Localizer["UpgradeTerminal_Title"]'
-                                            @onclick="OpenUpgradeTerminalAsync">
-                                        @Localizer["UpgradeTerminal_Title"]
-                                    </button>
-                                }
-                            }
                             <button type="button"
                                     @ref="_primaryOverlayButton"
                                     class="button button-primary practice-overlay-action"
                                     @onclick="StartOrResumePractice">
                                 @PracticeGateAction
                             </button>
+                            @if (isGameMenu)
+                            {
+                                // Secondary actions keep their own Enter: the global Enter is the menu's Continue only.
+                                <nav class="game-menu-actions" aria-label='@Localizer["GameMenu_ActionsAriaLabel"]'>
+                                    <a href="settings" class="button button-secondary game-menu-action game-menu-settings" @onkeydown:stopPropagation="true">@Localizer["Settings_Title"]</a>
+                                    <button type="button" class="button button-secondary game-menu-action game-menu-progress-toggle" aria-expanded="@(_isMenuProgressExpanded ? "true" : "false")" aria-controls="game-menu-progress" @onclick="ToggleMenuProgress" @onkeydown:stopPropagation="true">@Localizer["GameMenu_Progress"]</button>
+                                    <section id="game-menu-progress" class="game-menu-progress" role="region" aria-label='@Localizer["GameMenu_ProgressTitle"]' hidden="@(!_isMenuProgressExpanded)">
+                                        @{
+                                            var summary = Session.GetSessionSummary();
+                                        }
+                                        <h3 class="game-menu-progress-heading">@Localizer["Training_PauseSummaryTitle"]</h3>
+                                        <div class="pause-session-summary" role="region" aria-label="@Localizer["Training_PauseSummaryTitle"]">
+                                            <div class="pause-summary-row">
+                                                <span class="pause-summary-label">@Localizer["Training_PauseSummaryCompleted"]</span>
+                                                <span class="pause-summary-value">@summary.CompletedCount</span>
+                                            </div>
+                                            <div class="pause-summary-row">
+                                                <span class="pause-summary-label">@Localizer["Training_PauseSummaryCorrect"]</span>
+                                                <span class="pause-summary-value">@summary.CorrectCount</span>
+                                            </div>
+                                            <div class="pause-summary-row">
+                                                <span class="pause-summary-label">@Localizer["Training_PauseSummaryStreak"]</span>
+                                                <span class="pause-summary-value">@summary.CurrentCorrectStreak</span>
+                                            </div>
+                                            <div class="pause-summary-row">
+                                                <span class="pause-summary-label">@Localizer["Training_PauseSummaryMedianSpeed"]</span>
+                                                <span class="pause-summary-value">@LearningPolicy.FormatLatencySeconds(summary.MedianCorrectLatencyMs, Localizer["Training_Unavailable"])</span>
+                                            </div>
+                                        </div>
+                                        <h3 class="game-menu-progress-heading">@Localizer["GameMenu_StagesTitle"]</h3>
+                                        <div class="ready-progress-list" role="list">
+                                            @foreach (var progress in OperationProgress)
+                                            {
+                                                var operationName = Localizer[$"Operation_{progress.Operation}"];
+                                                var progressLabel = progress.PresentationStage is int stage
+                                                    ? Localizer["Training_OperationProgressStage", operationName, stage]
+                                                    : Localizer["Training_OperationProgressUnavailable", operationName];
+                                                <div class="ready-progress-entry" role="listitem" aria-label="@progressLabel">
+                                                    <span class="ready-progress-symbol" aria-hidden="true">@GetOperationSymbol(progress.Operation)</span>
+                                                    <span class="ready-progress-name">@operationName</span>
+                                                    <span class="ready-progress-stage">@(progress.PresentationStage is int stageNumber
+                                                        ? Localizer["Training_ProgressStageDisplay", stageNumber]
+                                                        : Localizer["Training_Unavailable"])</span>
+                                                </div>
+                                            }
+                                        </div>
+                                        @if (IsCyberDefenseActive && HudPlayerProgress is { } playerProgress)
+                                        {
+                                            <p class="game-menu-player-level">@Localizer["GameMenu_PlayerLevel", playerProgress.Level, playerProgress.XpIntoCurrentLevel, playerProgress.XpRequiredForNextLevel]</p>
+                                        }
+                                    </section>
+                                    @if (CanOfferTutorialFromMenu)
+                                    {
+                                        <button type="button" class="button button-secondary game-menu-action game-menu-tutorial" @onclick="OpenTutorialFromMenu" @onkeydown:stopPropagation="true">@Localizer["GameMenu_Tutorial"]</button>
+                                    }
+                                    @if (IsCyberDefenseActive && IsUpgradeDiscovered)
+                                    {
+                                        <button type="button" class="button button-secondary game-menu-action pause-upgrade-btn" @onclick="OpenUpgradeTerminalAsync" @onkeydown:stopPropagation="true">@Localizer["UpgradeTerminal_Title"]</button>
+                                    }
+                                </nav>
+                            }
+                            else
+                            {
+                                <a href="settings" class="button button-secondary game-menu-action gate-settings-link" @onkeydown:stopPropagation="true">@Localizer["Settings_Title"]</a>
+                            }
                         </div>
                     </section>
                 }
@@ -623,6 +664,7 @@
         Localizer.UiLanguageChanged += OnLanguageChanged;
         Session.AppForegroundStateChanged += OnAppForegroundChanged;
         Ceremony.Changed += OnCeremonyChanged;
+        _backRegistration = BackCoordinator.RegisterHandler(HandleBack);
         _keypadLayout = PreferenceStore.GetNumericKeypadLayout();
         RefreshEnabledOperations();
 
@@ -684,20 +726,7 @@
 
             if (shouldPresentTutorial)
             {
-                Session.PauseItemTiming();
-                if (CanPresentTutorialReplay)
-                {
-                    CyberDefenseSessionState.ConsumeTutorialReplayRequest();
-                }
-                _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
-                _tutorialCapturedFactRevision = Session.FactInstanceRevision;
-                _tutorialResumptionReason = TutorialResumptionReason.InterruptedActiveQuestion;
-                _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
-                _isTutorialOpen = true;
-                _hasDeferredTutorialTimingResume = false;
-                _shouldFocusInput = false;
-                _shouldFocusPrimaryOverlay = false;
-                SyncStateWithSession();
+                PresentTutorialInPlace();
                 return;
             }
             if (!isTutorialPending)
@@ -710,6 +739,26 @@
             }
             SyncStateWithSession();
         }
+    }
+
+    // Opens the tutorial over the current question without changing the practice gate (Issue #112 replay contract):
+    // a paused question stays paused underneath and only its explicit Continue resumes it.
+    private void PresentTutorialInPlace()
+    {
+        Session.PauseItemTiming();
+        if (CanPresentTutorialReplay)
+        {
+            CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+        }
+        _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
+        _tutorialCapturedFactRevision = Session.FactInstanceRevision;
+        _tutorialResumptionReason = TutorialResumptionReason.InterruptedActiveQuestion;
+        _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
+        _isTutorialOpen = true;
+        _hasDeferredTutorialTimingResume = false;
+        _shouldFocusInput = false;
+        _shouldFocusPrimaryOverlay = false;
+        SyncStateWithSession();
     }
 
     private void SyncStateWithSession()
@@ -876,6 +925,8 @@
             return;
         }
         _isDisposed = true;
+        _backRegistration?.Dispose();
+        _backRegistration = null;
         Ceremony.Changed -= OnCeremonyChanged;
         _presentationLifetime.Cancel();
         Ceremony.Cancel();
@@ -983,7 +1034,8 @@
 
     private async Task HandleAnswerInput(ChangeEventArgs e)
     {
-        if (_isTutorialOpen)
+        // A paused, gated or tutorial-covered question accepts no typed answer, so nothing can be submitted through it.
+        if (_isTutorialOpen || !IsAnswerEntryVisible)
         {
             _inputRenderVersion++;
             return;
@@ -1714,6 +1766,110 @@
 
     private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen && !_isTutorialOpen;
 
+    // Issue #125: the menu has no open flag of its own. It is the ManualPause gate of the session, so opening it is
+    // the authoritative PausePractice and only the explicit Continue (StartOrResumePractice) leaves it.
+    private bool _isMenuProgressExpanded;
+    private IDisposable? _backRegistration;
+
+    private bool IsGameMenuOpen =>
+        !_startupFailed && Session.IsInitialized && Session.CurrentFact is not null &&
+        Session.PracticeGate == PracticeGateState.ManualPause;
+
+    private bool CanOpenGameMenu => CanPausePractice && !_isDisposed && !Ceremony.IsBlocking && Session.IsAppForeground;
+
+    private bool IsUpgradeDiscovered => _upgradeTerminalViewModel?.IsUpgradeDiscovered == true;
+
+    // The same guards as an in-place tutorial replay, evaluated before a replay is requested.
+    private bool CanOfferTutorialFromMenu =>
+        IsGameMenuOpen &&
+        IsCyberDefenseActive &&
+        !_isTutorialOpen &&
+        !_isUpgradeTerminalOpen &&
+        !Ceremony.IsBlocking &&
+        !_isSubmitting &&
+        !_isDisposed &&
+        Session.IsAppForeground &&
+        Session.InteractionState == SessionInteractionState.AwaitingAnswer;
+
+    private void OpenGameMenu()
+    {
+        if (!CanOpenGameMenu)
+        {
+            return;
+        }
+
+        _isMenuProgressExpanded = false;
+        PausePractice();
+    }
+
+    private void ToggleMenuProgress()
+    {
+        if (!IsGameMenuOpen || _isUpgradeTerminalOpen || _isTutorialOpen)
+        {
+            return;
+        }
+
+        _isMenuProgressExpanded = !_isMenuProgressExpanded;
+    }
+
+    // Reuses the Settings replay request and the in-place presentation: the menu stays paused underneath, and the
+    // tutorial's own dismissal defers any timing resume to the menu's explicit Continue.
+    private void OpenTutorialFromMenu()
+    {
+        if (!CanOfferTutorialFromMenu)
+        {
+            return;
+        }
+
+        CyberDefenseSessionState.RequestTutorialReplay();
+        PresentTutorialInPlace();
+    }
+
+    private bool IsBlockingGameplaySurfaceActive =>
+        _startupFailed ||
+        _isSubmitting ||
+        _isUpgradeTerminalOpen ||
+        _isTutorialOpen ||
+        Ceremony.IsBlocking ||
+        Session.PracticeGate is PracticeGateState.ManualPause or PracticeGateState.BackgroundResumeGate ||
+        IsAwaitingAcknowledgement ||
+        IsHeldCommittedAnswer ||
+        Session.InteractionState is SessionInteractionState.CorrectFeedback
+            or SessionInteractionState.PersistenceFailure
+            or SessionInteractionState.SessionCheckIn;
+
+    // Android Back during active answer entry opens the Cyber Game Menu and pauses session timing.
+    // While an authoritative blocking gameplay surface owns the screen (Game Menu, Tutorial, Upgrade Terminal,
+    // Ceremony recap/restart, feedback, recovery dialogs), Back is safely consumed without advancing,
+    // acknowledging, or escaping through native fallback.
+    private bool HandleBack()
+    {
+        if (_isDisposed)
+        {
+            return false;
+        }
+
+        if (CanOpenGameMenu)
+        {
+            OpenGameMenu();
+            try
+            {
+                _ = InvokeAsync(StateHasChanged);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            return true;
+        }
+
+        if (IsBlockingGameplaySurfaceActive)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private async Task OpenUpgradeTerminalAsync()
     {
         if (_isUpgradeTerminalOpen || _isSubmitting || _isDisposed || _isTutorialOpen)
@@ -1878,9 +2034,12 @@
             ? Localizer["Training_ReadyTitle"]
             : Localizer["Training_PausedTitle"];
 
-    private string PracticeGateAction => Session.PracticeGate == PracticeGateState.InitialReadyGate
-        ? Localizer["Training_Start"]
-        : Localizer["Training_ResumePractice"];
+    private string PracticeGateAction => Session.PracticeGate switch
+    {
+        PracticeGateState.InitialReadyGate => Localizer["Training_Start"],
+        PracticeGateState.ManualPause => Localizer["GameMenu_Continue"],
+        _ => Localizer["Training_ResumePractice"]
+    };
 
     private string DecimalSeparator => Localizer.CurrentUiLanguage == "en" ? "." : ",";
 

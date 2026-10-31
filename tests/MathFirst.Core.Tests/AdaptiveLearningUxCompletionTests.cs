@@ -706,9 +706,9 @@ public sealed class AdaptiveLearningUxCompletionTests : IDisposable
         // No emoji pause icon in Home.razor
         Assert.DoesNotContain("⏸", home, StringComparison.Ordinal);
 
-        // Uses CSS-drawn pause icon bars
-        Assert.Contains("class=\"pause-icon\"", home, StringComparison.Ordinal);
-        Assert.Contains("class=\"pause-icon-bar\"", home, StringComparison.Ordinal);
+        // Uses CSS-drawn icon bars (Issue #125: the pause trigger is the single Menu control)
+        Assert.Contains("class=\"game-menu-icon\"", home, StringComparison.Ordinal);
+        Assert.Contains("class=\"game-menu-icon-bar\"", home, StringComparison.Ordinal);
         Assert.Contains("background-color: currentColor;", styles, StringComparison.Ordinal);
     }
 

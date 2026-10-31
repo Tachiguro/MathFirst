@@ -773,7 +773,7 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
     [Fact(Timeout = 10000)]
     public async Task Issue112_UpgradeTerminal_IsSingleTopLayerOutsideTrainingCard_BlocksBackgroundInput_AndSuspendsTiming()
     {
-        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true);
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true, upgradeDiscovered: true);
         await f.StartOrResumePracticeAsync();
         f.Clock.Advance(1200);
         var revision = f.Session.FactInstanceRevision;
@@ -819,7 +819,7 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
     [Fact(Timeout = 10000)]
     public async Task Issue112_UpgradeTerminalFromPauseOverlay_ClosesBackToResponsivePause_WithoutResumingTiming()
     {
-        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true);
+        await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true, upgradeDiscovered: true);
         await f.StartOrResumePracticeAsync();
         f.Clock.Advance(800);
         await f.InvokeHomeAsync("PausePractice");
@@ -916,7 +916,8 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
             SpotlightTutorialLifecycleTests suite,
             bool cyberDefense = true,
             bool tutorialCompleted = false,
-            bool failStartup = false)
+            bool failStartup = false,
+            bool upgradeDiscovered = false)
         {
             var dir = suite.CreateTempDirectory();
             var clock = new FakeClock();
@@ -927,6 +928,16 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
             var sessionState = new CyberDefenseSessionState(preferences);
             var store = new SqliteGameplayStore(Path.Combine(dir, "gameplay.db"));
             await store.InitializeAsync();
+            if (upgradeDiscovered)
+            {
+                // Issue #125: Upgrade is offered only after the first earned Skill Point (synthetic Level 2).
+                using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}");
+                await connection.OpenAsync();
+                using var command = connection.CreateCommand();
+                command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = 2, earned_sp = 1, spent_sp = 0, available_sp = 1 WHERE id = 1;";
+                command.Parameters.AddWithValue("@xp", MathFirst.Domain.CyberDefense.CyberDefenseLevelPolicy.GetCumulativeXpThreshold(2));
+                await command.ExecuteNonQueryAsync();
+            }
 
             var learner = new TestLearnerStore();
             var session = new TrainingSession(learner, clock, preferenceStore: preferences);
@@ -950,6 +961,7 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
                 .AddSingleton<ICyberDefenseTutorialReplayRequests>(sp => sp.GetRequiredService<CyberDefenseSessionState>())
                 .AddSingleton(new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary())))
                 .AddSingleton<IAppResetCoordinator>(resetCoord)
+                .AddSingleton<MathFirst.Application.Navigation.IAppBackNavigationCoordinator>(new MathFirst.Application.Navigation.AppBackNavigationCoordinator())
                 .AddSingleton<IHapticFeedbackService>(new TestHapticFeedbackService())
                 .AddSingleton<IJSRuntime>(new TestJsRuntime())
                 .BuildServiceProvider();
