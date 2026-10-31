@@ -565,9 +565,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             await Task.WhenAny(shown, submission);
             await fixture.RevealContinue();
 
-            // Issue #125: the ceremony stays authoritative; no menu, pause gate or Back action competes with it.
+            // Issue #125: the ceremony stays authoritative; no menu or pause gate competes with it,
+            // and native Back is safely consumed without escaping or bypassing Continue.
             Assert.False(fixture.Property<bool>("CanOpenGameMenu"));
-            Assert.False(fixture.Back.TryHandleBack());
+            Assert.True(fixture.Back.TryHandleBack());
             await fixture.Invoke("OpenGameMenu");
             Assert.Equal(PracticeGateState.Running, fixture.Session.PracticeGate);
             var html = await fixture.Html();

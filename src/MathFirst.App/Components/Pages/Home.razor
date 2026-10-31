@@ -1825,21 +1825,49 @@
         PresentTutorialInPlace();
     }
 
-    // Android Back during answer entry opens the menu, pausing through the session gate. It never resumes: on the
-    // open menu and on every other surface it passes through, which leaves the explicit gates and ceremonies in charge.
+    private bool IsBlockingGameplaySurfaceActive =>
+        _startupFailed ||
+        _isSubmitting ||
+        _isUpgradeTerminalOpen ||
+        _isTutorialOpen ||
+        Ceremony.IsBlocking ||
+        Session.PracticeGate is PracticeGateState.ManualPause or PracticeGateState.BackgroundResumeGate ||
+        IsAwaitingAcknowledgement ||
+        IsHeldCommittedAnswer ||
+        Session.InteractionState is SessionInteractionState.CorrectFeedback
+            or SessionInteractionState.PersistenceFailure
+            or SessionInteractionState.SessionCheckIn;
+
+    // Android Back during active answer entry opens the Cyber Game Menu and pauses session timing.
+    // While an authoritative blocking gameplay surface owns the screen (Game Menu, Tutorial, Upgrade Terminal,
+    // Ceremony recap/restart, feedback, recovery dialogs), Back is safely consumed without advancing,
+    // acknowledging, or escaping through native fallback.
     private bool HandleBack()
     {
-        if (!CanOpenGameMenu)
+        if (_isDisposed)
         {
             return false;
         }
 
-        _ = InvokeAsync(() =>
+        if (CanOpenGameMenu)
         {
             OpenGameMenu();
-            StateHasChanged();
-        });
-        return true;
+            try
+            {
+                _ = InvokeAsync(StateHasChanged);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            return true;
+        }
+
+        if (IsBlockingGameplaySurfaceActive)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private async Task OpenUpgradeTerminalAsync()

@@ -377,17 +377,17 @@ public sealed class Issue125GameMenuTests : IDisposable
         Assert.False(f.Session.IsTimingActive);
         var activation = f.Session.PracticeGateActivationRevision;
 
-        // On the open menu Back is not consumed and does not resume or reopen anything.
-        Assert.False(await f.PressBackAsync());
-        Assert.False(await f.PressBackAsync());
+        // On the open menu Back is safely consumed and does not resume or reopen anything.
+        Assert.True(await f.PressBackAsync());
+        Assert.True(await f.PressBackAsync());
         Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
         Assert.Equal(activation, f.Session.PracticeGateActivationRevision);
         Assert.False(f.Session.IsTimingActive);
         Assert.Equal(400, f.Session.GetCurrentActiveElapsedMs());
 
-        // Tutorial on top of the menu: Back neither closes it nor resumes.
+        // Tutorial on top of the menu: Back is safely consumed and neither closes it nor resumes.
         await f.InvokeAsync("OpenTutorialFromMenu");
-        Assert.False(await f.PressBackAsync());
+        Assert.True(await f.PressBackAsync());
         Assert.True(f.IsTutorialOpen);
         Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
     }
@@ -400,7 +400,7 @@ public sealed class Issue125GameMenuTests : IDisposable
 
         await f.InvokeAsync("OpenUpgradeTerminalAsync");
         Assert.True(f.IsUpgradeTerminalOpen);
-        Assert.False(await f.PressBackAsync());
+        Assert.True(await f.PressBackAsync());
         Assert.Equal(PracticeGateState.Running, f.Session.PracticeGate);
         Assert.False(f.Session.IsTimingActive);
         await f.InvokeAsync("CloseUpgradeTerminal");
@@ -408,7 +408,7 @@ public sealed class Issue125GameMenuTests : IDisposable
         await f.SubmitAsync(correct: false);
         Assert.Equal(SessionInteractionState.IncorrectFeedback, f.Session.InteractionState);
         Assert.False(f.CanOpenGameMenu);
-        Assert.False(await f.PressBackAsync());
+        Assert.True(await f.PressBackAsync());
         await f.InvokeAsync("OpenGameMenu");
         Assert.Equal(PracticeGateState.Running, f.Session.PracticeGate);
         Assert.Equal(SessionInteractionState.IncorrectFeedback, f.Session.InteractionState);
@@ -416,6 +416,275 @@ public sealed class Issue125GameMenuTests : IDisposable
         await f.UnmountAsync();
         Assert.Equal(0, f.Back.RegisteredHandlerCount);
         Assert.False(f.Back.TryHandleBack());
+    }
+
+    [Fact]
+    public async Task AndroidBack_OnBossRecap_IsConsumed_AndNeverBypassesContinue()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            "boss-recap-receipt", "2+2", true, true, 1234, 0, DateTimeOffset.UnixEpoch,
+            CyberDefenseStateMachine.ApplyAttempt(
+                CyberDefenseRunState.CreateActive(1, 5, 100, new OpponentState(OpponentKind.Boss, 12, 1)),
+                true, 1));
+        var recap = new CyberDefenseSectorRecap("boss-recap-receipt", 0, 1, 24, 22, 24000, 178, 1);
+        var pending = f.Ceremony.RunAsync(receipt, recap, _ => Task.FromResult(true));
+
+        for (var i = 0; i < 50 && (!f.Ceremony.CanContinue || f.Ceremony.Stage != CyberDefensePresentationStage.Recap); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(f.Ceremony.IsBlocking);
+        Assert.Equal(CyberDefensePresentationStage.Recap, f.Ceremony.Stage);
+        Assert.True(f.Ceremony.CanContinue);
+
+        // Back is consumed while Boss recap is visible; does not bypass Continue
+        Assert.True(await f.PressBackAsync());
+        Assert.True(f.Ceremony.IsBlocking);
+        Assert.False(pending.IsCompleted);
+        Assert.Equal(CyberDefensePresentationStage.Recap, f.Ceremony.Stage);
+
+        // Only acknowledging through presentation advances the ceremony
+        Assert.True(f.Ceremony.Acknowledge(f.Ceremony.PresentationId));
+        Assert.True(await pending);
+        Assert.False(f.Ceremony.IsBlocking);
+    }
+
+    [Fact]
+    public async Task AndroidBack_OnSystemRestart_IsConsumed_AndNeverBypassesContinue()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        var receipt = CyberDefenseReceiptRecord.CreateApplied(
+            "restart-receipt", "3+3", false, true, 1234, 0, DateTimeOffset.UnixEpoch,
+            CyberDefenseStateMachine.ApplyAttempt(
+                CyberDefenseRunState.CreateActive(1, 0, 1, new OpponentState(OpponentKind.Normal, 2, 2)),
+                false, 1));
+        var pending = f.Ceremony.RunAsync(receipt, null, _ => Task.FromResult(true));
+
+        Assert.True(f.Ceremony.IsBlocking);
+        Assert.Equal(CyberDefensePresentationStage.SystemOverload, f.Ceremony.Stage);
+
+        // Back is consumed while System Restart / Overload is visible (even before Continue is revealed)
+        Assert.True(await f.PressBackAsync());
+        Assert.True(f.Ceremony.IsBlocking);
+        Assert.False(pending.IsCompleted);
+
+        // Wait until Continue is revealed
+        for (var i = 0; i < 50 && !f.Ceremony.CanContinue; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(f.Ceremony.CanContinue);
+
+        // Back is still consumed once Continue is revealed
+        Assert.True(await f.PressBackAsync());
+        Assert.True(f.Ceremony.IsBlocking);
+        Assert.False(pending.IsCompleted);
+        Assert.Equal(CyberDefensePresentationStage.SystemOverload, f.Ceremony.Stage);
+
+        Assert.True(f.Ceremony.Acknowledge(f.Ceremony.PresentationId));
+        Assert.True(await pending);
+        Assert.False(f.Ceremony.IsBlocking);
+    }
+
+    [Fact]
+    public async Task AndroidBack_OnFeedback_DoesNotAdvanceMathQuestion()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        var initialFact = f.Session.CurrentFact;
+        var initialRevision = f.Session.FactInstanceRevision;
+        Assert.NotNull(initialFact);
+
+        // Submit incorrect answer -> enters IncorrectFeedback
+        await f.SubmitAsync(correct: false);
+        Assert.Equal(SessionInteractionState.IncorrectFeedback, f.Session.InteractionState);
+
+        // Press Back -> consumed, stays on feedback, does not advance question
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(SessionInteractionState.IncorrectFeedback, f.Session.InteractionState);
+        Assert.Same(initialFact, f.Session.CurrentFact);
+        Assert.Equal(initialRevision, f.Session.FactInstanceRevision);
+
+        // Explicit advance moves to the next question
+        await f.InvokeAsync("AdvanceAsync");
+        Assert.NotEqual(initialRevision, f.Session.FactInstanceRevision);
+    }
+
+    [Fact]
+    public async Task AndroidBack_OnRecoveryOrErrorGates_IsConsumedSafely()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        // 1. Persistence failure error gate
+        typeof(TrainingSession).GetProperty(nameof(TrainingSession.InteractionState))!
+            .SetValue(f.Session, SessionInteractionState.PersistenceFailure);
+        Assert.Equal(SessionInteractionState.PersistenceFailure, f.Session.InteractionState);
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(SessionInteractionState.PersistenceFailure, f.Session.InteractionState);
+
+        // Reset interaction state to AwaitingAnswer
+        typeof(TrainingSession).GetProperty(nameof(TrainingSession.InteractionState))!
+            .SetValue(f.Session, SessionInteractionState.AwaitingAnswer);
+
+        // 2. Startup error gate
+        f.SetField("_startupFailed", true);
+        Assert.True(await f.PressBackAsync());
+        f.SetField("_startupFailed", false);
+
+        // 3. Teaching intervention gate
+        typeof(TrainingSession).GetProperty(nameof(TrainingSession.InteractionState))!
+            .SetValue(f.Session, SessionInteractionState.TeachingIntervention);
+        Assert.Equal(SessionInteractionState.TeachingIntervention, f.Session.InteractionState);
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(SessionInteractionState.TeachingIntervention, f.Session.InteractionState);
+
+        // 4. Session check-in gate
+        typeof(TrainingSession).GetProperty(nameof(TrainingSession.InteractionState))!
+            .SetValue(f.Session, SessionInteractionState.SessionCheckIn);
+        Assert.Equal(SessionInteractionState.SessionCheckIn, f.Session.InteractionState);
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(SessionInteractionState.SessionCheckIn, f.Session.InteractionState);
+    }
+
+    [Fact]
+    public async Task AndroidBack_RepeatedBack_CannotDoubleTransition()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        // 1st Back opens the menu and pauses
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
+        var activationRevision = f.Session.PracticeGateActivationRevision;
+
+        // Repeated rapid Back calls do not cause a second transition, resume, or error
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.True(await f.PressBackAsync());
+            Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
+            Assert.Equal(activationRevision, f.Session.PracticeGateActivationRevision);
+            Assert.False(f.Session.IsTimingActive);
+        }
+    }
+
+    [Fact]
+    public async Task AndroidBack_BackgroundResetDisposal_AreSafe()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        // App backgrounding transitions to BackgroundResumeGate
+        f.Session.SetAppForeground(false);
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+
+        // Back on BackgroundResumeGate is safely consumed
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+
+        // Returning to foreground still safely consumes Back until explicit Continue
+        f.Session.SetAppForeground(true);
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+
+        // Unmount / disposal unregisters handler cleanly
+        await f.UnmountAsync();
+        Assert.Equal(0, f.Back.RegisteredHandlerCount);
+        Assert.False(f.Back.TryHandleBack());
+    }
+
+    [Fact]
+    public async Task AndroidBack_SettingsBackNavigation_RemainsFunctional()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new());
+        await f.StartAsync();
+
+        // When Settings is mounted, it registers its LIFO handler
+        var navigatedBackToHome = false;
+        using (f.Back.RegisterHandler(() =>
+        {
+            navigatedBackToHome = true;
+            return true;
+        }))
+        {
+            // Settings handler runs topmost and returns true
+            Assert.True(f.Back.TryHandleBack());
+            Assert.True(navigatedBackToHome);
+        }
+
+        // After Settings handler is disposed, Home handler is back at topmost position
+        Assert.True(await f.PressBackAsync());
+        Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
+    }
+
+    [Fact]
+    public async Task AndroidBack_NativeMainPageFallback_IsNotReached_ForGameOwnedBlockingScreens()
+    {
+        // 1. Contract check: MainPage.OnBackButtonPressed() consumes whenever coordinator handles
+        var mainPageSource = ChromiumLayoutHarness.ReadRepositoryFile("src", "MathFirst.App", "MainPage.xaml.cs");
+        Assert.Contains("if (_backCoordinator.TryHandleBack())", mainPageSource, StringComparison.Ordinal);
+        Assert.Contains("return true;", mainPageSource, StringComparison.Ordinal);
+        Assert.Contains("return base.OnBackButtonPressed();", mainPageSource, StringComparison.Ordinal);
+
+        // 2. Active Home surface verification: coordinator returns true for all game-owned blocking states
+        await using var f = await MenuFixture.CreateAsync(this, new(PlayerLevel: 6));
+        await f.StartAsync();
+
+        // Active answering -> handled (opens menu)
+        Assert.True(f.Back.TryHandleBack());
+        await f.RendererDispatcherFlushAsync();
+
+        // Open menu -> handled (never reaches base.OnBackButtonPressed)
+        Assert.True(f.Back.TryHandleBack());
+
+        // Upgrade terminal -> handled
+        await f.InvokeAsync("OpenUpgradeTerminalAsync");
+        Assert.True(f.Back.TryHandleBack());
+        await f.InvokeAsync("CloseUpgradeTerminal");
+
+        // Tutorial -> handled
+        await f.InvokeAsync("OpenTutorialFromMenu");
+        Assert.True(f.Back.TryHandleBack());
+    }
+
+    [Fact]
+    public async Task AndroidBack_NeverAwardsDuplicateReceiptsXpOrPurchases()
+    {
+        await using var f = await MenuFixture.CreateAsync(this, new(PlayerLevel: 6));
+        await f.StartAsync();
+
+        var initialProgression = await f.Store.GetProgressionAsync();
+        var initialAttempts = f.Learner.Attempts.Count;
+
+        // Press Back to open menu
+        Assert.True(await f.PressBackAsync());
+
+        // Repeated Back presses while menu is open
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.True(await f.PressBackAsync());
+        }
+
+        // Open upgrade terminal and press Back
+        await f.InvokeAsync("OpenUpgradeTerminalAsync");
+        Assert.True(await f.PressBackAsync());
+        await f.InvokeAsync("CloseUpgradeTerminal");
+
+        // Verify no XP awarded, no SP spent, no attempts committed
+        var finalProgression = await f.Store.GetProgressionAsync();
+        Assert.Equal(initialProgression.CumulativeXp, finalProgression.CumulativeXp);
+        Assert.Equal(initialProgression.PlayerLevel, finalProgression.PlayerLevel);
+        Assert.Equal(initialProgression.AvailableSkillPoints, finalProgression.AvailableSkillPoints);
+        Assert.Equal(initialProgression.SpentSkillPoints, finalProgression.SpentSkillPoints);
+        Assert.Equal(initialAttempts, f.Learner.Attempts.Count);
     }
 
     [Fact]
@@ -801,6 +1070,7 @@ public sealed class Issue125GameMenuTests : IDisposable
         public StepClock Clock { get; }
         public AppBackNavigationCoordinator Back { get; }
         public CyberDefenseSessionState ReplayRequests { get; }
+        public CyberDefensePresentationSequence Ceremony { get; }
 
         public bool IsUpgradeTerminalOpen => Field<bool>("_isUpgradeTerminalOpen");
         public bool IsTutorialOpen => Field<bool>("_isTutorialOpen");
@@ -808,7 +1078,7 @@ public sealed class Issue125GameMenuTests : IDisposable
         public UpgradeTerminalViewModel TerminalViewModel => Field<UpgradeTerminalViewModel>("_upgradeTerminalViewModel");
 
         private MenuFixture(string directory, ServiceProvider services, TrainingSession session, SqliteGameplayStore store, LocalizationService localizer,
-            MenuPreferences preferences, SyntheticLearner learner, StepClock clock, AppBackNavigationCoordinator back, CyberDefenseSessionState replay)
+            MenuPreferences preferences, SyntheticLearner learner, StepClock clock, AppBackNavigationCoordinator back, CyberDefenseSessionState replay, CyberDefensePresentationSequence ceremony)
         {
             Directory = directory;
             _services = services;
@@ -820,6 +1090,7 @@ public sealed class Issue125GameMenuTests : IDisposable
             Clock = clock;
             Back = back;
             ReplayRequests = replay;
+            Ceremony = ceremony;
         }
 
         public static async Task<MenuFixture> CreateAsync(Issue125GameMenuTests suite, MenuOptions options, string? existingDirectory = null)
@@ -844,7 +1115,10 @@ public sealed class Issue125GameMenuTests : IDisposable
             var learner = new SyntheticLearner(progression);
             var session = new TrainingSession(learner, clock, preferenceStore: preferences);
             var coordinator = new CyberDefenseCombatCoordinator(store, new CyberDefenseSubmissionConsumer(store, learner));
-            var ceremony = new CyberDefensePresentationSequence((_, _) => Task.CompletedTask);
+            var ceremony = new CyberDefensePresentationSequence(async (_, ct) =>
+            {
+                try { await Task.Delay(10, ct); } catch (OperationCanceledException) { }
+            });
             var localizer = new LocalizationService();
             localizer.ApplyLanguagePreference(options.Language);
             var back = new AppBackNavigationCoordinator();
@@ -869,7 +1143,7 @@ public sealed class Issue125GameMenuTests : IDisposable
                 .AddSingleton<IJSRuntime>(new NoJsRuntime())
                 .BuildServiceProvider();
 
-            var fixture = new MenuFixture(directory, services, session, store, localizer, preferences, learner, clock, back, replay);
+            var fixture = new MenuFixture(directory, services, session, store, localizer, preferences, learner, clock, back, replay, ceremony);
             await fixture.MountAsync();
             return fixture;
         }
@@ -930,6 +1204,8 @@ public sealed class Issue125GameMenuTests : IDisposable
             await _renderer.Dispatcher.InvokeAsync(() => { });
             return handled;
         }
+
+        public Task RendererDispatcherFlushAsync() => _renderer.Dispatcher.InvokeAsync(() => { });
 
         public Task PressKeyAsync(string key) => InvokeAsync("HandleGlobalKeyDown", new KeyboardEventArgs { Key = key });
 
