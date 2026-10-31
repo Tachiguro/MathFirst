@@ -37,7 +37,8 @@ public sealed class Issue126IncrementalAdditionPersonaTests : IDisposable
 
     public void Dispose()
     {
-        SqliteConnection.ClearAllPools();
+        // No process-global SqliteConnection.ClearAllPools(): it would close other suites' pooled handles (TESTING.md
+        // §42). Every SqliteLearnerStore here is disposed (clearing its own pool) and seed connections are non-pooled.
         try
         {
             if (Directory.Exists(_directory))
@@ -135,18 +136,19 @@ public sealed class Issue126IncrementalAdditionPersonaTests : IDisposable
     {
         var continuous = await RunAsync(new Persona("Continuous", 220, 900, AlwaysCorrect));
 
+        // Two independent databases reach the same durable state; each segment is a fresh session over a reopened
+        // store (a cold restart). No database file is copied, so no uncheckpointed WAL content can be lost.
         var path = Path.Combine(_directory, "restart.db");
+        var twinPath = Path.Combine(_directory, "restart-twin.db");
         var first = await RunAsync(new Persona("Segment1", 150, 900, AlwaysCorrect), databasePath: path);
-        SqliteConnection.ClearAllPools();
-        var copy = Path.Combine(_directory, "restart-copy.db");
-        File.Copy(path, copy);
+        var firstTwin = await RunAsync(new Persona("Segment1Twin", 150, 900, AlwaysCorrect), databasePath: twinPath);
+        Assert.Equal(first.Trace.Select(turn => turn.FactId), firstTwin.Trace.Select(turn => turn.FactId));
 
         var resumed = await RunAsync(new Persona("Segment2", 70, 900, AlwaysCorrect), databasePath: path);
-        SqliteConnection.ClearAllPools();
-        var resumedCopy = await RunAsync(new Persona("Segment2Copy", 70, 900, AlwaysCorrect), databasePath: copy);
+        var resumedTwin = await RunAsync(new Persona("Segment2Twin", 70, 900, AlwaysCorrect), databasePath: twinPath);
 
-        Assert.Equal(resumed.Trace.Select(turn => turn.FactId), resumedCopy.Trace.Select(turn => turn.FactId));
-        Assert.Equal(resumed.FinalAdditionBand, resumedCopy.FinalAdditionBand);
+        Assert.Equal(resumed.Trace.Select(turn => turn.FactId), resumedTwin.Trace.Select(turn => turn.FactId));
+        Assert.Equal(resumed.FinalAdditionBand, resumedTwin.FinalAdditionBand);
         Assert.True(first.FinalAdditionBand >= 10, "The first segment must already have crossed D10.");
         Assert.True(resumed.FinalAdditionBand > first.FinalAdditionBand, "Progression must continue after a cold restart.");
         AssertIncrementalInvariants(resumed);
@@ -257,9 +259,8 @@ public sealed class Issue126IncrementalAdditionPersonaTests : IDisposable
             await seed.InitializeAsync();
         }
 
-        SqliteConnection.ClearAllPools();
         var expectedLatest = new Dictionary<string, (long Position, bool IsCorrect)>(StringComparer.Ordinal);
-        using (var connection = new SqliteConnection($"Data Source={path}"))
+        using (var connection = new SqliteConnection($"Data Source={path};Pooling=False"))
         {
             await connection.OpenAsync();
             using var transaction = connection.BeginTransaction();
@@ -406,8 +407,6 @@ public sealed class Issue126IncrementalAdditionPersonaTests : IDisposable
             await seed.SaveProgressionAsync(progression);
         }
 
-        SqliteConnection.ClearAllPools();
-
         // Synthetic D01..D10 learner rows (all mastered, reviewed long ago) plus legacy anchor rows from the rejected
         // post-D10 tens family. These rows are inserted directly, as an older build would have left them.
         var rows = new List<(string FactId, int Left, int Right, bool NeedsRemediation)>();
@@ -426,7 +425,7 @@ public sealed class Issue126IncrementalAdditionPersonaTests : IDisposable
             rows.Add(("add:10+20", 10, 20, false));
         }
 
-        using var connection = new SqliteConnection($"Data Source={path}");
+        using var connection = new SqliteConnection($"Data Source={path};Pooling=False");
         await connection.OpenAsync();
         using var transaction = connection.BeginTransaction();
         foreach (var (factId, left, right, needsRemediation) in rows)

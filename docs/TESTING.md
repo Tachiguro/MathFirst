@@ -1902,7 +1902,7 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
 | Fast accurate | all correct, 800 ms | `…,10@121,11@144,12@169,13@196` | every new fact of D11 (23), D12 (25), D13 (27) attempted before advancing; no fact above the current `N` |
 | Slow consistently correct | all correct, 12,000 ms | identical to fast | identical fact sequence |
 | Weak facts | `4 + 1` wrong ×3, `11 + 5` wrong ×4 | `…,4@32,…,10@128,11@155,12@180,13@207` | both remediated (Remediation role, never an immediate repeat), recovered, still eligible at N = 14 |
-| Cold restart | 150 + 70 attempts | — | resumed and copied databases continue identically; same final band as one 220-attempt session |
+| Cold restart | 150 + 70 attempts | — | two independent databases produce identical traces before and after reopening (no file copy); same final band as one 220-attempt session |
 | Legacy `BandIndex 10` (CurriculumManaged, Stage 2) | all correct | `11@45,12@95` | resumes at N = 11, never presents seeded `add:20+80`, `add:60+60`, `add:10+20`; those rows keep their item and FSRS state |
 | Legacy `BandIndex 12` at Stage 2/3/4 | every fourth encounter of a fact wrong | — | earned stage and every unlocked operation kept; Addition resumes at N = 13 |
 | High frontier `BandIndex 59` (N = 60, 121 facts) | all correct | `60@121` | every New presentation is a never-attempted fact; stored attempt totals equal presentations |
@@ -1911,6 +1911,8 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
    `SqliteEvidence_ForAFrontierLargerThanOneParameterBatch_IsCompleteAndOrdinallyOrdered` seeds a synthetic `BandIndex 249` (N = 250, 501 facts, three 200-ID statements): the latest in-band attempt per fact, ordered by ordinal `FactId`, ignoring pre-band attempts, and all 501 materialized current-band candidates are returned.
 
 3. **Adapted suites**: tests that used Addition's former structured band as a generic structured fixture now use `SUB-P1-ANCHOR` (`BandAdvancementEvaluatorTests`, `IndependentSelectorTests`, `AdaptiveRatingFluencySchemaV6Tests`, `ProgressionCoherenceAuditTests`); `StructuredCurriculumTests` checks the Subtraction inverses against an independent ADR-0003 additive-core oracle; ownership, terminal-band, diagnostics and conformance tests assert the incremental bands, the resource bound and the new Dense capacity; `CurriculumInvariantPropertyTests` checks bands 0..299 plus the terminal band instead of enumerating ~2.1 billion facts. The 482-attempt benchmark is unchanged and now ends at `ADD-D10 -> ADD-D11` (ceiling 20 -> 22). Two Issue #114 pins moved with the post-D10 content: WeakNearD10 Stage 2 160 -> 162, MixedLearner Stage 4 723 -> 753; all other Issue #114 pins are unchanged.
+
+**Test isolation**: the Issue #126 suites never call the process-global `SqliteConnection.ClearAllPools()` (see §42); every store is disposed, which clears its own pool, and raw seed connections are non-pooled. An earlier draft that cleared all pools and copied a WAL-mode database file failed `FixtureCleanup_PreservesUnrelatedPooledConnection` and its own restart comparison once in a full Debug run; both causes were removed.
 
 **Mutation check**: restoring the 64-row cap on the SQLite current-band candidate read makes the high-frontier persona fail (119 of 240 New presentations re-offered an already practiced fact) and the batched evidence test fail (only 64 of 501 current-band candidates); the change was reverted and both pass again.
 
