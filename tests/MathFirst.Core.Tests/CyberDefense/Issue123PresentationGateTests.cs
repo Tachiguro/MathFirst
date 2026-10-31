@@ -1,8 +1,12 @@
 namespace MathFirst.Core.Tests.CyberDefense;
 
 using System.Globalization;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using MathFirst.Application;
+using MathFirst.Application.Gameplay;
+using MathFirst.Application.Persistence;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
 using MathFirst.Domain.CyberDefense;
@@ -26,6 +30,279 @@ public sealed class Issue123PresentationGateTests : IDisposable
     public void Dispose() => _suite.Dispose();
 
     private static long JustBelowLevel2 => CyberDefenseLevelPolicy.GetCumulativeXpThreshold(2) - 1;
+
+    [Theory(Timeout = Bound)]
+    [InlineData("cancel")]
+    [InlineData("disposed")]
+    [InlineData("failure")]
+    public async Task UpgradeRefreshFailure_PreservesIndependentCommittedUnlock_UntilExplicitContinue(string failure)
+    {
+        await using var f = await MenuFixture.CreateAsync(_suite, new(CumulativeXp: JustBelowLevel2, AdditionMastered: true));
+        await f.StartAsync();
+        var faults = await InstallRefreshFaultAsync(f);
+        faults.Read = () => Task.FromException<CyberDefenseProgressionRecord>(RefreshException(failure));
+        var revision = f.Session.FactInstanceRevision;
+        f.Clock.Advance(1700);
+
+        await f.SubmitAsync(true).WaitAsync(Step);
+
+        Assert.Equal(CurriculumStage.Stage2_Subtraction, f.Session.Progression.CurriculumStage);
+        Assert.Equal(ArithmeticOperation.Subtraction, f.Field<ArithmeticOperation?>("_activeOperationUnlock"));
+        Assert.False(f.Field<bool>("_isUpgradeSpotlightOpen"));
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Contains("Subtraction unlocked", await f.RenderedHtmlAsync());
+        await f.Dispatch(() => f.Session.SetAppForeground(false));
+        await f.InvokeAsync("AcknowledgeOperationUnlock");
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        await f.Dispatch(() => f.Session.SetAppForeground(true));
+        await f.InvokeAsync("AcknowledgeOperationUnlock");
+        await f.InvokeAsync("AcknowledgeOperationUnlock");
+        Assert.Equal(revision + 1, f.Session.FactInstanceRevision);
+        Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+        Assert.False(f.Session.IsTimingActive);
+        await f.InvokeAsync("StartOrResumePractice");
+        Assert.True(f.Session.IsTimingActive);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+        Assert.Single(f.Learner.Attempts);
+        Assert.Equal(1, f.Learner.CommitCalls);
+        Assert.Equal(1700, f.Learner.Attempts[0].ResponseLatencyMs);
+    }
+
+    [Theory(Timeout = Bound)]
+    [InlineData("cancel", true)]
+    [InlineData("disposed", false)]
+    [InlineData("failure", true)]
+    [InlineData("failure", false)]
+    public async Task FailedGuidedTerminalOpening_RestoresExplicitRecovery_AndAdvancesExactlyOnce(string failure, bool retry)
+    {
+        await using var f = await MenuFixture.CreateAsync(_suite, new(CumulativeXp: JustBelowLevel2));
+        await f.StartAsync();
+        await f.SubmitAsync(true).WaitAsync(Step);
+        var revision = f.Session.FactInstanceRevision;
+        var latency = f.Session.LastEvaluation!.LatencyMs;
+        var faults = await InstallRefreshFaultAsync(f);
+        faults.Read = () => Task.FromException<CyberDefenseProgressionRecord>(RefreshException(failure));
+
+        await f.InvokeAsync("OpenUpgradeTerminalFromSpotlightAsync");
+
+        Assert.False(f.IsUpgradeTerminalOpen);
+        Assert.True(f.Field<bool>("_isUpgradeSpotlightOpen"));
+        Assert.NotNull(f.Field<object?>("_committedPresentationGate"));
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        Assert.Equal(SessionInteractionState.CorrectFeedback, f.Session.InteractionState);
+        Assert.False(f.Session.IsTimingActive);
+        var html = await f.RenderedHtmlAsync();
+        Assert.Single(Regex.Matches(html, "role=\"dialog\""));
+        Assert.Contains("aria-label=\"Open Upgrades\"", html);
+        Assert.Contains("aria-label=\"Later\"", html);
+        Assert.Matches(@"<main class=""training-card[^""]*""[^>]*\binert\b", html);
+        f.Clock.Advance(60000);
+        await f.InvokeAsync("HandleKeypadKeyAsync", "7");
+        await f.InvokeAsync("Submit");
+        await f.InvokeAsync("AdvanceAsync");
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        Assert.Equal(latency, f.Session.LastEvaluation.LatencyMs);
+
+        if (retry)
+        {
+            faults.Read = null;
+            await f.InvokeAsync("OpenUpgradeTerminalFromSpotlightAsync");
+            Assert.True(f.IsUpgradeTerminalOpen);
+            Assert.True(f.Field<bool>("_isUpgradeOnboardingGuided"));
+            Assert.Equal(revision, f.Session.FactInstanceRevision);
+            await f.InvokeAsync("CloseUpgradeTerminal");
+            await f.InvokeAsync("CloseUpgradeTerminal");
+        }
+        else
+        {
+            await f.InvokeAsync("DismissUpgradeSpotlight");
+            await f.InvokeAsync("DismissUpgradeSpotlight");
+        }
+        Assert.Equal(revision + 1, f.Session.FactInstanceRevision);
+        Assert.True(f.Session.IsTimingActive);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+        Assert.Null(f.Field<object?>("_committedPresentationGate"));
+        Assert.Single(f.Learner.Attempts);
+        Assert.Equal(1, f.Learner.CommitCalls);
+    }
+
+    private static Exception RefreshException(string kind) => kind switch
+    {
+        "cancel" => new OperationCanceledException("Synthetic unrelated Upgrade cancellation"),
+        "disposed" => new ObjectDisposedException("Synthetic Upgrade read"),
+        _ => new InvalidOperationException("Synthetic Upgrade refresh failure")
+    };
+
+    [Theory(Timeout = Bound)]
+    [InlineData(false, "reset")]
+    [InlineData(false, "dispose")]
+    [InlineData(true, "reset")]
+    [InlineData(true, "dispose")]
+    [InlineData(true, "background")]
+    public async Task DelayedRefreshFailure_RespectsInvalidationAndForeground(bool openingTerminal, string invalidation)
+    {
+        await using var f = await MenuFixture.CreateAsync(_suite, new(CumulativeXp: JustBelowLevel2, AdditionMastered: !openingTerminal));
+        await f.StartAsync();
+        if (openingTerminal) await f.SubmitAsync(true).WaitAsync(Step);
+        var faults = await InstallRefreshFaultAsync(f);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var read = new TaskCompletionSource<CyberDefenseProgressionRecord>(TaskCreationOptions.RunContinuationsAsynchronously);
+        faults.Read = () => { entered.TrySetResult(); return read.Task; };
+        var pending = openingTerminal ? f.InvokeAsync("OpenUpgradeTerminalFromSpotlightAsync") : f.SubmitAsync(true);
+        await entered.Task.WaitAsync(Step);
+        var revision = f.Session.FactInstanceRevision;
+        if (invalidation == "reset") await f.DispatchAsync(() => f.Session.ResetLearningProgressAsync(startTiming: false));
+        else if (invalidation == "dispose") await f.UnmountAsync();
+        else await f.Dispatch(() => f.Session.SetAppForeground(false));
+        var invalidatedRevision = f.Session.FactInstanceRevision;
+        read.SetException(new OperationCanceledException("Synthetic delayed refresh cancellation"));
+        await pending.WaitAsync(Step);
+
+        Assert.Equal(invalidatedRevision, f.Session.FactInstanceRevision);
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Null(f.Field<ArithmeticOperation?>("_activeOperationUnlock"));
+        if (invalidation == "background")
+        {
+            Assert.True(f.Field<bool>("_isUpgradeSpotlightOpen"));
+            await f.InvokeAsync("DismissUpgradeSpotlight");
+            Assert.Equal(revision, f.Session.FactInstanceRevision);
+            faults.Read = null;
+            await f.Dispatch(() => f.Session.SetAppForeground(true));
+            await f.InvokeAsync("DismissUpgradeSpotlight");
+            Assert.Equal(revision + 1, f.Session.FactInstanceRevision);
+            Assert.False(f.Session.IsTimingActive);
+            Assert.Equal(PracticeGateState.BackgroundResumeGate, f.Session.PracticeGate);
+        }
+        else
+        {
+            Assert.False(f.Field<bool>("_isUpgradeSpotlightOpen"));
+            Assert.Null(f.Field<object?>("_committedPresentationGate"));
+        }
+    }
+
+    [Theory(Timeout = Bound)]
+    [InlineData(CurriculumStage.Stage2_Subtraction, ArithmeticOperation.Subtraction, CurriculumStage.Stage3_Multiplication, ArithmeticOperation.Multiplication, "Multiplication unlocked")]
+    [InlineData(CurriculumStage.Stage3_Multiplication, ArithmeticOperation.Multiplication, CurriculumStage.Stage4_Division, ArithmeticOperation.Division, "Division unlocked")]
+    public async Task LaterCommittedStageTransition_RequiresContinueOnce_AndStartsNextFactTiming(
+        CurriculumStage initial, ArithmeticOperation prerequisite, CurriculumStage expected, ArithmeticOperation unlocked, string title)
+    {
+        await using var f = await MenuFixture.CreateAsync(_suite, new(PlayerLevel: 6, Stage: initial, MasteredOperation: prerequisite));
+        await f.StartAsync();
+        Assert.Equal(initial, f.Session.Progression.CurriculumStage);
+        var revision = f.Session.FactInstanceRevision;
+        f.Clock.Advance(1200);
+        await f.SubmitAsync(true).WaitAsync(Step);
+
+        Assert.Equal(expected, f.Session.Progression.CurriculumStage);
+        Assert.Equal(expected, (await f.Learner.LoadSnapshotAsync()).Progression.CurriculumStage);
+        Assert.Equal(unlocked, f.Field<ArithmeticOperation?>("_activeOperationUnlock"));
+        Assert.Equal(0, f.Session.Progression.OperationProgressions[unlocked].BandIndex);
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        var html = await f.RenderedHtmlAsync();
+        Assert.Contains(title, html);
+        Assert.Contains("operation-unlock-continue-btn", html);
+        Assert.Single(Regex.Matches(html, "role=\"dialog\""));
+        await f.PressKeyAsync("Enter");
+        await f.InvokeAsync("AdvanceAsync");
+        await f.InvokeAsync("Submit");
+        f.Clock.Advance(60000);
+        Assert.Equal(revision, f.Session.FactInstanceRevision);
+        Assert.False(f.Session.IsTimingActive);
+        Assert.Equal(1200, f.Session.LastEvaluation!.LatencyMs);
+        await f.InvokeAsync("AcknowledgeOperationUnlock");
+        await f.InvokeAsync("AcknowledgeOperationUnlock");
+        Assert.Equal(revision + 1, f.Session.FactInstanceRevision);
+        Assert.Equal(SessionInteractionState.AwaitingAnswer, f.Session.InteractionState);
+        Assert.True(f.Session.IsTimingActive);
+        Assert.Equal(0, f.Session.GetCurrentActiveElapsedMs());
+        Assert.Single(f.Learner.Attempts);
+        Assert.Equal(1, f.Learner.CommitCalls);
+        Assert.DoesNotContain("operation-unlock-dialog", await f.RenderedHtmlAsync());
+        f.Clock.Advance(250);
+        Assert.Equal(250, f.Session.GetCurrentActiveElapsedMs());
+        await f.SubmitAsync(true).WaitAsync(Step);
+        Assert.Null(f.Field<ArithmeticOperation?>("_activeOperationUnlock"));
+        Assert.Equal(2, f.Learner.CommitCalls);
+        await f.NavigateToSettingsAndBackAsync();
+        Assert.Null(f.Field<ArithmeticOperation?>("_activeOperationUnlock"));
+        Assert.Equal(revision + 2, f.Session.FactInstanceRevision);
+    }
+
+    [Fact(Timeout = Bound)]
+    public async Task CancelledDiscoveryRead_AfterANewerResetEpoch_NeverPresentsTheOldUnlock()
+    {
+        await using var f = await MenuFixture.CreateAsync(_suite, new(CumulativeXp: JustBelowLevel2, AdditionMastered: true));
+        await f.StartAsync();
+        var faults = await InstallRefreshFaultAsync(f);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var read = new TaskCompletionSource<CyberDefenseProgressionRecord>(TaskCreationOptions.RunContinuationsAsynchronously);
+        faults.Read = () => { entered.TrySetResult(); return read.Task; };
+        var submission = f.SubmitAsync(true);
+        await entered.Task.WaitAsync(Step);
+        var oldEpoch = f.TerminalViewModel.ResetEpoch;
+        var reset = await f.Store.BeginOrGetResetIntentAsync();
+        await f.Store.ResetGameplayStateAsync(reset.TargetEpoch);
+        await f.Store.ClearResetIntentAsync(reset.TargetEpoch);
+        faults.Read = null;
+        await f.TerminalViewModel.RefreshAsync();
+        Assert.True(f.TerminalViewModel.ResetEpoch > oldEpoch);
+        read.SetException(new OperationCanceledException("Older discovery read cancelled after reset"));
+        await submission.WaitAsync(Step);
+
+        Assert.Null(f.Field<ArithmeticOperation?>("_activeOperationUnlock"));
+        Assert.False(f.Field<bool>("_isUpgradeSpotlightOpen"));
+        Assert.Null(f.Field<object?>("_committedPresentationGate"));
+    }
+
+    [Theory]
+    [InlineData("en", "Congratulations!", "Subtraction", "Multiplication", "Division")]
+    [InlineData("de", "Glückwunsch!", "Subtraktionsaufgaben", "Multiplikationsaufgaben", "Divisionsaufgaben")]
+    [InlineData("ru", "Поздравляем!", "вычитание", "умножение", "деление")]
+    public void UnlockDescriptions_CongratulateAvailability_WithoutClaimingMastery(string language, string congratulations, string subtraction, string multiplication, string division)
+    {
+        var localizer = new LocalizationService();
+        localizer.ApplyLanguagePreference(language);
+        foreach (var (operation, name) in new[] { ("Subtraction", subtraction), ("Multiplication", multiplication), ("Division", division) })
+        {
+            var description = localizer["OperationUnlock_Desc_" + operation];
+            Assert.StartsWith(congratulations, description);
+            Assert.Contains(name, description);
+            Assert.DoesNotContain("mastery", description);
+            Assert.DoesNotContain("gemeistert", description);
+            Assert.DoesNotContain("освоили", description);
+        }
+    }
+
+    private static async Task<RefreshFaultStore> InstallRefreshFaultAsync(MenuFixture f)
+    {
+        await f.AwaitTerminalRefreshAsync();
+        var faults = RefreshFaultStore.Wrap(f.Store);
+        var vm = new UpgradeTerminalViewModel((IGameplayStore)(object)faults);
+        await vm.InitializeAsync();
+        f.TerminalViewModel.Dispose();
+        f.SetField("_upgradeTerminalViewModel", vm);
+        return faults;
+    }
+
+    // Only the Upgrade view model uses this adapter. Commits, combat and the learner remain real fixture services.
+    public class RefreshFaultStore : DispatchProxy
+    {
+        private IGameplayStore _inner = null!;
+        public Func<Task<CyberDefenseProgressionRecord>>? Read { get; set; }
+        public static RefreshFaultStore Wrap(IGameplayStore inner)
+        {
+            var proxy = (RefreshFaultStore)(object)Create<IGameplayStore, RefreshFaultStore>();
+            proxy._inner = inner;
+            return proxy;
+        }
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod!.Name == nameof(IGameplayStore.GetProgressionAsync) && Read is { } read) return read();
+            try { return targetMethod.Invoke(_inner, args); }
+            catch (TargetInvocationException ex) { ExceptionDispatchInfo.Capture(ex.InnerException!).Throw(); throw; }
+        }
+    }
 
     // =========================================================================
     // THE FORMERLY HANGING LEVEL 2 / FIRST SKILL POINT SUBMISSION

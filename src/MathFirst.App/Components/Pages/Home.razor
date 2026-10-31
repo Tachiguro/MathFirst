@@ -1518,7 +1518,8 @@
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
             {
-                return null;
+                // This read is independent of the committed arithmetic transition. Only an invalidated
+                // presentation lifetime/generation below may discard that transition.
             }
             catch (Exception ex)
             {
@@ -1526,13 +1527,16 @@
                 System.Diagnostics.Trace.TraceWarning("Upgrade discovery refresh failed: {0}", ex);
                 ScheduleUpgradeTerminalRefresh();
             }
+
+            // A newer authoritative reset snapshot invalidates the old event even if this read was cancelled.
+            if (viewModel.ResetEpoch != epoch) return null;
         }
         else
         {
             ScheduleUpgradeTerminalRefresh();
         }
 
-        if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return null;
+        if (_isDisposed || _presentationLifetime.IsCancellationRequested || Session.LearnerStateGenerationRevision != generation) return null;
         var presentations = new CommittedPresentations(submissionId, generation, unlockedOperation, upgradeSpotlight);
         return presentations.HasAny ? presentations : null;
     }
@@ -2160,6 +2164,8 @@
             return;
         }
 
+        var guidedGate = _isUpgradeSpotlightOpen ? _committedPresentationGate : null;
+
         // Issue #123: the spotlighted header control and the spotlight's own action both acknowledge the spotlight by
         // opening the real terminal; the gate stays open until that terminal closes.
         if (_isUpgradeSpotlightOpen)
@@ -2188,9 +2194,24 @@
         }
         catch
         {
-            // Failed dialog initialization safely releases only the terminal-owned pause
+            if (_isDisposed) return;
+            if (guidedGate is not null && !IsCurrentCommittedPresentation(guidedGate))
+            {
+                // Reset/replacement owns the new session's timing. Do not revive the old gate or surface.
+                _isUpgradeTerminalOpen = _isUpgradeOnboardingGuided = _wasTimingSuspendedByTerminal = false;
+                if (ReferenceEquals(_committedPresentationGate, guidedGate)) _committedPresentationGate = null;
+                return;
+            }
+            // Opening failed, so no user acknowledgement occurred. Restore the same gate's accessible
+            // Open/Later actions; each retry is user initiated and Later remains available during an outage.
             CloseUpgradeTerminalCore(releasePauseOnly: true);
-            await ReleaseCommittedPresentationGateAsync();
+            if (guidedGate is not null && ReferenceEquals(_committedPresentationGate, guidedGate) &&
+                IsCurrentCommittedPresentation(guidedGate))
+            {
+                _isUpgradeSpotlightOpen = true;
+                Session.PauseItemTiming();
+                _shouldFocusInput = _shouldFocusPrimaryOverlay = false;
+            }
             return;
         }
 

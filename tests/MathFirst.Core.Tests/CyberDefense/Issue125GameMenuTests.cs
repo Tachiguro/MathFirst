@@ -32,7 +32,6 @@ public sealed class Issue125GameMenuTests : IDisposable
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         foreach (var directory in _tempDirectories)
         {
             try { Directory.Delete(directory, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -1061,7 +1060,8 @@ public sealed class Issue125GameMenuTests : IDisposable
         // Issue #123: synthetic D10 Addition evidence, so the next correct Addition answer commits Stage 1 -> 2.
         bool AdditionMastered = false,
         // Issue #123: 21 synthetic correct setup attempts, so the next correct answer defeats the sector boss.
-        bool PendingBossVictory = false);
+        bool PendingBossVictory = false,
+        ArithmeticOperation? MasteredOperation = null);
 
     internal sealed class MenuFixture : IAsyncDisposable
     {
@@ -1127,11 +1127,12 @@ public sealed class Issue125GameMenuTests : IDisposable
             }
 
             var items = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
-            if (options.AdditionMastered)
+            var masteredOperation = options.MasteredOperation ?? (options.AdditionMastered ? ArithmeticOperation.Addition : (ArithmeticOperation?)null);
+            if (masteredOperation is { } mastered)
             {
-                progression.OperationProgressions[ArithmeticOperation.Addition] =
-                    new OperationProgression(ArithmeticOperation.Addition, D10MasteryTestSeed.MasteredBandIndex, 0);
-                foreach (var state in MasteredStates(ArithmeticOperation.Addition)) items[state.FactId] = state;
+                progression.OperationProgressions[mastered] =
+                    new OperationProgression(mastered, D10MasteryTestSeed.MasteredBandIndex, 0);
+                foreach (var state in MasteredStates(mastered)) items[state.FactId] = state;
             }
 
             var learner = new SyntheticLearner(progression, items);
@@ -1188,7 +1189,12 @@ public sealed class Issue125GameMenuTests : IDisposable
         public static async Task SeedAsync(SqliteGameplayStore store, long cumulativeXp)
         {
             var level = CyberDefenseLevelPolicy.GetLevel(cumulativeXp);
-            using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}");
+            // This short-lived seed connection owns no pool. Store.Dispose clears only the store's own pool.
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = store.StoragePath,
+                Pooling = false
+            }.ToString());
             await connection.OpenAsync();
             using var command = connection.CreateCommand();
             command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = @level, earned_sp = @sp, spent_sp = 0, available_sp = @sp WHERE id = 1;";
@@ -1343,7 +1349,6 @@ public sealed class Issue125GameMenuTests : IDisposable
             await UnmountAsync();
             await _services.DisposeAsync();
             Store.Dispose();
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         }
     }
 
