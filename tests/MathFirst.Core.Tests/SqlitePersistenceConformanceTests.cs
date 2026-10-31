@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Progression;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
 using Microsoft.Data.Sqlite;
@@ -619,10 +620,10 @@ public sealed class SqlitePersistenceConformanceTests : IDisposable
         await Assert.ThrowsAsync<ArgumentException>(() =>
             store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, ["   "]));
 
-        // Frontier exceeding max 25
-        var twentySixFacts = Enumerable.Range(0, 26).Select(i => $"add:0+{i}").ToArray();
+        // Frontier exceeding the Issue #126 Dense capacity (the incremental Addition resource bound)
+        var oversizedFrontier = Enumerable.Range(0, DenseProgressionEvaluator.MaxDenseFrontierSize + 1).Select(i => $"add:0+{i}").ToArray();
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, twentySixFacts));
+            store.LoadLatestFrontierAttemptsAsync(ArithmeticOperation.Addition, 0, oversizedFrontier));
 
         // Duplicate fact IDs
         await Assert.ThrowsAsync<ArgumentException>(() =>

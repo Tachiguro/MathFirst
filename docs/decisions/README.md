@@ -39,7 +39,7 @@ Every ADR must contain the following sections:
 |---|---|---|---|
 | [ADR-0001](ADR-0001-cross-platform-application-topology-and-stack-baseline.md) | Cross-Platform Application Topology and Stack Baseline | Accepted | 2026-09-07 |
 | [ADR-0002](ADR-0002-offline-execution-and-local-persistence-boundary.md) | Offline Execution and Local Persistence Boundary | Accepted | 2026-09-07 |
-| [ADR-0003](ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) | Independent Operation Progression and Open-Ended Fact Space | Accepted | 2026-09-08 |
+| [ADR-0003](ADR-0003-independent-operation-progression-and-open-ended-fact-space.md) | Independent Operation Progression and Open-Ended Fact Space | Accepted (Addition structured bands superseded by ADR-0014) | 2026-09-08 |
 | [ADR-0004](ADR-0004-adaptive-pace-fast-acquisition-and-practice-interventions.md) | Adaptive Pace, Fast Acquisition, and Practice Interventions | Accepted | 2026-09-11 |
 | [ADR-0005](ADR-0005-acclimation-timing-and-rapid-dense-progression.md) | Acclimation Timing and Rapid Dense Progression | Accepted | 2026-09-11 |
 | [ADR-0006](ADR-0006-android-packaging-signing-and-manifest-release-security.md) | Android Packaging, Signing Protocols, and Manifest Release Security | Accepted | 2026-09-11 |
@@ -50,4 +50,5 @@ Every ADR must contain the following sections:
 | [ADR-0011](ADR-0011-tester-telemetry-persistence-export-and-share.md) | Tester Telemetry Persistence, Export, and Share | Accepted | 2026-09-28 |
 | [ADR-0012](ADR-0012-cumulative-operation-unlock-progression-and-monotonic-curriculum-stage.md) | Cumulative Operation Unlock Progression and Monotonic Curriculum Stage | Accepted (§3 superseded by ADR-0013) | 2026-10-07 |
 | [ADR-0013](ADR-0013-d10-proficiency-gated-operation-unlock.md) | D10 Proficiency-Gated Operation Unlock | Accepted | 2026-10-30 |
+| [ADR-0014](ADR-0014-incremental-addition-operand-frontier.md) | Incremental Addition Operand Frontier | Accepted | 2026-10-31 |
 

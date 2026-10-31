@@ -184,9 +184,22 @@ MathFirst uses two acquisition modes:
    - Multiplication: all ordered `a * b` for `a,b` in `0..12` — 169 facts.
    - Division: all `(d * q) / d = q` for `d` in `1..12` and `q` in `0..12` — 156 facts.
    - The dense total is 567 exact facts; presentation-direction mirrors remain distinct.
-2. **Structured representative acquisition** follows the dense foundation. Bounded deterministic families teach decimal anchors, transfer, rounding, decomposition, two-digit multiplication, decimal shifts, and scaled multiplication, with Subtraction and Division defined through exact inverse families. Each structured band normally introduces exactly 16 distinct owned-frontier facts. Mathematical candidates outside that acquisition sample remain available conceptually without becoming permanent mastery debt.
+   - Addition does not stop at this foundation: it keeps extending its operand set one integer at a time (see *Incremental Addition Operand Frontier* below).
+2. **Structured representative acquisition** follows the dense foundation for Subtraction, Multiplication, and Division. Bounded deterministic families teach decimal anchors, transfer, rounding, decomposition, two-digit multiplication, decimal shifts, and scaled multiplication, with Subtraction and Division defined through exact inverse families. Each structured band normally introduces exactly 16 distinct owned-frontier facts. Mathematical candidates outside that acquisition sample remain available conceptually without becoming permanent mastery debt. Addition has no structured bands ([ADR-0014](decisions/ADR-0014-incremental-addition-operand-frontier.md)).
 
-The detailed canonical band order, pure generation formulas, candidate counts, and ownership counts are normative in [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md).
+The detailed canonical band order, pure generation formulas, candidate counts, and ownership counts are normative in [ADR-0003](decisions/ADR-0003-independent-operation-progression-and-open-ended-fact-space.md), with the Addition progression after `ADD-D10` superseded by [ADR-0014](decisions/ADR-0014-incremental-addition-operand-frontier.md).
+
+### Incremental Addition Operand Frontier ([ADR-0014](decisions/ADR-0014-incremental-addition-operand-frontier.md), Issue #126)
+
+Owner decision: Addition grows its non-negative operand set one integer at a time — `0..1`, `0..2`, ..., `0..10`, `0..11`, `0..12`, `0..13`, ... — instead of jumping from the `0..10` square to tens/hundreds families (the rejected `ADD-P1-ANCHOR` jump from `10 + 10` to facts such as `20 + 80` or `60 + 60`).
+
+- Addition `BandIndex = N - 1` has maximum operand `N` and Dense band ID `ADD-D{N:00}` (`ADD-D11`, `ADD-D12`, ...). `ADD-D01` owns the four facts of the `0..1` square; every later band owns exactly the ordered pairs with `max(a, b) = N`, i.e. `2N + 1` facts (23 at `N = 11`, 25 at `N = 12`, 27 at `N = 13`). Both operand orders and zero operands are included.
+- `ADD-D01` through `ADD-D10` keep their facts, IDs, order, and the 121 D10 operation-unlock mastery facts unchanged. Canonical `FactId` values and FSRS card identity are unchanged; all earlier facts remain eligible for due review and spaced remediation.
+- Every incremental band uses Dense advancement: every newly owned fact needs a current-band attempt and `C · 10 ≥ N · 9` latest correctness. Fluency and response latency are never required, so slow-but-correct learners progress at the same pace as fast learners.
+- There is no pedagogical endpoint such as 100 or 1000. Generation is on demand and bounded by the current band: ownership is computed from a fact's operands, so no earlier band or accumulated `0..N` square is rebuilt per question.
+- Subtraction, Multiplication, and Division curricula are unchanged.
+
+**Pre-release compatibility (owner decision, [#126](https://github.com/Tachiguro/MathFirst/issues/126#issuecomment-6547945960)):** the app is unreleased, so the stored Addition `BandIndex` is adopted in place without migration, schema change, or legacy anchor support. A saved Addition `BandIndex >= 10` now means `N = BandIndex + 1`. Physical learner rows are neither deleted nor rewritten: facts from the former tens families stay stored and simply become eligible again once `N` reaches their larger operand. Earned `CurriculumStage` values and the D10 unlock predicates are preserved.
 
 ### Advancement Meaning and Gate
 
@@ -226,9 +239,9 @@ For Structured bands, the canonical **Dual Window** policy applies:
 
 ### Native Strong-Learner Benchmark ([ADR-0010](decisions/ADR-0010-evidence-adaptive-discovery-operation-specific-guided-decoupling-and-pace-calibration.md))
 
-The canonical native strong-learner acquisition benchmark is defined as advancing through Addition Dense Band 10 into the first decimal anchor:
-$$\text{ADD-D10} \longrightarrow \text{ADD-P1-ANCHOR}$$
-which transitions the Guided `AdditionCeiling` from 20 to 180. There is no artificial ~100 Addition milestone.
+The canonical native strong-learner acquisition benchmark is defined as advancing through Addition Dense Band 10 into the first incremental band (originally the first decimal anchor `ADD-P1-ANCHOR`; replaced by Issue #126):
+$$\text{ADD-D10} \longrightarrow \text{ADD-D11}$$
+which transitions the Guided `AdditionCeiling` from 20 to 22 (previously 180). There is no artificial ~100 Addition milestone.
 
 For the canonical 100%-correct, fully fluent learner fixture practicing in four-operation Guided Mode (zero errors, zero remediation, no broad weakness):
 - Mastering the 121 unique Addition facts through ADD-D10 requires 121 successful Addition presentations;
@@ -241,7 +254,7 @@ For the canonical 100%-correct, fully fluent learner fixture practicing in four-
 There is no artificial fixed catalog or level-10 ceiling. Bands continue procedurally while the entire next defined band is safe in `Int32`; when it is not, that operation remains in maintenance at its safe terminal band. Generation must use checked arithmetic. Addition requires a checked result, Subtraction remains non-negative, Multiplication requires a checked product, and Division requires a positive divisor and exact non-negative integer result.
 
 The reviewed complete safe final band indices are:
-- **Addition**: BandIndex 125 (`ADD-P8-D0`)
+- **Addition**: BandIndex 46338 (`ADD-D46339`). This is an explicit resource-safety bound, not a learning endpoint: it keeps the cumulative ordered-pair domain `(N + 1)^2` representable as an `Int32` count and Dense frontiers at most 92,679 facts ([ADR-0014](decisions/ADR-0014-incremental-addition-operand-frontier.md)). Beyond it Addition remains in review and maintenance; it never jumps to an unrelated magnitude.
 - **Subtraction**: BandIndex 135 (`SUB-P8-D0`)
 - **Multiplication**: BandIndex 32 (`MUL-P7-SCALED`)
 - **Division**: BandIndex 32 (`DIV-P7-SCALED`)

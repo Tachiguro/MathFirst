@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text.Json;
 using MathFirst.Application.Persistence;
 using MathFirst.Application.Practice;
+using MathFirst.Application.Progression;
 using MathFirst.Application.Scheduling;
 using MathFirst.Domain;
 using MathFirst.Domain.Curriculum;
@@ -12,6 +13,9 @@ using Microsoft.Data.Sqlite;
 
 public sealed class SqliteLearnerStore : ILearnerStore
 {
+    /// <summary>Upper bound on bound fact-ID parameters in one SQL statement (Issue #126 frontier evidence reads).</summary>
+    public const int FactIdParameterBatchSize = 200;
+
     private readonly string _connectionString;
     private readonly string _storagePath;
     private SqliteConnection? _connection;
@@ -379,10 +383,10 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
         ArgumentNullException.ThrowIfNull(frontierFactIds);
 
-        if (frontierFactIds.Count > 25)
+        if (frontierFactIds.Count > DenseProgressionEvaluator.MaxDenseFrontierSize)
         {
             throw new ArgumentException(
-                $"Frontier fact count ({frontierFactIds.Count}) exceeds maximum supported dense frontier size (25).",
+                $"Frontier fact count ({frontierFactIds.Count}) exceeds maximum supported dense frontier size ({DenseProgressionEvaluator.MaxDenseFrontierSize}).",
                 nameof(frontierFactIds));
         }
 
@@ -411,8 +415,41 @@ public sealed class SqliteLearnerStore : ILearnerStore
             return [];
         }
 
-        var paramNames = new string[frontierFactIds.Count];
-        for (var i = 0; i < frontierFactIds.Count; i++)
+        // Issue #126: incremental Addition frontiers exceed the former 25-fact cap, so the IN list is bounded per
+        // statement. Each fact's latest-attempt partition lies entirely inside one batch.
+        var results = new List<AttemptRecord>(frontierFactIds.Count);
+        for (var offset = 0; offset < frontierFactIds.Count; offset += FactIdParameterBatchSize)
+        {
+            var batchCount = Math.Min(FactIdParameterBatchSize, frontierFactIds.Count - offset);
+            await ReadLatestFrontierAttemptBatchAsync(
+                operation,
+                bandStartedPracticePosition,
+                frontierFactIds,
+                offset,
+                batchCount,
+                results,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (frontierFactIds.Count > FactIdParameterBatchSize)
+        {
+            results.Sort((left, right) => string.CompareOrdinal(left.FactId, right.FactId));
+        }
+
+        return results;
+    }
+
+    private async Task ReadLatestFrontierAttemptBatchAsync(
+        ArithmeticOperation operation,
+        long bandStartedPracticePosition,
+        IReadOnlyList<string> frontierFactIds,
+        int offset,
+        int batchCount,
+        List<AttemptRecord> results,
+        CancellationToken cancellationToken)
+    {
+        var paramNames = new string[batchCount];
+        for (var i = 0; i < batchCount; i++)
         {
             paramNames[i] = $"@fact_{i}";
         }
@@ -475,17 +512,16 @@ public sealed class SqliteLearnerStore : ILearnerStore
             WHERE rn = 1
             ORDER BY fact_id ASC;";
 
-        using var command = _connection.CreateCommand();
+        using var command = _connection!.CreateCommand();
         command.CommandText = query;
         command.Parameters.AddWithValue("@operation", operation.ToString());
         command.Parameters.AddWithValue("@band_start", bandStartedPracticePosition);
 
-        for (var i = 0; i < frontierFactIds.Count; i++)
+        for (var i = 0; i < batchCount; i++)
         {
-            command.Parameters.AddWithValue(paramNames[i], frontierFactIds[i]);
+            command.Parameters.AddWithValue(paramNames[i], frontierFactIds[offset + i]);
         }
 
-        var results = new List<AttemptRecord>(frontierFactIds.Count);
         using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -527,8 +563,6 @@ public sealed class SqliteLearnerStore : ILearnerStore
 
             results.Add(attempt);
         }
-
-        return results;
     }
 
     public async Task<IReadOnlyList<AttemptRecord>> LoadCompleteAttemptTelemetryAsync(
@@ -1475,27 +1509,50 @@ public sealed class SqliteLearnerStore : ILearnerStore
         PracticeSelectionEvidenceRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.CurrentBandOwnedFrontier.Count == 0)
+        var frontier = request.CurrentBandOwnedFrontier;
+        if (frontier.Count == 0)
         {
             return [];
         }
 
-        using var command = _connection!.CreateCommand();
-        var parameters = request.CurrentBandOwnedFrontier
-            .Select((_, index) => $"@fact_{index}")
-            .ToArray();
-        command.CommandText = $@"
-            {CandidateSelectSql}
-            WHERE item.operation = @operation
-              AND item.fact_id IN ({string.Join(", ", parameters)})
-            ORDER BY item.fact_id ASC;";
-        command.Parameters.AddWithValue("@operation", request.Operation.ToString());
-        for (var index = 0; index < request.CurrentBandOwnedFrontier.Count; index++)
+        // Issue #126: every materialized owned-frontier fact must be visible to the selector, or an already practiced
+        // fact could be offered as New and its stored item state overwritten. The read is therefore bounded by the
+        // owned frontier itself (at most DenseProgressionEvaluator.MaxDenseFrontierSize facts) instead of the 64-row
+        // review window, and each statement binds at most FactIdParameterBatchSize fact IDs.
+        var candidates = new List<PracticeSelectionCandidate>();
+        for (var offset = 0; offset < frontier.Count; offset += FactIdParameterBatchSize)
         {
-            command.Parameters.AddWithValue(parameters[index], request.CurrentBandOwnedFrontier[index].Id);
+            var batchCount = Math.Min(FactIdParameterBatchSize, frontier.Count - offset);
+            using var command = _connection!.CreateCommand();
+            var parameters = Enumerable.Range(0, batchCount)
+                .Select(index => $"@fact_{index}")
+                .ToArray();
+            command.CommandText = $@"
+                {CandidateSelectSql}
+                WHERE item.operation = @operation
+                  AND item.fact_id IN ({string.Join(", ", parameters)})
+                ORDER BY item.fact_id ASC;";
+            command.Parameters.AddWithValue("@operation", request.Operation.ToString());
+            for (var index = 0; index < batchCount; index++)
+            {
+                command.Parameters.AddWithValue(parameters[index], frontier[offset + index].Id);
+            }
+
+            candidates.AddRange(await ReadCandidateRowsAsync(
+                command,
+                int.MaxValue,
+                null,
+                request.GuidedNumberSpaceGate,
+                cancellationToken,
+                maximumRows: batchCount).ConfigureAwait(false));
         }
 
-        return await ReadCandidateRowsAsync(command, int.MaxValue, null, request.GuidedNumberSpaceGate, cancellationToken).ConfigureAwait(false);
+        if (frontier.Count > FactIdParameterBatchSize)
+        {
+            candidates.Sort((left, right) => string.CompareOrdinal(left.Fact.Id, right.Fact.Id));
+        }
+
+        return candidates;
     }
 
     private async Task<IReadOnlyList<PracticeSelectionCandidate>> ReadCandidatesAsync(
@@ -1517,7 +1574,8 @@ public sealed class SqliteLearnerStore : ILearnerStore
         int currentBandIndex,
         AcquisitionOwnershipResolver? ownership,
         GuidedNumberSpaceGate guidedGate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int maximumRows = PracticeSelectionEvidenceRequest.CandidateWindowSize)
     {
         var candidates = new List<PracticeSelectionCandidate>();
         using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -1570,7 +1628,7 @@ public sealed class SqliteLearnerStore : ILearnerStore
             }
 
             candidates.Add(new PracticeSelectionCandidate(fact, item, card));
-            if (candidates.Count == PracticeSelectionEvidenceRequest.CandidateWindowSize)
+            if (candidates.Count == maximumRows)
             {
                 break;
             }

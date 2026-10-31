@@ -414,11 +414,13 @@ public sealed class Issue114ProficiencyUnlockPersonaTests : IDisposable
     // =========================================================================
 
     // Measured on the ADR-0013 policy at its introduction (Issue #114). A change here is a learning-policy change.
+    // Issue #126 (owner-approved) re-measured the two personas whose post-D10 Addition practice now draws from the
+    // incremental ADD-D11+ frontiers instead of ADD-P1 tens anchors: WeakNearD10 160 -> 162, MixedLearner Stage4 723 -> 753.
     private const string PinnedFastFluentTransitions = "Stage2_Subtraction@121,Stage3_Multiplication@254,Stage4_Division@618";
     private const string PinnedBeginner4Plus1Metrics = "attempts=400;correct=212;incorrect=188;transitions=[];operations=[Addition:400];bands=[Addition:3,Subtraction:0,Multiplication:0,Division:0]";
     private const string PinnedBeginnerRecoveryTransitions = "Stage2_Subtraction@134";
-    private const string PinnedWeakNearD10Transitions = "Stage2_Subtraction@160";
-    private const string PinnedMixedLearnerTransitions = "Stage2_Subtraction@148,Stage3_Multiplication@312,Stage4_Division@723";
+    private const string PinnedWeakNearD10Transitions = "Stage2_Subtraction@162";
+    private const string PinnedMixedLearnerTransitions = "Stage2_Subtraction@148,Stage3_Multiplication@312,Stage4_Division@753";
     private const string PinnedRestartTransitions = "Stage2_Subtraction@121,Stage3_Multiplication@272,Stage4_Division@632";
 
     // =========================================================================

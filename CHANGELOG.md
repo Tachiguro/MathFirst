@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Issue #126 Incremental 0..N Addition Progression (Unreleased)
+
+- **Changed (owner decision)**: After `ADD-D10`, Addition no longer jumps to the structured tens/hundreds families (`ADD-P1-ANCHOR` with `20 + 80`, `60 + 60`, ...). It grows its operand set one integer at a time: `ADD-D11` adds exactly the 23 ordered pairs with `max(a, b) = 11` (including `0 + 11`, `11 + 0` and `11 + 11`), `ADD-D12` the 25 pairs with maximum 12, `ADD-D13` 27, and so on. `ADD-D01..ADD-D10`, the 121 D10 operation-unlock mastery facts, canonical `FactId` values and FSRS identities are unchanged ([ADR-0014](docs/decisions/ADR-0014-incremental-addition-operand-frontier.md)).
+- **Advancement**: every incremental band uses the existing Dense rule (every new fact attempted in the band, `C · 10 ≥ N · 9` latest correctness). Fluency is never required; slow-but-correct learners progress exactly like fast ones. Due review, spaced remediation, cooldowns and broad-weakness handling are unchanged.
+- **Bounded generation**: Addition acquisition ownership and the Guided number-space ceiling are computed from the operands instead of materializing every earlier band; generation is per requested band. An explicit resource bound (`N ≤ 46,339`, so `(N + 1)^2` stays an `Int32` count) replaces the structured `Int32` terminal; it is not a learning endpoint, and beyond it Addition stays in review.
+- **Fixed (scaling)**: Dense frontier evidence is no longer capped at 25 facts; SQLite reads bind at most 200 fact IDs per statement. The current-band candidate read is bounded by the owned frontier rather than the 64-row review window, so a frontier larger than 64 facts can no longer re-offer an already practiced fact as New and overwrite its stored counts.
+- **Compatibility (owner-approved, pre-release)**: in-place semantic adoption without migration or schema change. A saved Addition `BandIndex >= 10` now means `N = BandIndex + 1`. Stored attempts, item states, FSRS cards and earned stages are neither deleted nor rewritten; former tens-family facts stay stored and rejoin review once `N` reaches their larger operand.
+- **Unchanged**: Subtraction, Multiplication and Division curricula (pinned by baseline digests), D10 unlock predicates, FSRS, persistence schema, privacy and telemetry.
+- **Tests**: `Issue126IncrementalAdditionCurriculumTests`, `Issue126IncrementalAdditionPersonaTests` and updated curriculum, selector, evaluator, benchmark and persona suites; see `docs/TESTING.md` §43.
+
 ### Issue #125 Cyber Main Menu, Pause and Progressive Upgrade Discovery (Unreleased)
 
 - **Changed**: The separate gameplay **Pause** and **Settings** header controls are replaced by one **Menu** button (CSS-drawn icon, visible label above 440 px, accessible name "Open menu and pause", `aria-haspopup="dialog"`, 44 px touch target). Opening it calls the existing `TrainingSession.PausePractice()` synchronously, and the existing ManualPause gate overlay *is* the cyber-styled menu: there is no second dialog stacked on the pause surface and no parallel pause or timing state. Only the explicit **Continue** (or Enter as its primary action) resumes, once.

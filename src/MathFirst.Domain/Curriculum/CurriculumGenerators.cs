@@ -7,8 +7,12 @@ public static class CurriculumGenerators
     private const int MultiplicationDenseBandCount = 12;
     private const int DivisionDenseBandCount = 12;
 
+    /// <summary>
+    /// Issue #126: Addition continues the D01..D10 square frontiers one operand at a time (<c>ADD-D11</c>, <c>ADD-D12</c>,
+    /// ...) instead of entering structured tens/hundreds families.
+    /// </summary>
     public static CurriculumBand? TryCreateAdditionBand(int bandIndex) =>
-        TryCreateAdditiveBand(ArithmeticOperation.Addition, AdditionDenseBandCount, "ADD", bandIndex);
+        bandIndex < AdditionDenseBandCount ? null : IncrementalAdditionCurriculum.TryCreateBand(bandIndex);
 
     public static CurriculumBand? TryCreateSubtractionBand(int bandIndex) =>
         TryCreateAdditiveBand(ArithmeticOperation.Subtraction, SubtractionDenseBandCount, "SUB", bandIndex);

@@ -507,7 +507,7 @@ public sealed class TelemetryNonInterferenceRegressionTests : IDisposable
 
         var trace = new List<BenchmarkTraceEntry>(500);
         var curriculum = new ArithmeticCurriculum();
-        long additionP1AnchorPos = -1;
+        long additionD11Pos = -1;
         long additionAttemptsAtTransition = -1;
         int ceilingBefore = -1;
         int ceilingAfter = -1;
@@ -560,7 +560,7 @@ public sealed class TelemetryNonInterferenceRegressionTests : IDisposable
                 && bandIndicesBefore[ArithmeticOperation.Addition] == 9
                 && bandIndicesAfter[ArithmeticOperation.Addition] == 10)
             {
-                additionP1AnchorPos = pos;
+                additionD11Pos = pos;
                 additionAttemptsAtTransition = session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition);
                 ceilingBefore = addCeiling;
                 var gateAfter = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, session.Progression.OperationProgressions);
@@ -576,17 +576,17 @@ public sealed class TelemetryNonInterferenceRegressionTests : IDisposable
                 session.ContinuePractice(startTiming: false);
             }
 
-            if (additionP1AnchorPos > 0)
+            if (additionD11Pos > 0)
             {
                 break;
             }
         }
 
         // Exact Normative Assertions (Zero Tolerance)
-        Assert.Equal(482, additionP1AnchorPos);
+        Assert.Equal(482, additionD11Pos);
         Assert.Equal(121, additionAttemptsAtTransition);
         Assert.Equal(20, ceilingBefore);
-        Assert.Equal(180, ceilingAfter);
+        Assert.Equal(22, ceilingAfter); // Issue #126: ADD-D11, not the former 180 tens-anchor cliff
         Assert.Equal(10, session.Progression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
         Assert.Equal(482, trace.Count);
     }

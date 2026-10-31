@@ -12,7 +12,8 @@ public sealed class ArithmeticCurriculum
         Addition = new OperationCurriculum(
             ArithmeticOperation.Addition,
             CreateSquareFrontiers(ArithmeticOperation.Addition, "ADD", 10),
-            bandIndex => CurriculumGenerators.TryCreateAdditionBand(bandIndex));
+            bandIndex => CurriculumGenerators.TryCreateAdditionBand(bandIndex),
+            IncrementalAdditionCurriculum.Instance);
         Subtraction = new OperationCurriculum(
             ArithmeticOperation.Subtraction,
             CreateSubtractionFrontiers(),

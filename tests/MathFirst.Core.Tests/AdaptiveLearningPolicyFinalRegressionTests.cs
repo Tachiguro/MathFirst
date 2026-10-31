@@ -58,7 +58,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
     // TEST 1: PRIMARY EXACT-482 BENCHMARK & STRUCTURAL DERIVATION
     // ===========================================================================
     [Fact]
-    public async Task StrongLearner_GuidedFourOperations_ReachesAddP1AnchorAtExactly482AcceptedAttempts()
+    public async Task StrongLearner_GuidedFourOperations_ReachesAddD11AtExactly482AcceptedAttempts()
     {
         // 1. Structural Premises Derivation
         var curriculum = new ArithmeticCurriculum();
@@ -91,14 +91,14 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         var result = await RunCanonicalStrongLearnerAsync(store);
 
         // 3. Exact Normative Assertions (Zero Tolerance)
-        Assert.Equal(482, result.AdditionP1AnchorPosition);
+        Assert.Equal(482, result.AdditionD11Position);
         Assert.Equal(121, result.AdditionAttemptsAtTransition);
         Assert.Equal(20, result.AdditionCeilingBeforeTransition);
-        Assert.Equal(180, result.AdditionCeilingAfterTransition);
+        Assert.Equal(22, result.AdditionCeilingAfterTransition); // Issue #126: ADD-D11, not the former 180 tens-anchor cliff
         Assert.Equal(10, result.FinalProgression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
 
         _output.WriteLine("=== STRONG LEARNER 482 BENCHMARK VERIFIED ===");
-        _output.WriteLine($"ADD-D10 -> ADD-P1-ANCHOR transition position: {result.AdditionP1AnchorPosition}");
+        _output.WriteLine($"ADD-D10 -> ADD-D11 transition position: {result.AdditionD11Position}");
         _output.WriteLine($"Addition accepted attempts at transition:    {result.AdditionAttemptsAtTransition}");
         _output.WriteLine($"Addition ceiling before transition:          {result.AdditionCeilingBeforeTransition}");
         _output.WriteLine($"Addition ceiling after transition:           {result.AdditionCeilingAfterTransition}");
@@ -143,8 +143,8 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             }
         }
 
-        Assert.Equal(482, run1.AdditionP1AnchorPosition);
-        Assert.Equal(482, run2.AdditionP1AnchorPosition);
+        Assert.Equal(482, run1.AdditionD11Position);
+        Assert.Equal(482, run2.AdditionD11Position);
         Assert.Equal(121, run1.AdditionAttemptsAtTransition);
         Assert.Equal(121, run2.AdditionAttemptsAtTransition);
     }
@@ -287,7 +287,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         Assert.True(finalProg[ArithmeticOperation.Division].BandIndex >= 5);
 
         // Addition proceeded to 482 without being held up by any legacy Guided plateau
-        Assert.Equal(482, result.AdditionP1AnchorPosition);
+        Assert.Equal(482, result.AdditionD11Position);
     }
 
     // ===========================================================================
@@ -308,10 +308,10 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         var restartedResult = await RunRestartedStrongLearnerAsync(dbPath, cutPoints);
 
         // Assert exact benchmark match despite 4 persistent SQLite restarts
-        Assert.Equal(482, restartedResult.AdditionP1AnchorPosition);
+        Assert.Equal(482, restartedResult.AdditionD11Position);
         Assert.Equal(121, restartedResult.AdditionAttemptsAtTransition);
         Assert.Equal(20, restartedResult.AdditionCeilingBeforeTransition);
-        Assert.Equal(180, restartedResult.AdditionCeilingAfterTransition);
+        Assert.Equal(22, restartedResult.AdditionCeilingAfterTransition);
         Assert.Equal(10, restartedResult.FinalProgression.OperationProgressions[ArithmeticOperation.Addition].BandIndex);
     }
 
@@ -780,7 +780,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
     public sealed class BenchmarkSimulationResult
     {
         public required IReadOnlyList<BenchmarkTraceEntry> Trace { get; init; }
-        public required long AdditionP1AnchorPosition { get; init; }
+        public required long AdditionD11Position { get; init; }
         public required long AdditionAttemptsAtTransition { get; init; }
         public required int AdditionCeilingBeforeTransition { get; init; }
         public required int AdditionCeilingAfterTransition { get; init; }
@@ -800,7 +800,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
 
         var trace = new List<BenchmarkTraceEntry>(maxAttempts);
         var curriculum = new ArithmeticCurriculum();
-        long additionP1AnchorPos = -1;
+        long additionD11Pos = -1;
         long additionAttemptsAtTransition = -1;
         int ceilingBefore = -1;
         int ceilingAfter = -1;
@@ -845,7 +845,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
                 && bandIndicesBefore[ArithmeticOperation.Addition] == 9
                 && bandIndicesAfter[ArithmeticOperation.Addition] == 10)
             {
-                additionP1AnchorPos = pos;
+                additionD11Pos = pos;
                 additionAttemptsAtTransition = session.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition);
                 ceilingBefore = addCeiling;
                 var gateAfter = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, session.Progression.OperationProgressions);
@@ -861,7 +861,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
                 session.ContinuePractice(startTiming: false);
             }
 
-            if (additionP1AnchorPos > 0)
+            if (additionD11Pos > 0)
             {
                 break;
             }
@@ -870,7 +870,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         return new BenchmarkSimulationResult
         {
             Trace = trace,
-            AdditionP1AnchorPosition = additionP1AnchorPos,
+            AdditionD11Position = additionD11Pos,
             AdditionAttemptsAtTransition = additionAttemptsAtTransition,
             AdditionCeilingBeforeTransition = ceilingBefore,
             AdditionCeilingAfterTransition = ceilingAfter,
@@ -890,7 +890,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
         var cutPointSet = cutPoints.ToHashSet();
         var trace = new List<BenchmarkTraceEntry>(maxAttempts);
         var curriculum = new ArithmeticCurriculum();
-        long additionP1AnchorPos = -1;
+        long additionD11Pos = -1;
         long additionAttemptsAtTransition = -1;
         int ceilingBefore = -1;
         int ceilingAfter = -1;
@@ -942,14 +942,14 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
                     && bandIndicesBefore[ArithmeticOperation.Addition] == 9
                     && bandIndicesAfter[ArithmeticOperation.Addition] == 10)
                 {
-                    additionP1AnchorPos = pos;
+                    additionD11Pos = pos;
                     additionAttemptsAtTransition = currentSession.GetOperationAcceptedAttemptCount(ArithmeticOperation.Addition);
                     ceilingBefore = addCeiling;
                     var gateAfter = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, currentSession.Progression.OperationProgressions);
                     ceilingAfter = gateAfter.AdditionCeiling ?? 0;
                 }
 
-                if (cutPointSet.Contains(pos) && additionP1AnchorPos < 0)
+                if (cutPointSet.Contains(pos) && additionD11Pos < 0)
                 {
                     await currentStore.CloseAsync();
                     currentStore.Dispose();
@@ -972,7 +972,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
                     }
                 }
 
-                if (additionP1AnchorPos > 0)
+                if (additionD11Pos > 0)
                 {
                     break;
                 }
@@ -981,7 +981,7 @@ public sealed class AdaptiveLearningPolicyFinalRegressionTests : IDisposable
             return new BenchmarkSimulationResult
             {
                 Trace = trace,
-                AdditionP1AnchorPosition = additionP1AnchorPos,
+                AdditionD11Position = additionD11Pos,
                 AdditionAttemptsAtTransition = additionAttemptsAtTransition,
                 AdditionCeilingBeforeTransition = ceilingBefore,
                 AdditionCeilingAfterTransition = ceilingAfter,

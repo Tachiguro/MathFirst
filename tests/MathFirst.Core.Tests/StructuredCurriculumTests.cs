@@ -7,64 +7,29 @@ using Xunit;
 public sealed class StructuredCurriculumTests
 {
     [Fact]
-    public void AdditionStructuredBands_HaveCanonicalOrderCountsAndExactSequence()
+    public void AdditionAfterD10_ContinuesIncrementalDenseBandsInsteadOfStructuredFamilies()
     {
+        // Issue #126 replaced the ADD-P{k} structured families with one-operand-at-a-time Dense frontiers.
         var addition = new ArithmeticCurriculum().Addition;
+        var bands = GetBands(addition, 10, 20);
 
-        AssertBands(
-            addition,
-            10,
-            new[]
-            {
-                ("ADD-P1-ANCHOR", 81),
-                ("ADD-P1-T0", 162),
-                ("ADD-P1-R0", 162),
-                ("ADD-P1-D0", 90),
-                ("ADD-P2-ANCHOR", 81),
-                ("ADD-P2-T1", 162),
-                ("ADD-P2-R1", 162),
-                ("ADD-P2-D1", 90),
-                ("ADD-P2-T0", 162),
-                ("ADD-P2-R0", 162),
-                ("ADD-P2-D0", 90)
-            });
-
-        Assert.Equal(495, GetBands(addition, 10, 4).Sum(band => band.Frontier.Count));
-        Assert.Equal(909, GetBands(addition, 14, 7).Sum(band => band.Frontier.Count));
+        Assert.Equal(Enumerable.Range(11, 20).Select(n => $"ADD-D{n:00}"), bands.Select(band => band.Id.Value));
+        Assert.All(bands, band => Assert.Equal(CurriculumBandKind.Dense, band.Kind));
+        Assert.Equal(Enumerable.Range(11, 20).Select(n => (2 * n) + 1), bands.Select(band => band.Frontier.Count));
         Assert.Equal(
-            new[] { "add:10+10", "add:10+20", "add:20+10", "add:10+30", "add:30+10" },
+            new[] { "add:0+11", "add:1+11", "add:2+11", "add:3+11", "add:4+11" },
             GetBand(addition, 10).Frontier.Take(5).Select(fact => fact.Id));
-        Assert.Equal(new[] { "add:11+1", "add:1+11" }, GetBand(addition, 11).Frontier.Take(2).Select(fact => fact.Id));
-        Assert.Equal(new[] { "add:11+10", "add:10+11" }, GetBand(addition, 12).Frontier.Take(2).Select(fact => fact.Id));
-        Assert.Equal(new[] { "add:71+51", "add:51+71" }, GetBand(addition, 13).Frontier.Take(2).Select(fact => fact.Id));
-    }
-
-    [Fact]
-    public void AdditionStructuredBands_AreDeterministicValidAndDisjointThroughMagnitudeThree()
-    {
-        var first = new ArithmeticCurriculum().Addition;
-        var second = new ArithmeticCurriculum().Addition;
-        var bands = GetBands(first, 10, 20);
-
+        Assert.All(bands, AssertCompleteUniqueBand);
         Assert.Equal(
             bands.SelectMany(band => band.Frontier).Select(fact => fact.Id),
-            GetBands(second, 10, 20).SelectMany(band => band.Frontier).Select(fact => fact.Id));
-        Assert.All(bands, AssertCompleteUniqueBand);
-        Assert.All(bands.SelectMany(band => band.Frontier), fact =>
-        {
-            Assert.Equal(ArithmeticOperation.Addition, fact.Operation);
-            Assert.Equal(checked(fact.LeftOperand + fact.RightOperand), fact.CorrectResult);
-        });
-
-        var allIds = bands.SelectMany(band => band.Frontier).Select(fact => fact.Id).ToArray();
-        Assert.Equal(allIds.Length, allIds.Distinct(StringComparer.Ordinal).Count());
+            GetBands(new ArithmeticCurriculum().Addition, 10, 20).SelectMany(band => band.Frontier).Select(fact => fact.Id));
     }
 
     [Fact]
     public void SubtractionStructuredBands_AreExactDeterministicAdditionInverses()
     {
         var curriculum = new ArithmeticCurriculum();
-        var additionBands = GetBands(curriculum.Addition, 10, 11);
+        var additionBands = CreateStructuredAdditionCoreBands();
         var subtractionBands = GetBands(curriculum.Subtraction, 20, 11);
 
         Assert.Equal(
@@ -76,9 +41,10 @@ public sealed class StructuredCurriculumTests
             },
             subtractionBands.Select(band => band.Id.Value));
 
-        for (var index = 0; index < additionBands.Length; index++)
+        Assert.Equal(subtractionBands.Length, additionBands.Count);
+        for (var index = 0; index < additionBands.Count; index++)
         {
-            var expected = CreateSubtractionInverseIds(additionBands[index].Frontier);
+            var expected = CreateSubtractionInverseIds(additionBands[index]);
             Assert.Equal(expected, subtractionBands[index].Frontier.Select(fact => fact.Id));
             AssertCompleteUniqueBand(subtractionBands[index]);
         }
@@ -175,10 +141,11 @@ public sealed class StructuredCurriculumTests
     {
         var curriculum = new ArithmeticCurriculum();
 
-        AssertAllAvailable(curriculum.Addition, 101, 125);
-        Assert.False(curriculum.Addition.TryGetBand(126, out var unsafeAddition));
+        // Issue #126: Addition stops at its explicit incremental resource bound instead of the structured Int32 limit.
+        AssertAllAvailable(curriculum.Addition, 101, 126);
+        Assert.True(curriculum.Addition.TryGetBand(IncrementalAdditionCurriculum.MaximumBandIndex, out _));
+        Assert.False(curriculum.Addition.TryGetBand(IncrementalAdditionCurriculum.MaximumBandIndex + 1, out var unsafeAddition));
         Assert.Null(unsafeAddition);
-        Assert.False(curriculum.Addition.TryGetBand(126, out _));
 
         AssertAllAvailable(curriculum.Subtraction, 111, 135);
         Assert.False(curriculum.Subtraction.TryGetBand(136, out var unsafeSubtraction));
@@ -268,6 +235,71 @@ public sealed class StructuredCurriculumTests
         }
 
         return ids.ToArray();
+    }
+
+    /// <summary>
+    /// Independent oracle for the ADR-0003 structured additive core pairs (magnitudes 1 and 2) that the Subtraction
+    /// structured bands invert. Addition itself no longer uses these families after Issue #126.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<ArithmeticFact>> CreateStructuredAdditionCoreBands()
+    {
+        var bands = new List<IReadOnlyList<ArithmeticFact>>();
+        for (var magnitude = 1; magnitude <= 2; magnitude++)
+        {
+            var power = magnitude == 1 ? 10 : 100;
+            var anchor = new List<ArithmeticFact>();
+            for (var u = 1; u <= 9; u++)
+            {
+                for (var v = u; v <= 9; v++)
+                {
+                    AddBothDirections(anchor, u * power, v * power);
+                }
+            }
+
+            bands.Add(anchor);
+            for (var lowerPlace = magnitude - 1; lowerPlace >= 0; lowerPlace--)
+            {
+                var lowerPower = lowerPlace == 0 ? 1 : 10;
+                var transfer = new List<ArithmeticFact>();
+                var round = new List<ArithmeticFact>();
+                for (var u = 1; u <= 9; u++)
+                {
+                    for (var v = 1; v <= 9; v++)
+                    {
+                        var c = 1 + (((3 * u) + (5 * v) + magnitude + lowerPlace) % 9);
+                        AddBothDirections(transfer, (c * power) + (u * lowerPower), v * lowerPower);
+                        AddBothDirections(round, (c * power) + (u * lowerPower), v * power);
+                    }
+                }
+
+                var decomposition = new List<ArithmeticFact>();
+                for (var u = 1; u <= 9; u++)
+                {
+                    for (var v = u; v <= 9; v++)
+                    {
+                        var a = 1 + (((2 * u) + (3 * v) + magnitude + lowerPlace) % 9);
+                        var b0 = 1 + (((5 * u) + (7 * v) + magnitude + lowerPlace) % 9);
+                        var b = u == v && a == b0 ? 1 + (b0 % 9) : b0;
+                        AddBothDirections(decomposition, (a * power) + (u * lowerPower), (b * power) + (v * lowerPower));
+                    }
+                }
+
+                bands.Add(transfer);
+                bands.Add(round);
+                bands.Add(decomposition);
+            }
+        }
+
+        return bands;
+    }
+
+    private static void AddBothDirections(ICollection<ArithmeticFact> facts, int left, int right)
+    {
+        facts.Add(new ArithmeticFact(ArithmeticOperation.Addition, left, right));
+        if (left != right)
+        {
+            facts.Add(new ArithmeticFact(ArithmeticOperation.Addition, right, left));
+        }
     }
 
     private static void AddId(ICollection<string> ids, ISet<string> seen, string id)

@@ -85,16 +85,18 @@ public sealed class ProgressionCoherenceAuditTests
         var gateBefore = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 9);
         var ceilingBefore = gateBefore.AdditionCeiling!.Value;
 
-        // Band 10 is Stage 11 (ADD-P1-ANCHOR)
+        // Band 10 is Stage 11 (ADD-D11). Issue #126 removed the former ADD-P1-ANCHOR cliff (ceiling 20 -> 180).
         var gateAfter = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 10);
         var ceilingAfter = gateAfter.AdditionCeiling!.Value;
+        var gateAtD13 = GuidedNumberSpaceGate.ForGuided(curriculum.Addition, 12);
 
         var unlockDelta = ceilingAfter - ceilingBefore;
 
-        // Structural assertions
+        // Structural assertions: the number space grows by exactly 2 per incremental band.
         Assert.Equal(20, ceilingBefore);
-        Assert.Equal(180, ceilingAfter);
-        Assert.Equal(160, unlockDelta);
+        Assert.Equal(22, ceilingAfter);
+        Assert.Equal(2, unlockDelta);
+        Assert.Equal(26, gateAtD13.AdditionCeiling);
 
         // Fact eligibility checks
         var mul5x5 = new ArithmeticFact(ArithmeticOperation.Multiplication, 5, 5);
@@ -102,14 +104,14 @@ public sealed class ProgressionCoherenceAuditTests
 
         Assert.False(gateBefore.Allows(mul5x5), "5x5=25 must be gated at Addition Stage 10 (ceiling 20).");
         Assert.False(gateBefore.Allows(div25d5), "25/5=5 must be gated at Addition Stage 10 (ceiling 20).");
+        Assert.False(gateAfter.Allows(mul5x5), "5x5=25 stays gated at Addition Stage 11 (ceiling 22).");
+        Assert.True(gateAtD13.Allows(mul5x5), "5x5=25 becomes eligible at Addition Stage 13 (ceiling 26).");
+        Assert.True(gateAtD13.Allows(div25d5), "25/5=5 becomes eligible at Addition Stage 13 (ceiling 26).");
 
-        Assert.True(gateAfter.Allows(mul5x5), "5x5=25 must be eligible at Addition Stage 11 (ceiling 180).");
-        Assert.True(gateAfter.Allows(div25d5), "25/5=5 must be eligible at Addition Stage 11 (ceiling 180).");
-
-        _output.WriteLine("=== NUMBER-SPACE CLIFF MEASUREMENT ===");
-        _output.WriteLine($"Addition Ceiling before Stage 11 (Stage 10, ADD-D10):       {ceilingBefore}");
-        _output.WriteLine($"Addition Ceiling after Stage 11 (Stage 11, ADD-P1-ANCHOR):   {ceilingAfter}");
-        _output.WriteLine($"Measured Number-Space Unlock Delta:                        +{unlockDelta} (+{((double)unlockDelta / ceilingBefore) * 100:0.0}%)");
+        _output.WriteLine("=== NUMBER-SPACE GROWTH MEASUREMENT ===");
+        _output.WriteLine($"Addition Ceiling before Stage 11 (Stage 10, ADD-D10): {ceilingBefore}");
+        _output.WriteLine($"Addition Ceiling after Stage 11 (Stage 11, ADD-D11):  {ceilingAfter}");
+        _output.WriteLine($"Measured Number-Space Unlock Delta:                  +{unlockDelta}");
     }
 
     // ===========================================================================
@@ -345,20 +347,22 @@ public sealed class ProgressionCoherenceAuditTests
         Assert.True(addBand > 0, "Addition dense progression must advance based on correctness alone.");
         Assert.True(subBand > 0, "Subtraction dense progression must advance based on correctness alone.");
 
-        // Verify Structured progression requirement: Structured bands require >= 34 fluent in rolling 40
-        Assert.True(new ArithmeticCurriculum().Addition.TryGetBand(10, out var structuredBand));
+        // Verify Structured progression requirement: Structured bands require >= 34 fluent in rolling 40.
+        // Issue #126: Addition has no structured bands, so SUB-P1-ANCHOR carries the structured check.
+        Assert.True(new ArithmeticCurriculum().Subtraction.TryGetBand(20, out var structuredBand));
+        Assert.Equal(CurriculumBandKind.Structured, structuredBand!.Kind);
         var nonFluentEvidence = Enumerable.Range(1, 40)
-            .Select(i => new BandAttemptEvidence(i, "add:10+10", isCorrect: true, isFluent: false, responseLatencyMs: 4500))
+            .Select(i => new BandAttemptEvidence(i, "sub:20-10", isCorrect: true, isFluent: false, responseLatencyMs: 4500))
             .ToList();
 
         var structuredEvidence = new BandAdvancementEvidence(
             nonFluentEvidence,
-            ["add:10+10"],
-            new HashSet<string>(["add:10+10"], StringComparer.Ordinal));
+            ["sub:20-10"],
+            new HashSet<string>(["sub:20-10"], StringComparer.Ordinal));
 
         var structuredDecision = new BandAdvancementEvaluator().Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
-            new ArithmeticCurriculum().Addition,
+            new OperationProgression(ArithmeticOperation.Subtraction, 20, 0),
+            new ArithmeticCurriculum().Subtraction,
             structuredEvidence);
 
         Assert.False(structuredDecision.Advances, "Structured band MUST NOT advance when fluent attempt count is below 34.");

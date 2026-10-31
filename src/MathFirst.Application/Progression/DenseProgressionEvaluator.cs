@@ -5,7 +5,11 @@ using MathFirst.Domain.Curriculum;
 
 public static class DenseProgressionEvaluator
 {
-    public const int MaxDenseFrontierSize = 25;
+    /// <summary>
+    /// Largest Dense frontier the evaluator and its bounded evidence reads accept. Issue #126 replaced the former
+    /// 25-fact cap (MUL-D12) with the explicit resource bound of the incremental Addition curriculum.
+    /// </summary>
+    public const int MaxDenseFrontierSize = IncrementalAdditionCurriculum.MaximumFrontierSize;
     public const int MinDenseFrontierSize = 1;
 
     public static BandAdvancementDecision Evaluate(

@@ -38,19 +38,19 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_FullyQualifyingFortyAttemptLearner_Advances()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
 
         Assert.True(decision.Advances);
-        Assert.Equal(11, decision.ResultingProgression.BandIndex);
+        Assert.Equal(21, decision.ResultingProgression.BandIndex);
     }
 
     [Fact]
     public void StructuredBand_CorrectnessThreshold_DistinguishesThirtyEightFromThirtySeven()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, correctCount: 38, fluentCount: 34);
-        var failing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, correctCount: 37, fluentCount: 34);
+        var passing = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, correctCount: 38, fluentCount: 34);
+        var failing = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, correctCount: 37, fluentCount: 34);
 
         Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
         Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
@@ -73,7 +73,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_FewerThanFortyPostStartAttempts_DoNotAdvance()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 39);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 39);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
 
@@ -84,7 +84,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_AttemptsAtBandStartAreExcludedAndAttemptsAfterBandStartAreIncluded()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, bandStart: 100);
+        var passing = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, bandStart: 100);
         var shiftedAttempts = passing.Evidence.AcceptedAttempts
             .Select(attempt => new BandAttemptEvidence(
                 attempt.PracticePosition - 1,
@@ -104,9 +104,9 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_MoreThanFortyAttempts_UseOnlyTheLatestFortyByPracticePosition()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
+        var passing = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20);
         var oldFailures = Enumerable.Range(101, 10)
-            .Select(position => new BandAttemptEvidence(position, "add:999+999", false, false, 5000));
+            .Select(position => new BandAttemptEvidence(position, "sub:999-1", false, false, 5000));
         var shiftedPassing = ShiftAttempts(passing.Evidence.AcceptedAttempts, 10);
         var withOldFailures = ReplaceAttempts(passing, oldFailures.Concat(shiftedPassing));
 
@@ -116,12 +116,12 @@ public sealed class BandAdvancementEvaluatorTests
             withOldFailures.Evidence).Advances);
 
         var failing = CreateCase(
-            ArithmeticOperation.Addition,
-            bandIndex: 10,
+            ArithmeticOperation.Subtraction,
+            bandIndex: 20,
             correctCount: 37,
             fluentCount: 34);
         var oldSuccesses = Enumerable.Range(101, 10)
-            .Select(position => new BandAttemptEvidence(position, "add:10+10", true, true, 1000));
+            .Select(position => new BandAttemptEvidence(position, "sub:20-10", true, true, 1000));
         var shiftedFailing = ShiftAttempts(failing.Evidence.AcceptedAttempts, 10);
         var withOldSuccesses = ReplaceAttempts(failing, oldSuccesses.Concat(shiftedFailing));
 
@@ -134,7 +134,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_UnorderedInput_IsNormalizedByPracticePosition()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20);
         var reversed = ReplaceAttempts(testCase, testCase.Evidence.AcceptedAttempts.Reverse());
 
         Assert.True(_evaluator.Evaluate(reversed.Progression, reversed.Curriculum, reversed.Evidence).Advances);
@@ -147,9 +147,9 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void DuplicatePositivePracticePositions_AreRejected()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20);
         var duplicate = testCase.Evidence.AcceptedAttempts
-            .Append(new BandAttemptEvidence(140, "add:999+999", true, true, 1000));
+            .Append(new BandAttemptEvidence(140, "sub:999-1", true, true, 1000));
         var invalid = ReplaceAttempts(testCase, duplicate);
 
         Assert.Throws<ArgumentException>(() =>
@@ -159,8 +159,8 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_FluencyThreshold_DistinguishesThirtyFourFromThirtyThree()
     {
-        var passing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, fluentCount: 34);
-        var failing = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, fluentCount: 33);
+        var passing = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, fluentCount: 34);
+        var failing = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, fluentCount: 33);
 
         Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
         Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
@@ -170,13 +170,13 @@ public sealed class BandAdvancementEvaluatorTests
     public void StructuredBand_SlowCorrectAnswers_CountAsCorrectButNotFluent()
     {
         var passing = CreateCase(
-            ArithmeticOperation.Addition,
-            bandIndex: 10,
+            ArithmeticOperation.Subtraction,
+            bandIndex: 20,
             correctCount: 38,
             fluentCount: 34);
         var tooSlow = CreateCase(
-            ArithmeticOperation.Addition,
-            bandIndex: 10,
+            ArithmeticOperation.Subtraction,
+            bandIndex: 20,
             correctCount: 38,
             fluentCount: 33);
 
@@ -188,19 +188,19 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_FrontierAttemptThreshold_DistinguishesTwentyFromNineteen()
     {
-        const int structuredBandIndex = 10;
+        const int structuredBandIndex = 20;
         var passing = CreateCase(
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             structuredBandIndex,
             frontierAttemptCount: 20,
             distinctFrontierCount: 16);
         var failing = CreateCase(
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             structuredBandIndex,
             frontierAttemptCount: 19,
             distinctFrontierCount: 16);
 
-        Assert.Equal(21, failing.Evidence.AcceptedAttempts.Count(attempt => attempt.FactId == "add:10+10"));
+        Assert.Equal(21, failing.Evidence.AcceptedAttempts.Count(attempt => attempt.FactId == "sub:20-10"));
         Assert.True(_evaluator.Evaluate(passing.Progression, passing.Curriculum, passing.Evidence).Advances);
         Assert.False(_evaluator.Evaluate(failing.Progression, failing.Curriculum, failing.Evidence).Advances);
     }
@@ -208,13 +208,13 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_DistinctFrontierThreshold_DistinguishesSixteenFromFifteen()
     {
-        const int structuredBandIndex = 10;
+        const int structuredBandIndex = 20;
         var passing = CreateCase(
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             structuredBandIndex,
             distinctFrontierCount: 16);
         var failing = CreateCase(
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             structuredBandIndex,
             distinctFrontierCount: 15);
 
@@ -225,10 +225,10 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_Coverage_RequiresTheDeterministicRepresentativeSample()
     {
-        const int structuredBandIndex = 10;
-        var passing = CreateCase(ArithmeticOperation.Addition, structuredBandIndex);
+        const int structuredBandIndex = 20;
+        var passing = CreateCase(ArithmeticOperation.Subtraction, structuredBandIndex);
         var failing = CreateCase(
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             structuredBandIndex,
             completeIntroductions: false);
 
@@ -236,7 +236,7 @@ public sealed class BandAdvancementEvaluatorTests
         var owned = new AcquisitionOwnershipResolver(passing.Curriculum).GetOwnedFrontier(structuredBandIndex);
         var required = DeterministicFactRanker.SelectStructuredSample(
             owned,
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             band.Id);
 
         Assert.Equal(16, required.Count);
@@ -248,15 +248,15 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_EarlierOwnedOrUnrelatedIntroductions_DoNotReplaceAStructuredSampleFact()
     {
-        const int structuredBandIndex = 10;
+        const int structuredBandIndex = 20;
         var testCase = CreateCase(
-            ArithmeticOperation.Addition,
+            ArithmeticOperation.Subtraction,
             structuredBandIndex,
             completeIntroductions: false);
         var evidence = new BandAdvancementEvidence(
             testCase.Evidence.AcceptedAttempts,
             testCase.Evidence.LifetimeAttemptedFactIds,
-            testCase.Evidence.CurrentBandIntroducedFactIds.Concat(new[] { "add:10+10", "add:999+999" }));
+            testCase.Evidence.CurrentBandIntroducedFactIds.Concat(new[] { "sub:20-10", "sub:999-1" }));
 
         Assert.False(_evaluator.Evaluate(testCase.Progression, testCase.Curriculum, evidence).Advances);
     }
@@ -264,8 +264,8 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_UnseenNonRequiredStructuredCandidates_AreNotAdvancementDebt()
     {
-        const int structuredBandIndex = 10;
-        var testCase = CreateCase(ArithmeticOperation.Addition, structuredBandIndex);
+        const int structuredBandIndex = 20;
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, structuredBandIndex);
         var owned = new AcquisitionOwnershipResolver(testCase.Curriculum).GetOwnedFrontier(structuredBandIndex);
 
         Assert.True(owned.Count > testCase.Evidence.CurrentBandIntroducedFactIds.Count);
@@ -291,7 +291,7 @@ public sealed class BandAdvancementEvaluatorTests
     public void InvalidOrMismatchedCurrentCurriculumState_IsRejected()
     {
         var curriculum = new ArithmeticCurriculum();
-        var evidence = CreateCase(ArithmeticOperation.Addition, bandIndex: 10).Evidence;
+        var evidence = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20).Evidence;
 
         Assert.Throws<ArgumentException>(() => _evaluator.Evaluate(
             new OperationProgression(ArithmeticOperation.Addition, int.MaxValue, 0),
@@ -355,8 +355,8 @@ public sealed class BandAdvancementEvaluatorTests
     public void WeakLaterEvidence_NeverRollsBackOrResetsTheCurrentProgression()
     {
         var testCase = CreateCase(
-            ArithmeticOperation.Addition,
-            bandIndex: 10,
+            ArithmeticOperation.Subtraction,
+            bandIndex: 20,
             bandStart: 900,
             attemptCount: 39);
 
@@ -364,14 +364,14 @@ public sealed class BandAdvancementEvaluatorTests
 
         Assert.False(decision.Advances);
         Assert.Same(testCase.Progression, decision.ResultingProgression);
-        Assert.Equal(10, decision.ResultingProgression.BandIndex);
+        Assert.Equal(20, decision.ResultingProgression.BandIndex);
         Assert.Equal(900, decision.ResultingProgression.BandStartedPracticePosition);
     }
 
     [Fact]
     public void StructuredBand_InterruptedCorrect_CountsInMathematicalWindow()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 45, correctCount: 45, fluentCount: 45, interruptedCount: 5);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 45, correctCount: 45, fluentCount: 45, interruptedCount: 5);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.True(decision.Advances);
@@ -380,7 +380,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_InterruptedIncorrect_CountsInMathematicalWindow()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 38, fluentCount: 38, interruptedCount: 2);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 40, correctCount: 38, fluentCount: 38, interruptedCount: 2);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.False(decision.Advances);
@@ -389,7 +389,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_RequiresFullTimingEligibleWindow()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 40, fluentCount: 40, interruptedCount: 5);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 40, correctCount: 40, fluentCount: 40, interruptedCount: 5);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.False(decision.Advances);
@@ -399,17 +399,17 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_Advances_With40EligibleWindowMeetingFluencyRequirement()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 45, correctCount: 45, fluentCount: 39, interruptedCount: 5);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 45, correctCount: 45, fluentCount: 39, interruptedCount: 5);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.True(decision.Advances);
-        Assert.Equal(11, decision.ResultingProgression.BandIndex);
+        Assert.Equal(21, decision.ResultingProgression.BandIndex);
     }
 
     [Fact]
     public void StructuredBand_UninterruptedSlowAttempt_CountsAsNonFluentEligibleEvidence()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 40, fluentCount: 33, interruptedCount: 0);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 40, correctCount: 40, fluentCount: 33, interruptedCount: 0);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.False(decision.Advances);
@@ -418,7 +418,7 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_UninterruptedIncorrect_CountsAsNonFluentEligibleEvidence()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 40, correctCount: 38, fluentCount: 34, interruptedCount: 0);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 40, correctCount: 38, fluentCount: 34, interruptedCount: 0);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.True(decision.Advances);
@@ -427,18 +427,18 @@ public sealed class BandAdvancementEvaluatorTests
     [Fact]
     public void StructuredBand_UsesOlderEligibleAttemptsBeyondLatest40Total()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 50, correctCount: 50, fluentCount: 50, interruptedCount: 10);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 50, correctCount: 50, fluentCount: 50, interruptedCount: 10);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.True(decision.Advances);
-        Assert.Equal(11, decision.ResultingProgression.BandIndex);
+        Assert.Equal(21, decision.ResultingProgression.BandIndex);
         Assert.Equal(150, decision.ResultingProgression.BandStartedPracticePosition);
     }
 
     [Fact]
     public void StructuredBand_CorrectnessStillUsesLatest40Total_NotLatest40Eligible()
     {
-        var testCase = CreateCase(ArithmeticOperation.Addition, bandIndex: 10, attemptCount: 45, correctCount: 42, fluentCount: 42, interruptedCount: 3);
+        var testCase = CreateCase(ArithmeticOperation.Subtraction, bandIndex: 20, attemptCount: 45, correctCount: 42, fluentCount: 42, interruptedCount: 3);
 
         var decision = _evaluator.Evaluate(testCase.Progression, testCase.Curriculum, testCase.Evidence);
         Assert.False(decision.Advances);

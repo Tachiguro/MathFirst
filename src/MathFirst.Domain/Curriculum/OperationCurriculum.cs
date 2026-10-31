@@ -7,10 +7,17 @@ public sealed class OperationCurriculum
     public ArithmeticOperation Operation { get; }
     public IReadOnlyList<CurriculumBand> Bands { get; }
 
+    /// <summary>
+    /// Optional operand-derived ownership model. When present, every precomputed and procedural band frontier is owned
+    /// entirely by its own band, which callers may rely on instead of materializing earlier bands.
+    /// </summary>
+    public IAnalyticCurriculumModel? AnalyticModel { get; }
+
     public OperationCurriculum(
         ArithmeticOperation operation,
         IReadOnlyList<CurriculumBand> bands,
-        Func<int, CurriculumBand?>? structuredBandFactory = null)
+        Func<int, CurriculumBand?>? structuredBandFactory = null,
+        IAnalyticCurriculumModel? analyticModel = null)
     {
         if (!Enum.IsDefined(operation))
         {
@@ -43,9 +50,26 @@ public sealed class OperationCurriculum
             throw new ArgumentException("Curriculum band IDs must be unique within an operation.", nameof(bands));
         }
 
+        if (analyticModel is not null)
+        {
+            foreach (var band in completeBands)
+            {
+                foreach (var fact in band.Frontier)
+                {
+                    if (!analyticModel.TryGetOwnerBandIndex(fact.Id, out var owner) || owner != band.BandIndex)
+                    {
+                        throw new ArgumentException(
+                            "Every precomputed band fact must be owned by its own band under the analytic model.",
+                            nameof(analyticModel));
+                    }
+                }
+            }
+        }
+
         Operation = operation;
         Bands = Array.AsReadOnly(completeBands);
         _structuredBandFactory = structuredBandFactory;
+        AnalyticModel = analyticModel;
     }
 
     public bool TryGetBand(int bandIndex, out CurriculumBand? band)
@@ -68,9 +92,11 @@ public sealed class OperationCurriculum
             return false;
         }
 
-        if (band.Operation != Operation || band.BandIndex != bandIndex || band.Kind != CurriculumBandKind.Structured)
+        // Issue #126: incremental Addition bands are procedural but Dense; any other procedural band stays Structured.
+        var expectedKind = AnalyticModel is null ? CurriculumBandKind.Structured : CurriculumBandKind.Dense;
+        if (band.Operation != Operation || band.BandIndex != bandIndex || band.Kind != expectedKind)
         {
-            throw new InvalidOperationException("A procedural band must preserve its curriculum operation, index, and structured kind.");
+            throw new InvalidOperationException("A procedural band must preserve its curriculum operation, index, and kind.");
         }
 
         return true;

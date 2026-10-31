@@ -18,13 +18,29 @@ public sealed class AcquisitionOwnershipResolverTests
     }
 
     [Fact]
-    public void IsEligible_Addition_TensFact_IsIneligibleAtDenseBand0_EligibleAtStructuredBand()
+    public void IsEligible_Addition_TensFact_IsIneligibleUntilItsLargerOperandBand()
     {
+        // Issue #126: add:10+20 belongs to ADD-D20 (BandIndex 19), not to a post-D10 tens anchor band.
         var addition = new ArithmeticCurriculum().Addition;
         var resolver = new AcquisitionOwnershipResolver(addition);
 
         Assert.False(resolver.IsEligible("add:10+20", 0));
-        Assert.True(resolver.IsEligible("add:10+20", 10));
+        Assert.False(resolver.IsEligible("add:10+20", 10));
+        Assert.False(resolver.IsEligible("add:10+20", 18));
+        Assert.True(resolver.IsEligible("add:10+20", 19));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(IncrementalAdditionCurriculum.MaximumBandIndex + 1)]
+    [InlineData(int.MaxValue)]
+    public void IsEligible_Addition_BeyondTheIncrementalResourceBound_FailsClosed(int invalidBandIndex)
+    {
+        var resolver = new AcquisitionOwnershipResolver(new ArithmeticCurriculum().Addition);
+
+        Assert.False(resolver.IsEligible("add:2+2", invalidBandIndex));
+        Assert.False(resolver.TryGetOwnedFrontier(invalidBandIndex, out var frontier));
+        Assert.Null(frontier);
     }
 
     [Fact]

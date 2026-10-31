@@ -1874,3 +1874,44 @@ Package `MF-CYBER-006` ([Issue #85](https://github.com/Tachiguro/MathFirst/issue
 **Release instability investigation**: preserve the previous candidate `eb184d0eeadd75ef0caa1815e8ef031814286c01` evidence: Core Release attempt 1 failed with `ObjectDisposedException` in `SqliteGameplayStoreSchemaTests.SchemaV1_SuppressedReceipt_DoesNotRequireFabricatedCombatTransition`; attempt 2 passed 5652/5652. This is historical agent-reported evidence recorded in [PR #131](https://github.com/Tachiguro/MathFirst/pull/131), not a reproduced failure or proven attribution. The Issue #123 gate and rendered classes each reuse the Issue #125 suite/fixture; their distinct default xUnit collections can overlap the schema class. Fixture disposal awaits Home teardown and its tracked refresh, disposes services/store, then formerly called process-global `ClearAllPools`; suite disposal called it again. Thus the new users increased cross-collection global clearing. The provider's [10.0.11 pool implementation](https://github.com/dotnet/efcore/blob/v10.0.11/src/Microsoft.Data.Sqlite.Core/SqliteConnectionPool.cs) disposes idle handles and marks active connections non-poolable when clearing; that mechanism alone does not prove the historical active-handle exception's interleaving.
 
 `Issue123FixtureIsolationTests` deterministically demonstrated both cleanup paths closing another database's idle pooled handle (two RED failures). The bounded correction removes those global clears and makes the fixture's short-lived seed connection non-pooled; production `SqliteGameplayStore.Dispose` already clears its own pool. Both GREEN cases retain the unrelated handle and verify query usability plus exclusive Windows file access or successful cleanup of the fixture database. These tests reuse the existing nonparallel SQLite isolation collection to exclude other legacy global clearers; assembly-wide parallelism, production SQLite concurrency and persistence contracts are unchanged. Other suites still call `ClearAllPools`, and the original Release flake remains unattributed; passing validation does not establish that the suite-wide risk is eliminated.
+
+---
+
+## 43. Issue #126 Incremental 0..N Addition Progression (ADR-0014)
+
+[Issue #126](https://github.com/Tachiguro/MathFirst/issues/126) replaces the post-`ADD-D10` structured Addition families with incremental Dense frontiers ([ADR-0014](decisions/ADR-0014-incremental-addition-operand-frontier.md)). Evidence lives in `tests/MathFirst.Core.Tests/`; every test uses synthetic fixtures, temporary SQLite databases and fake clocks, never real learner data.
+
+**Baseline characterization** (pre-change `main@9952624`, read-only, from a copy of the built Domain assembly): `BandIndex 10` was `ADD-P1-ANCHOR` (Structured, 81 facts starting `add:10+10, add:10+20, add:20+10, add:10+30`), `BandIndex 14` was `ADD-P2-ANCHOR` (`add:100+100, add:100+200`, ...), the Guided ceiling went from 20 (D10) to 180, and Addition ended at structured band 125.
+
+1. **`Issue126IncrementalAdditionCurriculumTests.cs`** (pure domain/application):
+   - `N = 1` and `N = 2` frontiers including zero; `ADD-D01..ADD-D10` byte-identical to the baseline (SHA-256 digest of IDs, kinds and frontiers) and to the generator; the 121 D10 mastery facts and the `10 + 10` boundary are unchanged.
+   - Bands 10, 11, 12, 13, 99, 100, 999 and 1000 are exactly the max-operand rings (`ADD-D11` 23, `ADD-D12` 25, `ADD-D13` 27 ... `ADD-D1001` 2003 facts) in canonical order, Dense, with both orders, zero operands and `N + N`.
+   - No tens-anchor jump: through `ADD-D19` no `10 + 20`, `20 + 80`, `60 + 60` or `90 + 90`; each first appears in the band of its larger operand; the maximum operand of band `B` is `B + 1` for the first 200 bands.
+   - The cumulative prefix through band 120 is exactly the complete square with unique canonical IDs.
+   - Analytic ownership matches the materialized prefix-scan oracle through band 80; non-canonical, foreign and out-of-bound IDs (leading zeros, signs, whitespace, `ADD:`, `add:46340+0`, 11-digit operands) have no owner.
+   - Synthetic legacy reinterpretation: `add:20+80` is ineligible at `BandIndex 10` and owned by band 79; `add:60+60` becomes eligible at band 59.
+   - The closed-form Guided ceiling equals the complete prefix scan for bands 0..150 (20 at D10, 22 at D11).
+   - Bounded work: with a counting band factory, 858 eligibility checks, an owned-frontier read and a Guided gate at `BandIndex 5000` each generate only band 5000, once.
+   - Resource bound: `ADD-D46339` (92,679 facts) exists, band 46339 does not; `(N + 1)^2` fits `Int32`; a fully correct learner on the last band does not advance.
+   - Dense advancement at bands 10, 11, 12 and 99 requires full current-band coverage and `C · 10 ≥ N · 9` (21/23, 23/25, 25/27, 181/201) and advances with slow, never-fluent answers; attempts before the band start never count.
+   - Subtraction (bands 0..135), Multiplication and Division (0..32) are bit-for-bit identical to the baseline digests, including their terminal bands.
+2. **`Issue126IncrementalAdditionPersonaTests.cs`** (real `TrainingSession`, temporary SQLite, fake clock; Addition-only Custom practice unless noted):
+
+| Persona | Script | Pinned Addition advancements (`band@attempt`) | Asserted |
+|---|---|---|---|
+| Fast accurate | all correct, 800 ms | `…,10@121,11@144,12@169,13@196` | every new fact of D11 (23), D12 (25), D13 (27) attempted before advancing; no fact above the current `N` |
+| Slow consistently correct | all correct, 12,000 ms | identical to fast | identical fact sequence |
+| Weak facts | `4 + 1` wrong ×3, `11 + 5` wrong ×4 | `…,4@32,…,10@128,11@155,12@180,13@207` | both remediated (Remediation role, never an immediate repeat), recovered, still eligible at N = 14 |
+| Cold restart | 150 + 70 attempts | — | resumed and copied databases continue identically; same final band as one 220-attempt session |
+| Legacy `BandIndex 10` (CurriculumManaged, Stage 2) | all correct | `11@45,12@95` | resumes at N = 11, never presents seeded `add:20+80`, `add:60+60`, `add:10+20`; those rows keep their item and FSRS state |
+| Legacy `BandIndex 12` at Stage 2/3/4 | every fourth encounter of a fact wrong | — | earned stage and every unlocked operation kept; Addition resumes at N = 13 |
+| High frontier `BandIndex 59` (N = 60, 121 facts) | all correct | `60@121` | every New presentation is a never-attempted fact; stored attempt totals equal presentations |
+| 100-fact trace | `4 + 1` wrong once | — | bitwise identical across runs; printed with band IDs, roles and advancements |
+
+   `SqliteEvidence_ForAFrontierLargerThanOneParameterBatch_IsCompleteAndOrdinallyOrdered` seeds a synthetic `BandIndex 249` (N = 250, 501 facts, three 200-ID statements): the latest in-band attempt per fact, ordered by ordinal `FactId`, ignoring pre-band attempts, and all 501 materialized current-band candidates are returned.
+
+3. **Adapted suites**: tests that used Addition's former structured band as a generic structured fixture now use `SUB-P1-ANCHOR` (`BandAdvancementEvaluatorTests`, `IndependentSelectorTests`, `AdaptiveRatingFluencySchemaV6Tests`, `ProgressionCoherenceAuditTests`); `StructuredCurriculumTests` checks the Subtraction inverses against an independent ADR-0003 additive-core oracle; ownership, terminal-band, diagnostics and conformance tests assert the incremental bands, the resource bound and the new Dense capacity; `CurriculumInvariantPropertyTests` checks bands 0..299 plus the terminal band instead of enumerating ~2.1 billion facts. The 482-attempt benchmark is unchanged and now ends at `ADD-D10 -> ADD-D11` (ceiling 20 -> 22). Two Issue #114 pins moved with the post-D10 content: WeakNearD10 Stage 2 160 -> 162, MixedLearner Stage 4 723 -> 753; all other Issue #114 pins are unchanged.
+
+**Mutation check**: restoring the 64-row cap on the SQLite current-band candidate read makes the high-frontier persona fail (119 of 240 New presentations re-offered an already practiced fact) and the batched evidence test fail (only 64 of 501 current-band candidates); the change was reverted and both pass again.
+
+**Evidence boundaries**: synthetic scripted personas, not studies of real learners. No real learner database was opened. Only Core automated tests and native builds were run; physical Android gameplay and on-device performance at large `N` are not verified. Bands far beyond the personas (up to the resource bound) are verified structurally, not by playing them.

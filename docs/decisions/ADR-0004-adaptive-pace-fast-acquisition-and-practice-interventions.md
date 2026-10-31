@@ -181,7 +181,7 @@ Before applying role chains, if any materialized fact for the scheduled operatio
 ### 8. Terminal Curriculum Safety & Boundaries
 
 Curriculum generation enforces strict safety limits bounded by `Int32` capacity:
-- **Addition Terminal Band**: Index 125 (`ADD-P8-D0`)
+- **Addition Terminal Band**: Index 125 (`ADD-P8-D0`); superseded by [ADR-0014](ADR-0014-incremental-addition-operand-frontier.md): Index 46338 (`ADD-D46339`), an explicit `Int32` resource bound of the incremental Addition curriculum
 - **Subtraction Terminal Band**: Index 135 (`SUB-P8-D0`)
 - **Multiplication Terminal Band**: Index 32 (`MUL-P7-SCALED`)
 - **Division Terminal Band**: Index 32 (`DIV-P7-SCALED`)
