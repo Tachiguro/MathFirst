@@ -1,0 +1,97 @@
+@using MathFirst.Application
+@using Microsoft.AspNetCore.Components.Web
+
+@* Issue #123: only the explicit Later/Escape/Back or opening the real terminal acknowledges the spotlight; a stray
+   tap on the dimmed page does nothing. *@
+<div class="upgrade-spotlight-backdrop" aria-hidden="true"></div>
+<section class="upgrade-spotlight-overlay"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="upgrade-spotlight-title"
+         aria-describedby="upgrade-spotlight-desc"
+         lang="@Localizer.CurrentUiLanguage"
+         @onkeydown="HandleKeyDown"
+         tabindex="-1">
+    <div class="upgrade-spotlight-card">
+        <div class="upgrade-spotlight-badge-row">
+            <span class="upgrade-spotlight-badge">@Localizer["UpgradeSpotlight_Badge"]</span>
+        </div>
+        <div class="upgrade-spotlight-icon-slot" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                <polyline points="2 17 12 22 22 17" />
+                <polyline points="2 12 12 17 22 12" />
+            </svg>
+        </div>
+        <h2 id="upgrade-spotlight-title" class="upgrade-spotlight-title">@Localizer["UpgradeSpotlight_Title"]</h2>
+        <p id="upgrade-spotlight-desc" class="upgrade-spotlight-desc">@Localizer["UpgradeSpotlight_Description"]</p>
+        <div class="upgrade-spotlight-actions">
+            <button type="button"
+                    class="button button-secondary upgrade-spotlight-btn upgrade-spotlight-skip-btn"
+                    aria-label='@Localizer["UpgradeSpotlight_Skip"]'
+                    @onclick="DismissAsync">
+                @Localizer["UpgradeSpotlight_Skip"]
+            </button>
+            <button type="button"
+                    @ref="_openButton"
+                    class="button button-primary upgrade-spotlight-btn upgrade-spotlight-open-btn"
+                    aria-label='@Localizer["UpgradeSpotlight_OpenTerminal"]'
+                    @onclick="OpenTerminalAsync">
+                @Localizer["UpgradeSpotlight_OpenTerminal"]
+            </button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public EventCallback OnOpenTerminal { get; set; }
+
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+
+    [Parameter, EditorRequired]
+    public ILocalizationService Localizer { get; set; } = default!;
+
+    private ElementReference _openButton;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await _openButton.FocusAsync();
+            }
+            catch
+            {
+                // Headless test renderers or non-interactive hosts safely ignore focus requests.
+            }
+        }
+    }
+
+    // Enter/Space activate the focused button natively; only Escape is an extra keyboard shortcut (Later).
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Escape")
+        {
+            await DismissAsync();
+        }
+    }
+
+    private async Task OpenTerminalAsync()
+    {
+        if (OnOpenTerminal.HasDelegate)
+        {
+            await OnOpenTerminal.InvokeAsync();
+        }
+    }
+
+    private async Task DismissAsync()
+    {
+        if (OnDismiss.HasDelegate)
+        {
+            await OnDismiss.InvokeAsync();
+        }
+    }
+}

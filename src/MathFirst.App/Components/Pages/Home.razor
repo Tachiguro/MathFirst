@@ -30,8 +30,8 @@
 <div class="training-host @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")" @onkeydown="HandleGlobalKeyDown" tabindex="0">
     <div class="mathfirst-container" data-spotlight-active="@ActiveSpotlightTarget">
         <header class="mathfirst-header"
-                inert="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? true : null)"
-                aria-hidden="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? "true" : null)">
+                inert="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen || _activeOperationUnlock is not null ? true : null)"
+                aria-hidden="@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen || _activeOperationUnlock is not null ? "true" : null)">
             <div class="mathfirst-title-group">
                 <div class="brand-shield-emblem" aria-hidden="true">
                     <svg viewBox="0 0 24 28" width="22" height="26" fill="none">
@@ -50,6 +50,7 @@
                 {
                     <button type="button"
                             class="button button-secondary upgrade-nav-btn"
+                            data-spotlight-id="upgrade-header"
                             disabled="@(_isSubmitting || _isUpgradeTerminalOpen)"
                             title='@Localizer["UpgradeTerminal_HeaderAction"]'
                             aria-label='@Localizer["UpgradeTerminal_HeaderAction"]'
@@ -114,7 +115,8 @@
         else
         {
             <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")"
-                  inert="@(Ceremony.IsBlocking || _isTutorialOpen ? true : null)" aria-hidden="@(Ceremony.IsBlocking || _isTutorialOpen ? "true" : null)">
+                  inert="@(Ceremony.IsBlocking || _isTutorialOpen || _isUpgradeSpotlightOpen || _activeOperationUnlock is not null ? true : null)"
+                  aria-hidden="@(Ceremony.IsBlocking || _isTutorialOpen || _isUpgradeSpotlightOpen || _activeOperationUnlock is not null ? "true" : null)">
                 @if (Session.PracticeGate != PracticeGateState.Running)
                 {
                     // Issue #125: the ManualPause gate is the cyber main menu itself, never a second stacked dialog.
@@ -509,13 +511,25 @@
             </main>
             @if (_isUpgradeTerminalOpen && _upgradeTerminalViewModel is not null)
             {
-                <UpgradeTerminal ViewModel="_upgradeTerminalViewModel" OnClose="CloseUpgradeTerminal" />
+                <UpgradeTerminal ViewModel="_upgradeTerminalViewModel" IsGuidedOnboarding="_isUpgradeOnboardingGuided" OnClose="CloseUpgradeTerminal" />
             }
             @if (IsCyberDefenseActive && Ceremony.IsBlocking)
             {
                 <CyberDefenseCeremony Stage="Ceremony.Stage" Recap="Ceremony.Recap" CompletedSector="Ceremony.CompletedSector"
                                       CanContinue="Ceremony.CanContinue" PresentationId="Ceremony.PresentationId"
                                       OnContinue="HandleCeremonyContinue" />
+            }
+            @if (_activeOperationUnlock is not null)
+            {
+                <OperationUnlockAnnouncement Operation="_activeOperationUnlock.Value"
+                                              Localizer="Localizer"
+                                              OnAcknowledge="AcknowledgeOperationUnlock" />
+            }
+            @if (_isUpgradeSpotlightOpen)
+            {
+                <UpgradeSpotlight Localizer="Localizer"
+                                  OnOpenTerminal="OpenUpgradeTerminalFromSpotlightAsync"
+                                  OnDismiss="DismissUpgradeSpotlight" />
             }
             @if (_isTutorialOpen)
             {
@@ -545,14 +559,34 @@
     private CyberDefenseTutorial.CyberDefenseTutorialStep _tutorialCurrentStep = CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard;
     private CyberDefenseTutorial? _tutorialComponent;
 
-    private string? ActiveSpotlightTarget => _isTutorialOpen ? _tutorialCurrentStep switch
+    private string? ActiveSpotlightTarget =>
+        _isUpgradeSpotlightOpen ? "upgrade-header" :
+        _isTutorialOpen ? _tutorialCurrentStep switch
+        {
+            CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard => "story-intro",
+            CyberDefenseTutorial.CyberDefenseTutorialStep.Enemy => "enemy-hud",
+            CyberDefenseTutorial.CyberDefenseTutorialStep.ExpressionKeypad => "expression-keypad",
+            CyberDefenseTutorial.CyberDefenseTutorialStep.SystemIntegrity => "system-integrity",
+            _ => "none"
+        } : null;
+
+    // Issue #123: one-time presentations newly earned by a committed answer. The submission task never waits for them:
+    // the committed answer stays on CorrectFeedback behind the gate and only their explicit acknowledgement advances it.
+    private sealed record CommittedPresentations(string SubmissionId, long Generation, ArithmeticOperation? UnlockedOperation, bool UpgradeSpotlight)
     {
-        CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard => "story-intro",
-        CyberDefenseTutorial.CyberDefenseTutorialStep.Enemy => "enemy-hud",
-        CyberDefenseTutorial.CyberDefenseTutorialStep.ExpressionKeypad => "expression-keypad",
-        CyberDefenseTutorial.CyberDefenseTutorialStep.SystemIntegrity => "system-integrity",
-        _ => "none"
-    } : null;
+        public bool HasAny => UnlockedOperation.HasValue || UpgradeSpotlight;
+    }
+
+    // The pre-commit facts a presentation must be newly earned against: never an already persisted stage or Upgrade.
+    private sealed record CommittedPresentationBaseline(CurriculumStage Stage, long? UndiscoveredUpgradeEpoch);
+
+    private CommittedPresentations? _committedPresentationGate;
+    private CommittedPresentations? _heldCommittedPresentations;
+    private ArithmeticOperation? _activeOperationUnlock;
+    private bool _isUpgradeSpotlightOpen;
+    private bool _isUpgradeOnboardingGuided;
+
+    private bool IsCommittedPresentationVisible => _activeOperationUnlock is not null || _isUpgradeSpotlightOpen;
 
     private bool CanAutoPresentTutorial =>
         IsCyberDefenseActive &&
@@ -930,6 +964,11 @@
         Ceremony.Changed -= OnCeremonyChanged;
         _presentationLifetime.Cancel();
         Ceremony.Cancel();
+        // An unacknowledged presentation is dropped, never acknowledged: the committed answer stays held for re-entry.
+        _committedPresentationGate = null;
+        _heldCommittedPresentations = null;
+        _activeOperationUnlock = null;
+        _isUpgradeSpotlightOpen = false;
         _presentationLifetime.Dispose();
         Localizer.UiLanguageChanged -= OnLanguageChanged;
         Session.AppForegroundStateChanged -= OnAppForegroundChanged;
@@ -987,7 +1026,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen)
+        if (_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen || IsCommittedPresentationVisible)
         {
             return;
         }
@@ -1058,7 +1097,8 @@
 
     private async Task HandleGlobalKeyDown(KeyboardEventArgs e)
     {
-        if (_isSubmitting || Ceremony.IsBlocking || _isTutorialOpen) return;
+        // Issue #123: an open presentation gate owns Enter through its own focused action; nothing underneath runs.
+        if (_isSubmitting || Ceremony.IsBlocking || _isTutorialOpen || _committedPresentationGate is not null) return;
         if (e.Key is not "Enter" and not "NumpadEnter")
         {
             return;
@@ -1212,21 +1252,28 @@
 
                 HapticService.PerformCue(eval.IsCorrect ? HapticFeedbackCue.Correct : HapticFeedbackCue.Incorrect);
 
+                var presentationBaseline = CaptureCommittedPresentationBaseline();
                 var persistence = await Session.CommitCurrentEvaluationAsync();
 
                 CyberDefenseReceiptRecord? receipt = null;
+                CommittedPresentations? presentations = null;
                 if (Session.IsCurrentSubmissionCommitted)
                 {
                     receipt = (await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId))?.Receipt;
-                    ScheduleUpgradeTerminalRefresh();
+                    presentations = await ResolveCommittedPresentationsAsync(presentationBaseline, submissionId, generation);
                 }
 
-                var advancedAutomatically = persistence.IsSuccess &&
-                    await CompleteCommittedOutcomeAsync(receipt) == CommittedOutcome.Advanced;
+                var outcome = persistence.IsSuccess
+                    ? await CompleteCommittedOutcomeAsync(receipt, presentations)
+                    : CommittedOutcome.NotAdvanced;
 
                 if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
 
-                if (advancedAutomatically)
+                // Issue #123: the answer is committed and this submission is complete; the open presentation gate
+                // (not this task) owns the next-fact advance.
+                if (outcome == CommittedOutcome.AwaitingPresentation) return;
+
+                if (outcome == CommittedOutcome.Advanced)
                 {
                     // Successful advancement clears LastEvaluation; fence the new fact by revision instead.
                     if (Session.FactInstanceRevision == factRevision + 1 &&
@@ -1302,6 +1349,7 @@
         var factRevision = Session.FactInstanceRevision;
         var isRevisionConflict = Session.LastPersistenceResult?.Status == PersistenceStatus.RevisionConflict;
         var rejectedSubmissionId = isRevisionConflict ? Session.LastEvaluation?.ChangeSet?.SubmissionId : null;
+        var presentationBaseline = CaptureCommittedPresentationBaseline();
         _isSubmitting = true;
         try
         {
@@ -1334,15 +1382,17 @@
 
                 if (Session.LearnerStateGenerationRevision != generation) return;
                 CyberDefenseReceiptRecord? receipt = null;
+                CommittedPresentations? presentations = null;
                 if (Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null)
                 {
                     var submissionId = Session.LastEvaluation.ChangeSet.SubmissionId;
                     receipt = (await CombatCoordinator.ConsumeCommittedAttemptAsync(submissionId))?.Receipt;
-                    ScheduleUpgradeTerminalRefresh();
+                    presentations = await ResolveCommittedPresentationsAsync(presentationBaseline, submissionId, generation);
                 }
 
-                var outcome = await CompleteCommittedOutcomeAsync(receipt);
+                var outcome = await CompleteCommittedOutcomeAsync(receipt, presentations);
                 if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
+                if (outcome == CommittedOutcome.AwaitingPresentation) return;
                 if (outcome == CommittedOutcome.Held)
                 {
                     // The recap was not acknowledged: the committed answer stays put and the question is not renewed.
@@ -1393,12 +1443,19 @@
         /// <summary>The committed correct answer advanced to the next question.</summary>
         Advanced,
         /// <summary>A required recap/System Restart was not acknowledged: the committed answer stays on CorrectFeedback.</summary>
-        Held
+        Held,
+        /// <summary>
+        /// Issue #123: the committed answer waits on CorrectFeedback behind an open presentation gate. The calling task is
+        /// complete; only the gate's explicit acknowledgement advances the question.
+        /// </summary>
+        AwaitingPresentation
     }
 
     // The only way a presentable boss/game-over receipt releases the committed answer is a valid user Continue.
     // No-presentation outcomes (ordinary hits, Calm mode, no receipt) keep their existing immediate path.
-    private async Task<CommittedOutcome> CompleteCommittedOutcomeAsync(CyberDefenseReceiptRecord? receipt)
+    private async Task<CommittedOutcome> CompleteCommittedOutcomeAsync(
+        CyberDefenseReceiptRecord? receipt,
+        CommittedPresentations? presentations = null)
     {
         var generation = Session.LearnerStateGenerationRevision;
         var submissionId = Session.LastEvaluation?.ChangeSet.SubmissionId;
@@ -1407,7 +1464,18 @@
         if (!IsSameSubmission()) return CommittedOutcome.NotAdvanced;
         var cleared = await ShowCommittedCeremonyAsync(receipt, IsSameSubmission);
         if (!IsSameSubmission()) return CommittedOutcome.NotAdvanced;
-        if (!cleared) return CommittedOutcome.Held;
+        if (!cleared)
+        {
+            // The presentations wait behind the unacknowledged recap and follow its explicit recovery.
+            if (presentations is not null) _heldCommittedPresentations = presentations;
+            return CommittedOutcome.Held;
+        }
+
+        if (presentations is not null && BeginCommittedPresentationGate(presentations))
+        {
+            return CommittedOutcome.AwaitingPresentation;
+        }
+
         Session.SetPracticeSurfaceActive(true);
         // startTiming controls surface availability. Foreground and the explicit resume gate
         // remain authoritative, including when a ceremony was cancelled in the background.
@@ -1417,14 +1485,207 @@
             : CommittedOutcome.NotAdvanced;
     }
 
+    private CommittedPresentationBaseline CaptureCommittedPresentationBaseline() => new(
+        Session.Progression.CurriculumStage,
+        IsCyberDefenseActive && _upgradeTerminalViewModel is { HasAuthoritativeStatus: true, IsUpgradeDiscovered: false } viewModel
+            ? viewModel.ResetEpoch
+            : null);
+
+    // Issue #123: derives what this very commit newly earned. Only a transition observed across the commit counts, so an
+    // already persisted stage, an already discovered Upgrade or an unreadable pre-commit snapshot never presents anything.
+    private async Task<CommittedPresentations?> ResolveCommittedPresentationsAsync(
+        CommittedPresentationBaseline baseline, string submissionId, long generation)
+    {
+        var stage = Session.Progression.CurriculumStage;
+        ArithmeticOperation? unlockedOperation = stage > baseline.Stage
+            ? stage switch
+            {
+                CurriculumStage.Stage2_Subtraction => ArithmeticOperation.Subtraction,
+                CurriculumStage.Stage3_Multiplication => ArithmeticOperation.Multiplication,
+                CurriculumStage.Stage4_Division => ArithmeticOperation.Division,
+                _ => null
+            }
+            : null;
+
+        var upgradeSpotlight = false;
+        if (baseline.UndiscoveredUpgradeEpoch is { } epoch && !_isDisposed && _upgradeTerminalViewModel is { } viewModel)
+        {
+            try
+            {
+                // The committed snapshot must already show a real, affordable purchase in the same reset epoch.
+                await viewModel.RefreshAsync(_presentationLifetime.Token);
+                upgradeSpotlight = viewModel.ResetEpoch == epoch && viewModel.IsUpgradeDiscovered && viewModel.HasPurchasingOpportunity;
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+            {
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // An unreadable snapshot proves no opportunity: no spotlight, and the HUD retries in the background.
+                System.Diagnostics.Trace.TraceWarning("Upgrade discovery refresh failed: {0}", ex);
+                ScheduleUpgradeTerminalRefresh();
+            }
+        }
+        else
+        {
+            ScheduleUpgradeTerminalRefresh();
+        }
+
+        if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return null;
+        var presentations = new CommittedPresentations(submissionId, generation, unlockedOperation, upgradeSpotlight);
+        return presentations.HasAny ? presentations : null;
+    }
+
+    private bool IsCurrentCommittedPresentation(CommittedPresentations presentations) =>
+        !_isDisposed &&
+        Session.LearnerStateGenerationRevision == presentations.Generation &&
+        Session.IsCurrentSubmissionCommitted &&
+        Session.InteractionState == SessionInteractionState.CorrectFeedback &&
+        Session.LastEvaluation?.ChangeSet.SubmissionId == presentations.SubmissionId;
+
+    // Opens the gate over the committed answer. Timing stays paused and the practice surface inert until it is released.
+    private bool BeginCommittedPresentationGate(CommittedPresentations presentations)
+    {
+        if (!presentations.HasAny || !IsCurrentCommittedPresentation(presentations)) return false;
+        _committedPresentationGate = presentations;
+        if (!PresentNextCommittedPresentation())
+        {
+            _committedPresentationGate = null;
+            return false;
+        }
+
+        Session.PauseItemTiming();
+        _shouldFocusInput = _shouldFocusPrimaryOverlay = false;
+        return true;
+    }
+
+    // Shows the gate's next presentation, at most one at a time: the operation unlock first, then the Upgrade spotlight.
+    private bool PresentNextCommittedPresentation()
+    {
+        if (_committedPresentationGate is not { } gate) return false;
+        if (gate.UnlockedOperation is { } operation)
+        {
+            _committedPresentationGate = gate with { UnlockedOperation = null };
+            _activeOperationUnlock = operation;
+            return true;
+        }
+
+        if (gate.UpgradeSpotlight)
+        {
+            _committedPresentationGate = gate with { UpgradeSpotlight = false };
+            if (IsCyberDefenseActive && IsUpgradeDiscovered)
+            {
+                _isUpgradeSpotlightOpen = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task AcknowledgeOperationUnlock()
+    {
+        if (_isDisposed || _activeOperationUnlock is null || !Session.IsAppForeground) return;
+        _activeOperationUnlock = null;
+        if (!PresentNextCommittedPresentation()) await ReleaseCommittedPresentationGateAsync();
+    }
+
+    // The spotlight's own action: the real terminal opens and owns the gate until its Close.
+    private Task OpenUpgradeTerminalFromSpotlightAsync() =>
+        _isUpgradeSpotlightOpen ? OpenUpgradeTerminalAsync() : Task.CompletedTask;
+
+    private async Task DismissUpgradeSpotlight()
+    {
+        if (_isDisposed || !_isUpgradeSpotlightOpen || !Session.IsAppForeground) return;
+        _isUpgradeSpotlightOpen = false;
+        if (!PresentNextCommittedPresentation()) await ReleaseCommittedPresentationGateAsync();
+    }
+
+    // Releases the committed answer once every presentation of its gate was explicitly acknowledged, through the same
+    // fenced advance as an acknowledged recap. A stale gate (reset, replaced submission) advances nothing. Foreground and
+    // the explicit resume gate stay authoritative for timing, as after a recap.
+    private async Task ReleaseCommittedPresentationGateAsync()
+    {
+        if (_isDisposed || _committedPresentationGate is not { } gate || IsCommittedPresentationVisible || _isUpgradeTerminalOpen)
+        {
+            return;
+        }
+
+        _committedPresentationGate = null;
+        if (!IsCurrentCommittedPresentation(gate)) return;
+
+        var factRevision = Session.FactInstanceRevision;
+        var ownsSubmitting = !_isSubmitting;
+        _isSubmitting = true;
+        try
+        {
+            Session.SetPracticeSurfaceActive(true);
+            var advanced = await Session.AdvanceAfterCorrectAnswerAsync(startTiming: true);
+            if (_isDisposed || Session.LearnerStateGenerationRevision != gate.Generation) return;
+            if (advanced)
+            {
+                if (Session.FactInstanceRevision == factRevision + 1 &&
+                    _lastPreparedFactInstanceRevision != Session.FactInstanceRevision)
+                {
+                    PrepareNextFactUi();
+                }
+            }
+            else
+            {
+                _shouldFocusInput = false;
+                _shouldFocusPrimaryOverlay = true;
+            }
+        }
+        finally
+        {
+            if (ownsSubmitting) _isSubmitting = false;
+        }
+    }
+
+    // Native Back arrives outside the renderer; the presentation action runs on it and any failure is observed.
+    private void RunObservedPresentationAction(Func<Task> action)
+    {
+        if (_isDisposed) return;
+        _ = ObserveAsync();
+
+        async Task ObserveAsync()
+        {
+            try
+            {
+                await InvokeAsync(async () =>
+                {
+                    await action();
+                    if (!_isDisposed) StateHasChanged();
+                });
+            }
+            catch (ObjectDisposedException) { }
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning("Presentation action failed: {0}", ex); }
+        }
+    }
+
     // Re-reads the committed receipt of the current submission (re-entry, foreground return, explicit retry).
     // An unreadable receipt cannot prove that no recap is required, so it holds the answer instead of advancing.
     private async Task<CommittedOutcome> CompleteCommittedAnswerAsync(string submissionId)
     {
+        var presentations = TakeHeldCommittedPresentations(submissionId);
         CyberDefenseReceiptRecord? receipt;
         try { receipt = await GameplayStore.GetReceiptAsync(submissionId, _presentationLifetime.Token); }
-        catch { return CommittedOutcome.Held; }
-        return await CompleteCommittedOutcomeAsync(receipt);
+        catch
+        {
+            if (presentations is not null) _heldCommittedPresentations = presentations;
+            return CommittedOutcome.Held;
+        }
+        return await CompleteCommittedOutcomeAsync(receipt, presentations);
+    }
+
+    private CommittedPresentations? TakeHeldCommittedPresentations(string submissionId)
+    {
+        var held = _heldCommittedPresentations;
+        _heldCommittedPresentations = null;
+        return held is not null && held.SubmissionId == submissionId && held.Generation == Session.LearnerStateGenerationRevision
+            ? held
+            : null;
     }
 
     // Returns true only when mathematics may continue: no presentation is required, or the user acknowledged
@@ -1469,7 +1730,8 @@
     private async Task ResumeCommittedAnswerAsync()
     {
         if (_isDisposed || _isSubmitting || _isTutorialOpen || _isUpgradeTerminalOpen || !Session.IsAppForeground ||
-            Ceremony.IsBlocking || Session.InteractionState != SessionInteractionState.CorrectFeedback ||
+            Ceremony.IsBlocking || _committedPresentationGate is not null ||
+            Session.InteractionState != SessionInteractionState.CorrectFeedback ||
             !Session.IsCurrentSubmissionCommitted || Session.LastEvaluation?.ChangeSet is not { } committed)
         {
             return;
@@ -1482,6 +1744,7 @@
         {
             var outcome = await CompleteCommittedAnswerAsync(committed.SubmissionId);
             if (_isDisposed || Session.LearnerStateGenerationRevision != generation) return;
+            if (outcome == CommittedOutcome.AwaitingPresentation) return;
             if (outcome == CommittedOutcome.Advanced)
             {
                 if (Session.FactInstanceRevision == factRevision + 1 &&
@@ -1751,8 +2014,9 @@
 
     // A committed correct answer whose recap was not acknowledged (background, failure, re-entry) waits here.
     // It only offers the explicit recovery: the recap is shown again and only its own Continue advances the question.
+    // An open Issue #123 presentation gate is not held: its own acknowledgement is the only way forward.
     private bool IsHeldCommittedAnswer =>
-        !_isSubmitting && !_isInitializing && !_startupFailed && !Ceremony.IsBlocking &&
+        !_isSubmitting && !_isInitializing && !_startupFailed && !Ceremony.IsBlocking && _committedPresentationGate is null &&
         Session.IsInitialized && Session.CurrentFact is not null &&
         Session.InteractionState == SessionInteractionState.CorrectFeedback &&
         Session.IsCurrentSubmissionCommitted && Session.LastEvaluation?.ChangeSet is not null;
@@ -1764,7 +2028,7 @@
         Session.InteractionState == SessionInteractionState.AwaitingAnswer &&
         !_isTutorialOpen;
 
-    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen && !_isTutorialOpen;
+    private bool CanPausePractice => IsAnswerEntryVisible && !_isSubmitting && !_isUpgradeTerminalOpen && !_isTutorialOpen && !_isUpgradeSpotlightOpen && _activeOperationUnlock is null;
 
     // Issue #125: the menu has no open flag of its own. It is the ManualPause gate of the session, so opening it is
     // the authoritative PausePractice and only the explicit Continue (StartOrResumePractice) leaves it.
@@ -1830,6 +2094,8 @@
         _isSubmitting ||
         _isUpgradeTerminalOpen ||
         _isTutorialOpen ||
+        _isUpgradeSpotlightOpen ||
+        _activeOperationUnlock is not null ||
         Ceremony.IsBlocking ||
         Session.PracticeGate is PracticeGateState.ManualPause or PracticeGateState.BackgroundResumeGate ||
         IsAwaitingAcknowledgement ||
@@ -1847,6 +2113,18 @@
         if (_isDisposed)
         {
             return false;
+        }
+
+        // Issue #123: Back is the spotlight's explicit "Later"; an operation unlock needs its own Continue.
+        if (_isUpgradeSpotlightOpen)
+        {
+            RunObservedPresentationAction(DismissUpgradeSpotlight);
+            return true;
+        }
+
+        if (_committedPresentationGate is not null)
+        {
+            return true;
         }
 
         if (CanOpenGameMenu)
@@ -1877,6 +2155,23 @@
             return;
         }
 
+        if (_activeOperationUnlock is not null)
+        {
+            return;
+        }
+
+        // Issue #123: the spotlighted header control and the spotlight's own action both acknowledge the spotlight by
+        // opening the real terminal; the gate stays open until that terminal closes.
+        if (_isUpgradeSpotlightOpen)
+        {
+            if (!Session.IsAppForeground)
+            {
+                return;
+            }
+            _isUpgradeSpotlightOpen = false;
+            _isUpgradeOnboardingGuided = true;
+        }
+
         // Synchronously pause timing before any await
         _wasTimingSuspendedByTerminal = Session.IsTimingActive;
         Session.PauseItemTiming();
@@ -1895,15 +2190,18 @@
         {
             // Failed dialog initialization safely releases only the terminal-owned pause
             CloseUpgradeTerminalCore(releasePauseOnly: true);
+            await ReleaseCommittedPresentationGateAsync();
             return;
         }
 
         await InvokeAsync(StateHasChanged);
     }
 
-    private void CloseUpgradeTerminal()
+    private async Task CloseUpgradeTerminal()
     {
         CloseUpgradeTerminalCore(releasePauseOnly: false);
+        // Issue #123: closing the terminal opened from the spotlight is the last acknowledgement of its gate.
+        await ReleaseCommittedPresentationGateAsync();
     }
 
     private void CloseUpgradeTerminalCore(bool releasePauseOnly)
@@ -1914,6 +2212,7 @@
         }
 
         _isUpgradeTerminalOpen = false;
+        _isUpgradeOnboardingGuided = false;
 
         var shouldResumeTiming = _wasTimingSuspendedByTerminal
             && Session.IsAppForeground

@@ -29,6 +29,19 @@
             </div>
         </div>
 
+        @* Issue #123: one compact row, so the pinned header, status and Close still fit at ordinary phone text sizes. *@
+        @if (IsGuidedOnboarding && !_hasDismissedGuidedAdvice)
+        {
+            <section class="upgrade-guided-advice-card" role="region" aria-label='@EffectiveLocalizer["UpgradeTerminal_GuidedAdviceAriaLabel"]'>
+                <p class="guided-advice-text">@GuidedAdviceText</p>
+                <button type="button"
+                        class="button button-secondary guided-advice-skip-btn"
+                        @onclick="DismissGuidedAdvice">
+                    @EffectiveLocalizer["UpgradeTerminal_GuidedAdviceGotIt"]
+                </button>
+            </section>
+        }
+
         <!-- Upgrade Cards List -->
         <div class="upgrade-cards-container" role="list">
             <article class="upgrade-card attack-upgrade-card" role="listitem" aria-labelledby="attack-upgrade-title">
@@ -331,6 +344,32 @@
 
     [Parameter]
     public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public bool IsGuidedOnboarding { get; set; }
+
+    private bool _hasDismissedGuidedAdvice;
+
+    private void DismissGuidedAdvice()
+    {
+        _hasDismissedGuidedAdvice = true;
+    }
+
+    private string GuidedAdviceText
+    {
+        get
+        {
+            if (ViewModel?.CanPurchase ?? false)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_GuidedAdviceAffordableAttack", ViewModel?.NextRankCost ?? 1];
+            }
+            if ((ViewModel?.CurrentAttackRank ?? 0) > 0)
+            {
+                return EffectiveLocalizer["UpgradeTerminal_GuidedAdviceAttackPurchased"];
+            }
+            return EffectiveLocalizer["UpgradeTerminal_GuidedAdviceSaveSp"];
+        }
+    }
 
     private ElementReference _purchaseButton;
     private ElementReference _firewallPurchaseButton;

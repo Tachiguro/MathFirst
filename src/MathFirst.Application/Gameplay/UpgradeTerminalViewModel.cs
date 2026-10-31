@@ -66,6 +66,14 @@ public sealed class UpgradeTerminalViewModel : IDisposable
         get { lock (_stateLock) return _hasAuthoritativeStatus && UpgradeDiscoveryPolicy.IsDiscovered(_status); }
     }
 
+    /// <summary>
+    /// Issue #123: true when an accepted committed snapshot presents an active, authoritative purchasing opportunity.
+    /// </summary>
+    public bool HasPurchasingOpportunity
+    {
+        get { lock (_stateLock) return _hasAuthoritativeStatus && UpgradeDiscoveryPolicy.HasPurchasingOpportunity(_status); }
+    }
+
     public int PlayerLevel => Status.PlayerLevel;
     public long CumulativeXp => Status.CumulativeXp;
     public long XpIntoCurrentLevel => Status.XpIntoCurrentLevel;

@@ -57,7 +57,10 @@ internal static class ChromiumLayoutHarness
     [
         new("b-mf-hud", ".cyber-defense-hud", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css")),
         new("b-mf-upgrade", ".upgrade-terminal-dialog", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "UpgradeTerminal.razor.css")),
-        new("b-mf-ceremony", ".combat-ceremony-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseCeremony.razor.css"))
+        new("b-mf-ceremony", ".combat-ceremony-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseCeremony.razor.css")),
+        // Issue #123: each component renders a backdrop and a dialog as siblings; both carry the component scope.
+        new("b-mf-spotlight", ".upgrade-spotlight-backdrop, .upgrade-spotlight-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "UpgradeSpotlight.razor.css")),
+        new("b-mf-unlock", ".operation-unlock-backdrop, .operation-unlock-dialog", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "OperationUnlockAnnouncement.razor.css"))
     ];
 
     public static string? FindBrowser()
@@ -324,9 +327,11 @@ internal static class ChromiumLayoutHarness
                 close: visibleFraction(w, close),
                 closeHit: hits(d, close)
             });
+            const advice = q('.upgrade-guided-advice-card');
             const result = {
                 present: !!dialog && !!content && !!cards && !!close && cardList.length > 0,
                 cardCount: cardList.length,
+                guidedAdviceAtOpen: advice ? visibleFraction(w, advice) : null,
                 atOpen: pinned(),
                 rects: { dialog: rectOf(dialog), content: rectOf(content), cards: rectOf(cards), close: rectOf(close) },
                 contentDisplay: content ? w.getComputedStyle(content).display : null,
@@ -362,6 +367,14 @@ internal static class ChromiumLayoutHarness
             reset();
             reveal(close);
             result.closeReachable = { visible: visibleFraction(w, close), hit: hits(d, close) };
+
+            const gotIt = q('.guided-advice-skip-btn');
+            if (gotIt) {
+                reset();
+                reveal(gotIt);
+                const r = gotIt.getBoundingClientRect();
+                result.guidedAdviceAction = { visible: visibleFraction(w, gotIt), hit: hits(d, gotIt), width: r.width, height: r.height };
+            }
 
             result.purchaseButtons = [...d.querySelectorAll('.upgrade-card-purchase-btn')].map(btn => {
                 reset();
@@ -524,6 +537,62 @@ internal static class ChromiumLayoutHarness
             return result;
         }
 
+        // Issue #123: the operation-unlock announcement and the Upgrade spotlight. Every acknowledgement action is brought
+        // into view as a user would and must be a full, uncovered touch target. The spotlighted header Upgrade control stays
+        // visible and tappable above the dimmed page, while the practice surface underneath cannot be hit.
+        function presentationProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const dialog = q('.operation-unlock-dialog') || q('.upgrade-spotlight-overlay');
+            const card = q('.operation-unlock-content') || q('.upgrade-spotlight-card');
+            const heading = q('#operation-unlock-title') || q('#upgrade-spotlight-title');
+            const actions = [...d.querySelectorAll('.operation-unlock-continue-btn, .upgrade-spotlight-btn')];
+            const doc = d.documentElement;
+            const result = {
+                present: !!dialog && !!card && !!heading && actions.length > 0,
+                kind: q('.operation-unlock-dialog') ? 'unlock' : 'spotlight',
+                dialogCount: d.querySelectorAll('[role="dialog"]').length,
+                headerInert: !!q('.mathfirst-header[inert]'),
+                mainInert: !!q('main.training-card[inert]'),
+                horizontalOverflow: doc.scrollWidth > w.innerWidth + 1 || d.body.scrollWidth > w.innerWidth + 1 ||
+                    (!!dialog && dialog.scrollWidth > dialog.clientWidth + 1),
+                scrollWidth: doc.scrollWidth
+            };
+            if (!result.present) return result;
+            const reset = () => { for (const el of [d.scrollingElement, ...d.body.querySelectorAll('*')]) { if (el.scrollTop) el.scrollTop = 0; } };
+            const traps = () => [d.documentElement, d.body, ...d.body.querySelectorAll('*')]
+                .filter(el => el !== d.scrollingElement && (el.scrollTop !== 0 || el.scrollLeft !== 0) &&
+                    !['auto', 'scroll'].includes(w.getComputedStyle(el).overflowY))
+                .map(el => (el.className && el.className.baseVal === undefined ? el.className : el.tagName) + '');
+            const reach = el => {
+                reset();
+                el.scrollIntoView({ block: 'center', inline: 'nearest' });
+                const r = el.getBoundingClientRect();
+                return {
+                    cls: el.className + '', text: el.textContent.trim(), width: r.width, height: r.height,
+                    visible: visibleFraction(w, el), hit: hits(d, el), clip: clippedByAncestors(w, el),
+                    textOverflow: el.scrollWidth > el.clientWidth + 1, traps: traps()
+                };
+            };
+            reset();
+            result.headingAtOpen = visibleFraction(w, heading);
+            const c = card.getBoundingClientRect();
+            result.card = { left: c.left, right: c.right, top: c.top, bottom: c.bottom };
+            const target = q('[data-spotlight-active="upgrade-header"] [data-spotlight-id="upgrade-header"]');
+            if (target) {
+                const t = target.getBoundingClientRect();
+                result.spotlightTarget = {
+                    visible: visibleFraction(w, target), hit: hits(d, target), disabled: !!target.disabled, width: t.width, height: t.height,
+                    overlapsCard: t.left < c.right - 0.5 && c.left < t.right - 0.5 && t.top < c.bottom - 0.5 && c.top < t.bottom - 0.5
+                };
+            } else {
+                result.spotlightTarget = null;
+            }
+            result.practiceSurfaceHit = [...d.querySelectorAll('.numeric-keypad-button, .answer-input, .pause-practice-btn')].some(el => hits(d, el));
+            result.actions = actions.map(reach);
+            reset();
+            return result;
+        }
+
         (async () => {
             try {
                 for (const scenario of MF_PAYLOAD.scenarios) {
@@ -533,7 +602,8 @@ internal static class ChromiumLayoutHarness
                     void d.body.offsetHeight;
                     const focus = applyFocus(d, scenario);
                     const probe = scenario.probe === 'hud' ? hudProbe(d, w) : scenario.probe === 'home' ? homeProbe(d, w)
-                        : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : scenario.probe === 'menu' ? menuProbe(d, w) : terminalProbe(d, w);
+                        : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : scenario.probe === 'menu' ? menuProbe(d, w)
+                        : scenario.probe === 'presentation' ? presentationProbe(d, w) : terminalProbe(d, w);
                     state.results.push({
                         id: scenario.id,
                         viewport: { width: w.innerWidth, height: w.innerHeight },
