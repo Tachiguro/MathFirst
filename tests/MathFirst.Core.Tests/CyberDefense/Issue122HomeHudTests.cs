@@ -365,7 +365,10 @@ public sealed class Issue122HomeHudTests : IDisposable
         CurriculumStage Stage = CurriculumStage.Stage1_Addition,
         (ArithmeticOperation Operation, int Band)[]? Bands = null,
         ArithmeticOperation[]? Preferences = null,
-        int FirewallPurchases = 0);
+        int FirewallPurchases = 0,
+        // Issue #134: purchased Critical Strike ranks and an optional synthetic run-state seed, applied before Home mounts.
+        int CriticalStrikePurchases = 0,
+        Func<SqliteGameplayStore, Task>? SeedRunState = null);
 
     internal sealed class HomeFixture : IAsyncDisposable
     {
@@ -407,6 +410,8 @@ public sealed class Issue122HomeHudTests : IDisposable
             await store.InitializeAsync();
             await SeedAsync(store, options.CumulativeXp ?? CyberDefenseLevelPolicy.GetCumulativeXpThreshold(options.PlayerLevel));
             for (var rank = 0; rank < options.FirewallPurchases; rank++) await store.PurchaseFirewallUpgradeAsync(rank, 0);
+            for (var rank = 0; rank < options.CriticalStrikePurchases; rank++) await store.PurchaseCriticalStrikeUpgradeAsync(rank, 0);
+            if (options.SeedRunState is { } seedRunState) await seedRunState(store);
 
             var progression = LearnerProgression.CreateFresh();
             progression.CurriculumStage = options.Stage;

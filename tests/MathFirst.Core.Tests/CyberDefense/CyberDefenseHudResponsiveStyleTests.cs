@@ -35,17 +35,20 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         throw new InvalidOperationException($"Unclosed media block: {query}");
     }
 
+    // Issue #134: the name wraps (bounded to two lines, never a single-line ellipsis) and the description is bounded to
+    // two whole lines. The rendered Chromium test proves shipped names are never truncated.
     [Fact]
-    public void OpponentIntel_DoesNotEllipsizeOrLineClampEssentialText()
+    public void OpponentIntel_WrapsTheNameAndBoundsNameAndDescriptionToTwoWholeLines()
     {
         var css = HudCss;
         var name = Rule(css, ".scene-enemy-name");
         var description = Rule(css, ".scene-enemy-desc");
         Assert.Contains("white-space: normal;", name);
-        Assert.DoesNotContain("overflow: hidden", name);
+        Assert.DoesNotContain("white-space: nowrap", name);
         Assert.DoesNotContain("text-overflow: ellipsis", name);
-        Assert.DoesNotContain("line-clamp", description);
-        Assert.DoesNotContain("overflow: hidden", description);
+        Assert.Contains("-webkit-line-clamp: 2;", name);
+        Assert.Contains("-webkit-line-clamp: 2;", description);
+        Assert.Contains("line-clamp: 2;", description);
     }
 
     [Fact]
@@ -54,8 +57,11 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         var css = HudCss;
         var narrow = Media(css, "@media (max-width: 600px)");
         Assert.Contains("display: none;", Rule(narrow, ".scene-category-text")); // Redundant region title only.
-        Assert.Contains("position: absolute;", Rule(narrow, ".scene-artwork-wrapper"));
-        Assert.Contains("width: 100%;", Rule(narrow, ".scene-intel"));
+        // Issue #134: the artwork has its own in-flow area beside the intel at every width, never under the text.
+        Assert.DoesNotContain(".scene-artwork-wrapper", narrow);
+        Assert.DoesNotContain("position: absolute", Rule(css, ".scene-artwork-wrapper"));
+        Assert.Contains("height: 100%;", Rule(css, ".scene-artwork-wrapper"));
+        Assert.Contains("aspect-ratio: 1 / 1;", Rule(css, ".scene-artwork-wrapper"));
         Assert.Contains("display: none;", Rule(narrow, ".tactical-telemetry-list")); // Decorative, aria-hidden already.
         Assert.Contains("flex-shrink: 0;", Rule(css, ".tactical-radar-widget"));
         foreach (var essential in new[] { ".scene-sector-tag", ".scene-wave-tag", ".shield-badges-row", ".player-hp-value",
@@ -69,15 +75,16 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         Assert.DoesNotContain("flex-wrap: wrap", Rule(css, ".player-shield-panel"));
     }
 
+    // Issue #134: the opponent section keeps its pre-#134 outer height (top bar + fixed stage + borders); a wrapping
+    // name shrinks the stage inside it instead of moving the math workspace.
     [Fact]
-    public void NarrowIntel_ReclaimsInternalPadding_WithinExistingFixedStageHeight()
+    public void OpponentSection_KeepsItsOuterHeight_AndTheStageYieldsInsideIt()
     {
-        var narrow = Media(HudCss, "@media (max-width: 600px)");
-        Assert.Contains("padding-block: 0.25rem;", Rule(narrow, ".scene-stage"));
-        Assert.Contains("padding-block: 0;", Rule(narrow, ".scene-intel"));
-        Assert.Contains("gap: 0.125rem;", Rule(narrow, ".scene-intel"));
-        Assert.Contains("line-height: 1.1;", Rule(narrow, ".enemy-hp-value"));
-        Assert.DoesNotMatch(@"(?:^|[;\s])(?:height|min-height):", Rule(narrow, ".scene-stage"));
+        var css = HudCss;
+        Assert.Contains("height: calc(2.25rem + clamp(110px, 18vh, 155px) + 2px);", Rule(css, ".enemy-battle-scene"));
+        Assert.Contains("flex-shrink: 0;", Rule(css, ".scene-top-bar"));
+        Assert.Contains("min-height: 0;", Rule(css, ".scene-stage"));
+        Assert.DoesNotMatch(@"(?:^|[;\s])(?:height|min-height):", Rule(Media(css, "@media (max-width: 600px)"), ".scene-stage"));
     }
 
     [Fact]
@@ -86,9 +93,13 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         var css = HudCss;
         Assert.Contains("flex: 1;", Rule(css, ".shield-status-column"));
         Assert.Contains("min-width: 0;", Rule(css, ".player-hp-cluster"));
-        Assert.Contains("white-space: nowrap;", Rule(css, ".shield-section-title"));
         Assert.Contains("flex-shrink: 0;", Rule(css, ".player-hp-value"));
         Assert.Contains("min-width: 0;", Rule(css, ".scene-top-actions"));
+        // Issue #134: the shield row keeps the former one-line title height with or without shields, and the panel keeps
+        // the radar-bound height whether or not the earned radar is shown.
+        Assert.Contains("height: calc(0.725rem * 1.1);", Rule(css, ".player-status-heading"));
+        Assert.Contains("min-height: calc(46px + 2 * clamp(0.5rem, 1.2vh, 0.75rem) + 2px);", Rule(css, ".player-shield-panel"));
+        Assert.DoesNotContain("shield-section-title", css);
     }
 
     [Fact]

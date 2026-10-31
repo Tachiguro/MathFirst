@@ -364,6 +364,8 @@
                                              CriticalWindowMs="Session.CurrentFactCriticalHitThresholdMs"
                                              ActiveElapsedMs="Session.GetCurrentActiveElapsedMs()"
                                              TaskKey="@($"{Session.CurrentFact!.Id}_{Session.ItemReadyTimestamp}")"
+                                             IsTimingActive="Session.IsTimingActive"
+                                             CriticalStrikeRank="HudCriticalStrikeRank"
                                              PlayerProgress="HudPlayerProgress" />
 
                             <PracticeCountdownTimer Session="Session"
@@ -630,6 +632,11 @@
     // snapshot exists so a placeholder is never presented as Level 1.
     private PlayerLevelProgress? HudPlayerProgress =>
         _upgradeTerminalViewModel is { HasAuthoritativeStatus: true } viewModel ? viewModel.LevelProgress : null;
+
+    // Issue #134: the purchased Critical Strike rank from the same committed snapshot; null while unknown, so the HUD
+    // never advertises the skill before an authoritative read shows it was bought.
+    private int? HudCriticalStrikeRank =>
+        _upgradeTerminalViewModel is { HasAuthoritativeStatus: true } viewModel ? viewModel.CurrentCriticalStrikeRank : null;
     private string _answerInput = string.Empty;
     private string? _validationError;
     private string? _submittedAnswerDisplay;

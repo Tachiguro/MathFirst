@@ -284,15 +284,15 @@ public sealed class CyberDefenseUiContractTests
     }
 
     [Fact]
-    public void CyberDefenseHudCss_ShieldSectionTitleAndPlayerHpCluster_AreProperlyClosedAndNotNested()
+    public void CyberDefenseHudCss_PlayerStatusHeadingAndPlayerHpCluster_AreProperlyClosedAndNotNested()
     {
         var cssPath = GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor.css");
         Assert.True(File.Exists(cssPath));
         var css = File.ReadAllText(cssPath);
 
-        // .shield-section-title must have its own closing brace before .player-hp-cluster
-        var match = Regex.Match(css, @"\.shield-section-title\s*\{(?<content>[^}]+)\}", RegexOptions.Singleline);
-        Assert.True(match.Success, ".shield-section-title must be closed with a closing brace.");
+        // Issue #134 removed the duplicated HP title; the shield status row must have its own closing brace before .player-hp-cluster
+        var match = Regex.Match(css, @"\.player-status-heading\s*\{(?<content>[^}]+)\}", RegexOptions.Singleline);
+        Assert.True(match.Success, ".player-status-heading must be closed with a closing brace.");
         Assert.DoesNotContain(".player-hp-cluster", match.Groups["content"].Value, StringComparison.Ordinal);
 
         // .player-hp-cluster must also be its own block
@@ -738,9 +738,9 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(File.Exists(cssPath));
         var css = File.ReadAllText(cssPath);
 
-        // Normal structural wrapper geometry is defined
+        // Normal structural wrapper geometry is defined: since Issue #134 a square area at the full (fixed) stage height
         Assert.Contains(".scene-artwork-wrapper", css, StringComparison.Ordinal);
-        Assert.Contains("clamp(90px, 16vh, 140px)", css, StringComparison.Ordinal);
+        Assert.Matches(@"\.scene-artwork-wrapper\s*\{[^}]*height:\s*100%;[^}]*aspect-ratio:\s*1 / 1;", css);
 
         // Boss mode MUST NOT enlarge layout box geometry
         Assert.DoesNotMatch(@"\.scene-artwork-wrapper\.is-boss\s*\{[^}]*width:", css);

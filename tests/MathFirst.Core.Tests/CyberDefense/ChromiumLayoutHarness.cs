@@ -102,6 +102,8 @@ internal static class ChromiumLayoutHarness
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // The dumped DOM is UTF-8; the console code page would garble measured Cyrillic text.
+            StandardOutputEncoding = Encoding.UTF8,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -442,6 +444,108 @@ internal static class ChromiumLayoutHarness
             };
         }
 
+        // Issue #134: opponent hierarchy, numeric HP, artwork room, player panel and the protected math geometry.
+        function combatProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const selectors = ['.enemy-battle-scene', '.scene-top-bar', '.scene-enemy-name', '.scene-sector-tag', '.scene-wave-tag',
+                '.scene-stage', '.scene-intel', '.scene-enemy-desc', '.enemy-hp-cluster', '.enemy-hp-bar', '.enemy-hp-value',
+                '.scene-artwork-wrapper', '.scene-opponent-image', '.player-shield-panel', '.player-hp-bar', '.player-hp-value',
+                '.player-xp-cluster', '.shield-badges-row', '.shield-recharge-bar', '.tactical-radar-widget', '.training-top-region', '.practice-layout',
+                '.expression-row', '.answer-input', '.numeric-keypad', '.mathfirst-header', '.operation-progress-hud'];
+            const rects = {}, clip = {}, textOverflow = {}, text = {}, lines = {};
+            for (const sel of selectors) {
+                const el = q(sel);
+                rects[sel] = rectOf(el);
+                if (!el) continue;
+                clip[sel] = clippedByAncestors(w, el);
+                textOverflow[sel] = el.scrollWidth > el.clientWidth + 1;
+                text[sel] = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            }
+            for (const sel of ['.scene-enemy-name', '.scene-enemy-desc']) {
+                const el = q(sel);
+                if (!el) continue;
+                const cs = w.getComputedStyle(el);
+                let lh = parseFloat(cs.lineHeight);
+                if (!isFinite(lh)) lh = parseFloat(cs.fontSize) * 1.2;
+                lines[sel] = { clientHeight: el.clientHeight, scrollHeight: el.scrollHeight, lineHeight: lh, fontPx: parseFloat(cs.fontSize) };
+            }
+            const keypad = [...d.querySelectorAll('.numeric-keypad-button')].map(rectOf);
+            const overlap = (a, b) => !!a && !!b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+            const pairs = [['.scene-opponent-image', '.scene-enemy-desc'], ['.scene-opponent-image', '.enemy-hp-value'], ['.scene-opponent-image', '.enemy-hp-bar'],
+                ['.scene-opponent-image', '.scene-enemy-name'], ['.scene-enemy-name', '.scene-sector-tag'], ['.scene-enemy-name', '.scene-wave-tag'],
+                ['.scene-sector-tag', '.scene-wave-tag'], ['.scene-enemy-desc', '.enemy-hp-cluster'], ['.enemy-hp-bar', '.enemy-hp-value'],
+                ['.player-hp-value', '.tactical-radar-widget'], ['.player-xp-cluster', '.tactical-radar-widget']];
+            const overlaps = pairs.map(([a, b]) => {
+                const ra = rects[a], rb = rects[b];
+                if (!overlap(ra, rb)) return null;
+                const dx = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), dy = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+                return { pair: a + ' x ' + b, depth: Math.min(dx, dy) };
+            }).filter(x => x);
+            // WCAG contrast of the top-bar text against the bar's own background (text alpha composited over it).
+            const rgba = s => { const m = (s.match(/[\d.]+/g) || [0, 0, 0, 0]).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
+            const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+            const contrast = (el, bgEl) => {
+                if (!el || !bgEl) return null;
+                const bg = rgba(w.getComputedStyle(bgEl).backgroundColor);
+                if (bg.a < 1) return null;
+                const fg = rgba(w.getComputedStyle(el).color);
+                const mix = { r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a) };
+                const a = lum(mix), b = lum(bg);
+                return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+            };
+            const bar = q('.scene-top-bar');
+            const contrasts = {
+                name: contrast(q('.scene-enemy-name'), bar),
+                sector: contrast(q('.scene-sector-tag'), bar),
+                wave: contrast(q('.scene-wave-tag .boss-wave-text') || q('.scene-wave-tag'), bar)
+            };
+            const doc = d.documentElement;
+            return {
+                rects, clip, textOverflow, text, lines, keypad, overlaps, contrasts,
+                horizontalOverflow: doc.scrollWidth > w.innerWidth + 1 || d.body.scrollWidth > w.innerWidth + 1,
+                scrollWidth: doc.scrollWidth, viewportHeight: w.innerHeight, viewportWidth: w.innerWidth,
+                rootFontPx: parseFloat(w.getComputedStyle(doc).fontSize)
+            };
+        }
+
+        // Issue #134: replays a sequence of real HUD renders against the running radar arc the way Blazor's diff does:
+        // an element with the same segment (render key) is patched in place, a new segment replaces the element. Time
+        // passing is emulated by advancing each running animation; a paused animation does not advance.
+        function radarProbe(d, w) {
+            const arcOf = () => d.querySelector('.radar-timing-arc');
+            const progressOf = () => {
+                const arc = arcOf();
+                if (!arc) return { present: false };
+                const anims = arc.getAnimations();
+                const timing = anims.length ? anims[0].effect.getComputedTiming() : null;
+                return { present: true, animations: anims.length, playState: anims.length ? anims[0].playState : null,
+                    progress: timing ? timing.progress : null, segment: arc.getAttribute('data-radar-segment') };
+            };
+            const steps = [...d.querySelectorAll('template.mf-radar-step')];
+            const result = { initial: progressOf(), steps: [] };
+            for (const step of steps) {
+                const advance = Number(step.getAttribute('data-advance-ms'));
+                const arc = arcOf();
+                if (arc) for (const a of arc.getAnimations()) if (a.playState === 'running') a.currentTime = (a.currentTime || 0) + advance;
+                const next = step.content.querySelector('.radar-timing-arc');
+                let action = 'none';
+                if (arc && next && arc.getAttribute('data-radar-segment') === next.getAttribute('data-radar-segment')) {
+                    for (const name of arc.getAttributeNames()) if (name !== 'b-mf-hud' && !next.hasAttribute(name)) arc.removeAttribute(name);
+                    for (const name of next.getAttributeNames()) if (arc.getAttribute(name) !== next.getAttribute(name)) arc.setAttribute(name, next.getAttribute(name));
+                    action = 'patch';
+                } else if (arc && next) {
+                    const clone = next.cloneNode(true); clone.setAttribute('b-mf-hud', ''); arc.replaceWith(clone); action = 'replace';
+                } else if (arc) {
+                    arc.remove(); action = 'remove';
+                } else if (next) {
+                    const clone = next.cloneNode(true); clone.setAttribute('b-mf-hud', ''); d.querySelector('.radar-svg').appendChild(clone); action = 'insert';
+                }
+                void d.body.offsetHeight;
+                result.steps.push({ action, ...progressOf() });
+            }
+            return result;
+        }
+
         function homeProbe(d, w) {
             const q = s => d.querySelector(s);
             const dialog = q('.upgrade-terminal-dialog');
@@ -603,7 +707,8 @@ internal static class ChromiumLayoutHarness
                     const focus = applyFocus(d, scenario);
                     const probe = scenario.probe === 'hud' ? hudProbe(d, w) : scenario.probe === 'home' ? homeProbe(d, w)
                         : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : scenario.probe === 'menu' ? menuProbe(d, w)
-                        : scenario.probe === 'presentation' ? presentationProbe(d, w) : terminalProbe(d, w);
+                        : scenario.probe === 'presentation' ? presentationProbe(d, w) : scenario.probe === 'combat' ? combatProbe(d, w)
+                        : scenario.probe === 'radar' ? radarProbe(d, w) : terminalProbe(d, w);
                     state.results.push({
                         id: scenario.id,
                         viewport: { width: w.innerWidth, height: w.innerHeight },
