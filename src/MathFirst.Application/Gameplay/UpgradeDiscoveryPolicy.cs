@@ -19,4 +19,17 @@ public static class UpgradeDiscoveryPolicy
         ArgumentNullException.ThrowIfNull(status);
         return status.EarnedSkillPoints >= FirstOpportunityCost;
     }
+
+    /// <summary>
+    /// Issue #123: checks whether the given status presents an active, authoritative purchasing opportunity
+    /// (at least one eligible, level-unlocked upgrade family that the player can currently afford with available SP).
+    /// </summary>
+    public static bool HasPurchasingOpportunity(UpgradeTerminalStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        return status.CanPurchase ||
+               status.CanPurchaseFirewall ||
+               status.CanPurchaseCriticalStrike ||
+               status.CanPurchaseOverdrive;
+    }
 }

@@ -1,0 +1,96 @@
+@using MathFirst.Application
+@using MathFirst.Domain
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="operation-unlock-backdrop" aria-hidden="true"></div>
+<section class="practice-overlay operation-unlock-dialog"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="operation-unlock-title"
+         aria-describedby="operation-unlock-desc"
+         lang="@Localizer.CurrentUiLanguage"
+         tabindex="-1">
+    <div class="practice-overlay-content operation-unlock-content">
+        <div class="operation-unlock-badge-row">
+            <span class="operation-unlock-badge">@Localizer["OperationUnlock_Badge"]</span>
+        </div>
+        <div class="operation-unlock-symbol-slot" aria-hidden="true">
+            <span class="operation-unlock-symbol">@OperationSymbol</span>
+        </div>
+        <h2 id="operation-unlock-title" class="operation-unlock-title">@Title</h2>
+        <p id="operation-unlock-desc" class="operation-unlock-desc">@Description</p>
+        <div class="operation-unlock-actions">
+            <button type="button"
+                    @ref="_continueButton"
+                    class="button button-primary practice-overlay-action operation-unlock-continue-btn"
+                    aria-label="@ContinueAriaLabel"
+                    @onclick="AcknowledgeAsync">
+                @Localizer["Common_Continue"]
+            </button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public ArithmeticOperation Operation { get; set; }
+
+    [Parameter]
+    public EventCallback OnAcknowledge { get; set; }
+
+    [Parameter, EditorRequired]
+    public ILocalizationService Localizer { get; set; } = default!;
+
+    private ElementReference _continueButton;
+
+    private string OperationSymbol => Operation switch
+    {
+        ArithmeticOperation.Addition => "+",
+        ArithmeticOperation.Subtraction => "−",
+        ArithmeticOperation.Multiplication => "×",
+        ArithmeticOperation.Division => "÷",
+        _ => "?"
+    };
+
+    private string Title => Operation switch
+    {
+        ArithmeticOperation.Subtraction => Localizer["OperationUnlock_Title_Subtraction"],
+        ArithmeticOperation.Multiplication => Localizer["OperationUnlock_Title_Multiplication"],
+        ArithmeticOperation.Division => Localizer["OperationUnlock_Title_Division"],
+        _ => Localizer["OperationUnlock_Badge"]
+    };
+
+    private string Description => Operation switch
+    {
+        ArithmeticOperation.Subtraction => Localizer["OperationUnlock_Desc_Subtraction"],
+        ArithmeticOperation.Multiplication => Localizer["OperationUnlock_Desc_Multiplication"],
+        ArithmeticOperation.Division => Localizer["OperationUnlock_Desc_Division"],
+        _ => string.Empty
+    };
+
+    private string ContinueAriaLabel => $"{Title}. {Localizer["Common_Continue"]}";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await _continueButton.FocusAsync();
+            }
+            catch
+            {
+                // Headless test renderers or non-interactive hosts safely ignore focus requests.
+            }
+        }
+    }
+
+    // The focused Continue button is the only acknowledgement (click, Enter or Space); there is no dismiss shortcut.
+    private async Task AcknowledgeAsync()
+    {
+        if (OnAcknowledge.HasDelegate)
+        {
+            await OnAcknowledge.InvokeAsync();
+        }
+    }
+}

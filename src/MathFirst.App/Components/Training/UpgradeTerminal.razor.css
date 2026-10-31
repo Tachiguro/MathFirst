@@ -358,3 +358,36 @@
         min-height: 2.5rem;
     }
 }
+
+
+/* Issue #123 guided onboarding advice: one compact row (text + Got it) above the cards. */
+.upgrade-guided-advice-card {
+    width: 100%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-primary);
+    border-radius: 0.75rem;
+    background: rgba(27, 227, 169, 0.08);
+}
+
+.guided-advice-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.guided-advice-skip-btn {
+    flex: 0 0 auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+}

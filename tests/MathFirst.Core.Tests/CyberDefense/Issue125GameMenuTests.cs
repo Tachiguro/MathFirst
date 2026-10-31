@@ -32,7 +32,6 @@ public sealed class Issue125GameMenuTests : IDisposable
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         foreach (var directory in _tempDirectories)
         {
             try { Directory.Delete(directory, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -848,6 +847,12 @@ public sealed class Issue125GameMenuTests : IDisposable
         var header = MenuFixture.Header(await f.RenderedHtmlAsync());
         Assert.Single(Regex.Matches(header, "upgrade-nav-btn"));
         Assert.Contains("<span class=\"header-sp-badge\"", header);
+
+        // Issue #123: the first opportunity also opens the one-time Upgrade spotlight, which the menu never stacks on.
+        // Its explicit Later releases the held answer; the menu then offers Upgrade as well.
+        Assert.True(f.Field<bool>("_isUpgradeSpotlightOpen"));
+        Assert.False(f.CanOpenGameMenu);
+        await f.InvokeAsync("DismissUpgradeSpotlight");
         await f.OpenMenuAsync();
         Assert.Contains("pause-upgrade-btn", MenuFixture.Menu(await f.RenderedHtmlAsync()));
         Assert.Equal(progression, await f.Store.GetProgressionAsync());
@@ -1051,7 +1056,12 @@ public sealed class Issue125GameMenuTests : IDisposable
         bool CyberDefense = true,
         bool TutorialCompleted = true,
         CurriculumStage Stage = CurriculumStage.Stage1_Addition,
-        (ArithmeticOperation Operation, int Band)[]? Bands = null);
+        (ArithmeticOperation Operation, int Band)[]? Bands = null,
+        // Issue #123: synthetic D10 Addition evidence, so the next correct Addition answer commits Stage 1 -> 2.
+        bool AdditionMastered = false,
+        // Issue #123: 21 synthetic correct setup attempts, so the next correct answer defeats the sector boss.
+        bool PendingBossVictory = false,
+        ArithmeticOperation? MasteredOperation = null);
 
     internal sealed class MenuFixture : IAsyncDisposable
     {
@@ -1102,6 +1112,10 @@ public sealed class Issue125GameMenuTests : IDisposable
             await store.InitializeAsync();
             if (existingDirectory is null)
             {
+                for (var i = 0; options.PendingBossVictory && i < 21; i++)
+                {
+                    await store.ApplyAttemptTransactionAsync(new CyberDefensePendingIntentRecord("setup-" + i, "1+1", true, true, 1000, 0, DateTimeOffset.UnixEpoch));
+                }
                 await SeedAsync(store, options.CumulativeXp ?? CyberDefenseLevelPolicy.GetCumulativeXpThreshold(options.PlayerLevel));
             }
 
@@ -1112,7 +1126,16 @@ public sealed class Issue125GameMenuTests : IDisposable
                 progression.OperationProgressions[operation] = new OperationProgression(operation, band, 0);
             }
 
-            var learner = new SyntheticLearner(progression);
+            var items = new Dictionary<string, ItemLearningState>(StringComparer.Ordinal);
+            var masteredOperation = options.MasteredOperation ?? (options.AdditionMastered ? ArithmeticOperation.Addition : (ArithmeticOperation?)null);
+            if (masteredOperation is { } mastered)
+            {
+                progression.OperationProgressions[mastered] =
+                    new OperationProgression(mastered, D10MasteryTestSeed.MasteredBandIndex, 0);
+                foreach (var state in MasteredStates(mastered)) items[state.FactId] = state;
+            }
+
+            var learner = new SyntheticLearner(progression, items);
             var session = new TrainingSession(learner, clock, preferenceStore: preferences);
             var coordinator = new CyberDefenseCombatCoordinator(store, new CyberDefenseSubmissionConsumer(store, learner));
             var ceremony = new CyberDefensePresentationSequence(async (_, ct) =>
@@ -1148,10 +1171,30 @@ public sealed class Issue125GameMenuTests : IDisposable
             return fixture;
         }
 
+        // Mirrors D10MasteryTestSeed: every D01..D10 mastery fact attempted once and answered correctly.
+        private static IEnumerable<ItemLearningState> MasteredStates(ArithmeticOperation operation)
+        {
+            foreach (var factId in CurriculumUnlockPolicy.GetMasteryFactIds(operation))
+            {
+                var operands = factId[(factId.IndexOf(':') + 1)..].Split(['+', '-', '*', '/']);
+                var state = ItemLearningState.CreateNew(new ArithmeticFact(operation, int.Parse(operands[0], CultureInfo.InvariantCulture), int.Parse(operands[1], CultureInfo.InvariantCulture)));
+                Assert.Equal(factId, state.FactId);
+                state.TotalAttempts = 1;
+                state.CorrectAttempts = 1;
+                state.ConsecutiveCorrectStreak = 1;
+                yield return state;
+            }
+        }
+
         public static async Task SeedAsync(SqliteGameplayStore store, long cumulativeXp)
         {
             var level = CyberDefenseLevelPolicy.GetLevel(cumulativeXp);
-            using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={store.StoragePath}");
+            // This short-lived seed connection owns no pool. Store.Dispose clears only the store's own pool.
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = store.StoragePath,
+                Pooling = false
+            }.ToString());
             await connection.OpenAsync();
             using var command = connection.CreateCommand();
             command.CommandText = "UPDATE gameplay_progression SET cumulative_xp = @xp, player_level = @level, earned_sp = @sp, spent_sp = 0, available_sp = @sp WHERE id = 1;";
@@ -1306,7 +1349,6 @@ public sealed class Issue125GameMenuTests : IDisposable
             await UnmountAsync();
             await _services.DisposeAsync();
             Store.Dispose();
-            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         }
     }
 
@@ -1348,10 +1390,10 @@ public sealed class Issue125GameMenuTests : IDisposable
         public void ResetAllPreferences() { }
     }
 
-    internal sealed class SyntheticLearner(LearnerProgression initial) : ILearnerStore
+    internal sealed class SyntheticLearner(LearnerProgression initial, IReadOnlyDictionary<string, ItemLearningState>? items = null) : ILearnerStore
     {
         private readonly LearnerProgression _initial = initial;
-        private LearnerSnapshot _snapshot = new(initial, new Dictionary<string, ItemLearningState>(), [], 1, LearnerProgression.DefaultSchemaVersion);
+        private LearnerSnapshot _snapshot = new(initial, new Dictionary<string, ItemLearningState>(items ?? new Dictionary<string, ItemLearningState>(), StringComparer.Ordinal), [], 1, LearnerProgression.DefaultSchemaVersion);
 
         public int CommitCalls { get; private set; }
         public IReadOnlyList<AttemptRecord> Attempts => _snapshot.RecentAttempts;
@@ -1363,6 +1405,11 @@ public sealed class Issue125GameMenuTests : IDisposable
             Task.FromResult(PracticeSelectionEvidence.FromSnapshot(_snapshot, request));
         public Task<IReadOnlyList<AttemptRecord>> LoadLatestFrontierAttemptsAsync(ArithmeticOperation operation, long position, IReadOnlyList<string> ids, CancellationToken ct = default) =>
             Task.FromResult(TestStoreEvidenceHelper.FilterLatestFrontierAttempts(_snapshot.RecentAttempts, operation, position, ids));
+        // The authoritative mastery read (ADR-0013): only rows the synthetic store actually holds.
+        public Task<IReadOnlyDictionary<string, ItemLearningState>> LoadItemStatesAsync(IReadOnlyCollection<string> factIds, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyDictionary<string, ItemLearningState>>(factIds
+                .Where(_snapshot.ItemStates.ContainsKey)
+                .ToDictionary(id => id, id => _snapshot.ItemStates[id], StringComparer.Ordinal));
         public Task<PersistenceResult> CommitSubmissionAsync(SubmissionChangeSet change, CancellationToken ct = default)
         {
             CommitCalls++;

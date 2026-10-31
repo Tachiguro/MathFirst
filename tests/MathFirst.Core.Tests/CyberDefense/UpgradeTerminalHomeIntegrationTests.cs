@@ -814,11 +814,12 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         Assert.True(headerTagEnd > headerStart, "Header opening tag must be closed with '>'.");
         var headerOpeningTag = home.Substring(headerStart, headerTagEnd - headerStart + 1);
 
-        // MAJOR-01 Requirement 1: State-dependent inert protection on mathfirst-header
-        Assert.Contains("inert=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? true : null)\"", headerOpeningTag, StringComparison.Ordinal);
+        // MAJOR-01 Requirement 1: State-dependent inert protection on mathfirst-header. Issue #123 adds the operation
+        // unlock announcement; the Upgrade spotlight deliberately keeps the header (its real target) interactive.
+        Assert.Contains("inert=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen || _activeOperationUnlock is not null ? true : null)\"", headerOpeningTag, StringComparison.Ordinal);
 
         // MAJOR-01 Requirement 2: State-dependent aria-hidden protection on mathfirst-header
-        Assert.Contains("aria-hidden=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen ? \"true\" : null)\"", headerOpeningTag, StringComparison.Ordinal);
+        Assert.Contains("aria-hidden=\"@(_isUpgradeTerminalOpen || Ceremony.IsBlocking || _isTutorialOpen || _activeOperationUnlock is not null ? \"true\" : null)\"", headerOpeningTag, StringComparison.Ordinal);
 
         // 2. Locate the Upgrade button inside the header
         var headerEnd = home.IndexOf("</header>", headerStart, StringComparison.Ordinal);
