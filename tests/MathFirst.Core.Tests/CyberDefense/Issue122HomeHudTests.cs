@@ -43,9 +43,9 @@ public sealed class Issue122HomeHudTests : IDisposable
     [InlineData("en")]
     [InlineData("de")]
     [InlineData("ru")]
-    public async Task Header_HasNoModeToggle_ButKeepsUpgradePauseAndSettings(string language)
+    public async Task Header_HasNoModeToggle_ButKeepsUpgradeAndTheSingleMenu(string language)
     {
-        await using var f = await HomeFixture.CreateAsync(this, new(Language: language));
+        await using var f = await HomeFixture.CreateAsync(this, new(Language: language, PlayerLevel: 6));
         await f.InvokeHomeAsync("StartOrResumePractice");
 
         var html = await f.GetHtmlAsync();
@@ -56,7 +56,8 @@ public sealed class Issue122HomeHudTests : IDisposable
         Assert.DoesNotContain(f.Localizer["CyberDefense_Mode_Calm"], header);
         Assert.Contains("upgrade-nav-btn", header);
         Assert.Contains("pause-practice-btn", header);
-        Assert.Matches(@"<a href=""settings"" class=""button button-secondary settings-nav-btn""", header);
+        // Issue #125: Settings moved into the menu; the header keeps no separate Settings link.
+        Assert.DoesNotContain("href=\"settings\"", header);
     }
 
     [Fact]
@@ -435,6 +436,7 @@ public sealed class Issue122HomeHudTests : IDisposable
                 .AddSingleton<ICyberDefenseTutorialReplayRequests>(sp => sp.GetRequiredService<CyberDefenseSessionState>())
                 .AddSingleton(new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary())))
                 .AddSingleton<IAppResetCoordinator>(new NoResetCoordinator())
+                .AddSingleton<MathFirst.Application.Navigation.IAppBackNavigationCoordinator>(new MathFirst.Application.Navigation.AppBackNavigationCoordinator())
                 .AddSingleton<IHapticFeedbackService>(new SilentHaptics())
                 .AddSingleton<IJSRuntime>(new NoJsRuntime())
                 .BuildServiceProvider();

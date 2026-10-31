@@ -399,7 +399,7 @@ internal static class ChromiumLayoutHarness
 
         function hudProbe(d, w) {
             const q = s => d.querySelector(s);
-            const selectors = ['.mathfirst-header', '.upgrade-nav-btn', '.pause-practice-btn', '.settings-nav-btn', '.header-sp-badge',
+            const selectors = ['.mathfirst-header', '.mathfirst-title', '.upgrade-nav-btn', '.pause-practice-btn', '.header-sp-badge',
                 '.player-shield-panel', '.player-hp-bar', '.player-hp-value', '.player-xp-cluster', '.player-level-label', '.player-xp-bar',
                 '.player-xp-value', '.shield-status-column', '.tactical-radar-widget', '.training-top-region', '.practice-layout',
                 '.expression-row', '.answer-input', '.numeric-keypad', '.operation-progress-hud'];
@@ -417,8 +417,8 @@ internal static class ChromiumLayoutHarness
             const overlap = (a, b) => !!a && !!b && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
             const pairs = [['.player-hp-bar', '.player-xp-bar'], ['.player-hp-value', '.player-level-label'], ['.player-hp-value', '.player-xp-value'],
                 ['.player-hp-bar', '.player-level-label'], ['.player-xp-bar', '.player-level-label'], ['.player-xp-bar', '.player-xp-value'],
-                ['.player-level-label', '.player-xp-value'], ['.upgrade-nav-btn', '.pause-practice-btn'], ['.pause-practice-btn', '.settings-nav-btn'],
-                ['.upgrade-nav-btn', '.settings-nav-btn'], ['.player-xp-cluster', '.tactical-radar-widget'], ['.shield-status-column', '.tactical-radar-widget']];
+                ['.player-level-label', '.player-xp-value'], ['.upgrade-nav-btn', '.pause-practice-btn'], ['.mathfirst-title', '.upgrade-nav-btn'],
+                ['.mathfirst-title', '.pause-practice-btn'], ['.player-xp-cluster', '.tactical-radar-widget'], ['.shield-status-column', '.tactical-radar-widget']];
             const overlaps = pairs.filter(([a, b]) => overlap(rects[a], rects[b])).map(([a, b]) => a + ' x ' + b);
             const doc = d.documentElement;
             return {
@@ -479,6 +479,51 @@ internal static class ChromiumLayoutHarness
             return result;
         }
 
+        // Issue #125: the cyber main menu, which is the ManualPause gate overlay. Each action is brought into view the
+        // way a user would (scrollIntoView) and must then be a full, uncovered touch target. Only user-scrollable
+        // containers (overflow auto/scroll, or the document) may have moved: a scrolled overflow:hidden box is a trap.
+        function menuProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const overlay = q('.game-menu-overlay'), panel = q('.game-menu-panel'), heading = q('#practice-gate-title');
+            const actions = [...d.querySelectorAll('.game-menu-panel .practice-overlay-action, .game-menu-panel .game-menu-action')];
+            const doc = d.documentElement;
+            const result = {
+                present: !!overlay && !!panel && !!heading && actions.length > 0,
+                actionCount: actions.length,
+                animationName: panel ? w.getComputedStyle(panel).animationName : null,
+                practiceSurfacePresent: !!q('.numeric-keypad') || !!q('.answer-input'),
+                headerMenuPresent: !!q('.mathfirst-header .pause-practice-btn'),
+                progressExpanded: !!q('#game-menu-progress') && !q('#game-menu-progress').hidden,
+                horizontalOverflow: doc.scrollWidth > w.innerWidth + 1 || d.body.scrollWidth > w.innerWidth + 1,
+                scrollWidth: doc.scrollWidth
+            };
+            if (!result.present) return result;
+            const reset = () => { for (const el of [d.scrollingElement, ...d.body.querySelectorAll('*')]) { if (el.scrollTop) el.scrollTop = 0; } };
+            const traps = () => [d.documentElement, d.body, ...d.body.querySelectorAll('*')]
+                .filter(el => el !== d.scrollingElement && (el.scrollTop !== 0 || el.scrollLeft !== 0) &&
+                    !['auto', 'scroll'].includes(w.getComputedStyle(el).overflowY))
+                .map(el => (el.className && el.className.baseVal === undefined ? el.className : el.tagName) + '');
+            const reach = el => {
+                reset();
+                el.scrollIntoView({ block: 'center', inline: 'nearest' });
+                const r = el.getBoundingClientRect();
+                return {
+                    cls: el.className + '', text: el.textContent.trim(), width: r.width, height: r.height, left: r.left, right: r.right,
+                    visible: visibleFraction(w, el), hit: hits(d, el), clip: clippedByAncestors(w, el),
+                    textOverflow: el.scrollWidth > el.clientWidth + 1, traps: traps()
+                };
+            };
+            reset();
+            result.headingAtOpen = visibleFraction(w, heading);
+            const p = panel.getBoundingClientRect();
+            result.panel = { left: p.left, right: p.right, width: p.width };
+            result.actions = actions.map(reach);
+            const tail = q('#game-menu-progress:not([hidden]) .game-menu-player-level') || q('#game-menu-progress:not([hidden]) .ready-progress-entry:last-child');
+            result.progressTail = tail ? reach(tail) : null;
+            reset();
+            return result;
+        }
+
         (async () => {
             try {
                 for (const scenario of MF_PAYLOAD.scenarios) {
@@ -488,7 +533,7 @@ internal static class ChromiumLayoutHarness
                     void d.body.offsetHeight;
                     const focus = applyFocus(d, scenario);
                     const probe = scenario.probe === 'hud' ? hudProbe(d, w) : scenario.probe === 'home' ? homeProbe(d, w)
-                        : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : terminalProbe(d, w);
+                        : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : scenario.probe === 'menu' ? menuProbe(d, w) : terminalProbe(d, w);
                     state.results.push({
                         id: scenario.id,
                         viewport: { width: w.innerWidth, height: w.innerHeight },

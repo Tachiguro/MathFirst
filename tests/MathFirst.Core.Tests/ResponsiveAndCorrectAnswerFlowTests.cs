@@ -498,7 +498,7 @@ public sealed class ResponsiveAndCorrectAnswerFlowTests
         var settings = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Settings.razor"));
 
         Assert.Contains("class=\"practice-header-actions\"", home, StringComparison.Ordinal);
-        Assert.Contains("Training_Pause", home, StringComparison.Ordinal);
+        Assert.Contains("GameMenu_OpenAriaLabel", home, StringComparison.Ordinal);
         Assert.Contains("role=\"dialog\"", home, StringComparison.Ordinal);
         Assert.Contains("aria-modal=\"true\"", home, StringComparison.Ordinal);
         Assert.Contains("Session.PracticeGate != PracticeGateState.Running", home, StringComparison.Ordinal);

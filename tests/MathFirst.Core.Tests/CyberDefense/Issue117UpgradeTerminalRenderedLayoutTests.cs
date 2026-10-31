@@ -601,7 +601,17 @@ public sealed class Issue117UpgradeTerminalRenderedLayoutTests : IDisposable
             var sessionState = new CyberDefenseSessionState(preferences);
             var store = new SqliteGameplayStore(Path.Combine(directory, "synthetic-issue117-home.db"));
             await store.InitializeAsync();
-            await SetSyntheticPlayerLevelAsync(store, playerLevel);
+            if (playerLevel == 1)
+            {
+                // Issue #125: a Level 1 learner has never earned a Skill Point, so Home offers no Upgrade at all. The
+                // reachable "nothing affordable" Home state is a discovered learner who has spent every point.
+                await SetSyntheticPlayerLevelAsync(store, 2);
+                await store.PurchaseAttackUpgradeAsync(0, 0);
+            }
+            else
+            {
+                await SetSyntheticPlayerLevelAsync(store, playerLevel);
+            }
 
             var learner = new TestLearnerStore();
             var session = new TrainingSession(learner, clock, preferenceStore: preferences);
@@ -624,6 +634,7 @@ public sealed class Issue117UpgradeTerminalRenderedLayoutTests : IDisposable
                 .AddSingleton<ICyberDefenseTutorialReplayRequests>(sp => sp.GetRequiredService<CyberDefenseSessionState>())
                 .AddSingleton(new PracticeGateCopyState(new PracticeCopySelector(new PracticeCopyLibrary())))
                 .AddSingleton<IAppResetCoordinator>(new NoResetCoordinator())
+                .AddSingleton<MathFirst.Application.Navigation.IAppBackNavigationCoordinator>(new MathFirst.Application.Navigation.AppBackNavigationCoordinator())
                 .AddSingleton<IHapticFeedbackService>(new TestHapticFeedbackService())
                 .AddSingleton<IJSRuntime>(new RecordingJsRuntime())
                 .BuildServiceProvider();

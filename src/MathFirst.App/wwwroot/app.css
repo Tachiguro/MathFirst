@@ -926,29 +926,6 @@ select:disabled {
     border: 1px solid var(--color-border-strong);
 }
 
-.settings-nav-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-height: clamp(1.85rem, 3vh, 2.2rem);
-    padding: 0.2rem clamp(0.45rem, 1.2vw, 0.65rem);
-    font-size: clamp(0.75rem, 1.1vw, 0.85rem);
-    font-weight: 700;
-}
-
-.settings-gear-icon {
-    flex-shrink: 0;
-}
-
-@media (max-width: 440px) {
-    .settings-nav-btn .settings-nav-label {
-        display: none;
-    }
-    .settings-nav-btn {
-        padding: 0.35rem 0.55rem;
-    }
-}
-
 .training-card {
     width: 100%;
     min-height: clamp(40rem, calc(100dvh - 7rem), 58rem);
@@ -963,9 +940,13 @@ select:disabled {
     gap: clamp(0.5rem, 1.5vh, 1rem);
 }
 
+/* Issue #125: the actions never shrink under the Menu control and keep its height while it is hidden (terminal,
+   tutorial, feedback), so the header and the question below it do not move when the menu becomes unavailable. */
 .practice-header-actions {
     display: flex;
+    flex-shrink: 0;
     min-width: 0;
+    min-height: 2.75rem;
     align-items: center;
     gap: clamp(0.35rem, 1vw, 0.6rem);
 }
@@ -1029,11 +1010,19 @@ select:disabled {
     }
 }
 
+/* Issue #125: the single header Menu control. It keeps the amber pause treatment because opening it pauses. */
 .pause-practice-btn {
-    min-width: clamp(2.25rem, 4vw, 2.75rem);
-    min-height: clamp(2rem, 3.2vh, 2.4rem);
-    padding: 0.2rem 0.55rem;
-    font-size: clamp(1rem, 1.6vw, 1.25rem);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.2rem 0.7rem;
+    font-size: clamp(0.8rem, 1.2vw, 0.9rem);
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 .pause-practice-btn.button-pause {
@@ -1046,20 +1035,32 @@ select:disabled {
     background: var(--color-pause-hover);
 }
 
-.pause-icon {
+.game-menu-icon {
     display: inline-flex;
-    align-items: center;
+    flex-direction: column;
     justify-content: center;
-    gap: clamp(3px, 0.5vw, 4px);
-    width: clamp(12px, 1.6vw, 14px);
-    height: clamp(14px, 1.8vw, 16px);
+    gap: 3px;
+    width: 16px;
+    height: 14px;
+    flex-shrink: 0;
 }
 
-.pause-icon-bar {
-    width: clamp(3px, 0.4vw, 4px);
-    height: 100%;
+.game-menu-icon-bar {
+    width: 100%;
+    height: 2px;
     background-color: currentColor;
     border-radius: 1px;
+}
+
+/* Narrow phones keep the icon-only control; the accessible name still says "Menu". */
+@media (max-width: 440px) {
+    .pause-practice-btn .game-menu-label {
+        display: none;
+    }
+
+    .pause-practice-btn {
+        padding: 0.2rem;
+    }
 }
 
 @media (max-height: 500px) {
@@ -1312,6 +1313,115 @@ select:disabled {
     font-size: clamp(1.05rem, 2vw, 1.35rem);
 }
 
+/* =========================================================================
+   Issue #125: cyber main menu (the ManualPause surface) and gate Settings entry
+   ========================================================================= */
+
+.game-menu-panel {
+    position: relative;
+    width: min(100%, 24rem);
+    gap: clamp(0.65rem, 1.8vh, 1rem);
+    padding: clamp(1rem, 3vw, 1.5rem) clamp(0.85rem, 3vw, 1.5rem);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 1rem;
+    background: var(--color-surface-elevated);
+    box-shadow: var(--shadow-card);
+    animation: game-menu-enter 180ms ease-out;
+}
+
+.game-menu-panel h2 {
+    font-size: clamp(1.5rem, 4.5vw, 2.25rem);
+    overflow-wrap: anywhere;
+}
+
+.game-menu-kicker {
+    margin: 0;
+    color: var(--color-primary);
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.game-menu-actions {
+    width: min(100%, 20rem);
+    display: grid;
+    gap: 0.6rem;
+}
+
+.game-menu-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: min(100%, 20rem);
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.game-menu-progress {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.85rem;
+    background: var(--color-surface-muted);
+    text-align: left;
+}
+
+.game-menu-progress[hidden] {
+    display: none;
+}
+
+.game-menu-progress .pause-session-summary {
+    width: 100%;
+}
+
+.game-menu-progress-heading {
+    margin: 0;
+    color: var(--color-text);
+    font-size: 0.95rem;
+}
+
+.game-menu-player-level {
+    margin: 0;
+    color: var(--color-text);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+@keyframes game-menu-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (max-height: 520px) {
+    .game-menu-panel {
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    .game-menu-panel h2 {
+        font-size: 1.35rem;
+    }
+
+    .game-menu-actions {
+        gap: 0.4rem;
+    }
+}
+
 .feedback-dialog {
     border: 2px solid var(--color-danger-border);
     background: var(--color-danger-surface);
@@ -1440,6 +1550,30 @@ select:disabled {
 .app-theme-root[data-theme="dark"] .pause-summary-value {
     color: #3effa8;
     text-shadow: 0 0 4px rgba(62, 255, 168, 0.3);
+}
+
+.app-theme-root[data-theme="dark"] .game-menu-panel {
+    background: linear-gradient(180deg, rgba(14, 30, 24, 0.96) 0%, rgba(8, 20, 16, 0.98) 100%);
+    border-color: rgba(27, 227, 169, 0.45);
+    box-shadow: 0 0 0 1px rgba(27, 227, 169, 0.12), 0 0 24px rgba(27, 227, 169, 0.16), 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.app-theme-root[data-theme="dark"] .game-menu-kicker {
+    color: #3effa8;
+    text-shadow: 0 0 6px rgba(62, 255, 168, 0.35);
+}
+
+.app-theme-root[data-theme="dark"] .game-menu-action {
+    border-color: rgba(27, 227, 169, 0.35);
+}
+
+.app-theme-root[data-theme="dark"] .game-menu-progress {
+    background: rgba(10, 24, 19, 0.85);
+    border-color: rgba(27, 227, 169, 0.22);
+}
+
+.app-theme-root[data-theme="dark"] .game-menu-player-level {
+    color: #3effa8;
 }
 
 .app-theme-root[data-theme="dark"] .teaching-dialog {
@@ -1922,6 +2056,10 @@ select:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .game-menu-panel {
+        animation: none;
+    }
+
     .timer-bar-fill,
     .button,
     .choice-button,
@@ -2199,11 +2337,6 @@ select:disabled {
     .mathfirst-op-badge {
         padding: 0.1rem 0.35rem;
         font-size: clamp(0.65rem, 1.35vw, 0.75rem);
-    }
-
-    .settings-nav-btn {
-        min-height: 2rem;
-        padding-block: 0.15rem;
     }
 
     .training-card {
