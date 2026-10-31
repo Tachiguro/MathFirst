@@ -14,12 +14,14 @@ public sealed class CurriculumInvariantPropertyTests
         var additionCurriculum = _curriculum.Addition;
         var enumeratedFacts = 0;
 
-        for (var bandIndex = 0; ; bandIndex++)
+        // Issue #126: the incremental Addition domain holds (N + 1)^2 ~ 2.1 billion facts up to its resource bound, so
+        // the property is checked on a contiguous representative prefix plus the terminal band and the first missing band.
+        Assert.False(additionCurriculum.TryGetBand(IncrementalAdditionCurriculum.MaximumBandIndex + 1, out _));
+        var checkedBandIndices = Enumerable.Range(0, 300).Append(IncrementalAdditionCurriculum.MaximumBandIndex);
+        foreach (var bandIndex in checkedBandIndices)
         {
-            if (!additionCurriculum.TryGetBand(bandIndex, out var band) || band is null)
-            {
-                break;
-            }
+            Assert.True(additionCurriculum.TryGetBand(bandIndex, out var band));
+            Assert.NotNull(band);
 
             Assert.Equal(ArithmeticOperation.Addition, band.Operation);
             Assert.Equal(bandIndex, band.BandIndex);

@@ -277,23 +277,24 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     [Fact]
     public async Task StandardAdvancement_UsesPersistedMixedFluencyAtExactThirtyFourBoundaryAfterReload()
     {
-        var curriculum = new ArithmeticCurriculum().Addition;
-        Assert.True(curriculum.TryGetBand(10, out var band));
+        // Issue #126: Addition has no structured bands, so the standard profile uses SUB-P1-ANCHOR.
+        var curriculum = new ArithmeticCurriculum().Subtraction;
+        Assert.True(curriculum.TryGetBand(20, out var band));
         var frontier = DeterministicFactRanker.SelectStructuredSample(
-            new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(10),
-            ArithmeticOperation.Addition,
+            new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(20),
+            ArithmeticOperation.Subtraction,
             band!.Id);
         var mixed = CreateMixedStandardAttempts(frontier, adaptiveFluentCount: 14);
         using var store = new SnapshotStore(FreshSnapshot(mixed));
 
         var reloaded = await store.LoadSnapshotAsync();
         var passing = Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
+            new OperationProgression(ArithmeticOperation.Subtraction, 20, 0),
             curriculum,
             reloaded.RecentAttempts,
             frontier.Select(fact => fact.Id));
         var failing = Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
+            new OperationProgression(ArithmeticOperation.Subtraction, 20, 0),
             curriculum,
             CreateMixedStandardAttempts(frontier, adaptiveFluentCount: 13),
             frontier.Select(fact => fact.Id));
@@ -306,11 +307,12 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     public async Task SqliteMigrationAndRestart_PreserveMixedLegacyAdaptiveThirtyFourFluentBoundary()
     {
         var path = Path.Combine(_directory, "mixed-advancement.db");
-        var curriculum = new ArithmeticCurriculum().Addition;
-        Assert.True(curriculum.TryGetBand(10, out var band));
+        // Issue #126: Addition has no structured bands, so the standard profile uses SUB-P1-ANCHOR.
+        var curriculum = new ArithmeticCurriculum().Subtraction;
+        Assert.True(curriculum.TryGetBand(20, out var band));
         var frontier = DeterministicFactRanker.SelectStructuredSample(
-            new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(10),
-            ArithmeticOperation.Addition,
+            new AcquisitionOwnershipResolver(curriculum).GetOwnedFrontier(20),
+            ArithmeticOperation.Subtraction,
             band!.Id);
         await CreateV5DatabaseAsync(path, installBlockingTrigger: false);
         await ReplaceV5AttemptsWithHistoricalAdvancementEvidenceAsync(path, frontier);
@@ -336,7 +338,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
                     && attempt.ResponseLatencyMs == 3000
                     && attempt.IsFluent);
             Assert.True(Evaluate(
-                new OperationProgression(ArithmeticOperation.Addition, 10, 0),
+                new OperationProgression(ArithmeticOperation.Subtraction, 20, 0),
                 curriculum,
                 snapshot.RecentAttempts,
                 frontier.Select(fact => fact.Id)).Advances);
@@ -354,7 +356,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         var belowBoundary = await secondRestart.LoadSnapshotAsync();
         Assert.Equal(33, belowBoundary.RecentAttempts.Count(attempt => attempt.IsFluent));
         Assert.False(Evaluate(
-            new OperationProgression(ArithmeticOperation.Addition, 10, 0),
+            new OperationProgression(ArithmeticOperation.Subtraction, 20, 0),
             curriculum,
             belowBoundary.RecentAttempts,
             frontier.Select(fact => fact.Id)).Advances);
@@ -472,7 +474,9 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
     {
         var operation = factId.StartsWith("mul:", StringComparison.Ordinal)
             ? ArithmeticOperation.Multiplication
-            : ArithmeticOperation.Addition;
+            : factId.StartsWith("sub:", StringComparison.Ordinal)
+                ? ArithmeticOperation.Subtraction
+                : ArithmeticOperation.Addition;
         return new AttemptRecord(
             id,
             factId,
@@ -496,7 +500,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
         {
             var isHistorical = index < 20;
             var isFluent = isHistorical || index - 20 < adaptiveFluentCount;
-            var factId = isHistorical ? frontier[index % Math.Min(16, frontier.Count)].Id : "add:999+999";
+            var factId = isHistorical ? frontier[index % Math.Min(16, frontier.Count)].Id : "sub:1998-999";
             var latency = isHistorical ? 2500 : isFluent ? 3000 : 1000;
             return Attempt(
                 $"{(isHistorical ? "historical-v5" : "adaptive-v6")}-{index}",
@@ -617,7 +621,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
                     submission_id, fact_id, operation, left_operand, right_operand,
                     submitted_answer, correct_answer, is_correct, outcome,
                     response_latency_ms, timestamp, practice_position)
-                VALUES (@id, @fact, 'Addition', @left, @right, @answer, @answer, 1,
+                VALUES (@id, @fact, 'Subtraction', @left, @right, @answer, @answer, 1,
                     'Correct', 2500, @timestamp, @position);";
             command.Parameters.AddWithValue("@id", $"historical-v5-{index}");
             command.Parameters.AddWithValue("@fact", fact.Id);
@@ -644,7 +648,7 @@ public sealed class AdaptiveRatingFluencySchemaV6Tests : IDisposable
                     submission_id, fact_id, operation, left_operand, right_operand,
                     submitted_answer, correct_answer, is_correct, is_fluent, outcome,
                     response_latency_ms, timestamp, practice_position)
-                VALUES (@id, 'add:999+999', 'Addition', 999, 999, 1998, 1998, 1,
+                VALUES (@id, 'sub:1998-999', 'Subtraction', 1998, 999, 999, 999, 1,
                     @fluent, 'Correct', @latency, @timestamp, @position);";
             command.Parameters.AddWithValue("@id", $"adaptive-v6-{index}");
             command.Parameters.AddWithValue("@fluent", isFluent ? 1 : 0);

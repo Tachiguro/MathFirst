@@ -7,6 +7,9 @@ using MathFirst.Domain.Curriculum;
 
 public sealed class LearningProgressDiagnosticsTests
 {
+    // Issue #126: Addition bands exist up to the incremental resource bound, so the first unavailable index is past it.
+    private const int UnavailableAdditionBandIndex = IncrementalAdditionCurriculum.MaximumBandIndex + 1;
+
     [Fact]
     public void LearningProgressDiagnostics_ExposeIndependentCanonicalOperationRows()
     {
@@ -16,7 +19,7 @@ public sealed class LearningProgressDiagnosticsTests
         Assert.Collection(
             diagnostics.Operations,
             addition => Assert.Equal(
-                new OperationProgressDiagnostics(ArithmeticOperation.Addition, 10, "ADD-P1-ANCHOR", 11), addition),
+                new OperationProgressDiagnostics(ArithmeticOperation.Addition, 10, "ADD-D11", 11), addition),
             subtraction => Assert.Equal(
                 new OperationProgressDiagnostics(ArithmeticOperation.Subtraction, 10, "SUB-I11", 12), subtraction),
             multiplication => Assert.Equal(
@@ -37,7 +40,7 @@ public sealed class LearningProgressDiagnosticsTests
                 PracticePosition = 57,
                 OperationProgressions = new Dictionary<ArithmeticOperation, OperationProgression>
                 {
-                    [ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, 999, 11),
+                    [ArithmeticOperation.Addition] = new(ArithmeticOperation.Addition, UnavailableAdditionBandIndex, 11),
                     [ArithmeticOperation.Subtraction] = new(ArithmeticOperation.Subtraction, 10, 12),
                     [ArithmeticOperation.Multiplication] = new(ArithmeticOperation.Multiplication, 10, 13),
                     [ArithmeticOperation.Division] = new(ArithmeticOperation.Division, 10, 14)
@@ -47,7 +50,7 @@ public sealed class LearningProgressDiagnosticsTests
 
         Assert.Equal(equivalent.PracticePosition, identical.PracticePosition);
         Assert.Equal(equivalent.Operations, identical.Operations);
-        Assert.Equal(new OperationProgressDiagnostics(ArithmeticOperation.Addition, 999, null, 11), unavailable.Operations[0]);
+        Assert.Equal(new OperationProgressDiagnostics(ArithmeticOperation.Addition, UnavailableAdditionBandIndex, null, 11), unavailable.Operations[0]);
         Assert.Null(unavailable.Operations[0].CurriculumBandId);
         Assert.Null(unavailable.Operations[0].PresentationStage);
         Assert.DoesNotContain(typeof(LearningProgressDiagnostics).GetProperties(), property =>

@@ -833,11 +833,13 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
     // T. Terminal Addition
     [Fact]
-    public void TerminalAddition_SafeBand125_SelectsMaterializedCardsSafely()
+    public void TerminalAddition_IncrementalResourceBound_SelectsMaterializedCardsSafely()
     {
+        // Issue #126: Addition's terminal band is the explicit incremental resource bound, not structured band 125.
+        const int terminalBandIndex = IncrementalAdditionCurriculum.MaximumBandIndex;
         var curriculum = new ArithmeticCurriculum();
-        Assert.True(curriculum.Addition.TryGetBand(125, out var terminalBand));
-        Assert.False(curriculum.Addition.TryGetBand(126, out _));
+        Assert.True(curriculum.Addition.TryGetBand(terminalBandIndex, out var terminalBand));
+        Assert.False(curriculum.Addition.TryGetBand(terminalBandIndex + 1, out _));
 
         var facts = terminalBand!.Frontier;
         var states = facts.ToDictionary(f => f.Id, ItemLearningState.CreateNew, StringComparer.Ordinal);
@@ -847,7 +849,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
             StringComparer.Ordinal);
         var materialized = new MaterializedState(facts, states, cards);
 
-        var progressions = CreateProgressions((ArithmeticOperation.Addition, 125));
+        var progressions = CreateProgressions((ArithmeticOperation.Addition, terminalBandIndex));
         var pos1 = GetOpPosition(ArithmeticOperation.Addition, 1);
         var context = CreateContext(pos1, curriculum, materialized, operationProgressions: progressions);
 
@@ -864,7 +866,7 @@ public sealed class DeterministicSelectorTerminalLivenessTests : IDisposable
 
         var expectedTerminalBands = new Dictionary<ArithmeticOperation, int>
         {
-            [ArithmeticOperation.Addition] = 125,
+            [ArithmeticOperation.Addition] = IncrementalAdditionCurriculum.MaximumBandIndex,
             [ArithmeticOperation.Subtraction] = 135,
             [ArithmeticOperation.Multiplication] = 32,
             [ArithmeticOperation.Division] = 32

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The *Addition structured bands* section and the Addition structured-band terminal safety are superseded by [ADR-0014](ADR-0014-incremental-addition-operand-frontier.md) (Issue #126): Addition now continues with incremental Dense frontiers after `ADD-D10`. The additive core formulas below remain normative for the Subtraction structured bands.
 
 ## Date
 
@@ -68,6 +68,8 @@ Presentation-direction mirrors remain distinct exact facts. Division by zero is 
 All valid V4 facts remain valid with unchanged canonical identity.
 
 ### Addition structured bands
+
+> **Superseded for Addition by [ADR-0014](ADR-0014-incremental-addition-operand-frontier.md).** Addition no longer uses these bands; after `ADD-D10` it continues with `ADD-D11`, `ADD-D12`, ... (all ordered pairs with `max(a, b) = N`). The family definitions below are retained because the Subtraction structured bands are their exact inverses.
 
 After `ADD-D10`, Addition progresses by decimal magnitude. For magnitude `k >= 1`, let `P = 10^k`. For each lower place, let `q = 10^j`, with `j` descending from `k - 1` through `0`, and let `u,v` be digits in `1..9`.
 

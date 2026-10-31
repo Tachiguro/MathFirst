@@ -156,8 +156,9 @@ public sealed class DenseCurriculumTests
         Assert.Equal("ADD-D01", first!.Id.Value);
         Assert.False(addition.TryGetBand(-1, out var beforeFirst));
         Assert.Null(beforeFirst);
-        Assert.True(addition.TryGetBand(addition.Bands.Count, out var firstStructured));
-        Assert.Equal("ADD-P1-ANCHOR", firstStructured!.Id.Value);
+        Assert.True(addition.TryGetBand(addition.Bands.Count, out var firstProcedural));
+        Assert.Equal("ADD-D11", firstProcedural!.Id.Value);
+        Assert.Equal(CurriculumBandKind.Dense, firstProcedural.Kind);
         Assert.False(addition.TryGetBand(int.MaxValue, out var unavailable));
         Assert.Null(unavailable);
     }

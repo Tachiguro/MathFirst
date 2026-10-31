@@ -312,6 +312,8 @@ public sealed class PracticeSelectionEvidence
             .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
             .ToArray();
 
+        // Issue #126: bounded by the owned frontier rather than the review window, so no materialized current-band
+        // fact is mistaken for an unmaterialized New introduction once a Dense frontier exceeds 64 facts.
         var currentBandCandidates = request.CurrentBandOwnedFrontier
             .Where(fact => byId.ContainsKey(fact.Id) && !remediationEligibleFactIds.Contains(fact.Id))
             .Select(fact => byId[fact.Id])
@@ -319,7 +321,6 @@ public sealed class PracticeSelectionEvidence
             .ThenBy(candidate => candidate.ItemState.TotalAttempts)
             .ThenBy(candidate => candidate.FsrsState?.LastReviewPracticePosition ?? 0)
             .ThenBy(candidate => candidate.Fact.Id, StringComparer.Ordinal)
-            .Take(PracticeSelectionEvidenceRequest.CandidateWindowSize)
             .ToArray();
 
         return new PracticeSelectionEvidence(

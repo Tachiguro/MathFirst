@@ -174,16 +174,18 @@ public sealed class IndependentSelectorTests
         var pos = GetOpPosition(ArithmeticOperation.Addition, 1);
         var dense = new AdaptivePracticeSelector().SelectTargetFact(CreateContext(pos, curriculum, empty));
 
-        var structuredProgressions = CreateProgressions((ArithmeticOperation.Addition, 10));
+        // Issue #126: Addition has no structured bands, so the structured case uses SUB-P1-ANCHOR.
+        var structuredPos = GetOpPosition(ArithmeticOperation.Subtraction, 1);
+        var structuredProgressions = CreateProgressions((ArithmeticOperation.Subtraction, 20));
         var structuredContext = CreateContext(
-            pos,
+            structuredPos,
             curriculum,
             empty,
             operationProgressions: structuredProgressions);
         var structured = new AdaptivePracticeSelector().SelectTargetFact(structuredContext);
-        var owned = new AcquisitionOwnershipResolver(curriculum.Addition).GetOwnedFrontier(10);
-        var band = GetBand(curriculum.Addition, 10);
-        var sample = DeterministicFactRanker.SelectStructuredSample(owned, ArithmeticOperation.Addition, band.Id);
+        var owned = new AcquisitionOwnershipResolver(curriculum.Subtraction).GetOwnedFrontier(20);
+        var band = GetBand(curriculum.Subtraction, 20);
+        var sample = DeterministicFactRanker.SelectStructuredSample(owned, ArithmeticOperation.Subtraction, band.Id);
 
         Assert.Equal(PracticeSelectionRole.New, dense.ResolvedRole);
         Assert.False(dense.IsMaterialized);
@@ -192,7 +194,7 @@ public sealed class IndependentSelectorTests
         Assert.True(owned.Count > sample.Count);
 
         var exhaustedContext = CreateContext(
-            pos,
+            structuredPos,
             curriculum,
             Materialize(sample),
             operationProgressions: structuredProgressions);
@@ -227,7 +229,7 @@ public sealed class IndependentSelectorTests
     }
 
     [Theory]
-    [InlineData(ArithmeticOperation.Addition, 10)]
+    [InlineData(ArithmeticOperation.Subtraction, 20)]
     [InlineData(ArithmeticOperation.Multiplication, 13)]
     public void Frontier_UsesAcquisitionOwnershipAndRejectsDenseOwnedStructuredOverlap(
         ArithmeticOperation operation,

@@ -75,6 +75,21 @@ public sealed class GuidedNumberSpaceGate
                 "Division band index must be non-negative.");
         }
 
+        var additionCeiling = additionCurriculum.AnalyticModel is null
+            ? ComputePrefixCeiling(additionCurriculum, unlockedAdditionBandIndex)
+            : ComputeAnalyticCeiling(additionCurriculum, additionCurriculum.AnalyticModel, unlockedAdditionBandIndex);
+
+        var isMultiplicationDecoupled = multiplicationBandIndex >= DecouplingBandIndexThreshold;
+        var isDivisionDecoupled = divisionBandIndex >= DecouplingBandIndexThreshold;
+
+        return new GuidedNumberSpaceGate(
+            additionCeiling,
+            isMultiplicationDecoupled,
+            isDivisionDecoupled);
+    }
+
+    private static int ComputePrefixCeiling(OperationCurriculum additionCurriculum, int unlockedAdditionBandIndex)
+    {
         var additionCeiling = 0;
         for (var bandIndex = 0; bandIndex <= unlockedAdditionBandIndex; bandIndex++)
         {
@@ -92,13 +107,23 @@ public sealed class GuidedNumberSpaceGate
             }
         }
 
-        var isMultiplicationDecoupled = multiplicationBandIndex >= DecouplingBandIndexThreshold;
-        var isDivisionDecoupled = divisionBandIndex >= DecouplingBandIndexThreshold;
+        return additionCeiling;
+    }
 
-        return new GuidedNumberSpaceGate(
-            additionCeiling,
-            isMultiplicationDecoupled,
-            isDivisionDecoupled);
+    private static int ComputeAnalyticCeiling(
+        OperationCurriculum additionCurriculum,
+        IAnalyticCurriculumModel analyticModel,
+        int unlockedAdditionBandIndex)
+    {
+        // Issue #126: complete bands are contiguous and the incremental prefix ceiling is closed-form, so the gate
+        // checks only that the unlocked band exists instead of materializing every prefix band.
+        if (!additionCurriculum.TryGetBand(unlockedAdditionBandIndex, out _))
+        {
+            throw new InvalidOperationException(
+                $"Addition curriculum prefix band {unlockedAdditionBandIndex} is unavailable.");
+        }
+
+        return analyticModel.GetNumberSpaceCeiling(unlockedAdditionBandIndex);
     }
 
     public static GuidedNumberSpaceGate ForGuided(

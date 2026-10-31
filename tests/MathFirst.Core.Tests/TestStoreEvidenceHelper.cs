@@ -1,6 +1,7 @@
 namespace MathFirst.Core.Tests;
 
 using MathFirst.Application.Persistence;
+using MathFirst.Application.Progression;
 using MathFirst.Domain;
 
 public static class TestStoreEvidenceHelper
@@ -26,10 +27,10 @@ public static class TestStoreEvidenceHelper
 
         ArgumentNullException.ThrowIfNull(frontierFactIds);
 
-        if (frontierFactIds.Count > 25)
+        if (frontierFactIds.Count > DenseProgressionEvaluator.MaxDenseFrontierSize)
         {
             throw new ArgumentException(
-                $"Frontier fact count ({frontierFactIds.Count}) exceeds maximum supported dense frontier size (25).",
+                $"Frontier fact count ({frontierFactIds.Count}) exceeds maximum supported dense frontier size ({DenseProgressionEvaluator.MaxDenseFrontierSize}).",
                 nameof(frontierFactIds));
         }
 

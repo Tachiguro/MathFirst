@@ -133,6 +133,8 @@ The native repository benchmark for strong-learner velocity is:
 $$\text{ADD-D10} \longrightarrow \text{ADD-P1-ANCHOR}$$
 advancing Guided `AdditionCeiling` from **20** to **180**.
 
+> **Issue #126 / [ADR-0014](ADR-0014-incremental-addition-operand-frontier.md):** the band after `ADD-D10` is now `ADD-D11`, so the same 482-attempt milestone is `ADD-D10 -> ADD-D11` with `AdditionCeiling` 20 -> 22. The attempt count and the fixture requirement below are unchanged.
+
 - Completing Addition Dense Band 10 requires mastering all 121 unique Addition facts ($0+0$ through $10+10$).
 - Under deterministic four-operation bounded permutation scheduling with equal turn allocation, 121 Addition turns yield a mathematical lower bound of **482 global accepted attempts** (accounting for deterministic permutation bag alignment where Addition attempt #121 falls at global position 482).
 - **Normative Fixture Requirement**: For the canonical perfect strong-learner fixture (fresh Schema-V6 learner, four operations enabled in Guided Mode, canonical deterministic scheduler, 100% Correct answers, fluent latency, zero remediation, and zero broad weakness), reaching the `ADD-D10 -> ADD-P1-ANCHOR` milestone at **exactly 482 global accepted attempts** is a **normative runtime requirement**, not merely an aspirational reference or approximate range.

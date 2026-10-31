@@ -9,25 +9,20 @@ public sealed class AcquisitionOwnershipTests
     [Fact]
     public void AdditionOwnership_HasExactExpectedRawAndOwnedCounts()
     {
+        // Issue #126: every incremental Addition band owns its whole max-operand ring of 2N + 1 facts.
         var addition = new ArithmeticCurriculum().Addition;
         var resolver = new AcquisitionOwnershipResolver(addition);
 
-        AssertCount(addition, resolver, 10, 81, 80);
-        AssertCount(addition, resolver, 11, 162, 162);
-        AssertCount(addition, resolver, 12, 162, 162);
-        AssertCount(addition, resolver, 13, 90, 90);
-        AssertCount(addition, resolver, 14, 81, 81);
-        AssertCount(addition, resolver, 15, 162, 162);
-        AssertCount(addition, resolver, 16, 162, 162);
-        AssertCount(addition, resolver, 17, 90, 90);
-        AssertCount(addition, resolver, 18, 162, 162);
-        AssertCount(addition, resolver, 19, 162, 162);
-        AssertCount(addition, resolver, 20, 90, 90);
+        AssertCount(addition, resolver, 10, 23, 23);
+        AssertCount(addition, resolver, 11, 25, 25);
+        AssertCount(addition, resolver, 12, 27, 27);
+        AssertCount(addition, resolver, 13, 29, 29);
+        AssertCount(addition, resolver, 20, 43, 43);
+        AssertCount(addition, resolver, 99, 201, 201);
 
-        Assert.Equal(495, Enumerable.Range(10, 4).Sum(index => GetBand(addition, index).Frontier.Count));
-        Assert.Equal(494, Enumerable.Range(10, 4).Sum(index => resolver.GetOwnedFrontier(index).Count));
-        Assert.Equal(909, Enumerable.Range(14, 7).Sum(index => GetBand(addition, index).Frontier.Count));
-        Assert.Equal(909, Enumerable.Range(14, 7).Sum(index => resolver.GetOwnedFrontier(index).Count));
+        Assert.Equal(121, Enumerable.Range(0, 10).Sum(index => resolver.GetOwnedFrontier(index).Count));
+        Assert.Equal(144 - 121, resolver.GetOwnedFrontier(10).Count);
+        Assert.Equal((21 * 21) - 121, Enumerable.Range(10, 10).Sum(index => resolver.GetOwnedFrontier(index).Count));
     }
 
     [Fact]
@@ -40,12 +35,17 @@ public sealed class AcquisitionOwnershipTests
         Assert.Equal(9, denseOwner);
         Assert.DoesNotContain(resolver.GetOwnedFrontier(10), fact => fact.Id == "add:10+10");
 
-        Assert.True(resolver.TryGetOwner("add:10+20", 10, out var forwardOwner));
-        Assert.True(resolver.TryGetOwner("add:20+10", 10, out var reverseOwner));
+        Assert.True(resolver.TryGetOwner("add:10+11", 10, out var forwardOwner));
+        Assert.True(resolver.TryGetOwner("add:11+10", 10, out var reverseOwner));
         Assert.Equal(10, forwardOwner);
         Assert.Equal(10, reverseOwner);
-        Assert.Contains(resolver.GetOwnedFrontier(10), fact => fact.Id == "add:10+20");
-        Assert.Contains(resolver.GetOwnedFrontier(10), fact => fact.Id == "add:20+10");
+        Assert.Contains(resolver.GetOwnedFrontier(10), fact => fact.Id == "add:10+11");
+        Assert.Contains(resolver.GetOwnedFrontier(10), fact => fact.Id == "add:11+10");
+
+        // The rejected pre-#126 tens anchors are owned by the band of their larger operand.
+        Assert.False(resolver.TryGetOwner("add:10+20", 10, out _));
+        Assert.True(resolver.TryGetOwner("add:10+20", 19, out var tensOwner));
+        Assert.Equal(19, tensOwner);
     }
 
     [Fact]
