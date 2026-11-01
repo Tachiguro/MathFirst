@@ -2,15 +2,20 @@ namespace MathFirst.Application.Gameplay;
 
 using MathFirst.Application.Persistence;
 
-public enum CyberDefensePresentationStage { None, Victory, Recap, SystemOverload }
+/// <summary>
+/// <see cref="Recap"/> is the single boss result card of a sector completion (Issue #138): the victory heading and
+/// flourish, the sector recap and Continue are presented together from the start.
+/// </summary>
+public enum CyberDefensePresentationStage { None, Recap, SystemOverload }
 
 /// <summary>
 /// Transient presentation only. The caller keeps learner progression behind this barrier.
-/// Timers only reveal Continue and re-observe context validity; only <see cref="Acknowledge"/> can complete a presentation.
+/// Timers only reveal the System Restart's Continue and re-observe context validity; only <see cref="Acknowledge"/>
+/// can complete a presentation.
 /// </summary>
 public sealed class CyberDefensePresentationSequence
 {
-    public static readonly TimeSpan VictoryDuration = TimeSpan.FromSeconds(2);
+    /// <summary>System Restart only; the boss result card offers Continue from its first presentation.</summary>
     public static readonly TimeSpan ContinueRevealDelay = TimeSpan.FromSeconds(3);
     public static readonly TimeSpan RevalidationInterval = TimeSpan.FromSeconds(2);
 
@@ -90,17 +95,18 @@ public sealed class CyberDefensePresentationSequence
             CompletedSector = transition.IsSectorCompleted ? transition.NextState.Sector - 1 : transition.TerminalSnapshot!.Sector;
             Recap = recap?.CompletionSubmissionId == receipt.SubmissionId && recap.ResetEpoch == receipt.ResetEpoch &&
                 recap.Sector == CompletedSector ? recap : null;
-            SetStage(transition.IsGameOver ? CyberDefensePresentationStage.SystemOverload : CyberDefensePresentationStage.Victory);
             if (transition.IsSectorCompleted)
             {
-                await _delay(VictoryDuration, ct);
-                if (!await StillCurrent()) return false;
-                SetStage(CyberDefensePresentationStage.Recap);
+                // One card, one stage: Continue is available in the same change that first shows the card.
+                PresentWithContinue(generation, CyberDefensePresentationStage.Recap);
             }
-
-            await _delay(ContinueRevealDelay, ct);
-            if (!await StillCurrent()) return false;
-            RevealContinue(generation);
+            else
+            {
+                SetStage(CyberDefensePresentationStage.SystemOverload);
+                await _delay(ContinueRevealDelay, ct);
+                if (!await StillCurrent()) return false;
+                RevealContinue(generation);
+            }
 
             // A timer may only re-observe validity here; the wait ends solely on the user's acknowledgement.
             while (!release.Task.IsCompleted)
@@ -187,6 +193,17 @@ public sealed class CyberDefensePresentationSequence
         {
             if (generation != _generation || _release is null) return;
             _canContinue = true;
+        }
+        Changed?.Invoke();
+    }
+
+    private void PresentWithContinue(long generation, CyberDefensePresentationStage stage)
+    {
+        lock (_gate)
+        {
+            if (generation != _generation || _release is null) return;
+            _canContinue = true;
+            Stage = stage;
         }
         Changed?.Invoke();
     }

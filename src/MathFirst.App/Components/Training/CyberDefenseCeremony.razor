@@ -5,11 +5,18 @@
 
 @if (Stage != CyberDefensePresentationStage.None)
 {
-    <section class="combat-ceremony-overlay" role="dialog" aria-modal="true" aria-labelledby="combat-ceremony-title" lang="@Localizer.CurrentUiLanguage">
-        <div class="combat-ceremony-card @(Stage == CyberDefensePresentationStage.Victory ? "ceremony-victory" : "")">
-            <h2 id="combat-ceremony-title" @ref="_heading" tabindex="-1">@Title</h2>
-            @if (Stage == CyberDefensePresentationStage.Recap)
+    <section class="combat-ceremony-overlay" role="dialog" aria-modal="true" aria-labelledby="@LabelledBy" lang="@Localizer.CurrentUiLanguage">
+        @* Issue #138: a sector completion is one boss result card. The victory heading, its decorative flourish, the
+           sector recap and Continue are shown together from the first render; the animation never gates the card. *@
+        <div class="combat-ceremony-card @(IsBossResult ? "ceremony-victory" : "")">
+            @if (IsBossResult)
             {
+                <div class="ceremony-victory-flourish" aria-hidden="true"></div>
+            }
+            <h2 id="combat-ceremony-title" @ref="_heading" tabindex="-1">@Title</h2>
+            @if (IsBossResult)
+            {
+                <h3 id="combat-ceremony-result" class="ceremony-result-heading">@Localizer["CyberDefense_RecapTitle", CompletedSector]</h3>
                 @if (Recap is { HasValidCounts: true })
                 {
                     <ul class="recap-metrics">
@@ -25,12 +32,12 @@
                     <p>@Localizer["CyberDefense_RecapUnavailable"]</p>
                 }
             }
-            else if (Stage == CyberDefensePresentationStage.SystemOverload)
+            else
             {
                 <p>@Localizer["CyberDefense_ProgressRetained"]</p>
             }
             <div class="ceremony-actions" aria-live="polite">
-                @if (CanContinue && !_continueRequested && Stage != CyberDefensePresentationStage.Victory)
+                @if (CanContinue && !_continueRequested)
                 {
                     <button type="button" class="button button-primary ceremony-continue" @onclick="ContinueAsync">@Localizer["Common_Continue"]</button>
                 }
@@ -50,12 +57,9 @@
     private CyberDefensePresentationStage _focusedStage;
     private long _requestedPresentationId = -1;
     private bool _continueRequested => _requestedPresentationId == PresentationId;
-    private string Title => Stage switch
-    {
-        CyberDefensePresentationStage.Victory => Localizer["CyberDefense_Victory"],
-        CyberDefensePresentationStage.Recap => Localizer["CyberDefense_RecapTitle", CompletedSector],
-        _ => Localizer["CyberDefense_SystemOverload"]
-    };
+    private bool IsBossResult => Stage == CyberDefensePresentationStage.Recap;
+    private string LabelledBy => IsBossResult ? "combat-ceremony-title combat-ceremony-result" : "combat-ceremony-title";
+    private string Title => IsBossResult ? Localizer["CyberDefense_Victory"] : Localizer["CyberDefense_SystemOverload"];
 
     // One activation per presentation: repeated taps cannot raise the callback twice.
     private async Task ContinueAsync()

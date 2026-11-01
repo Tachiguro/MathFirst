@@ -200,6 +200,8 @@
                 <svg class="player-status-icon player-hp-icon" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
                     <path d="M6 10.6 1.7 6.4A2.6 2.6 0 0 1 6 2.9a2.6 2.6 0 0 1 4.3 3.5Z" fill="currentColor" />
                 </svg>
+                @* Issue #138: the visible row label; screen readers keep the localized meter name instead. *@
+                <span class="player-hp-label" aria-hidden="true">@Localizer["CyberDefense_HpLabel"]</span>
                 <div class="meter-bar player-hp-bar"
                      role="progressbar"
                      aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'
@@ -208,7 +210,7 @@
                      aria-valuemax="@EffectiveModel.PlayerMaxHp">
                     <div class="meter-fill player-hp-fill" style="width: @(EffectiveModel.PlayerHpPercentage)%"></div>
                 </div>
-                @* The heart names the row; the localized "HP: current / max" stays the panel's and the meter's accessible name. *@
+                @* The heart and the HP label name the row; the localized "HP: current / max" stays the panel's and the meter's accessible name. *@
                 <span class="player-hp-value">@EffectiveModel.PlayerCurrentHp / @EffectiveModel.PlayerMaxHp</span>
             </div>
         </div>

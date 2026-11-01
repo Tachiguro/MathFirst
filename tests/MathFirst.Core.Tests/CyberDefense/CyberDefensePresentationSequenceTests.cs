@@ -7,7 +7,6 @@ using System.Threading.Channels;
 
 public sealed class CyberDefensePresentationSequenceTests
 {
-    private static readonly TimeSpan Victory = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Reveal = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);
@@ -26,15 +25,17 @@ public sealed class CyberDefensePresentationSequenceTests
     private static CyberDefenseSectorRecap Recap(string id = "completion", long epoch = 0)
         => new(id, epoch, 1, 24, 22, 24000, 178, 1);
 
-    /// <summary>Drives a boss victory to the point where Continue is revealed.</summary>
+    /// <summary>
+    /// Drives a presentation to the point where Continue is available: at once for the boss result card (Issue #138),
+    /// after the reveal delay for System Restart.
+    /// </summary>
     private static async Task<(Task<bool> Pending, long Id)> ReachContinueAsync(
         FakeClock clock, CyberDefensePresentationSequence sequence, bool boss = true,
         CyberDefenseSectorRecap? recap = null, Func<CancellationToken, Task<bool>>? isCurrent = null,
         long epoch = 0, string id = "completion", CancellationToken ct = default)
     {
         var pending = sequence.RunAsync(Receipt(boss, epoch, id), recap, isCurrent ?? Current, ct);
-        if (boss) (await clock.NextAsync()).Elapse();
-        (await clock.NextAsync()).Elapse();
+        if (!boss) (await clock.NextAsync()).Elapse();
         await ContinueRevealedAsync(sequence);
         return (pending, sequence.PresentationId);
     }
@@ -50,7 +51,7 @@ public sealed class CyberDefensePresentationSequenceTests
     }
 
     [Fact]
-    public async Task BossVictory_ShowsVictoryThenRecap_AndRevealsContinueOnlyAfterThreeRecapSeconds()
+    public async Task BossVictory_ShowsOneRecapCard_WithContinueFromTheStart_UntilTheUserContinues()
     {
         var clock = new FakeClock();
         var sequence = new CyberDefensePresentationSequence(clock.Delay);
@@ -59,26 +60,16 @@ public sealed class CyberDefensePresentationSequenceTests
         sequence.Changed += () => stages.Add(sequence.Stage);
 
         var pending = sequence.RunAsync(Receipt(), recap, Current);
-        Assert.Equal(CyberDefensePresentationStage.Victory, sequence.Stage);
-        Assert.True(sequence.IsBlocking);
-        Assert.False(sequence.CanContinue);
-        var victoryDelay = await clock.NextAsync();
-        Assert.Equal(Victory, victoryDelay.Duration);
-
-        victoryDelay.Elapse();
-        var revealDelay = await clock.NextAsync();
         Assert.Equal(CyberDefensePresentationStage.Recap, sequence.Stage);
         Assert.Same(recap, sequence.Recap);
-        Assert.Equal(Reveal, revealDelay.Duration);
-        Assert.False(sequence.CanContinue);
-        Assert.False(sequence.Acknowledge(sequence.PresentationId));
-        Assert.False(pending.IsCompleted);
-
-        revealDelay.Elapse();
-        await ContinueRevealedAsync(sequence);
+        Assert.True(sequence.IsBlocking);
+        Assert.True(sequence.CanContinue);
+        var tick = await clock.NextAsync();
+        Assert.Equal(Tick, tick.Duration);
+        tick.Elapse();
+        await clock.NextAsync();
         Assert.Equal(CyberDefensePresentationStage.Recap, sequence.Stage);
         Assert.False(pending.IsCompleted);
-        Assert.True(sequence.IsBlocking);
 
         Assert.True(sequence.Acknowledge(sequence.PresentationId));
         Assert.True(await pending.WaitAsync(Wait));
@@ -87,19 +78,17 @@ public sealed class CyberDefensePresentationSequenceTests
         Assert.Null(sequence.Recap);
         Assert.Equal(CyberDefensePresentationStage.None, sequence.Stage);
         Assert.Equal(
-            new[] { CyberDefensePresentationStage.Victory, CyberDefensePresentationStage.Recap, CyberDefensePresentationStage.None },
+            new[] { CyberDefensePresentationStage.Recap, CyberDefensePresentationStage.None },
             stages.Distinct().ToArray());
     }
 
     [Fact]
-    public async Task EarlyContinue_IsRejectedWithoutLatching_AndLaterRevealStillWaitsForTheUser()
+    public async Task EarlySystemRestartContinue_IsRejectedWithoutLatching_AndLaterRevealStillWaitsForTheUser()
     {
         var clock = new FakeClock();
         var sequence = new CyberDefensePresentationSequence(clock.Delay);
-        var pending = sequence.RunAsync(Receipt(), Recap(), Current);
+        var pending = sequence.RunAsync(Receipt(victory: false), null, Current);
         var id = sequence.PresentationId;
-        for (var i = 0; i < 5; i++) Assert.False(sequence.Acknowledge(id));
-        (await clock.NextAsync()).Elapse();
         for (var i = 0; i < 5; i++) Assert.False(sequence.Acknowledge(id));
         (await clock.NextAsync()).Elapse();
         await ContinueRevealedAsync(sequence);
@@ -256,8 +245,9 @@ public sealed class CyberDefensePresentationSequenceTests
         var clock = new FakeClock();
         var sequence = new CyberDefensePresentationSequence(clock.Delay);
         using var cts = new CancellationTokenSource();
-        var pending = sequence.RunAsync(Receipt(), null, Current, cts.Token);
+        var pending = sequence.RunAsync(Receipt(victory: false), null, Current, cts.Token);
         Assert.True(sequence.IsBlocking);
+        Assert.False(sequence.CanContinue);
         cts.Cancel();
         Assert.False(await pending.WaitAsync(Wait));
         Assert.False(sequence.IsBlocking);
@@ -276,8 +266,8 @@ public sealed class CyberDefensePresentationSequenceTests
         long id;
         if (when == "before-reveal")
         {
-            pending = sequence.RunAsync(Receipt(), Recap(), IsCurrent);
-            (await clock.NextAsync()).Elapse();
+            // Only System Restart has a reveal delay; the boss result card is covered by "while-waiting".
+            pending = sequence.RunAsync(Receipt(victory: false), null, IsCurrent);
             var reveal = await clock.NextAsync();
             id = sequence.PresentationId;
             current = false;
@@ -332,7 +322,12 @@ public sealed class CyberDefensePresentationSequenceTests
         var clock = new FakeClock();
         var sequence = new CyberDefensePresentationSequence(clock.Delay);
         var victories = 0;
-        sequence.Changed += () => { if (sequence.Stage == CyberDefensePresentationStage.Victory) victories++; };
+        var shown = CyberDefensePresentationStage.None;
+        sequence.Changed += () =>
+        {
+            if (sequence.Stage == CyberDefensePresentationStage.Recap && shown != CyberDefensePresentationStage.Recap) victories++;
+            shown = sequence.Stage;
+        };
 
         var (first, firstId) = await ReachContinueAsync(clock, sequence);
         Assert.True(sequence.Acknowledge(firstId));

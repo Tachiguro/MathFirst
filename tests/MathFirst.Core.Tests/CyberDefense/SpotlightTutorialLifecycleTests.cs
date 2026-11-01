@@ -132,7 +132,7 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         // Ceremony blocking
         typeof(CyberDefensePresentationSequence)
             .GetMethod("SetStage", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(f.Ceremony, new object[] { CyberDefensePresentationStage.Victory });
+            .Invoke(f.Ceremony, new object[] { CyberDefensePresentationStage.Recap });
         Assert.True(f.Ceremony.IsBlocking);
 
         // While ceremony is blocking, start is blocked

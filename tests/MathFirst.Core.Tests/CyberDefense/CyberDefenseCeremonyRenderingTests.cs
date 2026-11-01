@@ -50,11 +50,9 @@ public sealed class CyberDefenseCeremonyRenderingTests
     {
         var localizer = Localizer(language);
 
-        var victory = await RenderAsync(localizer, CyberDefensePresentationStage.Victory);
-        AssertLocalized(victory, localizer, "CyberDefense_Victory");
-        Assert.DoesNotContain("recap-metrics", victory);
-
+        // Issue #138: the victory heading and the recap are one card.
         var summary = await RenderAsync(localizer, CyberDefensePresentationStage.Recap, Valid);
+        AssertLocalized(summary, localizer, "CyberDefense_Victory");
         AssertLocalized(summary, localizer, "CyberDefense_RecapTitle", 1);
         AssertLocalized(summary, localizer, "CyberDefense_RecapAccuracy", Valid.AccuracyPercentage);
         AssertLocalized(summary, localizer, "CyberDefense_RecapMistakes", 2);
@@ -70,6 +68,8 @@ public sealed class CyberDefenseCeremonyRenderingTests
         var restart = await RenderAsync(localizer, CyberDefensePresentationStage.SystemOverload);
         AssertLocalized(restart, localizer, "CyberDefense_SystemOverload");
         AssertLocalized(restart, localizer, "CyberDefense_ProgressRetained");
+        Assert.DoesNotContain(localizer["CyberDefense_Victory"], restart);
+        Assert.DoesNotContain("recap-metrics", restart);
 
         Assert.Equal(string.Empty, await RenderAsync(localizer, CyberDefensePresentationStage.None));
     }
@@ -85,8 +85,7 @@ public sealed class CyberDefenseCeremonyRenderingTests
         Assert.NotEqual("Common_Continue", label);
         foreach (var (stage, recap) in new[]
         {
-            (CyberDefensePresentationStage.Victory, (CyberDefenseSectorRecap?)null),
-            (CyberDefensePresentationStage.Recap, Valid),
+            (CyberDefensePresentationStage.Recap, (CyberDefenseSectorRecap?)Valid),
             (CyberDefensePresentationStage.Recap, null),
             (CyberDefensePresentationStage.SystemOverload, null)
         })
@@ -119,10 +118,11 @@ public sealed class CyberDefenseCeremonyRenderingTests
         var html = await RenderAsync(localizer, CyberDefensePresentationStage.Recap, Valid, canContinue: true);
         Assert.Contains("role=\"dialog\"", html);
         Assert.Contains("aria-modal=\"true\"", html);
-        var labelledBy = Regex.Match(html, "aria-labelledby=\"([^\"]+)\"").Groups[1].Value;
-        Assert.NotEmpty(labelledBy);
-        Assert.Matches($"<h2[^>]*id=\"{labelledBy}\"", html);
-        Assert.Contains("tabindex=\"-1\"", html);
+        // Issue #138: the boss result card is named by its victory heading and its sector result heading.
+        var labelledBy = Regex.Match(html, "aria-labelledby=\"([^\"]+)\"").Groups[1].Value.Split(' ');
+        Assert.Equal(2, labelledBy.Length);
+        Assert.Matches($"<h2[^>]*id=\"{labelledBy[0]}\"[^>]*tabindex=\"-1\"", html);
+        Assert.Matches($"<h3[^>]*id=\"{labelledBy[1]}\"", html);
         Assert.Matches("class=\"ceremony-actions\"[^>]*aria-live=\"polite\"", html);
         Assert.Contains("lang=\"en\"", html);
     }

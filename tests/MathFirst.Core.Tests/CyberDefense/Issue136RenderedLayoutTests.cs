@@ -258,7 +258,7 @@ public sealed class Issue136RenderedLayoutTests : IDisposable
     private static readonly string[] StatusParts =
     [
         ".xp-progress-icon", ".player-level-label", ".player-xp-bar", ".player-xp-value", ".shield-badge", ".shield-count-text",
-        ".shield-recharge-bar", ".shield-recharge-value", ".player-hp-icon", ".player-hp-bar", ".player-hp-value"
+        ".shield-recharge-bar", ".shield-recharge-value", ".player-hp-icon", ".player-hp-label", ".player-hp-bar", ".player-hp-value"
     ];
 
     private static void CheckStatus(string id, JsonElement probe, StatusExpectation expected, List<string> violations)
@@ -274,7 +274,7 @@ public sealed class Issue136RenderedLayoutTests : IDisposable
             R(inner, "top") >= R(outer, "top") - 0.5 && R(inner, "bottom") <= R(outer, "bottom") + 0.5;
 
         var required = new[] { ".player-shield-panel", ".shield-status-column", ".player-xp-cluster", ".player-status-heading", ".player-hp-cluster",
-            ".xp-progress-icon", ".player-level-label", ".player-xp-bar", ".player-xp-value", ".player-hp-icon", ".player-hp-bar", ".player-hp-value" };
+            ".xp-progress-icon", ".player-level-label", ".player-xp-bar", ".player-xp-value", ".player-hp-icon", ".player-hp-label", ".player-hp-bar", ".player-hp-value" };
         var missing = required.Where(selector => !Has(selector)).ToArray();
         foreach (var selector in missing) violations.Add($"{id}: {selector} missing");
         if (missing.Length > 0) return;
@@ -286,6 +286,11 @@ public sealed class Issue136RenderedLayoutTests : IDisposable
         var columnLeft = R(".shield-status-column", "left");
         if (Math.Abs(R(".player-hp-icon", "left") - columnLeft) > 1) violations.Add($"{id}: HP heart is not at the left edge of the status column");
         if (R(".player-hp-icon", "right") > R(".player-hp-bar", "left") + 0.5) violations.Add($"{id}: HP heart is not left of the HP meter");
+        // Issue #138: [heart] HP [meter] current / max, with the label in the level label's column.
+        if (Text(".player-hp-label") != "HP") violations.Add($"{id}: HP label shows '{Text(".player-hp-label")}'");
+        if (R(".player-hp-icon", "right") > R(".player-hp-label", "left") + 0.5 || R(".player-hp-label", "right") > R(".player-hp-bar", "left") + 0.5)
+            violations.Add($"{id}: HP label is not between the heart and the HP meter");
+        if (Math.Abs(R(".player-hp-label", "left") - R(".player-level-label", "left")) > 1) violations.Add($"{id}: HP label does not share the level label column");
         if (R(".xp-progress-icon", "right") > R(".player-level-label", "left") + 0.5) violations.Add($"{id}: XP progress icon is not before the level");
 
         // Shields: icon and active / capacity whenever capacity exists; recharge only while a shield is down.

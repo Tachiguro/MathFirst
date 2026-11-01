@@ -19,6 +19,7 @@ public sealed class Issue121CeremonyRenderedLayoutTests : IDisposable
     private static readonly (string Name, int Width, int Height)[] Viewports =
     [
         ("narrow-320x640", 320, 640),
+        ("android-360x780", 360, 780),
         ("phone-384x744", 384, 744),
         ("short-320x480", 320, 480),
         ("landscape-744x384", 744, 384)
@@ -53,8 +54,7 @@ public sealed class Issue121CeremonyRenderedLayoutTests : IDisposable
             {
                 ("recap", await RenderAsync(localizer, CyberDefensePresentationStage.Recap, LongRecap, canContinue: true)),
                 ("recap-unavailable", await RenderAsync(localizer, CyberDefensePresentationStage.Recap, null, canContinue: true)),
-                ("restart", await RenderAsync(localizer, CyberDefensePresentationStage.SystemOverload, null, canContinue: true)),
-                ("victory", await RenderAsync(localizer, CyberDefensePresentationStage.Victory, null, canContinue: false))
+                ("restart", await RenderAsync(localizer, CyberDefensePresentationStage.SystemOverload, null, canContinue: true))
             };
             foreach (var (name, markup) in variants)
             {
@@ -77,13 +77,13 @@ public sealed class Issue121CeremonyRenderedLayoutTests : IDisposable
             var viewport = result.GetProperty("viewport");
             Assert.Equal(scenario.Width, viewport.GetProperty("width").GetInt32());
             Assert.Equal(scenario.Height, viewport.GetProperty("height").GetInt32());
-            Check(id, result.GetProperty("probe"), expectButton: !id.Contains("/victory/"), reducedMotion, violations);
+            Check(id, result.GetProperty("probe"), bossResult: id.Contains("/recap", StringComparison.Ordinal), reducedMotion, violations);
         }
 
         Assert.True(violations.Count == 0, $"{violations.Count} rendered ceremony layout violation(s):\n" + string.Join("\n", violations));
     }
 
-    private static void Check(string id, JsonElement probe, bool expectButton, bool reducedMotion, List<string> violations)
+    private static void Check(string id, JsonElement probe, bool bossResult, bool reducedMotion, List<string> violations)
     {
         if (!probe.GetProperty("present").GetBoolean()) { violations.Add($"{id}: ceremony not rendered"); return; }
         if (probe.GetProperty("dialogRole").GetString() != "dialog") violations.Add($"{id}: overlay is not a dialog");
@@ -92,14 +92,11 @@ public sealed class Issue121CeremonyRenderedLayoutTests : IDisposable
         var overlay = probe.GetProperty("overlay");
         if (overlay.GetProperty("overflowY").GetString() != "auto") violations.Add($"{id}: overlay cannot scroll");
 
-        if (!expectButton)
-        {
-            if (probe.GetProperty("hasButton").GetBoolean()) violations.Add($"{id}: Continue visible too early");
-            var animation = probe.GetProperty("animationName").GetString();
-            if (reducedMotion && animation != "none") violations.Add($"{id}: animation '{animation}' not disabled for reduced motion");
-            if (!reducedMotion && animation != "ceremony-victory") violations.Add($"{id}: victory animation missing ('{animation}')");
-            return;
-        }
+        // Issue #138: the boss result card carries the decorative victory animation (none under reduced motion) on the
+        // same card as Continue; System Restart has none. The flourish must never cover or replace Continue.
+        var animation = probe.GetProperty("animationName").GetString();
+        var expectedAnimation = bossResult && !reducedMotion ? "ceremony-victory" : "none";
+        if (animation != expectedAnimation) violations.Add($"{id}: card animation '{animation}', expected '{expectedAnimation}'");
 
         if (!probe.GetProperty("hasButton").GetBoolean()) { violations.Add($"{id}: Continue missing"); return; }
         var button = probe.GetProperty("rects").GetProperty("button");
