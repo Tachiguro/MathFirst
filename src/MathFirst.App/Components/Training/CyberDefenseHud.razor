@@ -56,9 +56,11 @@
                 <span class="particle p4"></span>
             </div>
 
-            <!-- Left: short description above the numeric opponent HP -->
+            <!-- Left: description in the free height above the numeric opponent HP -->
             <div class="scene-intel">
-                <p class="scene-enemy-desc">@OpponentDescription</p>
+                <div class="scene-enemy-desc-frame">
+                    <p class="scene-enemy-desc">@OpponentDescription</p>
+                </div>
 
                 <div class="enemy-hp-cluster">
                     <div class="meter-bar enemy-hp-bar @(EffectiveModel.IsBoss ? "boss-hp-bar" : "")"
@@ -114,8 +116,40 @@
     <section class="player-shield-panel"
              aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'
              data-spotlight-id="system-integrity">
-        <!-- Left: Player HP Status -->
+        <!-- Left: player status rows (Issue #136): Level/XP on top, earned shields in the middle, HP at the bottom.
+             The rows share one column grid, so the XP, recharge and HP meters start and end together. -->
         <div class="shield-status-column">
+            <!-- Persistent player level and XP: authoritative durable progression, never the run's sector. -->
+            <div class="player-xp-cluster">
+                <svg class="player-status-icon xp-progress-icon" viewBox="0 0 12 12" width="10" height="10" fill="none" aria-hidden="true">
+                    <path d="M6 10.5V2M2.5 5.5 6 2l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="player-level-label">@Localizer["CyberDefense_PlayerLevelDisplay", PlayerProgress is null ? Localizer["Training_Unavailable"] : PlayerProgress.Level]</span>
+                @if (PlayerProgress is { } progress)
+                {
+                    <div class="meter-bar player-xp-bar"
+                         role="progressbar"
+                         aria-label='@Localizer["CyberDefense_PlayerLevelAria", progress.Level]'
+                         aria-valuemin="0"
+                         aria-valuenow="@progress.XpIntoCurrentLevel"
+                         aria-valuemax="@progress.XpRequiredForNextLevel"
+                         aria-valuetext='@Localizer["CyberDefense_PlayerXpAria", progress.XpIntoCurrentLevel, progress.XpRequiredForNextLevel]'>
+                        <div class="meter-fill player-xp-fill" style="width: @(XpPercentage(progress))%"></div>
+                    </div>
+                    @* The arrow and the level name the row; the localized "x of y XP" stays the meter's accessible value. *@
+                    <span class="player-xp-value">@progress.XpIntoCurrentLevel / @progress.XpRequiredForNextLevel</span>
+                }
+                else
+                {
+                    <div class="meter-bar player-xp-bar"
+                         role="progressbar"
+                         aria-label='@Localizer["CyberDefense_PlayerLevelUnavailableAria"]'
+                         aria-valuetext='@Localizer["CyberDefense_PlayerLevelUnavailableAria"]'>
+                        <div class="meter-fill player-xp-fill" style="width: 0%"></div>
+                    </div>
+                    <span class="player-xp-value">@Localizer["Training_Unavailable"]</span>
+                }
+            </div>
             <!-- Reserved even without shields, so a Firewall purchase never moves the math workspace below. -->
             <div class="player-status-heading">
                 @if (EffectiveModel.ShieldCapacity > 0)
@@ -128,19 +162,16 @@
                          aria-valuenow="@EffectiveModel.ActiveShields"
                          aria-valuetext='@Localizer["CyberDefense_ShieldDisplay", EffectiveModel.ActiveShields, EffectiveModel.ShieldCapacity]'
                          aria-live="polite">
-                        @for (int slot = 0; slot < EffectiveModel.ShieldCapacity; slot++)
-                        {
-                            <span class="shield-badge @(slot < EffectiveModel.ActiveShields ? "shield-intact" : "shield-broken")" aria-hidden="true">
-                                <svg viewBox="0 0 20 24" width="10" height="14" fill="none">
-                                    <path class="shield-bg shield-outline" d="M10 2 18 5v6c0 5-4 9-8 11-4-2-8-6-8-11V5Z" />
-                                    @if (slot < EffectiveModel.ActiveShields)
-                                    {
-                                        <circle class="shield-core" cx="10" cy="11" r="3" />
-                                    }
-                                </svg>
-                            </span>
-                        }
-                        <span class="shield-sublabel-text" aria-hidden="true">@EffectiveModel.ActiveShields / @EffectiveModel.ShieldCapacity</span>
+                        <span class="shield-badge @(EffectiveModel.ActiveShields > 0 ? "shield-intact" : "shield-broken")" aria-hidden="true">
+                            <svg viewBox="0 0 20 24" width="10" height="12" fill="none">
+                                <path class="shield-bg shield-outline" d="M10 2 18 5v6c0 5-4 9-8 11-4-2-8-6-8-11V5Z" />
+                                @if (EffectiveModel.ActiveShields > 0)
+                                {
+                                    <circle class="shield-core" cx="10" cy="11" r="3" />
+                                }
+                            </svg>
+                        </span>
+                        <span class="shield-count-text" aria-hidden="true">@EffectiveModel.ActiveShields / @EffectiveModel.ShieldCapacity</span>
                     </div>
                     @if (EffectiveModel.ActiveShields < EffectiveModel.ShieldCapacity)
                     {
@@ -154,10 +185,21 @@
                              aria-valuetext='@Localizer["CyberDefense_ShieldRechargeDisplay", EffectiveModel.ShieldRechargeUnits, CyberDefenseFirewallPolicy.RechargeThresholdUnits]'>
                             <div class="meter-fill shield-recharge-fill" style="width: @(ShieldRechargePercentage)%"></div>
                         </div>
+                        <!-- Recharge units, marked with their own charging icon so they never read as a shield count. -->
+                        <span class="shield-recharge-value" aria-hidden="true">
+                            <svg class="shield-recharge-icon" viewBox="0 0 12 12" width="9" height="9" fill="none">
+                                <path d="M6.8 1 3 6.6h2.8L5.2 11 9 5.4H6.2Z" fill="currentColor" />
+                            </svg>
+                            @EffectiveModel.ShieldRechargeUnits / @CyberDefenseFirewallPolicy.RechargeThresholdUnits
+                        </span>
                     }
                 }
             </div>
+            <!-- Player HP, bottom left, with a heart. -->
             <div class="player-hp-cluster">
+                <svg class="player-status-icon player-hp-icon" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                    <path d="M6 10.6 1.7 6.4A2.6 2.6 0 0 1 6 2.9a2.6 2.6 0 0 1 4.3 3.5Z" fill="currentColor" />
+                </svg>
                 <div class="meter-bar player-hp-bar"
                      role="progressbar"
                      aria-label='@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]'
@@ -166,34 +208,8 @@
                      aria-valuemax="@EffectiveModel.PlayerMaxHp">
                     <div class="meter-fill player-hp-fill" style="width: @(EffectiveModel.PlayerHpPercentage)%"></div>
                 </div>
-                <span class="player-hp-value">@Localizer["CyberDefense_HpDisplay", EffectiveModel.PlayerCurrentHp, EffectiveModel.PlayerMaxHp]</span>
-            </div>
-            <!-- Persistent player level and XP: authoritative durable progression, never the run's sector. -->
-            <div class="player-xp-cluster">
-                <span class="player-level-label">@Localizer["CyberDefense_PlayerLevelDisplay", PlayerProgress is null ? Localizer["Training_Unavailable"] : PlayerProgress.Level]</span>
-                @if (PlayerProgress is { } progress)
-                {
-                    <div class="meter-bar player-xp-bar"
-                         role="progressbar"
-                         aria-label='@Localizer["CyberDefense_PlayerLevelAria", progress.Level]'
-                         aria-valuemin="0"
-                         aria-valuenow="@progress.XpIntoCurrentLevel"
-                         aria-valuemax="@progress.XpRequiredForNextLevel"
-                         aria-valuetext='@Localizer["CyberDefense_PlayerXpAria", progress.XpIntoCurrentLevel, progress.XpRequiredForNextLevel]'>
-                        <div class="meter-fill player-xp-fill" style="width: @(XpPercentage(progress))%"></div>
-                    </div>
-                    <span class="player-xp-value">@Localizer["CyberDefense_PlayerXpDisplay", progress.XpIntoCurrentLevel, progress.XpRequiredForNextLevel]</span>
-                }
-                else
-                {
-                    <div class="meter-bar player-xp-bar"
-                         role="progressbar"
-                         aria-label='@Localizer["CyberDefense_PlayerLevelUnavailableAria"]'
-                         aria-valuetext='@Localizer["CyberDefense_PlayerLevelUnavailableAria"]'>
-                        <div class="meter-fill player-xp-fill" style="width: 0%"></div>
-                    </div>
-                    <span class="player-xp-value">@Localizer["Training_Unavailable"]</span>
-                }
+                @* The heart names the row; the localized "HP: current / max" stays the panel's and the meter's accessible name. *@
+                <span class="player-hp-value">@EffectiveModel.PlayerCurrentHp / @EffectiveModel.PlayerMaxHp</span>
             </div>
         </div>
 

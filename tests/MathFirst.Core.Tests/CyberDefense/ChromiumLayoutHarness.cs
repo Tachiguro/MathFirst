@@ -60,7 +60,9 @@ internal static class ChromiumLayoutHarness
         new("b-mf-ceremony", ".combat-ceremony-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseCeremony.razor.css")),
         // Issue #123: each component renders a backdrop and a dialog as siblings; both carry the component scope.
         new("b-mf-spotlight", ".upgrade-spotlight-backdrop, .upgrade-spotlight-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "UpgradeSpotlight.razor.css")),
-        new("b-mf-unlock", ".operation-unlock-backdrop, .operation-unlock-dialog", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "OperationUnlockAnnouncement.razor.css"))
+        new("b-mf-unlock", ".operation-unlock-backdrop, .operation-unlock-dialog", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "OperationUnlockAnnouncement.razor.css")),
+        // Issue #136: the tutorial renders its backdrop and overlay as siblings; both carry the component scope.
+        new("b-mf-tutorial", ".tutorial-backdrop, .tutorial-overlay", ReadRepositoryFile("src", "MathFirst.App", "Components", "Training", "CyberDefenseTutorial.razor.css"))
     ];
 
     public static string? FindBrowser()
@@ -546,6 +548,66 @@ internal static class ChromiumLayoutHarness
             return result;
         }
 
+        // Issue #136: the player status rows (Level/XP, shields, HP), their icons, meters and values, and the protected
+        // math geometry. Clipping is measured against ancestor overflow only, as in the hud probe.
+        function statusProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const selectors = ['.player-shield-panel', '.shield-status-column', '.player-xp-cluster', '.player-status-heading', '.player-hp-cluster',
+                '.xp-progress-icon', '.player-level-label', '.player-xp-bar', '.player-xp-value', '.shield-badges-row', '.shield-badge',
+                '.shield-count-text', '.shield-recharge-bar', '.shield-recharge-value', '.player-hp-icon', '.player-hp-bar', '.player-hp-value',
+                '.tactical-radar-widget', '.training-top-region', '.practice-layout', '.expression-row', '.answer-input', '.numeric-keypad',
+                '.operation-progress-hud', '.mathfirst-header'];
+            const rects = {}, clip = {}, textOverflow = {}, text = {}, fontPx = {};
+            for (const sel of selectors) {
+                const el = q(sel);
+                rects[sel] = rectOf(el);
+                if (!el) continue;
+                clip[sel] = clippedByAncestors(w, el);
+                textOverflow[sel] = el.scrollWidth > el.clientWidth + 1;
+                text[sel] = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                fontPx[sel] = parseFloat(w.getComputedStyle(el).fontSize);
+            }
+            const keypad = [...d.querySelectorAll('.numeric-keypad-button')].map(rectOf);
+            const doc = d.documentElement;
+            return {
+                rects, clip, textOverflow, text, fontPx, keypad,
+                horizontalOverflow: doc.scrollWidth > w.innerWidth + 1 || d.body.scrollWidth > w.innerWidth + 1,
+                scrollWidth: doc.scrollWidth, viewportHeight: w.innerHeight, viewportWidth: w.innerWidth
+            };
+        }
+
+        // Issue #136: a tutorial over the paused game. The gameplay field must be rendered behind it as visible, inert
+        // spotlight context; the tutorial is the only dialog and nothing of the practice surface can be hit.
+        function tutorialProbe(d, w) {
+            const q = s => d.querySelector(s);
+            const overlay = q('.tutorial-overlay'), card = q('.tutorial-card'), heading = q('#tutorial-step-title');
+            const holder = q('[data-spotlight-active]');
+            const active = holder ? holder.getAttribute('data-spotlight-active') : null;
+            const target = active ? q('[data-spotlight-id="' + active + '"]') : null;
+            const field = {};
+            for (const sel of ['.cyber-defense-hud', '.enemy-battle-scene', '.player-shield-panel', '.expression-row', '.answer-input', '.numeric-keypad']) {
+                const el = q(sel);
+                if (!el) { field[sel] = null; continue; }
+                const cs = w.getComputedStyle(el), r = el.getBoundingClientRect();
+                field[sel] = {
+                    rect: rectOf(el), visible: visibleFraction(w, el), inert: !!el.closest('[inert]'),
+                    displayed: cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0 && r.width > 0 && r.height > 0
+                };
+            }
+            const doc = d.documentElement;
+            return {
+                present: !!overlay && !!card && !!heading,
+                dialogCount: d.querySelectorAll('[role="dialog"]').length,
+                menuPresent: !!q('.game-menu-overlay'),
+                activeTarget: active,
+                target: target ? { rect: rectOf(target), visible: visibleFraction(w, target), zIndex: w.getComputedStyle(target).zIndex } : null,
+                headingVisible: visibleFraction(w, heading),
+                field,
+                practiceSurfaceHit: [...d.querySelectorAll('.numeric-keypad-button, .answer-input, .pause-practice-btn')].some(el => hits(d, el)),
+                horizontalOverflow: doc.scrollWidth > w.innerWidth + 1 || d.body.scrollWidth > w.innerWidth + 1
+            };
+        }
+
         function homeProbe(d, w) {
             const q = s => d.querySelector(s);
             const dialog = q('.upgrade-terminal-dialog');
@@ -708,7 +770,8 @@ internal static class ChromiumLayoutHarness
                     const probe = scenario.probe === 'hud' ? hudProbe(d, w) : scenario.probe === 'home' ? homeProbe(d, w)
                         : scenario.probe === 'ceremony' ? ceremonyProbe(d, w) : scenario.probe === 'menu' ? menuProbe(d, w)
                         : scenario.probe === 'presentation' ? presentationProbe(d, w) : scenario.probe === 'combat' ? combatProbe(d, w)
-                        : scenario.probe === 'radar' ? radarProbe(d, w) : terminalProbe(d, w);
+                        : scenario.probe === 'radar' ? radarProbe(d, w) : scenario.probe === 'status' ? statusProbe(d, w)
+                        : scenario.probe === 'tutorial' ? tutorialProbe(d, w) : terminalProbe(d, w);
                     state.results.push({
                         id: scenario.id,
                         viewport: { width: w.innerWidth, height: w.innerHeight },

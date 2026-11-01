@@ -35,10 +35,11 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         throw new InvalidOperationException($"Unclosed media block: {query}");
     }
 
-    // Issue #134: the name wraps (bounded to two lines, never a single-line ellipsis) and the description is bounded to
-    // two whole lines. The rendered Chromium test proves shipped names are never truncated.
+    // Issue #134: the name wraps (bounded to two lines, never a single-line ellipsis). Issue #136: the description is
+    // bounded to the whole lines that fit in its size-contained frame above the HP row (two without container queries).
+    // The rendered Chromium tests prove shipped names and descriptions are not truncated while they fit.
     [Fact]
-    public void OpponentIntel_WrapsTheNameAndBoundsNameAndDescriptionToTwoWholeLines()
+    public void OpponentIntel_WrapsTheNameAndBoundsTheDescriptionToTheWholeLinesOfItsFrame()
     {
         var css = HudCss;
         var name = Rule(css, ".scene-enemy-name");
@@ -48,7 +49,19 @@ public sealed class CyberDefenseHudResponsiveStyleTests
         Assert.DoesNotContain("text-overflow: ellipsis", name);
         Assert.Contains("-webkit-line-clamp: 2;", name);
         Assert.Contains("-webkit-line-clamp: 2;", description);
-        Assert.Contains("line-clamp: 2;", description);
+        Assert.Contains("line-height: 1.3;", description);
+        Assert.Contains("font-size: 1em;", description);
+        var frame = Rule(css, ".scene-enemy-desc-frame");
+        Assert.Contains("container: opponent-intel / size;", frame);
+        Assert.Contains("flex: 1 1 0;", frame);
+        Assert.Contains("min-height: 0;", frame);
+        // One whole 1.3em line per step, from one line up to eight.
+        Assert.Contains("@container opponent-intel (max-height: calc(2.6em - 0.5px)) { .scene-enemy-desc { -webkit-line-clamp: 1; line-clamp: 1; } }", css);
+        for (var lines = 3; lines <= 8; lines++)
+        {
+            var height = (lines * 1.3m).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+            Assert.Contains($"@container opponent-intel (min-height: calc({height}em - 0.5px)) {{ .scene-enemy-desc {{ -webkit-line-clamp: {lines}; line-clamp: {lines}; }} }}", css);
+        }
     }
 
     [Fact]
@@ -91,9 +104,17 @@ public sealed class CyberDefenseHudResponsiveStyleTests
     public void HpAndShieldColumns_CanUseAvailableInlineSpace_WithoutFixedMinimumOverflow()
     {
         var css = HudCss;
-        Assert.Contains("flex: 1;", Rule(css, ".shield-status-column"));
-        Assert.Contains("min-width: 0;", Rule(css, ".player-hp-cluster"));
-        Assert.Contains("flex-shrink: 0;", Rule(css, ".player-hp-value"));
+        var column = Rule(css, ".shield-status-column");
+        Assert.Contains("flex: 1;", column);
+        Assert.Contains("min-width: 0;", column);
+        // Issue #136: one grid of icon, label, meter and value columns; the meter column takes at most half of the status
+        // width and is the only one that shrinks, so no number is ever squeezed.
+        Assert.Contains("grid-template-columns: var(--status-icon-size) auto minmax(1.25rem, 50%) auto;", column);
+        Assert.Contains("justify-content: start;", column);
+        var rows = Rule(css, ".player-hp-cluster");
+        Assert.Contains("min-width: 0;", rows);
+        Assert.Contains("grid-template-columns: subgrid;", rows);
+        Assert.Contains("white-space: nowrap;", Rule(css, ".player-hp-value"));
         Assert.Contains("min-width: 0;", Rule(css, ".scene-top-actions"));
         // Issue #134: the shield row keeps the former one-line title height with or without shields, and the panel keeps
         // the radar-bound height whether or not the earned radar is shown.
