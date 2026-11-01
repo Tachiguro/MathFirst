@@ -717,7 +717,7 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
     // =========================================================================
 
     [Fact(Timeout = 10000)]
-    public async Task Issue112_ReplayDuringManualPause_OpensOverInertPauseGate_AndKeepsTimingSuspendedUntilResume()
+    public async Task Issue112_ReplayDuringManualPause_OpensOverTheInertPausedGameField_AndKeepsTimingSuspendedUntilResume()
     {
         await using var f = await HomeFixture.CreateAsync(this, cyberDefense: true, tutorialCompleted: true);
         await f.StartOrResumePracticeAsync();
@@ -734,7 +734,11 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         Assert.True(f.IsTutorialOpen);
         Assert.False(f.Session.IsTimingActive);
         var html = await f.GetHtmlAsync();
-        Assert.Matches(@"practice-gate-overlay""[^>]*\binert\b", html);
+        // Issue #136: the paused game field, not the pause gate, is the inert spotlight context behind the tutorial.
+        Assert.DoesNotContain("practice-gate-overlay", html);
+        Assert.Matches(@"<main class=""training-card[^""]*""[^>]*\binert\b", html);
+        Assert.Contains("data-spotlight-id=\"enemy-hud\"", html);
+        Assert.Contains("class=\"numeric-keypad\"", html);
         Assert.Matches(@"<header class=""mathfirst-header""[^>]*\binert\b", html);
         Assert.Contains("tutorial-btn-skip", html);
         Assert.Contains("tutorial-btn-next", html);
@@ -761,7 +765,9 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
         Assert.False(f.Session.IsTimingActive);
         Assert.Equal(1700, f.Session.GetCurrentActiveElapsedMs());
-        Assert.DoesNotMatch(@"practice-gate-overlay""[^>]*\binert\b", await f.GetHtmlAsync());
+        var after = await f.GetHtmlAsync();
+        Assert.Contains("practice-gate-overlay", after);
+        Assert.DoesNotMatch(@"practice-gate-overlay""[^>]*\binert\b", after);
 
         await f.StartOrResumePracticeAsync();
         Assert.Equal(PracticeGateState.Running, f.Session.PracticeGate);

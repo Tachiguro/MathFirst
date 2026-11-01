@@ -117,7 +117,9 @@
             <main class="training-card @(IsActiveGameplay ? "active-gameplay" : "") @(IsCalmMode ? "calm-mode" : "")"
                   inert="@(Ceremony.IsBlocking || _isTutorialOpen || _isUpgradeSpotlightOpen || _activeOperationUnlock is not null ? true : null)"
                   aria-hidden="@(Ceremony.IsBlocking || _isTutorialOpen || _isUpgradeSpotlightOpen || _activeOperationUnlock is not null ? "true" : null)">
-                @if (Session.PracticeGate != PracticeGateState.Running)
+                @* Issue #136: a tutorial replayed over the menu shows the paused game field (inert, like the whole card) as its
+                   spotlight context instead of the menu; the menu returns when the tutorial closes. *@
+                @if (Session.PracticeGate != PracticeGateState.Running && !IsTutorialOverGameMenu)
                 {
                     // Issue #125: the ManualPause gate is the cyber main menu itself, never a second stacked dialog.
                     var isGameMenu = Session.PracticeGate == PracticeGateState.ManualPause;
@@ -661,11 +663,12 @@
     private bool IsCyberDefenseActive => CyberDefensePreferences.GetCyberDefenseEnabled();
     private bool IsCalmMode => !IsCyberDefenseActive;
 
+    // Layout only. The paused field behind a tutorial replayed over the menu keeps the in-game layout (Issue #136).
     private bool IsActiveGameplay =>
         !_startupFailed &&
         Session.IsInitialized &&
         Session.CurrentFact is not null &&
-        Session.PracticeGate == PracticeGateState.Running &&
+        (Session.PracticeGate == PracticeGateState.Running || IsTutorialOverGameMenu) &&
         Session.InteractionState != SessionInteractionState.PersistenceFailure &&
         Session.InteractionState != SessionInteractionState.TeachingIntervention &&
         Session.InteractionState != SessionInteractionState.SessionCheckIn &&
@@ -2049,6 +2052,9 @@
     private bool IsGameMenuOpen =>
         !_startupFailed && Session.IsInitialized && Session.CurrentFact is not null &&
         Session.PracticeGate == PracticeGateState.ManualPause;
+
+    // Only the rendering changes: the session stays in ManualPause, timing stays frozen and the card stays inert.
+    private bool IsTutorialOverGameMenu => _isTutorialOpen && IsGameMenuOpen;
 
     private bool CanOpenGameMenu => CanPausePractice && !_isDisposed && !Ceremony.IsBlocking && Session.IsAppForeground;
 

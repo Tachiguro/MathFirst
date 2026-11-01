@@ -42,7 +42,7 @@ public sealed class Issue122PlayerProgressHudTests : IDisposable
         var html = await RenderHudAsync("en", progress);
 
         Assert.Contains("<span class=\"player-level-label\">Lv. 1</span>", html);
-        Assert.Contains($"<span class=\"player-xp-value\">0 / {progress.XpRequiredForNextLevel} XP</span>", html);
+        Assert.Contains($"<span class=\"player-xp-value\">0 / {progress.XpRequiredForNextLevel}</span>", html);
         var bar = Bar(html);
         Assert.Contains("role=\"progressbar\"", bar);
         Assert.Contains("aria-valuemin=\"0\"", bar);
@@ -61,7 +61,7 @@ public sealed class Issue122PlayerProgressHudTests : IDisposable
 
         Assert.Equal(1, progress.Level);
         Assert.Contains("Lv. 1</span>", html);
-        Assert.Contains($"{progress.XpRequiredForNextLevel - 1} / {progress.XpRequiredForNextLevel} XP", html);
+        Assert.Contains($"<span class=\"player-xp-value\">{progress.XpRequiredForNextLevel - 1} / {progress.XpRequiredForNextLevel}</span>", html);
         Assert.Contains($"aria-valuenow=\"{progress.XpRequiredForNextLevel - 1}\"", Bar(html));
         var width = double.Parse(Regex.Match(html, @"player-xp-fill""[^>]*style=""width: ([0-9.]+)%""").Groups[1].Value, CultureInfo.InvariantCulture);
         Assert.InRange(width, 50, 99.99);
@@ -76,7 +76,7 @@ public sealed class Issue122PlayerProgressHudTests : IDisposable
 
         Assert.Equal(2, progress.Level);
         Assert.Contains("Lv. 2</span>", html);
-        Assert.Contains($"0 / {progress.XpRequiredForNextLevel} XP", html);
+        Assert.Contains($"<span class=\"player-xp-value\">0 / {progress.XpRequiredForNextLevel}</span>", html);
         Assert.Contains("aria-valuenow=\"0\"", Bar(html));
         Assert.Contains("style=\"width: 0%\"", html);
     }
@@ -91,7 +91,7 @@ public sealed class Issue122PlayerProgressHudTests : IDisposable
 
         Assert.Equal(6, progress.Level);
         Assert.Contains("Lv. 6</span>", html);
-        Assert.Contains($"7 / {progress.XpRequiredForNextLevel} XP", html);
+        Assert.Contains($"<span class=\"player-xp-value\">7 / {progress.XpRequiredForNextLevel}</span>", html);
     }
 
     [Theory]
@@ -110,7 +110,7 @@ public sealed class Issue122PlayerProgressHudTests : IDisposable
         var localizer = new LocalizationService();
         localizer.ApplyLanguagePreference(language);
         Assert.Contains($"aria-valuetext=\"{localizer["CyberDefense_PlayerXpAria", 45, progress.XpRequiredForNextLevel]}\"", bar);
-        Assert.Contains($"45 / {progress.XpRequiredForNextLevel} XP", html);
+        Assert.Contains($"<span class=\"player-xp-value\">45 / {progress.XpRequiredForNextLevel}</span>", html);
         Assert.DoesNotContain("aria-hidden", Regex.Match(html, @"<div class=""player-xp-cluster""[^>]*>").Value);
     }
 
@@ -136,8 +136,8 @@ public sealed class Issue122PlayerProgressHudTests : IDisposable
         Assert.Contains("SECTOR 1", html);
         Assert.Contains("Lv. 8</span>", html);
         Assert.DoesNotMatch(@">[^<]*(?:Stage|Stufe)[^<]*<", html);
-        // Level/XP is the second row of the player panel, directly after the HP cluster.
-        Assert.Matches(@"class=""player-hp-cluster""[\s\S]*?class=""player-xp-cluster""", html);
+        // Issue #136: Level/XP is the top row of the player panel, above the shield row and the HP row.
+        Assert.Matches(@"class=""player-xp-cluster""[\s\S]*?class=""player-status-heading""[\s\S]*?class=""player-hp-cluster""", html);
     }
 
     [Fact]

@@ -164,7 +164,7 @@ public sealed class Issue122HomeHudTests : IDisposable
         var progress = CyberDefenseLevelPolicy.CalculateProgress(xp);
         var html = await f.GetHtmlAsync();
         Assert.Contains("<span class=\"player-level-label\">Lv. 8</span>", html);
-        Assert.Contains($"<span class=\"player-xp-value\">45 / {progress.XpRequiredForNextLevel} XP</span>", html);
+        Assert.Contains($"<span class=\"player-xp-value\">45 / {progress.XpRequiredForNextLevel}</span>", html);
         Assert.Contains("SECTOR 1", html);
     }
 
@@ -184,7 +184,7 @@ public sealed class Issue122HomeHudTests : IDisposable
             var html = await f.GetHtmlAsync();
             // After every committed receipt the HUD shows exactly the committed progression.
             Assert.Contains($"<span class=\"player-level-label\">Lv. {progress.Level}</span>", html);
-            Assert.Contains($"{progress.XpIntoCurrentLevel} / {progress.XpRequiredForNextLevel} XP", html);
+            Assert.Contains($"<span class=\"player-xp-value\">{progress.XpIntoCurrentLevel} / {progress.XpRequiredForNextLevel}</span>", html);
             sawGain = committed.CumulativeXp > 0;
         }
 

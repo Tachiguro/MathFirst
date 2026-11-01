@@ -295,8 +295,8 @@ public sealed class CyberDefenseUiContractTests
         Assert.True(match.Success, ".player-status-heading must be closed with a closing brace.");
         Assert.DoesNotContain(".player-hp-cluster", match.Groups["content"].Value, StringComparison.Ordinal);
 
-        // .player-hp-cluster must also be its own block
-        Assert.Matches(@"\.player-hp-cluster\s*\{[^}]*display:\s*flex;", css);
+        // .player-hp-cluster must also be its own block (Issue #136: a row of the shared status grid)
+        Assert.Matches(@"\.player-hp-cluster\s*\{[^}]*display:\s*grid;", css);
     }
 
     [Fact]

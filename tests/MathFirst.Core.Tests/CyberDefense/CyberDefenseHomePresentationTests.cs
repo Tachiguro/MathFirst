@@ -925,6 +925,77 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(ledger, await fixture.TakeLedger());
         }
 
+        // Issue #136: the owner reported a repeated "Sector complete" presentation. One sector completion must present one
+        // victory and one recap with a single completion heading, through Continue, a Home remount, a later
+        // background/foreground cycle and further answers. (Re-presentation after a cancelled, unacknowledged recap is the
+        // separate Issue #121 recovery contract covered above.)
+        [Theory(Timeout = 10000)]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Issue136_OneSectorCompletion_PresentsOneVictoryAndOneRecapHeading(bool remount)
+        {
+            await using var fixture = await Fixture.Create();
+            var stages = new List<CyberDefensePresentationStage>();
+            fixture.Sequence.Changed += () => { if (stages.Count == 0 || stages[^1] != fixture.Sequence.Stage) stages.Add(fixture.Sequence.Stage); };
+            var revision = fixture.Session.FactInstanceRevision;
+            static int Count(string html, string text) => System.Text.RegularExpressions.Regex.Matches(html, System.Text.RegularExpressions.Regex.Escape(text)).Count;
+
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var submission = fixture.Submit();
+            await Task.WhenAny(shown, submission);
+            await fixture.Render();
+            var victory = await fixture.Html();
+            Assert.Equal(1, Count(victory, "class=\"combat-ceremony-overlay\""));
+            Assert.Equal(1, Count(victory, ">Boss defeated!<"));
+            Assert.Equal(0, Count(victory, "Sector 1 complete"));
+
+            (await fixture.NextDelay()).TrySetResult();
+            var reveal = await fixture.NextDelay();
+            await fixture.Render();
+            var recap = await fixture.Html();
+            Assert.Equal(1, Count(recap, "class=\"combat-ceremony-overlay\""));
+            Assert.Equal(1, Count(recap, "Sector 1 complete"));
+            Assert.Equal(0, Count(recap, "Boss defeated!"));
+            Assert.Equal(1, Count(recap, "role=\"dialog\""));
+            reveal.TrySetResult();
+            await fixture.WhenContinue();
+            await fixture.Render();
+            var revealed = await fixture.Html();
+            Assert.Equal(1, Count(revealed, "Sector 1 complete"));
+            Assert.Equal(1, Count(revealed, "ceremony-continue"));
+
+            await fixture.Continue();
+            await submission;
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            await fixture.Render();
+            var after = await fixture.Html();
+            Assert.Equal(0, Count(after, "Sector 1 complete"));
+            Assert.DoesNotContain("combat-ceremony", after);
+            Assert.DoesNotContain("held-answer-title", after);
+
+            if (remount)
+            {
+                await fixture.RemoveView();
+                await fixture.MountView();
+            }
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
+            await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
+            await Task.Delay(50);
+            Assert.False(fixture.Sequence.IsBlocking);
+            await fixture.Invoke("StartOrResumePractice");
+            for (var i = 0; i < 3; i++)
+            {
+                var next = fixture.Session.FactInstanceRevision;
+                await fixture.Submit().WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(next + 1, fixture.Session.FactInstanceRevision);
+            }
+
+            await fixture.Render();
+            Assert.Equal(0, Count(await fixture.Html(), "Sector 1 complete"));
+            Assert.Equal(1, fixture.Victories);
+            Assert.Equal([CyberDefensePresentationStage.Victory, CyberDefensePresentationStage.Recap, CyberDefensePresentationStage.None], stages);
+        }
+
         private sealed class Fixture : IAsyncDisposable
         {
             private readonly string _directory = Path.Combine(Path.GetTempPath(), "MathFirstHomeCeremony_" + Guid.NewGuid().ToString("N"));

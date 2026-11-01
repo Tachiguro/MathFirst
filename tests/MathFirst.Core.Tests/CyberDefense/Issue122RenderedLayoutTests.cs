@@ -132,10 +132,10 @@ public sealed class Issue122RenderedLayoutTests : IDisposable
             if (overflowText.GetProperty(selector).GetBoolean()) violations.Add($"{id}: {selector} text overflows its box");
         }
 
-        // The XP row sits below the HP row and spans no wider than the status column.
+        // Issue #136: the XP row is the top row, above the HP row, and spans no wider than the status column.
         var hpBar = rects.GetProperty(".player-hp-bar");
         var xpBar = rects.GetProperty(".player-xp-bar");
-        if (xpBar.GetProperty("top").GetDouble() < hpBar.GetProperty("bottom").GetDouble() - 0.5) violations.Add($"{id}: XP bar is not below the HP bar");
+        if (xpBar.GetProperty("bottom").GetDouble() > hpBar.GetProperty("top").GetDouble() + 0.5) violations.Add($"{id}: XP bar is not above the HP bar");
         if (xpBar.GetProperty("width").GetDouble() < 24) violations.Add($"{id}: XP bar collapsed ({xpBar.GetProperty("width").GetDouble():0.0}px)");
 
         // Header actions: reachable, unclipped, uncovered and a usable touch target; the removed toggle leaves no gap or overlap.

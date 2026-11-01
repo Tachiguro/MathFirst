@@ -48,7 +48,7 @@ public sealed class Issue134RenderedLayoutTests : IDisposable
 
     private const string StressName ="Квантово-фазовый взломщик фаервола Omega";
     private const string StressDescription =
-        "Synthetic stress text: a deliberately long localized opponent description that is far longer than any shipped copy and must stay bounded to two whole lines.";
+        "Synthetic stress text: a deliberately long localized opponent description that is far longer than any shipped copy and must stay bounded to whole lines.";
 
     private readonly ITestOutputHelper _output;
     private readonly Issue122HomeHudTests _suite = new();
@@ -326,12 +326,13 @@ public sealed class Issue134RenderedLayoutTests : IDisposable
         if (!isStress && nameLines.GetProperty("scrollHeight").GetDouble() > nameLines.GetProperty("clientHeight").GetDouble() + 1) violations.Add($"{id}: opponent name is truncated");
         if (!isStress && nameLineCount > 1.05) violations.Add($"{id}: shipped opponent name wraps to {nameLineCount:0.0} lines");
 
-        // Description: at most two whole visible lines, fully inside the stage.
+        // Description: whole visible lines, fully inside the stage. Issue #136 lets it use every whole line that fits above
+        // the HP row instead of two (Issue136RenderedLayoutTests asserts it is not cut while it fits).
         var desc = probe.GetProperty("lines").GetProperty(".scene-enemy-desc");
         var descHeight = desc.GetProperty("clientHeight").GetDouble();
         var lineHeight = desc.GetProperty("lineHeight").GetDouble();
         var visibleLines = descHeight / lineHeight;
-        if (visibleLines > 2.05 || visibleLines < 0.95) violations.Add($"{id}: description shows {visibleLines:0.00} lines");
+        if (visibleLines < 0.95) violations.Add($"{id}: description shows {visibleLines:0.00} lines");
         if (Math.Abs(visibleLines - Math.Round(visibleLines)) * lineHeight > 1.5) violations.Add($"{id}: description cuts a line ({visibleLines:0.00} lines visible)");
         if (Clip(".scene-enemy-desc") < 0.99) violations.Add($"{id}: description clipped by the stage ({Clip(".scene-enemy-desc"):0.00})");
         if (!Inside(".scene-enemy-desc", ".scene-stage")) violations.Add($"{id}: description outside the stage");

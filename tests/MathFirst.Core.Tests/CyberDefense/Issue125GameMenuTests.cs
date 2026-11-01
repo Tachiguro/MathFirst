@@ -288,7 +288,7 @@ public sealed class Issue125GameMenuTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Tutorial_FromTheMenu_ReusesTheReplayFlowOverTheInertMenu_AndNeverResumes(bool skip)
+    public async Task Tutorial_FromTheMenu_ReusesTheReplayFlowOverTheInertPausedGame_AndNeverResumes(bool skip)
     {
         await using var f = await MenuFixture.CreateAsync(this, new());
         await f.StartAsync();
@@ -302,7 +302,9 @@ public sealed class Issue125GameMenuTests : IDisposable
         Assert.Equal(PracticeGateState.ManualPause, f.Session.PracticeGate);
         Assert.False(f.Session.IsTimingActive);
         var html = await f.RenderedHtmlAsync();
-        Assert.Matches(@"game-menu-overlay practice-gate-overlay""[^>]*\binert\b", html);
+        // Issue #136: the paused game field is the inert context behind the tutorial; the menu returns when it closes.
+        Assert.DoesNotContain("game-menu-overlay", html);
+        Assert.Matches(@"<main class=""training-card[^""]*""[^>]*\binert\b", html);
         Assert.Matches(@"<header class=""mathfirst-header""[^>]*\binert\b", html);
         Assert.Contains("tutorial-overlay", html);
         Assert.Single(Regex.Matches(html, @"class=""tutorial-overlay"""));

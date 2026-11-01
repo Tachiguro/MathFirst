@@ -25,8 +25,10 @@ public sealed class CyberDefenseHudRenderingTests
             new OpponentState(OpponentKind.Normal, 2, 1), 3, 2, 0));
 
         var html = await hud.HtmlAsync();
-        Assert.Contains($"<span class=\"player-hp-value\">{expected}</span>", html);
-        Assert.Matches("class=\"meter-bar player-hp-bar\"[^>]*aria-valuenow=\"73\"[^>]*aria-valuemax=\"100\"", html);
+        // Issue #136: a heart names the row and the real values are shown; the localized text is the meter's name.
+        Assert.Contains("<span class=\"player-hp-value\">73 / 100</span>", html);
+        Assert.Contains("player-hp-icon", html);
+        Assert.Matches($"class=\"meter-bar player-hp-bar\"[^>]*aria-label=\"{expected}\"[^>]*aria-valuenow=\"73\"[^>]*aria-valuemax=\"100\"", html);
         Assert.Contains("style=\"width: 73%\"", html);
     }
 
@@ -234,9 +236,10 @@ public sealed class CyberDefenseHudRenderingTests
 
     private static void AssertShields(string html, int capacity, int active, int opponentHp = 2)
     {
-        Assert.Equal(capacity, Regex.Matches(html, "class=\"shield-badge ").Count);
-        Assert.Equal(active, Regex.Matches(html, "class=\"shield-badge shield-intact\"").Count);
-        Assert.Equal(capacity - active, Regex.Matches(html, "class=\"shield-badge shield-broken\"").Count);
+        // Issue #136: one shield icon (intact while any shield is active) beside the authoritative active / capacity.
+        Assert.Equal(capacity > 0 ? 1 : 0, Regex.Matches(html, "class=\"shield-badge ").Count);
+        Assert.Equal(capacity > 0 && active > 0 ? 1 : 0, Regex.Matches(html, "class=\"shield-badge shield-intact\"").Count);
+        Assert.Equal(capacity > 0 && active == 0 ? 1 : 0, Regex.Matches(html, "class=\"shield-badge shield-broken\"").Count);
         var meter = Regex.Match(html, "<div class=\"shield-badges-row\"[^>]*>");
         Assert.Equal(capacity > 0, meter.Success);
         if (capacity > 0)
@@ -245,7 +248,7 @@ public sealed class CyberDefenseHudRenderingTests
             Assert.Contains("aria-valuemin=\"0\"", meter.Value);
             Assert.Contains($"aria-valuemax=\"{capacity}\"", meter.Value);
             Assert.Contains($"aria-valuenow=\"{active}\"", meter.Value);
-            Assert.Contains($"{active} / {capacity}", html);
+            Assert.Contains($"<span class=\"shield-count-text\" aria-hidden=\"true\">{active} / {capacity}</span>", html);
         }
 
         var playerMeter = Regex.Match(html, "<div class=\"meter-bar player-hp-bar\"[^>]*>").Value;

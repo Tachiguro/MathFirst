@@ -124,12 +124,13 @@ public sealed class Issue134HudPresentationTests : IDisposable
 
         var html = await hud.HtmlAsync();
         var panel = Block(html, "player-shield-panel", "section");
-        Assert.Single(Regex.Matches(panel, $">{Regex.Escape(expected)}<"));
-        Assert.Contains($"<span class=\"player-hp-value\">{expected}</span>", panel);
+        // Issue #136: the HP row shows a heart and the real values once; the localized text is the accessible name.
+        Assert.Single(Regex.Matches(panel, ">73 / 100<"));
+        Assert.Contains("<span class=\"player-hp-value\">73 / 100</span>", panel);
         Assert.Matches($"<section class=\"player-shield-panel\"[^>]*aria-label=\"{Regex.Escape(expected)}\"", html);
         Assert.Matches($"class=\"meter-bar player-hp-bar\"[^>]*aria-label=\"{Regex.Escape(expected)}\"[^>]*aria-valuenow=\"73\"[^>]*aria-valuemax=\"100\"", html);
         Assert.Equal(capacity > 0, panel.Contains("shield-badges-row", StringComparison.Ordinal));
-        Assert.Equal(capacity, Regex.Matches(panel, "class=\"shield-badge ").Count);
+        Assert.Equal(capacity > 0 ? 1 : 0, Regex.Matches(panel, "class=\"shield-badge ").Count);
         // Level/XP stays untouched (Issue #122).
         Assert.Contains("player-xp-cluster", panel);
     }
