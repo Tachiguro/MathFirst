@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Issue #138 Single Animated Boss Result Card and Visible HP Label (Unreleased)
+
+- **Changed (boss victory)**: Defeating a sector boss now shows ONE persistent result card instead of a 2-second standalone "Boss defeated!" screen followed by a recap whose Continue appeared only after 3 seconds. From its first render the card shows the "Boss defeated!" heading with a brief, original cyber flourish (one frame glow and one scan line; decorative, non-blocking, disabled under reduced motion), the "Sector X complete" heading, the real recap metrics (or the unavailable message) and an enabled Continue that may be tapped immediately. Nothing dismisses, replaces or advances the card except Continue; an interrupted card is recovered as the same combined card.
+- **Changed (player HP row)**: A visible `HP` label sits between the heart and the HP meter (`♥ HP [meter] 73 / 100`), in the level label's column so the meters stay aligned. The localized `HP/KP/ОЗ: x / y` remains the accessible name.
+- **Unchanged**: Receipt identity, reset epoch, generation and current-context checks, the single idempotent acknowledgement, recovery, cancellation, recap metrics, XP, combat, answer timing, persistence schema, the System Restart screen and its 3-second Continue reveal, and the math expression, answer field and keypad geometry.
+- **Removed**: The `Victory` presentation stage and `CyberDefensePresentationSequence.VictoryDuration`.
+- **Localization**: EN/DE/RU gain `CyberDefense_HpLabel` (`HP`).
+- **Tests**: `Issue138BossResultCardTests`, a Home-level immediate-Continue test in `CyberDefenseHomePresentationTests`, and extended Chromium checks in `Issue121CeremonyRenderedLayoutTests` and `Issue136RenderedLayoutTests`; tests that pinned the three-phase sequence were updated. See `docs/TESTING.md` §46. Physical Android acceptance is pending.
+
 ### Issue #136 Compact Player Status, Full Opponent Intel and Presentation Regressions (Unreleased)
 
 - **Changed (opponent description)**: The description is no longer cut to two lines. It owns the free height between the top of the opponent stage and the numeric opponent HP and shows every whole line that fits there; only text taller than the stage ends with an ellipsis (the full text stays in the accessibility tree). Artwork, name, HP row, bosses and the opponent section's outer height are unchanged.

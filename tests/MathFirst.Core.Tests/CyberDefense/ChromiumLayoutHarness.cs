@@ -554,7 +554,7 @@ internal static class ChromiumLayoutHarness
             const q = s => d.querySelector(s);
             const selectors = ['.player-shield-panel', '.shield-status-column', '.player-xp-cluster', '.player-status-heading', '.player-hp-cluster',
                 '.xp-progress-icon', '.player-level-label', '.player-xp-bar', '.player-xp-value', '.shield-badges-row', '.shield-badge',
-                '.shield-count-text', '.shield-recharge-bar', '.shield-recharge-value', '.player-hp-icon', '.player-hp-bar', '.player-hp-value',
+                '.shield-count-text', '.shield-recharge-bar', '.shield-recharge-value', '.player-hp-icon', '.player-hp-label', '.player-hp-bar', '.player-hp-value',
                 '.tactical-radar-widget', '.training-top-region', '.practice-layout', '.expression-row', '.answer-input', '.numeric-keypad',
                 '.operation-progress-hud', '.mathfirst-header'];
             const rects = {}, clip = {}, textOverflow = {}, text = {}, fontPx = {};

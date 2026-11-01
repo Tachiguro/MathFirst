@@ -101,7 +101,7 @@ flowchart TD
     IsBossDefeated -- "No" --> AdvanceNextEnemy["Advance to Next Opponent in Sector"]
     AdvanceNextEnemy --> NextEnemy
 
-    IsBossDefeated -- "Yes" --> BossVictory["1-3s Boss Victory Animation & Sector Recap"]
+    IsBossDefeated -- "Yes" --> BossVictory["Boss Result Card: Victory Flourish, Sector Recap & Continue"]
     BossVictory --> NextSector["Advance to Sector s+1"]
     NextSector --> NextEnemy
 
@@ -404,9 +404,9 @@ Under no circumstances may the lower mathematical area be squeezed, scaled down,
 ## 14. Combat Feedback, Boss Victory, and Game-Over Sequences
 
 - **Hit Feedback**: Floating combat text (+6 XP, -4 HP, Shield Blocked, Critical Hit!) rendered in a dedicated non-blocking overlay.
-- **Boss Victory**:
-  - 1–3 second impactful victory animation.
-  - Compact sector recap (accuracy %, mistakes, active time, XP gained, level-ups) that stays until the user explicitly continues. A localized Continue button appears after about 3 seconds on the recap; no timer ever dismisses it. When recap history is unavailable the existing "unavailable" message is shown, still with Continue. *(Owner-approved correction, Issue #121; supersedes the earlier automatic-advance rule.)*
+- **Boss Victory**: one persistent boss result card. *(Owner-approved correction, Issue #138; supersedes the separate victory screen and the delayed Continue of Issue #121.)*
+  - From its first render the card shows the "Boss defeated!" heading with a brief, original, purely decorative cyber victory flourish (a single frame glow and scan line, disabled under reduced motion), the "Sector X complete" heading, the compact sector recap (accuracy %, mistakes, active time, XP gained, level-ups) and an enabled localized Continue button. There is no separate victory stage, no recap without Continue and no reveal delay; the animation never blocks or delays Continue, metrics or focus.
+  - The user may continue immediately; otherwise the card stays until the user explicitly continues. No timer ever dismisses or replaces it. When recap history is unavailable the existing "unavailable" message is shown on the same card, still with Continue.
   - The next sector's mathematics is released only after Continue; question timing stays paused and the underlying practice surface stays inert until then.
 - **Game-Over Sequence**:
   - Respectful "System Overload — Reboot Initiated" presentation.
@@ -506,7 +506,7 @@ A Cyber Defense implementation package is accepted only when all applicable crit
 - [ ] **Overdrive Reset**: Incorrect answers reset the combat combo to zero.
 - [ ] **Beginner Assistance**: Triggers cleanly on repeated early defeats without patronizing copy or math difficulty tampering.
 - [ ] **Terminal Pause Safety**: Opening the Upgrade Terminal freezes arithmetic thinking time and preserves partial input.
-- [ ] **Boss Ceremony**: Boss victory shows a 1–3s celebration, then a recap that remains until the user taps the Continue button (revealed after about 3s). Game-over shows the System Restart message with the same manual Continue. Nothing auto-dismisses (Issue #121).
+- [ ] **Boss Ceremony**: Boss victory shows one result card with the victory heading and a brief decorative flourish, the sector recap and an immediately enabled Continue; it remains until the user taps Continue (Issue #138). Game-over shows the System Restart message with a manual Continue revealed after about 3s (Issue #121). Nothing auto-dismisses.
 - [ ] **Layout Preservation**: Lower math area (expression, input, Solve-to-Attack, keypad, operation HUD) is never shrunk or clipped on any supported device.
 - [ ] **Headless Simulator**: Evaluates the five synthetic profiles using the live production state transition engine.
 - [ ] **Zero Prohibited Scope**: Zero ads, zero microtransactions, zero Google Play Games dependencies, and zero production release activity.

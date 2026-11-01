@@ -30,10 +30,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             var inputVersion = fixture.Field<int>("_inputRenderVersion");
             if (boss)
             {
-                var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+                var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
                 var submission = fixture.Submit();
                 await Task.WhenAny(shown, submission);
-                Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+                Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
                 await fixture.RevealContinue();
                 await fixture.Continue();
                 await submission;
@@ -73,24 +73,24 @@ namespace MathFirst.Core.Tests.CyberDefense
         }
 
         [Theory(Timeout = 10000)]
-        [InlineData(CyberDefensePresentationStage.Victory)]
-        [InlineData(CyberDefensePresentationStage.Recap)]
-        public async Task BackgroundCeremonyCancellation_ExplicitResumeRecordsRealActiveAndPersistedLatency(CyberDefensePresentationStage stage)
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task BackgroundCeremonyCancellation_ExplicitResumeRecordsRealActiveAndPersistedLatency(bool afterRevalidationTick)
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
             var inputVersion = fixture.Field<int>("_inputRenderVersion");
             var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
             fixture.Clock.Advance(2000);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
-            if (stage == CyberDefensePresentationStage.Recap)
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
+            if (afterRevalidationTick)
             {
                 (await fixture.NextDelay()).TrySetResult();
                 await fixture.NextDelay();
-                Assert.Equal(stage, fixture.Sequence.Stage);
+                Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             }
             var ledger = await fixture.TakeLedger();
             var staleId = fixture.Sequence.PresentationId;
@@ -105,7 +105,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.False(fixture.Session.IsTimingActive);
 
             // Foreground recovery replays the unacknowledged recap; only its own Continue releases the question.
-            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
             await replay;
             var replayId = fixture.Sequence.PresentationId;
@@ -152,10 +152,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             await fixture.Submit();
             Assert.Equal(SessionInteractionState.PersistenceFailure, fixture.Session.InteractionState);
             Assert.Equal(136, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var retry = fixture.Invoke("RecoverFromPersistenceFailureAsync");
             await Task.WhenAny(shown, retry);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             await fixture.RevealContinue();
             await Task.Delay(50);
             Assert.False(retry.IsCompleted);
@@ -300,9 +300,9 @@ namespace MathFirst.Core.Tests.CyberDefense
         public async Task ColdStartup_RecoversBossReceipt_PresentsOnce_AndKeepsTheInitialPracticeGate()
         {
             await using var fixture = await Fixture.Create(recoveredStartup: true);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             await Task.WhenAny(shown, fixture.Rendering);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             Assert.False(fixture.Session.IsTimingActive);
             await fixture.RevealContinue();
             await Task.Delay(50);
@@ -322,10 +322,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
             var inputVersion = fixture.Field<int>("_inputRenderVersion");
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             var ledger = await fixture.TakeLedger();
             await fixture.RemoveView();
             await submission;
@@ -335,10 +335,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(SessionInteractionState.CorrectFeedback, fixture.Session.InteractionState);
 
             // Re-entry never advances the unacknowledged question on its own: the recap is presented again.
-            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var remount = fixture.MountView();
             await Task.WhenAny(replay, remount);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             await fixture.RevealContinue();
             await Task.Delay(50);
             Assert.False(remount.IsCompleted);
@@ -351,18 +351,19 @@ namespace MathFirst.Core.Tests.CyberDefense
         }
 
         [Fact]
-        public async Task BossVictory_HoldsRealHomeAdvanceAndActiveAnswerTime_UntilRecapFinishes()
+        public async Task BossVictory_HoldsRealHomeAdvanceAndActiveAnswerTime_UntilTheResultCardContinues()
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
             fixture.Clock.Advance(2000);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             Assert.False(submission.IsCompleted);
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
             Assert.False(fixture.Session.IsTimingActive);
+            await fixture.Render();
             var html = await fixture.Html();
             Assert.Matches("<header[^>]*inert(?:=\"[^\"]*\")?[^>]*aria-hidden=\"true\"", html);
             Assert.Matches("<main[^>]*inert(?:=\"[^\"]*\")?[^>]*aria-hidden=\"true\"", html);
@@ -371,15 +372,16 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(176, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
             fixture.Clock.Advance(500000);
             Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
+            // Issue #138: Continue is on the card from the start; the only timer re-observes validity and releases nothing.
+            Assert.True(fixture.Sequence.CanContinue);
+            Assert.Contains("ceremony-continue", html);
             (await fixture.NextDelay()).TrySetResult();
-            var recapDelay = await fixture.NextDelay();
-            Assert.Equal(TimeSpan.FromSeconds(3), fixture.LastDelay);
+            await fixture.NextDelay();
+            Assert.Equal(TimeSpan.FromSeconds(2), fixture.LastDelay);
             Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
             Assert.False(submission.IsCompleted);
-            Assert.DoesNotContain("ceremony-continue", await fixture.Html());
-            recapDelay.TrySetResult();
-            await fixture.WhenContinue();
+            await fixture.Render();
             Assert.Contains("ceremony-continue", await fixture.Html());
             await Task.Delay(50);
             Assert.False(submission.IsCompleted);
@@ -398,7 +400,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
             fixture.Clock.Advance(2000);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             var xp = (await fixture.Store.GetProgressionAsync()).CumulativeXp;
@@ -433,22 +435,26 @@ namespace MathFirst.Core.Tests.CyberDefense
         [Theory(Timeout = 20000)]
         [InlineData(true)]
         [InlineData(false)]
-        public async Task GlobalEnterAndStaleContinue_CannotBypassTheModalAtAnyStage(bool afterReveal)
+        public async Task GlobalEnterAndStaleContinue_CannotBypassTheModalAtAnyStage(bool afterRevalidationTick)
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             var commits = fixture.LearnerCommitCalls;
-            if (afterReveal) await fixture.RevealContinue();
+            await fixture.RevealContinue();
+            if (afterRevalidationTick)
+            {
+                (await fixture.NextDelay()).TrySetResult();
+                await fixture.NextDelay();
+            }
             var id = fixture.Sequence.PresentationId;
 
             await fixture.PressEnter();
             await fixture.PressEnter();
             await fixture.Continue(id + 1);
             await fixture.Continue(0);
-            if (!afterReveal) await fixture.Continue(id);
             await Task.Delay(50);
 
             Assert.False(submission.IsCompleted);
@@ -469,7 +475,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
             var inputVersion = fixture.Field<int>("_inputRenderVersion");
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             await fixture.RevealContinue();
@@ -560,7 +566,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             await fixture.RevealContinue();
@@ -638,16 +644,16 @@ namespace MathFirst.Core.Tests.CyberDefense
         [InlineData("background")]
         [InlineData("mode")]
         [InlineData("reset")]
-        public async Task ContextChangeDuringVictory_AbortsRecapWithoutLeakingTimeOrAdvancingOldGeneration(string change)
+        public async Task ContextChangeBeforeTheFirstRevalidation_AbortsTheBossCardWithoutLeakingTimeOrAdvancingOldGeneration(string change)
         {
             await using var fixture = await Fixture.Create();
             var revision = fixture.Session.FactInstanceRevision;
             var inputVersion = fixture.Field<int>("_inputRenderVersion");
             var prepared = fixture.Field<long>("_lastPreparedFactInstanceRevision");
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             var ledger = await fixture.TakeLedger();
             var delay = await fixture.NextDelay();
             Assert.Equal(TimeSpan.FromSeconds(2), fixture.LastDelay);
@@ -687,7 +693,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         private static async Task<(Task Submission, long Id)> SubmitBossAtContinueAsync(Fixture fixture)
         {
             fixture.Clock.Advance(2000);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             await fixture.RevealContinue();
@@ -738,10 +744,10 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
 
             // Explicit recovery (Enter) replays the unacknowledged recap; the stale id cannot release it.
-            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var recovery = fixture.PressEnter();
             await Task.WhenAny(replay, recovery);
-            Assert.Equal(CyberDefensePresentationStage.Victory, fixture.Sequence.Stage);
+            Assert.Equal(CyberDefensePresentationStage.Recap, fixture.Sequence.Stage);
             var replayId = fixture.Sequence.PresentationId;
             Assert.NotEqual(staleId, replayId);
             await fixture.RevealContinue();
@@ -778,7 +784,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             if (backToCyberDefense)
             {
                 fixture.Preferences.SetCyberDefenseEnabled(true);
-                var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+                var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
                 var recovery = fixture.PressEnter();
                 await Task.WhenAny(replay, recovery);
                 await fixture.RevealContinue();
@@ -810,7 +816,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             await submission;
             fixture.DrainDelays();
 
-            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var enters = Task.WhenAll(fixture.PressEnter(), fixture.PressEnter(), fixture.PressEnter());
             await Task.WhenAny(replay, enters);
             // Further Enter presses and foreground events while the replay is running start nothing new.
@@ -853,7 +859,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(revision, fixture.Session.FactInstanceRevision);
 
             fixture.FailReceiptReads(false);
-            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var recovery = fixture.PressEnter();
             await Task.WhenAny(replay, recovery);
             await fixture.RevealContinue();
@@ -877,7 +883,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             fixture.FailNextLearnerCommit();
             await fixture.Submit();
             Assert.Equal(SessionInteractionState.PersistenceFailure, fixture.Session.InteractionState);
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var retry = fixture.Invoke("RecoverFromPersistenceFailureAsync");
             await Task.WhenAny(shown, retry);
             await fixture.Dispatch(() => fixture.Session.SetAppForeground(false));
@@ -887,7 +893,7 @@ namespace MathFirst.Core.Tests.CyberDefense
             await fixture.AssertHeld(revision, inputVersion, prepared, ledger);
             Assert.Equal(176, (await fixture.Store.GetProgressionAsync()).CumulativeXp);
 
-            var replay = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var replay = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             await fixture.Dispatch(() => fixture.Session.SetAppForeground(true));
             await replay;
             await fixture.RevealContinue();
@@ -925,14 +931,14 @@ namespace MathFirst.Core.Tests.CyberDefense
             Assert.Equal(ledger, await fixture.TakeLedger());
         }
 
-        // Issue #136: the owner reported a repeated "Sector complete" presentation. One sector completion must present one
-        // victory and one recap with a single completion heading, through Continue, a Home remount, a later
-        // background/foreground cycle and further answers. (Re-presentation after a cancelled, unacknowledged recap is the
-        // separate Issue #121 recovery contract covered above.)
+        // Issue #136: the owner reported a repeated "Sector complete" presentation. Since Issue #138 one sector completion
+        // presents one boss result card ("Boss defeated!" and a single completion heading together), through Continue, a
+        // Home remount, a later background/foreground cycle and further answers. (Re-presentation after a cancelled,
+        // unacknowledged card is the separate Issue #121 recovery contract covered above.)
         [Theory(Timeout = 10000)]
         [InlineData(false)]
         [InlineData(true)]
-        public async Task Issue136_OneSectorCompletion_PresentsOneVictoryAndOneRecapHeading(bool remount)
+        public async Task Issue136_OneSectorCompletion_PresentsOneBossResultCardWithOneCompletionHeading(bool remount)
         {
             await using var fixture = await Fixture.Create();
             var stages = new List<CyberDefensePresentationStage>();
@@ -940,29 +946,22 @@ namespace MathFirst.Core.Tests.CyberDefense
             var revision = fixture.Session.FactInstanceRevision;
             static int Count(string html, string text) => System.Text.RegularExpressions.Regex.Matches(html, System.Text.RegularExpressions.Regex.Escape(text)).Count;
 
-            var shown = fixture.WhenStage(CyberDefensePresentationStage.Victory);
+            var shown = fixture.WhenStage(CyberDefensePresentationStage.Recap);
             var submission = fixture.Submit();
             await Task.WhenAny(shown, submission);
             await fixture.Render();
-            var victory = await fixture.Html();
-            Assert.Equal(1, Count(victory, "class=\"combat-ceremony-overlay\""));
-            Assert.Equal(1, Count(victory, ">Boss defeated!<"));
-            Assert.Equal(0, Count(victory, "Sector 1 complete"));
+            var card = await fixture.Html();
+            Assert.Equal(1, Count(card, "class=\"combat-ceremony-overlay\""));
+            Assert.Equal(1, Count(card, "role=\"dialog\""));
+            Assert.Equal(1, Count(card, ">Boss defeated!<"));
+            Assert.Equal(1, Count(card, "Sector 1 complete"));
+            Assert.Equal(1, Count(card, "ceremony-continue"));
 
+            // Revalidation ticks neither replace nor duplicate the card.
             (await fixture.NextDelay()).TrySetResult();
-            var reveal = await fixture.NextDelay();
+            await fixture.NextDelay();
             await fixture.Render();
-            var recap = await fixture.Html();
-            Assert.Equal(1, Count(recap, "class=\"combat-ceremony-overlay\""));
-            Assert.Equal(1, Count(recap, "Sector 1 complete"));
-            Assert.Equal(0, Count(recap, "Boss defeated!"));
-            Assert.Equal(1, Count(recap, "role=\"dialog\""));
-            reveal.TrySetResult();
-            await fixture.WhenContinue();
-            await fixture.Render();
-            var revealed = await fixture.Html();
-            Assert.Equal(1, Count(revealed, "Sector 1 complete"));
-            Assert.Equal(1, Count(revealed, "ceremony-continue"));
+            Assert.Equal(card, await fixture.Html());
 
             await fixture.Continue();
             await submission;
@@ -993,7 +992,55 @@ namespace MathFirst.Core.Tests.CyberDefense
             await fixture.Render();
             Assert.Equal(0, Count(await fixture.Html(), "Sector 1 complete"));
             Assert.Equal(1, fixture.Victories);
-            Assert.Equal([CyberDefensePresentationStage.Victory, CyberDefensePresentationStage.Recap, CyberDefensePresentationStage.None], stages);
+            Assert.Equal([CyberDefensePresentationStage.Recap, CyberDefensePresentationStage.None], stages);
+        }
+
+        // Issue #138: the first presented ceremony of a sector completion is the whole boss result card: one dialog with
+        // "Boss defeated!", "Sector 1 complete", the real recap metrics and an enabled Continue, which the user may tap
+        // at once. The tap advances exactly once without new rewards, answers or commits.
+        [Fact(Timeout = 10000)]
+        public async Task Issue138_BossCompletion_FirstRenderIsTheCompleteResultCard_AndImmediateContinueAdvancesOnce()
+        {
+            await using var fixture = await Fixture.Create();
+            var revision = fixture.Session.FactInstanceRevision;
+            static int Count(string html, string text) => System.Text.RegularExpressions.Regex.Matches(html, System.Text.RegularExpressions.Regex.Escape(text)).Count;
+            fixture.Clock.Advance(2000);
+
+            var presented = fixture.WhenPresented();
+            var submission = fixture.Submit();
+            await Task.WhenAny(presented, submission);
+            Assert.True(presented.IsCompleted);
+            Assert.Equal((CyberDefensePresentationStage.Recap, true), await presented);
+            Assert.False(submission.IsCompleted);
+            Assert.False(fixture.Session.IsTimingActive);
+
+            await fixture.Render();
+            var html = await fixture.Html();
+            Assert.Equal(1, Count(html, "class=\"combat-ceremony-overlay\""));
+            Assert.Equal(1, Count(html, "role=\"dialog\""));
+            Assert.Equal(1, Count(html, ">Boss defeated!<"));
+            Assert.Equal(1, Count(html, ">Sector 1 complete<"));
+            Assert.Equal(1, Count(html, "class=\"recap-metrics\""));
+            Assert.Contains("XP gained: ", html);
+            var button = System.Text.RegularExpressions.Regex.Match(html, "<button[^>]*ceremony-continue[^>]*>").Value;
+            Assert.NotEmpty(button);
+            Assert.DoesNotContain("disabled", button);
+            Assert.Matches("<main[^>]*inert(?:=\"[^\"]*\")?[^>]*aria-hidden=\"true\"", html);
+            var ledger = await fixture.TakeLedger();
+            Assert.Equal(2000, fixture.Session.LastEvaluation!.LatencyMs);
+
+            // Immediate Continue: no timer has elapsed.
+            await fixture.Continue();
+            await submission;
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            await fixture.Continue();
+            await fixture.PressEnter();
+            Assert.Equal(revision + 1, fixture.Session.FactInstanceRevision);
+            Assert.Equal(ledger, await fixture.TakeLedger());
+            Assert.Single((await fixture.LearnerSnapshot()).RecentAttempts);
+            Assert.False(fixture.Sequence.IsBlocking);
+            await fixture.Render();
+            Assert.DoesNotContain("combat-ceremony", await fixture.Html());
         }
 
         private sealed class Fixture : IAsyncDisposable
@@ -1112,7 +1159,13 @@ namespace MathFirst.Core.Tests.CyberDefense
                     _delays.Writer.TryWrite((duration, delay));
                     return delay.Task.WaitAsync(ct);
                 });
-                Sequence.Changed += () => { if (Sequence.Stage == CyberDefensePresentationStage.Victory) Victories++; };
+                // Counts boss result card presentations (entries into Recap), not the Changed events within one card.
+                var shownStage = CyberDefensePresentationStage.None;
+                Sequence.Changed += () =>
+                {
+                    if (Sequence.Stage == CyberDefensePresentationStage.Recap && shownStage != CyberDefensePresentationStage.Recap) Victories++;
+                    shownStage = Sequence.Stage;
+                };
                 _services = new ServiceCollection().AddLogging()
                     .AddSingleton(Session).AddSingleton(Sequence).AddSingleton<IGameplayStore>(_faults.Proxy)
                     .AddSingleton<ICyberDefenseCombatCoordinator>(_coordinator)
@@ -1205,14 +1258,17 @@ namespace MathFirst.Core.Tests.CyberDefense
                 return next.Gate;
             }
 
-            /// <summary>Elapses the fake victory (boss only) and the 3 s recap/restart reveal delay, then waits for Continue.</summary>
+            /// <summary>
+            /// Waits for Continue. The boss result card offers it from its first presentation without any timer (Issue #138);
+            /// System Restart (<paramref name="boss"/> false) elapses its 3 s reveal delay first.
+            /// </summary>
             public async Task RevealContinue(bool boss = true)
             {
                 if (boss)
                 {
-                    var victory = await NextDelay();
-                    Assert.Equal(TimeSpan.FromSeconds(2), LastDelay);
-                    victory.TrySetResult();
+                    // No fake delay is elapsed here: Continue must be available without one.
+                    await WhenContinue();
+                    return;
                 }
                 var reveal = await NextDelay();
                 Assert.Equal(TimeSpan.FromSeconds(3), LastDelay);
@@ -1254,6 +1310,15 @@ namespace MathFirst.Core.Tests.CyberDefense
                 void Check() { if (Sequence.Stage == stage) { Sequence.Changed -= Check; ready.TrySetResult(); } }
                 Sequence.Changed += Check;
                 Check();
+                return ready.Task;
+            }
+
+            /// <summary>The stage and Continue availability of the first presentation that becomes visible.</summary>
+            public Task<(CyberDefensePresentationStage Stage, bool CanContinue)> WhenPresented()
+            {
+                var ready = new TaskCompletionSource<(CyberDefensePresentationStage, bool)>();
+                void Check() { if (Sequence.Stage != CyberDefensePresentationStage.None) { Sequence.Changed -= Check; ready.TrySetResult((Sequence.Stage, Sequence.CanContinue)); } }
+                Sequence.Changed += Check;
                 return ready.Task;
             }
             public async ValueTask DisposeAsync()

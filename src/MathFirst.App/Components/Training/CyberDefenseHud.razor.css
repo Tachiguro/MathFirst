@@ -810,7 +810,9 @@
     color: #ff3b5c;
 }
 
-.player-level-label {
+/* The level and the HP label share the label column, so the XP and HP meters still start together (Issue #138). */
+.player-level-label,
+.player-hp-label {
     grid-column: 2;
     font-size: 0.725rem;
     font-weight: 800;
@@ -819,6 +821,10 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     line-height: 1.1;
+}
+
+.player-hp-label {
+    color: var(--color-text);
 }
 
 /* One shield icon (intact while any shield is active) and the active / capacity count in the icon and label columns. */
