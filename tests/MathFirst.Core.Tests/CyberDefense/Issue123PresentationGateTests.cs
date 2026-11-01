@@ -334,12 +334,10 @@ public sealed class Issue123PresentationGateTests : IDisposable
         Assert.Equal(1, f.Learner.CommitCalls);
 
         var html = await f.RenderedHtmlAsync();
-        Assert.Contains("data-spotlight-active=\"upgrade-header\"", html);
+        Assert.DoesNotContain("data-spotlight-active=\"upgrade-header\"", html);
         var header = MenuFixture.Header(html);
         Assert.DoesNotMatch(@"<header class=""mathfirst-header""[^>]*\binert\b", header);
-        var upgrade = Regex.Match(header, @"<button[^>]*class=""button button-secondary upgrade-nav-btn""[^>]*>").Value;
-        Assert.Contains("data-spotlight-id=\"upgrade-header\"", upgrade);
-        Assert.DoesNotContain("disabled", upgrade);
+        Assert.DoesNotContain("upgrade-nav-btn", header);
         Assert.DoesNotContain("pause-practice-btn", header);
         Assert.Matches(@"<main class=""training-card[^""]*""[^>]*\binert\b", html);
 
@@ -808,7 +806,7 @@ public sealed class Issue123PresentationGateTests : IDisposable
         Assert.Matches(@"@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.upgrade-spotlight-card", spotlight);
         Assert.Matches(@"@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.operation-unlock-content", unlock);
         var app = ChromiumLayoutHarness.ReadRepositoryFile("src", "MathFirst.App", "wwwroot", "app.css");
-        Assert.Matches(@"\[data-spotlight-active=""upgrade-header""\] \[data-spotlight-id=""upgrade-header""\]\s*\{[^}]*pointer-events: auto;", app);
+        Assert.DoesNotContain("upgrade-header", app);
     }
 
     // =========================================================================

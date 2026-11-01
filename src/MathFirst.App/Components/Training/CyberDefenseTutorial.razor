@@ -21,8 +21,8 @@
                 else
                 {
                     <span class="tutorial-badge tutorial-badge-spotlight"
-                          aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_StepProgress", (int)_currentStep, 3]">
-                        @EffectiveLocalizer["CyberDefense_Tutorial_StepProgress", (int)_currentStep, 3]
+                          aria-label="@EffectiveLocalizer["CyberDefense_Tutorial_StepProgress", (int)_currentStep, TotalGuidanceSteps]">
+                        @EffectiveLocalizer["CyberDefense_Tutorial_StepProgress", (int)_currentStep, TotalGuidanceSteps]
                     </span>
                 }
             </div>
@@ -57,6 +57,18 @@
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         </svg>
                         break;
+                    case CyberDefenseTutorialStep.UpgradeTerminal:
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                            <polyline points="2 17 12 22 22 17" />
+                            <polyline points="2 12 12 17 22 12" />
+                        </svg>
+                        break;
+                    case CyberDefenseTutorialStep.Abilities:
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                        break;
                 }
             </div>
 
@@ -86,7 +98,7 @@
                     </button>
                 }
 
-                @if (_currentStep == CyberDefenseTutorialStep.SystemIntegrity)
+                @if (_currentStep == LastStep)
                 {
                     <button type="button"
                             class="tutorial-btn tutorial-btn-primary tutorial-btn-finish"
@@ -115,13 +127,19 @@
         StoryCard = 0,
         Enemy = 1,
         ExpressionKeypad = 2,
-        SystemIntegrity = 3
+        SystemIntegrity = 3,
+        UpgradeTerminal = 4,
+        Abilities = 5
     }
 
     [Parameter] public EventCallback OnFinished { get; set; }
     [Parameter] public EventCallback OnSkipped { get; set; }
     [Parameter] public EventCallback<CyberDefenseTutorialStep> OnStepChanged { get; set; }
     [Parameter] public ILocalizationService? Localizer { get; set; }
+    [Parameter] public bool IsManualReplay { get; set; }
+
+    public int TotalGuidanceSteps => IsManualReplay ? 5 : 3;
+    public CyberDefenseTutorialStep LastStep => IsManualReplay ? CyberDefenseTutorialStep.Abilities : CyberDefenseTutorialStep.SystemIntegrity;
 
     private ILocalizationService EffectiveLocalizer => Localizer ?? InjectedLocalizer;
 
@@ -138,6 +156,8 @@
         CyberDefenseTutorialStep.Enemy => "enemy-hud",
         CyberDefenseTutorialStep.ExpressionKeypad => "expression-keypad",
         CyberDefenseTutorialStep.SystemIntegrity => "system-integrity",
+        CyberDefenseTutorialStep.UpgradeTerminal => "upgrade-terminal",
+        CyberDefenseTutorialStep.Abilities => "abilities",
         _ => "unknown"
     };
 
@@ -147,6 +167,8 @@
         CyberDefenseTutorialStep.Enemy => EffectiveLocalizer["CyberDefense_Tutorial_Enemy_Title"],
         CyberDefenseTutorialStep.ExpressionKeypad => EffectiveLocalizer["CyberDefense_Tutorial_ExpressionKeypad_Title"],
         CyberDefenseTutorialStep.SystemIntegrity => EffectiveLocalizer["CyberDefense_Tutorial_SystemIntegrity_Title"],
+        CyberDefenseTutorialStep.UpgradeTerminal => EffectiveLocalizer["CyberDefense_Tutorial_UpgradeTerminal_Title"],
+        CyberDefenseTutorialStep.Abilities => EffectiveLocalizer["CyberDefense_Tutorial_Abilities_Title"],
         _ => string.Empty
     };
 
@@ -156,12 +178,14 @@
         CyberDefenseTutorialStep.Enemy => EffectiveLocalizer["CyberDefense_Tutorial_Enemy_Body"],
         CyberDefenseTutorialStep.ExpressionKeypad => EffectiveLocalizer["CyberDefense_Tutorial_ExpressionKeypad_Body"],
         CyberDefenseTutorialStep.SystemIntegrity => EffectiveLocalizer["CyberDefense_Tutorial_SystemIntegrity_Body"],
+        CyberDefenseTutorialStep.UpgradeTerminal => EffectiveLocalizer["CyberDefense_Tutorial_UpgradeTerminal_Body"],
+        CyberDefenseTutorialStep.Abilities => EffectiveLocalizer["CyberDefense_Tutorial_Abilities_Body"],
         _ => string.Empty
     };
 
     public async Task NextAsync()
     {
-        if (_currentStep < CyberDefenseTutorialStep.SystemIntegrity)
+        if (_currentStep < LastStep)
         {
             _currentStep++;
             StateHasChanged();
@@ -198,7 +222,7 @@
     public async Task FinishAsync()
     {
         if (_callbackEmitted) return;
-        if (_currentStep != CyberDefenseTutorialStep.SystemIntegrity) return;
+        if (_currentStep != LastStep) return;
         _callbackEmitted = true;
         if (OnFinished.HasDelegate)
         {

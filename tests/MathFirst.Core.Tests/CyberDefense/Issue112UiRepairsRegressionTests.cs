@@ -195,13 +195,13 @@ public sealed class Issue112UiRepairsRegressionTests : IDisposable
     // =========================================================================
 
     [Fact]
-    public void HomeRazor_Header_HasDedicatedUpgradeButtonWhenCyberDefenseActive()
+    public void HomeRazor_Header_HasNoDuplicateUpgradeButton_SinceIssue139()
     {
         var home = ReadFile("src", "MathFirst.App", "Components", "Pages", "Home.razor");
 
         // Header includes dedicated upgrade button with SP badge
-        Assert.Contains("upgrade-nav-btn", home, StringComparison.Ordinal);
-        Assert.Contains("header-sp-badge", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("upgrade-nav-btn", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("header-sp-badge", home, StringComparison.Ordinal);
     }
 
     [Fact]
