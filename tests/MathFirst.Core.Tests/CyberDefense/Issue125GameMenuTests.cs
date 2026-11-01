@@ -847,8 +847,9 @@ public sealed class Issue125GameMenuTests : IDisposable
         Assert.True(f.TerminalViewModel.CanPurchase, "The revealed entry must lead to a real purchasable upgrade.");
 
         var header = MenuFixture.Header(await f.RenderedHtmlAsync());
-        Assert.Single(Regex.Matches(header, "upgrade-nav-btn"));
-        Assert.Contains("<span class=\"header-sp-badge\"", header);
+        Assert.DoesNotContain("upgrade-nav-btn", header);
+        Assert.DoesNotContain("header-sp-badge", header);
+        Assert.DoesNotContain("pause-practice-btn", header);
 
         // Issue #123: the first opportunity also opens the one-time Upgrade spotlight, which the menu never stacks on.
         // Its explicit Later releases the held answer; the menu then offers Upgrade as well.
@@ -879,7 +880,7 @@ public sealed class Issue125GameMenuTests : IDisposable
             Assert.Equal(0, spent.AvailableSkillPoints);
             Assert.Equal(3, spent.SpentSkillPoints);
             var html = await f.RenderedHtmlAsync();
-            Assert.Contains("upgrade-nav-btn", html);
+            Assert.DoesNotContain("upgrade-nav-btn", html);
             Assert.DoesNotContain("header-sp-badge", html);
             Assert.Contains("pause-upgrade-btn", MenuFixture.Menu(html));
 
@@ -887,14 +888,14 @@ public sealed class Issue125GameMenuTests : IDisposable
             await f.OpenMenuAsync();
             Assert.Contains("pause-upgrade-btn", MenuFixture.Menu(await f.RenderedHtmlAsync()));
             await f.NavigateToSettingsAndBackAsync();
-            Assert.Contains("upgrade-nav-btn", await f.RenderedHtmlAsync());
+            Assert.DoesNotContain("upgrade-nav-btn", await f.RenderedHtmlAsync());
         }
 
         // A cold restart: new store, session, coordinator and view over the same durable synthetic file.
         await using var restarted = await MenuFixture.CreateAsync(this, new(PlayerLevel: 4), existingDirectory: directory);
         Assert.Equal(3, (await restarted.Store.GetProgressionAsync()).SpentSkillPoints);
         Assert.True(restarted.TerminalViewModel.IsUpgradeDiscovered);
-        Assert.Contains("upgrade-nav-btn", MenuFixture.Header(await restarted.RenderedHtmlAsync()));
+        Assert.DoesNotContain("upgrade-nav-btn", MenuFixture.Header(await restarted.RenderedHtmlAsync()));
         await restarted.StartAsync();
         await restarted.OpenMenuAsync();
         Assert.Contains("pause-upgrade-btn", MenuFixture.Menu(await restarted.RenderedHtmlAsync()));
@@ -1257,7 +1258,9 @@ public sealed class Issue125GameMenuTests : IDisposable
         public Task FinishTutorialAsync() => _renderer.Dispatcher.InvokeAsync(async () =>
         {
             var tutorial = Field<object>("_tutorialComponent");
-            for (var i = 0; i < 3; i++) await (Task)tutorial.GetType().GetMethod("NextAsync")!.Invoke(tutorial, null)!;
+            var isReplay = (bool)tutorial.GetType().GetProperty("IsManualReplay")!.GetValue(tutorial)!;
+            var count = isReplay ? 5 : 3;
+            for (var i = 0; i < count; i++) await (Task)tutorial.GetType().GetMethod("NextAsync")!.Invoke(tutorial, null)!;
             await (Task)tutorial.GetType().GetMethod("FinishAsync")!.Invoke(tutorial, null)!;
         });
 

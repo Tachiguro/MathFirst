@@ -352,6 +352,8 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         await f.NextTutorialStepAsync();
         await f.NextTutorialStepAsync();
         await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
         await f.FinishTutorialAsync();
 
         Assert.False(f.IsTutorialOpen);
@@ -752,6 +754,8 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
 
         await f.NextTutorialStepAsync();
         await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
+        await f.NextTutorialStepAsync();
         html = await f.GetHtmlAsync();
         Assert.Contains("tutorial-btn-skip", html);
         Assert.Contains("tutorial-btn-back", html);
@@ -786,7 +790,8 @@ public sealed class SpotlightTutorialLifecycleTests : IDisposable
         var before = await f.GetHtmlAsync();
         var expressionBefore = Regex.Match(before, @"<div class=""expression-row[\s\S]*?</div>").Value;
         Assert.NotEmpty(expressionBefore);
-        Assert.Matches(@"upgrade-nav-btn[^>]*>[\s\S]*?<span class=""upgrade-nav-text"">" + Regex.Escape(f.Localizer["UpgradeTerminal_HeaderAction"]) + "</span>", before);
+        Assert.DoesNotContain("upgrade-nav-btn", before);
+        Assert.Contains("pause-practice-btn", before);
 
         await f.TryOpenUpgradeTerminalAsync();
         await f.RerenderAsync();

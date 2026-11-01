@@ -54,7 +54,7 @@ public sealed class Issue122HomeHudTests : IDisposable
         Assert.DoesNotContain("mode-toggle", header);
         Assert.DoesNotContain("aria-pressed", header);
         Assert.DoesNotContain(f.Localizer["CyberDefense_Mode_Calm"], header);
-        Assert.Contains("upgrade-nav-btn", header);
+        Assert.DoesNotContain("upgrade-nav-btn", header);
         Assert.Contains("pause-practice-btn", header);
         // Issue #125: Settings moved into the menu; the header keeps no separate Settings link.
         Assert.DoesNotContain("href=\"settings\"", header);
@@ -89,22 +89,24 @@ public sealed class Issue122HomeHudTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", 6, 5)]
-    [InlineData("de", 6, 5)]
-    [InlineData("ru", 80, 79)]
-    public async Task PrimaryUpgradeButton_ExposesAvailableSkillPoints_AndIsTheOnlyUpgradeEntry(string language, int level, int skillPoints)
+    [InlineData("en", 6)]
+    [InlineData("de", 6)]
+    [InlineData("ru", 80)]
+    public async Task Header_HasNoUpgradeButton_AndMenuOffersUpgradeTerminalWhenDiscovered(string language, int level)
     {
         await using var f = await HomeFixture.CreateAsync(this, new(Language: language, PlayerLevel: level));
         await f.InvokeHomeAsync("StartOrResumePractice");
 
         var html = await f.GetHtmlAsync();
-        var button = Regex.Match(html, @"<button type=""button"" class=""button button-secondary upgrade-nav-btn""[\s\S]*?</button>").Value;
-
-        Assert.Contains($">{skillPoints}</span>", button);
-        Assert.Contains($"aria-label=\"{f.Localizer["UpgradeTerminal_IndicatorAriaLabel", skillPoints]}\"", button);
-        Assert.Single(Regex.Matches(html, "upgrade-nav-btn"));
+        var header = Regex.Match(html, @"<header class=""mathfirst-header""[\s\S]*?</header>").Value;
+        Assert.DoesNotContain("upgrade-nav-btn", header);
+        Assert.DoesNotContain("header-sp-badge", header);
         Assert.DoesNotContain("upgrade-indicator-badge", html);
         Assert.DoesNotContain("upgrade-indicator", html);
+
+        await f.InvokeHomeAsync("PausePractice");
+        var menu = await f.GetHtmlAsync();
+        Assert.Contains("pause-upgrade-btn", menu);
     }
 
     [Fact]
@@ -136,7 +138,7 @@ public sealed class Issue122HomeHudTests : IDisposable
         var open = await f.GetHtmlAsync();
         Assert.Contains("upgrade-terminal-dialog", open);
         Assert.DoesNotContain("pause-practice-btn", open);
-        Assert.Matches(@"upgrade-nav-btn[^>]*disabled", open);
+        Assert.DoesNotContain("upgrade-nav-btn", open);
 
         await f.InvokeHomeAsync("CloseUpgradeTerminal");
         Assert.False(f.IsUpgradeTerminalOpen);

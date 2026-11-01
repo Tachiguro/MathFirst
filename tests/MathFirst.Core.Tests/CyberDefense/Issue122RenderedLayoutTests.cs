@@ -28,7 +28,7 @@ public sealed class Issue122RenderedLayoutTests : IDisposable
 
     private static readonly string[] GeometrySelectors =
     [
-        ".mathfirst-header", ".upgrade-nav-btn", ".pause-practice-btn", ".practice-layout",
+        ".mathfirst-header", ".pause-practice-btn", ".practice-layout",
         ".expression-row", ".answer-input", ".numeric-keypad", ".operation-progress-hud", ".player-shield-panel", ".player-hp-bar"
     ];
 
@@ -141,16 +141,15 @@ public sealed class Issue122RenderedLayoutTests : IDisposable
         // Header actions: reachable, unclipped, uncovered and a usable touch target; the removed toggle leaves no gap or overlap.
         // Issue #125: the single Menu control replaced Pause and Settings (44 px), and the starter learner (Level 1, no
         // Skill Points ever earned) sees no Upgrade entry until it is genuinely discovered.
-        var upgradeDiscovered = !id.Contains("/starter/", StringComparison.Ordinal);
-        if (!upgradeDiscovered && rects.GetProperty(".upgrade-nav-btn").ValueKind == JsonValueKind.Object)
-            violations.Add($"{id}: Upgrade advertised before it was discovered");
-        foreach (var selector in upgradeDiscovered ? new[] { ".upgrade-nav-btn", ".pause-practice-btn" } : [".pause-practice-btn"])
+        if (rects.GetProperty(".upgrade-nav-btn").ValueKind == JsonValueKind.Object)
+            violations.Add($"{id}: .upgrade-nav-btn must not exist in header");
+        foreach (var selector in new[] { ".pause-practice-btn" })
         {
             var rect = rects.GetProperty(selector);
             if (rect.ValueKind != JsonValueKind.Object) { violations.Add($"{id}: {selector} missing"); continue; }
             if (clip.GetProperty(selector).GetDouble() < 0.99) violations.Add($"{id}: {selector} clipped");
             if (!probe.GetProperty("hit").GetProperty(selector).GetBoolean()) violations.Add($"{id}: {selector} covered by another element");
-            var minimum = selector == ".pause-practice-btn" ? 44 : 28;
+            var minimum = 44;
             if (rect.GetProperty("height").GetDouble() < minimum || rect.GetProperty("width").GetDouble() < minimum)
                 violations.Add($"{id}: {selector} hit target too small ({rect.GetProperty("width").GetDouble():0.0}x{rect.GetProperty("height").GetDouble():0.0})");
         }
@@ -160,7 +159,7 @@ public sealed class Issue122RenderedLayoutTests : IDisposable
         {
             var with = baseline.GetProperty("rects").GetProperty(selector);
             var now = rects.GetProperty(selector);
-            if (!upgradeDiscovered && selector == ".upgrade-nav-btn" && with.ValueKind != JsonValueKind.Object && now.ValueKind != JsonValueKind.Object) continue;
+
             if (with.ValueKind != JsonValueKind.Object || now.ValueKind != JsonValueKind.Object) { violations.Add($"{id}: {selector} missing in comparison"); continue; }
             if (HostSelectors.Contains(selector)) continue;
             foreach (var edge in new[] { "top", "left", "width", "height" })

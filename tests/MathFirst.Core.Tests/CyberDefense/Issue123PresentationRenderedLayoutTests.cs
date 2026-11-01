@@ -142,16 +142,10 @@ public sealed class Issue123PresentationRenderedLayoutTests : IDisposable
         }
 
         var target = probe.GetProperty("spotlightTarget");
-        if (!spotlight)
+        if (target.ValueKind != JsonValueKind.Null)
         {
-            if (target.ValueKind != JsonValueKind.Null) violations.Add($"{id}: spotlight target active during an unlock announcement");
-            return;
+            violations.Add($"{id}: spotlight target should be null since header upgrade spotlight was removed");
         }
-        if (target.ValueKind != JsonValueKind.Object) { violations.Add($"{id}: spotlighted header Upgrade control missing"); return; }
-        if (target.GetProperty("visible").GetDouble() < 0.99) violations.Add($"{id}: spotlighted Upgrade control not fully visible");
-        if (!target.GetProperty("hit").GetBoolean()) violations.Add($"{id}: spotlighted Upgrade control covered (not tappable)");
-        if (target.GetProperty("disabled").GetBoolean()) violations.Add($"{id}: spotlighted Upgrade control disabled");
-        if (target.GetProperty("overlapsCard").GetBoolean()) violations.Add($"{id}: spotlight card overlaps the spotlighted control");
     }
 
     // The Issue #117 terminal contract holds with the advice shown: at ordinary text sizes the header, status and Close

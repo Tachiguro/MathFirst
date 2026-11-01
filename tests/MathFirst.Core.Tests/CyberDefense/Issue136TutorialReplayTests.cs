@@ -74,8 +74,16 @@ public sealed class Issue136TutorialReplayTests : IDisposable
         Assert.False(f.Session.IsTimingActive);
         Assert.Equal(700, f.Session.GetCurrentActiveElapsedMs());
 
-        if (skip) await f.SkipTutorialAsync();
-        else await FinishFromLastStepAsync(f);
+        if (skip)
+        {
+            await f.SkipTutorialAsync();
+        }
+        else
+        {
+            await f.DispatchAsync(() => (Task)tutorial.GetType().GetMethod("NextAsync")!.Invoke(tutorial, null)!);
+            await f.DispatchAsync(() => (Task)tutorial.GetType().GetMethod("NextAsync")!.Invoke(tutorial, null)!);
+            await FinishFromLastStepAsync(f);
+        }
 
         // The menu returns, still paused, with focus on its Continue; only that Continue resumes, once.
         Assert.False(f.IsTutorialOpen);

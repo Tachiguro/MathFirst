@@ -711,9 +711,9 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         var home = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Pages", "Home.razor"));
         var hud = File.ReadAllText(GetRepositoryPath("src", "MathFirst.App", "Components", "Training", "CyberDefenseHud.razor"));
 
-        Assert.Contains("EffectiveAvailableSp > 0", home, StringComparison.Ordinal);
-        Assert.Contains("header-sp-badge", home, StringComparison.Ordinal);
-        Assert.Contains("UpgradeTerminal_IndicatorAriaLabel", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("upgrade-nav-btn", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("header-sp-badge", home, StringComparison.Ordinal);
+        Assert.Contains("pause-practice-btn", home, StringComparison.Ordinal);
         Assert.DoesNotContain("upgrade-indicator", hud, StringComparison.Ordinal);
     }
 
@@ -827,9 +827,9 @@ public sealed class UpgradeTerminalHomeIntegrationTests : IDisposable
         var headerContent = home.Substring(headerStart, headerEnd - headerStart + 9);
 
         // MINOR-01 Requirement 3: the Upgrade button is disabled when modal is open; the mode toggle no longer exists (Issue #122)
-        Assert.Contains("upgrade-nav-btn", headerContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("upgrade-nav-btn", headerContent, StringComparison.Ordinal);
         Assert.DoesNotContain("mode-toggle", headerContent, StringComparison.Ordinal);
-        Assert.Contains("disabled=\"@(_isSubmitting || _isUpgradeTerminalOpen)\"", headerContent, StringComparison.Ordinal);
+        Assert.Contains("pause-practice-btn", headerContent, StringComparison.Ordinal);
 
         // 3. Requirement 4: State-dependent evaluation simulation
         // In Blazor, binding null removes the attribute, while true/"true" renders the attribute

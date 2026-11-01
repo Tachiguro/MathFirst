@@ -597,7 +597,7 @@ namespace MathFirst.Core.Tests.CyberDefense
         {
             await using var fixture = await Fixture.Create(victory: false, upgrades: true, withoutFirewall: true);
             await fixture.Render();
-            Assert.Contains("upgrade-nav-btn", await fixture.Html());
+            Assert.DoesNotContain("upgrade-nav-btn", await fixture.Html());
             var shown = fixture.WhenStage(CyberDefensePresentationStage.SystemOverload);
             var submission = fixture.Submit(correct: false);
             await Task.WhenAny(shown, submission);
@@ -609,7 +609,7 @@ namespace MathFirst.Core.Tests.CyberDefense
 
             Assert.Equal(1, (await fixture.Store.GetRunStateAsync()).Sector);
             Assert.True(fixture.Field<UpgradeTerminalViewModel>("_upgradeTerminalViewModel").IsUpgradeDiscovered);
-            Assert.Contains("upgrade-nav-btn", await fixture.Html());
+            Assert.DoesNotContain("upgrade-nav-btn", await fixture.Html());
             await fixture.Invoke("OpenGameMenu");
             await fixture.Render();
             Assert.Contains("pause-upgrade-btn", await fixture.Html());

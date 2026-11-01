@@ -45,26 +45,6 @@
                 </div>
             </div>
             <div class="practice-header-actions">
-                @* Issue #125: Upgrade is advertised only after the first earned purchasing opportunity. *@
-                @if (IsCyberDefenseActive && IsUpgradeDiscovered)
-                {
-                    <button type="button"
-                            class="button button-secondary upgrade-nav-btn"
-                            data-spotlight-id="upgrade-header"
-                            disabled="@(_isSubmitting || _isUpgradeTerminalOpen)"
-                            title='@Localizer["UpgradeTerminal_HeaderAction"]'
-                            aria-label='@Localizer["UpgradeTerminal_HeaderAction"]'
-                            @onclick="OpenUpgradeTerminalAsync">
-                        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-                            <polygon points="8 1 1 13 8 10 15 13 8 1" />
-                        </svg>
-                        <span class="upgrade-nav-text">@Localizer["UpgradeTerminal_HeaderAction"]</span>
-                        @if (EffectiveAvailableSp > 0)
-                        {
-                            <span class="header-sp-badge" aria-label='@Localizer["UpgradeTerminal_IndicatorAriaLabel", EffectiveAvailableSp]'>@EffectiveAvailableSp</span>
-                        }
-                    </button>
-                }
                 @* Issue #125: the single Menu control replaces Pause and Settings; it opens the ManualPause menu. *@
                 @if (CanOpenGameMenu)
                 {
@@ -537,7 +517,7 @@
             }
             @if (_isTutorialOpen)
             {
-                <CyberDefenseTutorial OnFinished="HandleTutorialFinishedAsync"
+                <CyberDefenseTutorial IsManualReplay="_isTutorialManualReplay" OnFinished="HandleTutorialFinishedAsync"
                                       OnSkipped="HandleTutorialSkippedAsync"
                                       OnStepChanged="HandleTutorialStepChanged"
                                       Localizer="Localizer"
@@ -556,6 +536,7 @@
     }
 
     private bool _isTutorialOpen;
+    private bool _isTutorialManualReplay;
     private bool _hasDeferredTutorialTimingResume;
     private TutorialResumptionReason _tutorialResumptionReason = TutorialResumptionReason.None;
     private long _tutorialCapturedLearnerGeneration = -1;
@@ -564,14 +545,13 @@
     private CyberDefenseTutorial? _tutorialComponent;
 
     private string? ActiveSpotlightTarget =>
-        _isUpgradeSpotlightOpen ? "upgrade-header" :
         _isTutorialOpen ? _tutorialCurrentStep switch
         {
             CyberDefenseTutorial.CyberDefenseTutorialStep.StoryCard => "story-intro",
             CyberDefenseTutorial.CyberDefenseTutorialStep.Enemy => "enemy-hud",
             CyberDefenseTutorial.CyberDefenseTutorialStep.ExpressionKeypad => "expression-keypad",
             CyberDefenseTutorial.CyberDefenseTutorialStep.SystemIntegrity => "system-integrity",
-            _ => "none"
+            _ => null
         } : null;
 
     // Issue #123: one-time presentations newly earned by a committed answer. The submission task never waits for them:
@@ -793,6 +773,11 @@
         if (CanPresentTutorialReplay)
         {
             CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+            _isTutorialManualReplay = true;
+        }
+        else
+        {
+            _isTutorialManualReplay = false;
         }
         _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
         _tutorialCapturedFactRevision = Session.FactInstanceRevision;
@@ -1844,6 +1829,11 @@
             if (CyberDefenseSessionState.IsTutorialReplayRequested)
             {
                 CyberDefenseSessionState.ConsumeTutorialReplayRequest();
+                _isTutorialManualReplay = true;
+            }
+            else
+            {
+                _isTutorialManualReplay = false;
             }
 
             _tutorialCapturedLearnerGeneration = Session.LearnerStateGenerationRevision;
@@ -1906,6 +1896,7 @@
         }
 
         _isTutorialOpen = false;
+        _isTutorialManualReplay = false;
 
         try
         {
@@ -2102,6 +2093,7 @@
             return;
         }
 
+        _isTutorialManualReplay = true;
         CyberDefenseSessionState.RequestTutorialReplay();
         PresentTutorialInPlace();
     }
